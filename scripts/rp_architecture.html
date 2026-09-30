@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --text: #1F2937;
+    --text-sub: #6B7280;
+    --bg: #FFFFFF;
+    --border: #E5E7EB;
+    --connector: #94A3B8;
+    --accent: #1B6B7A;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  #root { width: fit-content; min-width: 1180px; margin: 0 auto; padding: 44px 48px; background: #FFFFFF; }
+
+  .arch-title { font-size: 22px; font-weight: 700; text-align: center; color: #16222A; }
+  .arch-subtitle { font-size: 13.5px; color: var(--text-sub); text-align: center; margin-top: 8px; margin-bottom: 34px; }
+
+  .layer {
+    border-radius: 12px;
+    padding: 18px 22px 20px;
+    position: relative;
+    border: 1.5px solid;
+  }
+  .layer-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .layer-name { font-size: 15.5px; font-weight: 700; letter-spacing: 0.4px; }
+  .layer-note { font-size: 12px; color: var(--text-sub); }
+
+  /* Same-hue teal-gray progression, low-saturation fills */
+  .l1 { background: #F2F6F7; border-color: #B9CDD2; }
+  .l2 { background: #ECF3F4; border-color: #A3BFC6; }
+  .l3 { background: #E5EFF1; border-color: #8BB1BA; }
+  .l4 { background: #DEEAED; border-color: #7BA5B0; }
+  .l5 { background: #D6E4E8; border-color: #6C99A5; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    background: #FFFFFF; border: 1.5px solid var(--accent);
+    border-radius: 8px; padding: 9px 14px; text-align: center;
+    box-shadow: 0 1px 2px rgba(15,40,48,0.06);
+  }
+  .chip .t { font-size: 13px; font-weight: 600; color: #123A44; }
+  .chip .d { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+
+  .split { display: flex; gap: 14px; margin-top: 2px; }
+  .split .box {
+    flex: 1; background: #FFFFFF; border: 1.5px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px;
+    box-shadow: 0 1px 2px rgba(15,40,48,0.06);
+  }
+  .split .box .t { font-size: 13px; font-weight: 600; color: #123A44; }
+  .split .box .d { font-size: 11px; color: var(--text-sub); margin-top: 3px; line-height: 1.5; }
+
+  .mvp {
+    margin-top: 12px; border-top: 1px dashed #A9BDC4; padding-top: 10px;
+    font-size: 11.5px; color: #47606B; line-height: 1.55;
+  }
+  .mvp b { color: #123A44; }
+
+  .arrow-row { display: flex; justify-content: center; padding: 6px 0; }
+  .arrow-row svg { display: block; }
+
+  .crossnote {
+    margin-top: 14px; text-align: center; font-size: 11.5px; color: var(--text-sub);
+    border-top: 1px solid var(--border); padding-top: 10px;
+  }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="arch-title">RequirementPilot &#8212; Target System Architecture</div>
+  <div class="arch-subtitle">Layered design as specified in the reference document (Sections 17&#8211;19, 59&#8211;63); MVP consolidation path shown inside the orchestrator layer</div>
+
+  <div class="layer l1">
+    <div class="layer-head"><span class="layer-name">FRONTEND</span><span class="layer-note">Next.js &#183; React &#183; TypeScript &#183; Tailwind CSS &#183; React Flow graphs</span></div>
+    <div class="chip-row">
+      <div class="chip"><div class="t">Interview chat</div><div class="d">stakeholder conversation</div></div>
+      <div class="chip"><div class="t">Requirements</div><div class="d">detail + evidence view</div></div>
+      <div class="chip"><div class="t">Graph view</div><div class="d">traceability + impact</div></div>
+      <div class="chip"><div class="t">Conflicts &amp; decisions</div><div class="d">ledger + history</div></div>
+      <div class="chip"><div class="t">Debt dashboard</div><div class="d">uncertainty + quality</div></div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><svg width="26" height="22"><line x1="13" y1="0" x2="13" y2="14" stroke="#94A3B8" stroke-width="2"/><polygon points="7,13 19,13 13,21" fill="#94A3B8"/></svg></div>
+
+  <div class="layer l2">
+    <div class="layer-head"><span class="layer-name">API LAYER</span><span class="layer-note">FastAPI &#183; Pydantic schemas &#183; project-scoped access control</span></div>
+    <div class="chip-row">
+      <div class="chip"><div class="t">Auth</div></div>
+      <div class="chip"><div class="t">Projects</div></div>
+      <div class="chip"><div class="t">Sessions / turns</div></div>
+      <div class="chip"><div class="t">Requirements CRUD</div></div>
+      <div class="chip"><div class="t">Validation / supersede</div></div>
+      <div class="chip"><div class="t">Conflicts / decisions</div></div>
+      <div class="chip"><div class="t">Change analysis</div></div>
+      <div class="chip"><div class="t">Evaluation runs</div></div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><svg width="26" height="22"><line x1="13" y1="0" x2="13" y2="14" stroke="#94A3B8" stroke-width="2"/><polygon points="7,13 19,13 13,21" fill="#94A3B8"/></svg></div>
+
+  <div class="layer l3">
+    <div class="layer-head"><span class="layer-name">ORCHESTRATOR</span><span class="layer-note">explicit state machine (Conversation &#8594; Evidence &#8594; Requirement &#8594; Uncertainty &#8594; Question &#8594; Validation)</span></div>
+    <div class="chip-row">
+      <div class="chip"><div class="t">Interview agent</div></div>
+      <div class="chip"><div class="t">Evidence extractor</div></div>
+      <div class="chip"><div class="t">Requirement analyst</div></div>
+      <div class="chip"><div class="t">Ambiguity analyst</div></div>
+      <div class="chip"><div class="t">Conflict analyst</div></div>
+      <div class="chip"><div class="t">Question planner</div><div class="d">utility-scored</div></div>
+      <div class="chip"><div class="t">Quality checker</div><div class="d">rules R1&#8211;R8</div></div>
+      <div class="chip"><div class="t">Traceability agent</div></div>
+      <div class="chip"><div class="t">Change-impact agent</div></div>
+      <div class="chip"><div class="t">Report agent</div></div>
+    </div>
+    <div class="mvp"><b>MVP consolidation:</b> 10 logical agents collapse into 3&#8211;5 services &#8212; Supervisor &#183; Interview + Question Planner &#183; Requirement + Evidence Analyst &#183; Validation / Conflict / Ambiguity Checker &#183; Traceability + Change-Impact Worker</div>
+  </div>
+
+  <div class="arrow-row"><svg width="26" height="22"><line x1="13" y1="0" x2="13" y2="14" stroke="#94A3B8" stroke-width="2"/><polygon points="7,13 19,13 13,21" fill="#94A3B8"/></svg></div>
+
+  <div class="layer l4">
+    <div class="layer-head"><span class="layer-name">MODEL &amp; RETRIEVAL SERVICES</span><span class="layer-note">model-agnostic gateway; authority-aware retrieval over project context only</span></div>
+    <div class="split">
+      <div class="box"><div class="t">LLM gateway</div><div class="d">provider adapter &#183; structured JSON outputs &#183; prompt registry &#183; caching; small model for classification, strong model for reasoning</div></div>
+      <div class="box"><div class="t">Retrieval / tools</div><div class="d">pgvector semantic search &#183; glossary &#183; policies &#183; prior decisions; every item carries source_id, version, authority, status</div></div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><svg width="26" height="22"><line x1="13" y1="0" x2="13" y2="14" stroke="#94A3B8" stroke-width="2"/><polygon points="7,13 19,13 13,21" fill="#94A3B8"/></svg></div>
+
+  <div class="layer l5">
+    <div class="layer-head"><span class="layer-name">DATA LAYER</span><span class="layer-note">PostgreSQL + pgvector (Neo4j deferred until graph queries become a bottleneck)</span></div>
+    <div class="chip-row">
+      <div class="chip"><div class="t">22 core entities</div><div class="d">requirement, evidence, ambiguity, conflict&#8230;</div></div>
+      <div class="chip"><div class="t">Versioning</div><div class="d">event-style requirement history</div></div>
+      <div class="chip"><div class="t">Audit log</div><div class="d">who changed what, why</div></div>
+      <div class="chip"><div class="t">Trace links</div><div class="d">typed, confidence-bearing edges</div></div>
+      <div class="chip"><div class="t">Evaluation store</div><div class="d">runs + metric results</div></div>
+    </div>
+  </div>
+
+  <div class="crossnote">Design principle: the LLM proposes, deterministic logic verifies &#8212; no requirement enters the baseline without evidence and human approval.</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,2002 @@
+     1→# RequirementPilot
+     2→## Agentic, Evidence-Grounded Requirements Engineering for Real Stakeholder Conversations
+     3→
+     4→> **Project reference document — research + product + implementation blueprint**
+     5→>
+     6→> **Research snapshot:** 30 September 2026
+     7→>
+     8→> **Status:** Graduation / Internship Project Reference
+     9→>
+    10→> **Working title:** RequirementPilot
+    11→>
+    12→> **Core idea:** Build an AI requirements engineer that does not merely generate requirements from a prompt. It conducts a structured stakeholder interview, identifies missing/ambiguous/conflicting information, preserves evidence and decisions, turns validated information into a living requirements model, and propagates approved changes through downstream artifacts.
+    13→
+    14→---
+    15→
+    16→## 0. Important positioning decision
+    17→
+    18→The original idea of a generic **"AI Requirements Engineer"** is no longer sufficiently novel by itself. Research and commercial systems already cover requirement extraction, user-story generation, acceptance-criteria generation, conversational elicitation, latent requirement discovery, conflict detection, change-impact analysis, requirements-to-code traceability, and multi-agent requirements/architecture workflows.
+    19→
+    20→Therefore, this project must **not** be presented as:
+    21→
+    22→> "An LLM that converts stakeholder text into requirements."
+    23→
+    24→The project should instead be positioned as:
+    25→
+    26→> **"A human-in-the-loop, evidence-grounded, change-aware requirements engineering system that actively interviews stakeholders, manages uncertainty and conflicts, and maintains a traceable requirements lifecycle."**
+    27→
+    28→The strongest differentiating direction is not one isolated feature. It is the **integration of several RE controls into one living, auditable system**, plus a focused research contribution around **question selection, evidence/provenance, uncertainty, and Arabic/Egyptian-Arabic mixed-language requirements elicitation**.
+    29→
+    30→**Novelty warning:** this document deliberately does **not** claim that every proposed feature is globally unprecedented. The literature is changing extremely quickly. The novelty statements below mean that, in the sources searched for this project, an **exact combination or exact implementation was not found**. Before submitting a paper or claiming "first," perform a final systematic search and citation check.
+    31→
+    32→---
+    33→
+    34→# 1. Executive Summary
+    35→
+    36→## 1.1 The problem
+    37→
+    38→Real stakeholders rarely provide clean software requirements.
+    39→
+    40→A stakeholder may say:
+    41→
+    42→> "عايز العميل يقدر يلغي الأوردر، بس بعد ما السواق يتحرك الموضوع يختلف، ولو المشكلة من عندنا الفلوس لازم ترجعله. وكمان المدير يشوف كل حاجة."
+    43→
+    44→This single statement contains multiple requirement candidates, exceptions, an undefined policy boundary, an actor distinction, and an implied business rule.
+    45→
+    46→A conventional LLM can immediately generate polished user stories. That is dangerous because the polished language can hide missing information rather than solve it.
+    47→
+    48→The real requirements-engineering problem is:
+    49→
+    50→1. identify what was actually stated;
+    51→2. distinguish explicit needs from inferred possibilities;
+    52→3. detect missing information;
+    53→4. detect ambiguous language;
+    54→5. detect conflicts between requirements or stakeholders;
+    55→6. ask the next question that provides the most useful clarification;
+    56→7. preserve source evidence and rationale;
+    57→8. transform validated answers into structured requirements;
+    58→9. connect requirements to acceptance criteria, tests, design artifacts and implementation tasks;
+    59→10. detect downstream impact when a requirement changes;
+    60→11. maintain a history of what changed, why, who approved it, and what remains unresolved.
+    61→
+    62→---
+    63→
+    64→# 2. What existing research already covers
+    65→
+    66→The project was benchmarked against recent research through September 2026.
+    67→
+    68→## 2.1 RECOVER — requirements from stakeholder conversations
+    69→
+    70→**RECOVER (Requirements EliCitation frOm conVERsations)** analyzes stakeholder conversations and automatically extracts system requirements. It evaluates both turn-level identification and conversation-level synthesis, including correctness, completeness and actionability. The work appeared in *IEEE Transactions on Software Engineering* and was also presented at ICSE 2026.
+    71→
+    72→Key implication for this project:
+    73→
+    74→> "I analyze stakeholder conversations and generate requirements" is already known.
+    75→
+    76→Source:
+    77→- IEEE / institutional record: https://doi.org/10.1109/TSE.2025.3572056
+    78→- arXiv: https://arxiv.org/abs/2411.19552
+    79→- ICSE 2026: https://conf.researchr.org/details/icse-2026/icse-2026-journal-first-papers/71/RECOVER-Toward-Requirements-Generation-from-Stakeholders-Conversations
+    80→
+    81→---
+    82→
+    83→## 2.2 LENS — latent requirements from stakeholder interviews
+    84→
+    85→A June 2026 preprint, **LENS (LLM-Enabled Needs Discovery from Stakeholder Interviews)**, goes beyond explicit extraction. It analyzes interview transcripts and organizational context to infer **latent requirements** that stakeholders did not directly articulate. Each inferred requirement is accompanied by rationale and transcript traceability. The preliminary industrial evaluation used twelve cybersecurity-operations interviews and reported an average explicit-requirement F1 of 84.4%; 75% of latent requirements were rated by domain experts as having useful automation/time-saving potential.
+    86→
+    87→Key implication:
+    88→
+    89→> "We will discover hidden/implicit requirements from conversations" is no longer safe as the only novelty.
+    90→
+    91→Source:
+    92→- arXiv: https://arxiv.org/abs/2606.25867
+    93→
+    94→Important detail: LENS is especially relevant because it already uses an **explicit vs. latent requirement distinction**, organizational context, rationale generation, and source traceability.
+    95→
+    96→---
+    97→
+    98→## 2.3 OntoAgent — agentic requirements interview
+    99→
+   100→A May 2026 paper, **From Chat to Interview: Agentic Requirements Elicitation with an Experience Ontology**, introduces OntoAgent. It argues that free-form LLM chat can miss implicit requirements and ask redundant questions. OntoAgent first induces an **experience ontology** from domain requirements and then uses operations called `ParseUser`, `ScoreOnto`, `ReRankOnto`, and `GatePrune` to select requirement concerns and generate interview questions.
+   101→
+   102→The paper evaluates the approach on website-application requirements and reports a 33% improvement in IRE and 21% improvement in TKQR relative to the comparison baselines.
+   103→
+   104→Key implication:
+   105→
+   106→> "Our novelty is an agent that interviews the stakeholder instead of just chatting" is already being actively researched.
+   107→
+   108→Source:
+   109→- arXiv: https://arxiv.org/abs/2605.05828
+   110→
+   111→Related code/evaluation ecosystem:
+   112→- ReqElicitBench / ReqElicitGym: https://github.com/jdm4pku/ReqElicitBench
+   113→
+   114→---
+   115→
+   116→## 2.4 ReqElicitGym — evaluation of interview competence
+   117→
+   118→The ReqElicitGym repository provides an interactive evaluation environment for conversational requirements elicitation. It contains 101 website requirements-elicitation scenarios across 10 application types, an LLM-based simulated stakeholder, a judge, conversation logs, and quantitative metrics.
+   119→
+   120→Key implication:
+   121→
+   122→> The project should not invent an evaluation strategy from scratch; it should build on established benchmark ideas while adding a new test dimension such as Arabic/Egyptian Arabic, evidence quality, or cross-artifact impact.
+   123→
+   124→Source:
+   125→- GitHub: https://github.com/jdm4pku/ReqElicitBench
+   126→
+   127→---
+   128→
+   129→## 2.5 ProReFiCIA — requirements change-impact analysis
+   130→
+   131→ProReFiCIA is an LLM-driven change-impact analysis approach published in 2026. It takes a natural-language change rationale and identifies the affected requirements. The final version reports 85.7% recall on an unseen industrial dataset while requiring review of only about 3.0% of requirements; adding domain knowledge through RAG raised recall to 95.8% while increasing the review share to about 3.4%.
+   132→
+   133→Its workflow includes prompt optimization, model/prompt selection, refinement, filtering, and domain-knowledge augmentation.
+   134→
+   135→Key implication:
+   136→
+   137→> "Our system tells which requirements are affected when one requirement changes" is also already a standalone research contribution.
+   138→
+   139→Source:
+   140→- arXiv HTML: https://arxiv.org/html/2511.00262v6
+   141→- arXiv record: https://arxiv.org/abs/2511.00262
+   142→
+   143→---
+   144→
+   145→## 2.6 Arabic requirements conflict detection — AraREQ
+   146→
+   147→AraREQ, published at LREC 2026, provides a large Arabic dataset for requirements conflict detection and resolution. It contains roughly 27K Arabic requirement pairs, benchmarks four state-of-the-art LLMs in zero-shot and few-shot settings, and provides an end-to-end conflict detection and resolution system with code/data.
+   148→
+   149→Key implication:
+   150→
+   151→> "We will make requirements conflict detection in Arabic" is now a documented research line.
+   152→
+   153→Source:
+   154→- ACL Anthology: https://aclanthology.org/2026.lrec-1.553/
+   155→- Resources: https://sina.birzeit.edu/ArReqConflicts/
+   156→
+   157→---
+   158→
+   159→## 2.7 Arabic ambiguity detection is not new either
+   160→
+   161→Arabic requirements elicitation and ambiguity have been studied well before the current LLM wave. A 2013 paper introduced an interactive Arabic Requirements Elicitation Assistance System, and later research studied practices for avoiding ambiguity in Arabic software requirements. A 2024 study explicitly investigated ambiguity detection in Arabic requirement documents with machine learning.
+   162→
+   163→Sources:
+   164→- 2013 AREAS paper: https://www.researchgate.net/publication/279235045_An_Interactive_System_for_Arabic_Software_Requirements_Elicitation
+   165→- Arabic ambiguity practices: https://www.earticle.net/Article/A280401
+   166→- 2024 ambiguity detection: https://www.sciencedirect.com/org/science/article/pii/S2156183424000044
+   167→
+   168→Key implication:
+   169→
+   170→The project should not claim simply:
+   171→
+   172→> "Arabic requirements are under-researched."
+   173→
+   174→A more defensible claim is:
+   175→
+   176→> "Modern LLM-based, evidence-grounded, multi-turn requirements engineering for Egyptian Arabic / code-switched Arabic-English stakeholder conversations remains a focused opportunity, especially when evaluated end-to-end rather than on isolated classification tasks."
+   177→
+   178→---
+   179→
+   180→## 2.8 Requirements-to-code traceability is crowded
+   181→
+   182→Recent work includes:
+   183→
+   184→- LLM data augmentation for requirements traceability;
+   185→- HGTRTracer, which combines LLM reasoning and graph-based traceability;
+   186→- R2Code, a self-reflective LLM framework for requirements-to-code traceability;
+   187→- 2026 work combining LLM augmentation with advanced encoders;
+   188→- Code Gradients for tracing LLM-generated code back to requirements.
+   189→
+   190→Sources:
+   191→- https://arxiv.org/abs/2509.20149
+   192→- https://doi.org/10.1109/apsec66846.2025.00070
+   193→- https://doi.org/10.48550/arXiv.2604.22432
+   194→- https://www.sciencedirect.com/science/article/pii/S0950584926000340
+   195→- https://ieeexplore.ieee.org/abstract/document/10628471
+   196→
+   197→Therefore, a simple "requirement → code link" feature is not enough.
+   198→
+   199→---
+   200→
+   201→## 2.9 Multi-agent architecture from requirements is already active
+   202→
+   203→MAAD (Multi-Agent Architecture Design), introduced in 2026, uses four agents — Analyst, Modeler, Designer and Evaluator — plus RAG and hierarchical memory to transform requirements into architecture blueprints. It evaluates architecture completeness, modularity, traceability and quality attributes.
+   204→
+   205→Sources:
+   206→- arXiv: https://arxiv.org/abs/2606.01385
+   207→- replication package: https://github.com/RuiyinL/MAAD
+   208→
+   209→Therefore, the project should not claim novelty merely by adding multiple agents.
+   210→
+   211→---
+   212→
+   213→## 2.10 Multi-agent stakeholder negotiation is also emerging
+   214→
+   215→MedNegotiator, published in 2026, applies persona-driven generative AI agents, utility functions, Nash bargaining and safety guards to requirements negotiation in healthcare.
+   216→
+   217→Source:
+   218→- https://www.sciencedirect.com/science/article/pii/S2590005626001062
+   219→
+   220→This means that "multiple agents negotiate requirements" is not untouched territory. A differentiated implementation would need a different research question or context.
+   221→
+   222→---
+   223→
+   224→# 3. What the literature suggests is still worth building
+   225→
+   226→After comparing these lines of work, the project should aim at **integration + measurable engineering controls**, not another isolated generator.
+   227→
+   228→The strongest project identity is:
+   229→
+   230→> **RequirementPilot is an evidence-first, change-aware, human-in-the-loop requirements operating system for ambiguous stakeholder conversations.**
+   231→
+   232→The system treats a requirement as a living engineering object, not as a sentence generated by an LLM.
+   233→
+   234→---
+   235→
+   236→# 4. Proposed novelty contributions
+   237→
+   238→The following are **candidate novelty contributions**, ordered from the most central to optional.
+   239→
+   240→## N1 — Evidence-first Requirement Objects
+   241→
+   242→Every requirement in the system must contain provenance and evidence metadata.
+   243→
+   244→A requirement should never exist as only:
+   245→
+   246→```text
+   247→REQ-017: The customer can cancel an order before dispatch.
+   248→```
+   249→
+   250→Instead, it should be modeled as:
+   251→
+   252→```json
+   253→{
+   254→  "id": "REQ-017",
+   255→  "statement": "The customer can cancel an order before dispatch.",
+   256→  "type": "functional",
+   257→  "status": "proposed",
+   258→  "source_spans": ["conversation_12", "turn_38"],
+   259→  "evidence_level": "explicit",
+   260→  "evidence_text": "...",
+   261→  "speaker": "customer",
+   262→  "stakeholder_role": "customer",
+   263→  "rationale": "...",
+   264→  "assumptions": [],
+   265→  "ambiguities": [],
+   266→  "confidence": 0.96,
+   267→  "validated_by": null,
+   268→  "approval_status": "pending",
+   269→  "created_by": "elicitation_agent",
+   270→  "created_at": "...",
+   271→  "version": 1
+   272→}
+   273→```
+   274→
+   275→### Why this matters
+   276→
+   277→It creates a distinction between:
+   278→
+   279→- what the stakeholder explicitly said;
+   280→- what the system inferred;
+   281→- what the analyst proposed;
+   282→- what a stakeholder validated;
+   283→- what remains uncertain.
+   284→
+   285→The system must never silently convert an inference into an official requirement.
+   286→
+   287→### Candidate research question
+   288→
+   289→> Does explicit evidence classification and provenance reduce hallucinated or unsupported requirements compared with conventional LLM-only requirements generation?
+   290→
+   291→---
+   292→
+   293→# 5. N2 — Adaptive Question Selection using uncertainty + information gain + impact
+   294→
+   295→OntoAgent already uses ontology-guided question selection. The project can go in a different direction by treating the interview as an **active uncertainty-reduction problem**.
+   296→
+   297→At each turn, the system maintains a set of unresolved requirement uncertainties:
+   298→
+   299→```text
+   300→U1: Who can cancel an order?
+   301→U2: When can cancellation occur?
+   302→U3: Is refund automatic?
+   303→U4: What exceptions exist?
+   304→U5: What happens if payment already settled?
+   305→```
+   306→
+   307→Each candidate question gets a utility score:
+   308→
+   309→```text
+   310→Question Utility =
+   311→    Information Gain
+   312→  × Requirement Impact
+   313→  × Ambiguity Reduction
+   314→  × Downstream Risk
+   315→  - User Effort
+   316→  - Redundancy
+   317→```
+   318→
+   319→The question is not simply "What sounds reasonable?"
+   320→
+   321→It is:
+   322→
+   323→> "Which unanswered question will remove the most uncertainty from the requirements model while causing the least stakeholder burden?"
+   324→
+   325→Expected information gain is an established concept for asking informative questions in LLM systems, so the novelty here should be the **requirements-engineering objective function and downstream impact weighting**, not the information-gain concept itself.
+   326→
+   327→Relevant general research:
+   328→- https://aclanthology.org/2024.findings-emnlp.291/
+   329→
+   330→Relevant requirements interview work:
+   331→- https://arxiv.org/abs/2605.05828
+   332→
+   333→---
+   334→
+   335→# 6. N3 — Ambiguity branching with behavioral divergence
+   336→
+   337→This is one of the most promising technical directions.
+   338→
+   339→Suppose the stakeholder says:
+   340→
+   341→> "The manager can approve requests quickly."
+   342→
+   343→The system identifies possible interpretations:
+   344→
+   345→```text
+   346→Interpretation A:
+   347→Manager can approve directly.
+   348→
+   349→Interpretation B:
+   350→Manager approval is conditional on department.
+   351→
+   352→Interpretation C:
+   353→Manager approval means two-step approval.
+   354→```
+   355→
+   356→Instead of asking a generic question, the system generates a small **interpretation branch set**.
+   357→
+   358→For each branch, it constructs the expected downstream behavior:
+   359→
+   360→```text
+   361→A → one approval state
+   362→B → approval + department policy
+   363→C → approval + second reviewer
+   364→```
+   365→
+   366→Then it asks:
+   367→
+   368→> "Do you mean A, B, or C?"
+   369→
+   370→Or it asks a more natural question that separates the branches.
+   371→
+   372→This direction is related to ClarifyGPT and recent ambiguity-aware software engineering research, but the project can make the contribution specifically about **requirements-model branching and downstream behavioral divergence before implementation**.
+   373→
+   374→Related sources:
+   375→- ClarifyGPT: https://arxiv.org/abs/2310.10996
+   376→- Orchid ambiguous-requirement benchmark: https://arxiv.org/abs/2604.21505
+   377→
+   378→---
+   379→
+   380→# 7. N4 — A Requirement Uncertainty Ledger
+   381→
+   382→Create a first-class object called a **Requirement Uncertainty Ledger**.
+   383→
+   384→Every requirement may carry:
+   385→
+   386→```text
+   387→certainty_state:
+   388→    confirmed
+   389→    likely
+   390→    inferred
+   391→    ambiguous
+   392→    conflicting
+   393→    blocked
+   394→    obsolete
+   395→```
+   396→
+   397→And:
+   398→
+   399→```text
+   400→uncertainty_reasons:
+   401→    missing_actor
+   402→    missing_condition
+   403→    vague_quantity
+   404→    undefined_term
+   405→    conflicting_stakeholders
+   406→    missing_exception
+   407→    missing_nfr
+   408→    unsupported_inference
+   409→```
+   410→
+   411→The product would show something like:
+   412→
+   413→```text
+   414→Project Health
+   415→--------------------------
+   416→Confirmed:        31
+   417→Likely:            8
+   418→Inferred:         12
+   419→Ambiguous:         5
+   420→Conflicting:       2
+   421→Blocked:           3
+   422→
+   423→High-risk uncertainty: 4
+   424→```
+   425→
+   426→This converts "the project still has unclear requirements" into a measurable engineering artifact.
+   427→
+   428→Requirements uncertainty is a well-established topic, but a focused **LLM-era uncertainty ledger connected to evidence, downstream risk, and active questioning** was not identified in the specific LLM requirements sources reviewed for this project.
+   429→
+   430→Background:
+   431→- https://www.sciencedirect.com/science/article/pii/S2666307421000218
+   432→
+   433→---
+   434→
+   435→# 8. N5 — Requirement Debt as a continuously calculated metric
+   436→
+   437→Requirements Engineering Debt is an existing concept. The novelty should therefore not be "requirements debt exists."
+   438→
+   439→Instead, define an operational **Requirement Debt Score** over the project's live model.
+   440→
+   441→Example:
+   442→
+   443→```text
+   444→Debt(REQ) =
+   445→    ambiguity_weight
+   446→  + missing_evidence_weight
+   447→  + unresolved_conflict_weight
+   448→  + untested_weight
+   449→  + stale_dependency_weight
+   450→  + unapproved_inference_weight
+   451→```
+   452→
+   453→Then calculate:
+   454→
+   455→```text
+   456→Project Requirement Debt
+   457→├── Ambiguity debt
+   458→├── Evidence debt
+   459→├── Conflict debt
+   460→├── Traceability debt
+   461→├── Validation debt
+   462→└── Staleness debt
+   463→```
+   464→
+   465→The dashboard can show:
+   466→
+   467→```text
+   468→REQ-021
+   469→Requirement Debt: HIGH
+   470→Reason:
+   471→- no explicit source confirmation
+   472→- references undefined "urgent"
+   473→- affects 4 downstream tests
+   474→- conflicts with REQ-033
+   475→```
+   476→
+   477→Background:
+   478→- https://arxiv.org/abs/1907.10887
+   479→- https://doi.org/10.1016/j.infsof.2023.107201
+   480→- 2025 exploration using LLMs/IDP for requirements debt: https://www.sciencedirect.com/science/article/pii/S1877050925025657
+   481→
+   482→---
+   483→
+   484→# 9. N6 — Stakeholder Voice Preservation
+   485→
+   486→This is a strong product-level differentiator.
+   487→
+   488→Most requirement pipelines collapse all stakeholder statements into one document. The system should preserve **who wanted what, why, and whether the final requirement reflects or modifies that position**.
+   489→
+   490→Example:
+   491→
+   492→```text
+   493→Stakeholder A — Customer Support
+   494→Wants: cancellation allowed after assignment
+   495→Reason: reduce complaints
+   496→
+   497→Stakeholder B — Operations
+   498→Wants: cancellation blocked after dispatch
+   499→Reason: delivery cost
+   500→
+   501→Stakeholder C — Finance
+   502→Wants: refund only when payment is captured
+   503→Reason: reconciliation constraints
+   504→```
+   505→
+   506→The system creates:
+   507→
+   508→```text
+   509→CONFLICT-004
+   510→A ↔ B
+   511→Topic: cancellation timing
+   512→Status: unresolved
+   513→Impact: refund workflow + dispatch workflow
+   514→```
+   515→
+   516→After negotiation:
+   517→
+   518→```text
+   519→Decision:
+   520→Cancellation allowed until driver departure.
+   521→Finance rule remains unchanged.
+   522→```
+   523→
+   524→The final requirement links to **all original positions and the decision rationale**.
+   525→
+   526→This is different from merely detecting conflicts because it maintains a **stakeholder-voice ledger** through the life of the requirement.
+   527→
+   528→Caveat: stakeholder conflict resolution is a long-established RE topic, and multi-agent negotiation has now appeared in 2026. The proposed contribution is specifically the **provenance-preserving consolidation and lifecycle history**, not conflict detection itself.
+   529→
+   530→---
+   531→
+   532→# 10. N7 — Egyptian Arabic / Arabic-English Code-Switching Requirements Benchmark
+   533→
+   534→This should be one of the project's strongest empirical contributions.
+   535→
+   536→Do not simply add an Arabic UI.
+   537→
+   538→Create a benchmark where stakeholders communicate in realistic mixtures such as:
+   539→
+   540→```text
+   541→"عايز الadmin يقدر approve الـrequest لو الـmanager وافق،
+   542→بس لو الـrequest urgent لازم يبقى فيه escalation."
+   543→```
+   544→
+   545→Include:
+   546→
+   547→- Egyptian Arabic;
+   548→- Modern Standard Arabic;
+   549→- Arabic-English code switching;
+   550→- technical English terms;
+   551→- abbreviations;
+   552→- colloquial omission;
+   553→- vague quantities;
+   554→- implied actors;
+   555→- ambiguous references;
+   556→- contradictory stakeholder statements.
+   557→
+   558→Then annotate each conversation with:
+   559→
+   560→```text
+   561→explicit requirements
+   562→latent candidates
+   563→ambiguities
+   564→missing information
+   565→conflicts
+   566→actors
+   567→constraints
+   568→NFR hints
+   569→source spans
+   570→resolution status
+   571→```
+   572→
+   573→The exact benchmark described above was not found in the sources reviewed. Existing Arabic requirements work is primarily MSA/text/document oriented, including AraREQ, while historical work already established Arabic requirements elicitation and ambiguity research.
+   574→
+   575→This makes the **benchmark itself** a potentially publishable contribution.
+   576→
+   577→---
+   578→
+   579→# 11. N8 — End-to-end change propagation from conversation to downstream artifacts
+   580→
+   581→A particularly strong integration idea is:
+   582→
+   583→```text
+   584→Stakeholder says:
+   585→"السقف يبقى 5,000 بدل 2,000"
+   586→```
+   587→
+   588→The system identifies that this modifies:
+   589→
+   590→```text
+   591→REQ-012
+   592→ ↓
+   593→Business Rule BR-004
+   594→ ↓
+   595→User Story US-008
+   596→ ↓
+   597→Acceptance Criteria AC-008-03
+   598→ ↓
+   599→Test TC-021
+   600→ ↓
+   601→API constraint POST /orders
+   602→ ↓
+   603→Database validation
+   604→ ↓
+   605→Implementation Task DEV-044
+   606→```
+   607→
+   608→This should result in a visual **impact propagation graph**.
+   609→
+   610→ProReFiCIA already studies impact among requirements, so your differentiator should be the **cross-artifact, provenance-aware propagation inside the project created by your own requirements lifecycle**.
+   611→
+   612→Do not claim this has never been studied at all; requirements-to-code traceability and change impact are active research areas.
+   613→
+   614→---
+   615→
+   616→# 12. N9 — Requirements "time travel"
+   617→
+   618→A useful product feature:
+   619→
+   620→> "Show me what we knew and why we made this decision at version 3."
+   621→
+   622→For each requirement:
+   623→
+   624→```text
+   625→v1 — inferred from conversation
+   626→v2 — stakeholder clarified actor
+   627→v3 — finance conflict resolved
+   628→v4 — acceptance criterion added
+   629→v5 — changed by product owner
+   630→```
+   631→
+   632→And the user can compare:
+   633→
+   634→```text
+   635→Before
+   636→vs
+   637→After
+   638→
+   639→Why changed?
+   640→Who requested it?
+   641→What evidence supported it?
+   642→What downstream artifacts changed?
+   643→Which tests became invalid?
+   644→```
+   645→
+   646→This builds an **auditability layer** rather than a simple document generator.
+   647→
+   648→---
+   649→
+   650→# 13. N10 — "Explain why you asked me this question"
+   651→
+   652→Every AI interview question can have hidden structured rationale:
+   653→
+   654→```text
+   655→Question:
+   656→"Can a manager approve a request after it expires?"
+   657→
+   658→Reason:
+   659→- detected missing expiration behavior
+   660→- affects REQ-012 and REQ-014
+   661→- currently three valid interpretations exist
+   662→- expected downstream impact = high
+   663→- high expected information gain
+   664→```
+   665→
+   666→The stakeholder sees only a concise explanation when needed, while the system stores the full reasoning metadata.
+   667→
+   668→This is valuable for trust and academic evaluation:
+   669→
+   670→> Can transparent question rationales increase stakeholder acceptance of AI-driven elicitation?
+   671→
+   672→---
+   673→
+   674→# 14. Recommended final project scope
+   675→
+   676→The project should not attempt everything on day one.
+   677→
+   678→## Phase A — Core research prototype
+   679→
+   680→Build:
+   681→
+   682→1. conversational stakeholder interface;
+   683→2. requirement extraction;
+   684→3. evidence/provenance;
+   685→4. ambiguity detection;
+   686→5. uncertainty ledger;
+   687→6. adaptive question selection;
+   688→7. requirement graph;
+   689→8. stakeholder approval;
+   690→9. user-story + acceptance-criteria generation;
+   691→10. evaluation benchmark.
+   692→
+   693→## Phase B — Strong differentiators
+   694→
+   695→Add:
+   696→
+   697→11. stakeholder conflict ledger;
+   698→12. change-impact analysis;
+   699→13. cross-artifact traceability;
+   700→14. requirement debt dashboard;
+   701→15. Arabic/Egyptian-Arabic mode.
+   702→
+   703→## Phase C — Advanced extension
+   704→
+   705→Add:
+   706→
+   707→16. architecture impact;
+   708→17. test generation;
+   709→18. code-task generation;
+   710→19. MCP/IDE integration;
+   711→20. voice interview interface.
+   712→
+   713→---
+   714→
+   715→# 15. Formal problem statement
+   716→
+   717→## 15.1 Input
+   718→
+   719→The system receives one or more of:
+   720→
+   721→- live stakeholder messages;
+   722→- interview transcripts;
+   723→- uploaded meeting transcripts;
+   724→- existing SRS documents;
+   725→- issue tickets;
+   726→- product briefs;
+   727→- policy/regulation documents;
+   728→- organizational context;
+   729→- existing requirements;
+   730→- existing architecture metadata;
+   731→- previous project decisions.
+   732→
+   733→## 15.2 Output
+   734→
+   735→The system produces a continuously maintained requirements model containing:
+   736→
+   737→- functional requirements;
+   738→- non-functional requirements;
+   739→- business rules;
+   740→- actors;
+   741→- constraints;
+   742→- assumptions;
+   743→- ambiguities;
+   744→- conflicts;
+   745→- evidence links;
+   746→- priorities;
+   747→- dependencies;
+   748→- user stories;
+   749→- acceptance criteria;
+   750→- tests;
+   751→- trace links;
+   752→- change-impact reports;
+   753→- decisions;
+   754→- uncertainty status.
+   755→
+   756→## 15.3 Human role
+   757→
+   758→The system is **assistive**, not autonomous authority.
+   759→
+   760→Humans must be able to:
+   761→
+   762→- approve;
+   763→- reject;
+   764→- edit;
+   765→- merge;
+   766→- split;
+   767→- override;
+   768→- resolve conflicts;
+   769→- mark evidence as authoritative;
+   770→- close ambiguities.
+   771→
+   772→An AI-generated requirement should enter the official baseline only after explicit human acceptance.
+   773→
+   774→---
+   775→
+   776→# 16. Product workflow
+   777→
+   778→```mermaid
+   779→flowchart TD
+   780→    A[Stakeholder conversation] --> B[Conversation parser]
+   781→    B --> C[Evidence extractor]
+   782→    C --> D[Requirement candidates]
+   783→    D --> E[Ambiguity / missing-info detector]
+   784→    E --> F[Conflict detector]
+   785→    F --> G[Uncertainty ledger]
+   786→    G --> H[Question planner]
+   787→    H --> I[Stakeholder clarification]
+   788→    I --> C
+   789→    G --> J[Human validation]
+   790→    J --> K[Canonical requirements model]
+   791→    K --> L[User stories + acceptance criteria]
+   792→    K --> M[Requirement graph]
+   793→    K --> N[Traceability]
+   794→    K --> O[Change impact engine]
+   795→    K --> P[Requirement debt]
+   796→    L --> Q[Tests / development tasks]
+   797→    M --> R[Project dashboard]
+   798→    N --> R
+   799→    O --> R
+   800→    P --> R
+   801→```
+   802→
+   803→---
+   804→
+   805→# 17. System architecture
+   806→
+   807→## 17.1 High-level architecture
+   808→
+   809→```text
+   810→┌─────────────────────────────────────────────────────────────┐
+   811→│                        FRONTEND                             │
+   812→│ Next.js / React                                            │
+   813→│                                                             │
+   814→│  Chat  |  Requirements  |  Graph  |  Conflicts             │
+   815→│  Traceability | Changes | Debt | Decision History          │
+   816→└─────────────────────────┬───────────────────────────────────┘
+   817→                          │
+   818→                          ▼
+   819→┌─────────────────────────────────────────────────────────────┐
+   820→│                       API LAYER                             │
+   821→│ FastAPI                                                     │
+   822→│ Auth / Projects / Sessions / Requirements / Decisions       │
+   823→└─────────────────────────┬───────────────────────────────────┘
+   824→                          │
+   825→                          ▼
+   826→┌─────────────────────────────────────────────────────────────┐
+   827→│                     ORCHESTRATOR                           │
+   828→│ Agent state + workflow engine                               │
+   829→│                                                             │
+   830→│  Interview Agent                                             │
+   831→│  Evidence Agent                                              │
+   832→│  Ambiguity Agent                                             │
+   833→│  Conflict Agent                                              │
+   834→│  Question Planner                                            │
+   835→│  Quality Agent                                               │
+   836→│  Traceability Agent                                          │
+   837→│  Change Impact Agent                                         │
+   838→└───────────────┬────────────────────┬────────────────────────┘
+   839→                │                    │
+   840→                ▼                    ▼
+   841→      ┌──────────────────┐  ┌─────────────────────┐
+   842→      │ LLM Gateway      │  │ Retrieval / Tools   │
+   843→      │ model-agnostic   │  │ vector search       │
+   844→      └──────────────────┘  │ project context     │
+   845→                            │ KB / policies       │
+   846→                            └──────────┬──────────┘
+   847→                                       │
+   848→                                       ▼
+   849→┌─────────────────────────────────────────────────────────────┐
+   850→│                         DATA LAYER                           │
+   851→│                                                             │
+   852→│ PostgreSQL + pgvector                                       │
+   853→│                                                             │
+   854→│ requirements / evidence / conversations / decisions         │
+   855→│ dependencies / stakeholder views / artifacts / evaluations  │
+   856→└─────────────────────────────────────────────────────────────┘
+   857→```
+   858→
+   859→---
+   860→
+   861→# 18. Recommended technical stack
+   862→
+   863→## Backend
+   864→
+   865→- Python
+   866→- FastAPI
+   867→- Pydantic
+   868→- SQLAlchemy
+   869→- PostgreSQL
+   870→- pgvector
+   871→- Alembic
+   872→- Redis for short-lived state/cache if needed
+   873→
+   874→## LLM layer
+   875→
+   876→Build a model-agnostic adapter:
+   877→
+   878→```python
+   879→class LLMProvider:
+   880→    async def generate(self, messages, schema=None):
+   881→        ...
+   882→```
+   883→
+   884→Possible providers can be changed without touching business logic.
+   885→
+   886→Do not hard-code the entire application around one model.
+   887→
+   888→## Agent orchestration
+   889→
+   890→Start with a simple explicit state machine instead of adding a heavy agent framework immediately.
+   891→
+   892→Use a graph/state abstraction:
+   893→
+   894→```text
+   895→ConversationState
+   896→    ↓
+   897→EvidenceState
+   898→    ↓
+   899→RequirementState
+   900→    ↓
+   901→UncertaintyState
+   902→    ↓
+   903→QuestionState
+   904→    ↓
+   905→ValidationState
+   906→```
+   907→
+   908→A framework can be introduced later only if it genuinely reduces complexity.
+   909→
+   910→## Database
+   911→
+   912→Use PostgreSQL first.
+   913→
+   914→Use `pgvector` for semantic retrieval.
+   915→
+   916→Add Neo4j only if graph query complexity actually becomes a bottleneck. A relational schema plus explicit dependency tables is sufficient for the MVP.
+   917→
+   918→## Frontend
+   919→
+   920→- Next.js
+   921→- React
+   922→- TypeScript
+   923→- Tailwind CSS
+   924→- React Flow for requirement/traceability graphs
+   925→- Monaco only if code artifacts are added
+   926→
+   927→## Deployment
+   928→
+   929→Possible baseline:
+   930→
+   931→```text
+   932→Frontend → Vercel / similar
+   933→Backend  → Docker container
+   934→DB       → managed PostgreSQL
+   935→Worker   → background task service
+   936→```
+   937→
+   938→For a university demo, a single Docker Compose environment is enough.
+   939→
+   940→---
+   941→
+   942→# 19. Core data model
+   943→
+   944→The database should model requirements as durable objects.
+   945→
+   946→## 19.1 Main entities
+   947→
+   948→```text
+   949→Project
+   950→Conversation
+   951→ConversationTurn
+   952→Stakeholder
+   953→Requirement
+   954→Evidence
+   955→Ambiguity
+   956→Conflict
+   957→Question
+   958→QuestionCandidate
+   959→Decision
+   960→Assumption
+   961→Dependency
+   962→Artifact
+   963→TraceLink
+   964→ChangeRequest
+   965→ImpactRecord
+   966→Validation
+   967→RequirementVersion
+   968→RequirementDebtRecord
+   969→EvaluationRun
+   970→MetricResult
+   971→```
+   972→
+   973→---
+   974→
+   975→# 20. Requirement schema
+   976→
+   977→```json
+   978→{
+   979→  "id": "REQ-0017",
+   980→  "project_id": "PRJ-001",
+   981→  "version": 3,
+   982→  "statement": "The customer may cancel an order before driver departure.",
+   983→  "type": "functional",
+   984→  "actor": "customer",
+   985→  "goal": "cancel order",
+   986→  "conditions": [
+   987→    "driver has not departed"
+   988→  ],
+   989→  "exceptions": [],
+   990→  "priority": "high",
+   991→  "status": "validated",
+   992→  "evidence_level": "explicit",
+   993→  "source_evidence_ids": ["EVID-38"],
+   994→  "stakeholder_ids": ["ST-07"],
+   995→  "ambiguity_ids": [],
+   996→  "conflict_ids": [],
+   997→  "assumption_ids": [],
+   998→  "depends_on": [],
+   999→  "impacts": ["US-008", "AC-008-03", "TC-021"],
+  1000→  "confidence": 0.98,
+  1001→  "human_validated": true,
+  1002→  "created_by": "interview_agent",
+  1003→  "approved_by": "ST-07",
+  1004→  "created_at": "2026-09-30T20:00:00Z",
+  1005→  "updated_at": "2026-09-30T20:15:00Z"
+  1006→}
+  1007→```
+  1008→
+  1009→---
+  1010→
+  1011→# 21. Evidence object
+  1012→
+  1013→Evidence is first-class.
+  1014→
+  1015→```json
+  1016→{
+  1017→  "id": "EVID-38",
+  1018→  "type": "conversation_span",
+  1019→  "source_id": "TURN-038",
+  1020→  "speaker": "customer",
+  1021→  "text": "لو السواق لسه ما اتحركش العميل يقدر يلغي",
+  1022→  "normalized_text": "If the driver has not departed, the customer can cancel.",
+  1023→  "timestamp": "00:17:42",
+  1024→  "evidence_level": "explicit",
+  1025→  "confidence": 0.99
+  1026→}
+  1027→```
+  1028→
+  1029→For an inferred requirement:
+  1030→
+  1031→```json
+  1032→{
+  1033→  "evidence_level": "latent",
+  1034→  "source_evidence_ids": ["EVID-52", "EVID-53"],
+  1035→  "inference_rationale": "Repeated manual reconciliation described by finance stakeholder.",
+  1036→  "requires_validation": true
+  1037→}
+  1038→```
+  1039→
+  1040→---
+  1041→
+  1042→# 22. Evidence levels
+  1043→
+  1044→Use an explicit controlled vocabulary:
+  1045→
+  1046→```text
+  1047→EXPLICIT
+  1048→    Directly stated by a stakeholder.
+  1049→
+  1050→PARAPHRASED
+  1051→    Restatement with no semantic change.
+  1052→
+  1053→DERIVED
+  1054→    Logically derived from explicit requirements.
+  1055→
+  1056→LATENT
+  1057→    Plausible opportunity inferred from workflow/context.
+  1058→
+  1059→ASSUMED
+  1060→    Introduced to close a gap temporarily.
+  1061→
+  1062→MODEL_PROPOSED
+  1063→    Proposed by the AI or analyst without stakeholder evidence.
+  1064→
+  1065→VALIDATED
+  1066→    Explicitly approved by an authorized stakeholder.
+  1067→
+  1068→REJECTED
+  1069→    Explicitly rejected.
+  1070→```
+  1071→
+  1072→Never use `validated` as a synonym for `generated`.
+  1073→
+  1074→---
+  1075→
+  1076→# 23. Interview engine
+  1077→
+  1078→The interview engine is the center of the product.
+  1079→
+  1080→## 23.1 State maintained after every turn
+  1081→
+  1082→```text
+  1083→Known requirements
+  1084→Unknowns
+  1085→Ambiguities
+  1086→Conflicts
+  1087→Assumptions
+  1088→Stakeholder positions
+  1089→Open questions
+  1090→Candidate questions
+  1091→Requirement dependencies
+  1092→Risk
+  1093→Coverage
+  1094→```
+  1095→
+  1096→## 23.2 Question generation pipeline
+  1097→
+  1098→```text
+  1099→Current state
+  1100→    ↓
+  1101→Generate candidate unresolved issues
+  1102→    ↓
+  1103→Generate 3–10 candidate questions
+  1104→    ↓
+  1105→Estimate each question's utility
+  1106→    ↓
+  1107→Remove redundant questions
+  1108→    ↓
+  1109→Check stakeholder burden
+  1110→    ↓
+  1111→Select top question
+  1112→    ↓
+  1113→Ask
+  1114→    ↓
+  1115→Update model
+  1116→```
+  1117→
+  1118→---
+  1119→
+  1120→# 24. Question utility formula
+  1121→
+  1122→Start with a transparent heuristic.
+  1123→
+  1124→```text
+  1125→QScore(q) =
+  1126→    α * InformationGain(q)
+  1127→  + β * ImpactReduction(q)
+  1128→  + γ * AmbiguityReduction(q)
+  1129→  + δ * ConflictResolutionValue(q)
+  1130→  + ε * CoverageGain(q)
+  1131→  - ζ * UserEffort(q)
+  1132→  - η * Redundancy(q)
+  1133→```
+  1134→
+  1135→Then normalize every component to `[0,1]`.
+  1136→
+  1137→Suggested initial weights for an experiment:
+  1138→
+  1139→```text
+  1140→α = 0.25
+  1141→β = 0.25
+  1142→γ = 0.20
+  1143→δ = 0.15
+  1144→ε = 0.10
+  1145→ζ = 0.03
+  1146→η = 0.02
+  1147→```
+  1148→
+  1149→Do not treat these values as ground truth. They are starting points for an ablation study.
+  1150→
+  1151→Experiments should compare:
+  1152→
+  1153→```text
+  1154→Baseline A: LLM chooses question
+  1155→Baseline B: random eligible question
+  1156→Baseline C: ontology-guided question selection
+  1157→Proposed: impact-aware information-gain selection
+  1158→```
+  1159→
+  1160→---
+  1161→
+  1162→# 25. Why downstream impact should affect the next question
+  1163→
+  1164→Example:
+  1165→
+  1166→```text
+  1167→Unknown U1:
+  1168→What happens after payment failure?
+  1169→
+  1170→Unknown U2:
+  1171→What color should the notification button be?
+  1172→```
+  1173→
+  1174→Even if both are unresolved, U1 affects:
+  1175→
+  1176→```text
+  1177→payment flow
+  1178→order state
+  1179→refund logic
+  1180→notifications
+  1181→tests
+  1182→analytics
+  1183→```
+  1184→
+  1185→U2 affects one UI detail.
+  1186→
+  1187→Therefore, question selection should account for **dependency fan-out**, not just semantic relevance.
+  1188→
+  1189→This is a concrete researchable idea.
+  1190→
+  1191→---
+  1192→
+  1193→# 26. Ambiguity detector
+  1194→
+  1195→The detector should classify ambiguity by type.
+  1196→
+  1197→```text
+  1198→LEXICAL
+  1199→    "active"
+  1200→
+  1201→REFERENTIAL
+  1202→    "it", "they", "this"
+  1203→
+  1204→SCOPE
+  1205→    "all users except..."
+  1206→
+  1207→NUMERIC
+  1208→    "fast", "soon", "large"
+  1209→
+  1210→TEMPORAL
+  1211→    "before", "after", "recently"
+  1212→
+  1213→ACTOR
+  1214→    unclear responsible party
+  1215→
+  1216→CONDITIONAL
+  1217→    unclear if/when rule applies
+  1218→
+  1219→POLICY
+  1220→    rule boundary not specified
+  1221→
+  1222→EXCEPTION
+  1223→    exception behavior missing
+  1224→
+  1225→VAGUENESS
+  1226→    subjective terms
+  1227→
+  1228→COMPLETENESS
+  1229→    required field/behavior omitted
+  1230→```
+  1231→
+  1232→For each ambiguity:
+  1233→
+  1234→```json
+  1235→{
+  1236→  "type": "temporal",
+  1237→  "text_span": "before dispatch",
+  1238→  "interpretations": [
+  1239→    "before driver assigned",
+  1240→    "before driver departs",
+  1241→    "before vehicle reaches pickup point"
+  1242→  ],
+  1243→  "affected_requirements": ["REQ-021"],
+  1244→  "risk": "high"
+  1245→}
+  1246→```
+  1247→
+  1248→---
+  1249→
+  1250→# 27. Conflict detection
+  1251→
+  1252→Do not rely only on semantic similarity.
+  1253→
+  1254→Use a three-level approach:
+  1255→
+  1256→### Level 1 — lexical/semantic screening
+  1257→
+  1258→Retrieve candidate requirement pairs using embeddings.
+  1259→
+  1260→### Level 2 — LLM relation classifier
+  1261→
+  1262→Classify:
+  1263→
+  1264→```text
+  1265→ENTAILS
+  1266→CONTRADICTS
+  1267→DEPENDS_ON
+  1268→REFINES
+  1269→OVERLAPS
+  1270→UNRELATED
+  1271→```
+  1272→
+  1273→### Level 3 — rule-aware validation
+  1274→
+  1275→Use deterministic checks for obvious domain constraints.
+  1276→
+  1277→Example:
+  1278→
+  1279→```text
+  1280→REQ-A:
+  1281→User can cancel after dispatch.
+  1282→
+  1283→REQ-B:
+  1284→Cancellation is forbidden after dispatch.
+  1285→```
+  1286→
+  1287→This should produce a conflict with evidence from both requirements.
+  1288→
+  1289→For Arabic conflict detection, AraREQ is a useful external benchmark and baseline.
+  1290→
+  1291→---
+  1292→
+  1293→# 28. Stakeholder conflict ledger
+  1294→
+  1295→Create:
+  1296→
+  1297→```text
+  1298→CONFLICT-001
+  1299→
+  1300→Topic:
+  1301→Cancellation policy
+  1302→
+  1303→Stakeholder A:
+  1304→Customer Support
+  1305→Position:
+  1306→Cancellation allowed after assignment.
+  1307→
+  1308→Stakeholder B:
+  1309→Operations
+  1310→Position:
+  1311→Cancellation blocked after dispatch.
+  1312→
+  1313→Stakeholder C:
+  1314→Finance
+  1315→Position:
+  1316→Refund depends on payment capture.
+  1317→
+  1318→Status:
+  1319→OPEN
+  1320→
+  1321→Decision required:
+  1322→Yes
+  1323→
+  1324→Impact:
+  1325→High
+  1326→```
+  1327→
+  1328→After a decision:
+  1329→
+  1330→```text
+  1331→Decision D-014
+  1332→
+  1333→Decision:
+  1334→Cancellation allowed until driver departure.
+  1335→
+  1336→Rationale:
+  1337→Operations cost remains controlled while support can offer cancellation.
+  1338→
+  1339→Approved by:
+  1340→Product Owner
+  1341→Operations Lead
+  1342→Finance Lead
+  1343→```
+  1344→
+  1345→The conflict remains in history; the project does not pretend the disagreement never existed.
+  1346→
+  1347→---
+  1348→
+  1349→# 29. Requirement graph
+  1350→
+  1351→The core graph can be represented as:
+  1352→
+  1353→```text
+  1354→Stakeholder
+  1355→   │ states
+  1356→   ▼
+  1357→Evidence
+  1358→   │ supports
+  1359→   ▼
+  1360→Requirement
+  1361→   │
+  1362→   ├── refines → Requirement
+  1363→   ├── conflicts_with → Requirement
+  1364→   ├── depends_on → Requirement
+  1365→   ├── justified_by → Decision
+  1366→   ├── constrained_by → BusinessRule
+  1367→   ├── realized_as → UserStory
+  1368→   ├── verified_by → Test
+  1369→   ├── implemented_by → Task/Code
+  1370→   └── impacted_by → ChangeRequest
+  1371→```
+  1372→
+  1373→This turns the requirements repository into an actual **knowledge graph**.
+  1374→
+  1375→---
+  1376→
+  1377→# 30. Cross-artifact traceability
+  1378→
+  1379→Recommended first version:
+  1380→
+  1381→```text
+  1382→Evidence
+  1383→  ↓
+  1384→Requirement
+  1385→  ↓
+  1386→User Story
+  1387→  ↓
+  1388→Acceptance Criteria
+  1389→  ↓
+  1390→Test Case
+  1391→  ↓
+  1392→Development Task
+  1393→```
+  1394→
+  1395→Optional later:
+  1396→
+  1397→```text
+  1398→Development Task
+  1399→  ↓
+  1400→Pull Request
+  1401→  ↓
+  1402→Code Symbol
+  1403→  ↓
+  1404→Deployment
+  1405→```
+  1406→
+  1407→Each edge should include:
+  1408→
+  1409→```text
+  1410→link_type
+  1411→confidence
+  1412→created_by
+  1413→source
+  1414→created_at
+  1415→last_verified
+  1416→```
+  1417→
+  1418→---
+  1419→
+  1420→# 31. Change impact engine
+  1421→
+  1422→User enters:
+  1423→
+  1424→> "الحد الأقصى للطلب يبقى 5000 بدل 2000."
+  1425→
+  1426→System classifies change:
+  1427→
+  1428→```text
+  1429→MODIFICATION
+  1430→```
+  1431→
+  1432→Then searches:
+  1433→
+  1434→```text
+  1435→semantic dependencies
+  1436→explicit dependencies
+  1437→data constraints
+  1438→acceptance criteria
+  1439→tests
+  1440→API constraints
+  1441→implementation tasks
+  1442→```
+  1443→
+  1444→Output:
+  1445→
+  1446→```text
+  1447→CHANGE-019
+  1448→
+  1449→Direct impact:
+  1450→REQ-014
+  1451→
+  1452→Indirect impact:
+  1453→REQ-015
+  1454→REQ-020
+  1455→US-008
+  1456→AC-008-02
+  1457→TC-021
+  1458→
+  1459→Potential stale artifacts:
+  1460→API-03
+  1461→validation rule
+  1462→pricing test
+  1463→
+  1464→Human review required:
+  1465→4 artifacts
+  1466→```
+  1467→
+  1468→The system should **not auto-apply** the change to official artifacts.
+  1469→
+  1470→---
+  1471→
+  1472→# 32. Requirement debt engine
+  1473→
+  1474→Calculate a score at requirement level.
+  1475→
+  1476→Suggested formula:
+  1477→
+  1478→```text
+  1479→DebtScore =
+  1480→  20 * ambiguity
+  1481→+ 15 * missing_evidence
+  1482→+ 15 * unresolved_conflict
+  1483→+ 10 * missing_acceptance_criteria
+  1484→+ 10 * missing_tests
+  1485→+ 10 * stale_traceability
+  1486→+ 10 * unresolved_assumptions
+  1487→+ 10 * age_without_review
+  1488→```
+  1489→
+  1490→Normalize to `0–100`.
+  1491→
+  1492→Interpretation:
+  1493→
+  1494→```text
+  1495→0–19    Low
+  1496→20–39   Moderate
+  1497→40–59   Significant
+  1498→60–79   High
+  1499→80–100  Critical
+  1500→```
+  1501→
+  1502→These thresholds are engineering choices for the prototype, not scientifically established constants. Validate or calibrate them with users.
+  1503→
+  1504→---
+  1505→
+  1506→# 33. Human-in-the-loop approval policy
+  1507→
+  1508→This should be explicit in both the product and thesis.
+  1509→
+  1510→### AI can
+  1511→
+  1512→- extract;
+  1513→- propose;
+  1514→- classify;
+  1515→- detect;
+  1516→- summarize;
+  1517→- rank questions;
+  1518→- suggest conflict resolutions;
+  1519→- estimate impact;
+  1520→- generate downstream drafts.
+  1521→
+  1522→### AI cannot silently
+  1523→
+  1524→- approve a requirement;
+  1525→- resolve a stakeholder conflict;
+  1526→- mark an inference as explicit;
+  1527→- delete historical evidence;
+  1528→- rewrite an approved baseline without audit history;
+  1529→- treat a hallucinated requirement as stakeholder intent.
+  1530→
+  1531→---
+  1532→
+  1533→# 34. Prompt architecture
+  1534→
+  1535→Do not build the whole system from one gigantic system prompt.
+  1536→
+  1537→Each agent should have a narrow contract.
+  1538→
+  1539→## 34.1 Evidence extraction prompt contract
+  1540→
+  1541→Input:
+  1542→
+  1543→```text
+  1544→conversation turns
+  1545→project context
+  1546→```
+  1547→
+  1548→Output:
+  1549→
+  1550→```json
+  1551→{
+  1552→  "evidence": [
+  1553→    {
+  1554→      "span_id": "...",
+  1555→      "statement": "...",
+  1556→      "speaker": "...",
+  1557→      "evidence_type": "explicit|constraint|pain_point|assumption|decision"
+  1558→    }
+  1559→  ]
+  1560→}
+  1561→```
+  1562→
+  1563→Rule:
+  1564→
+  1565→> Do not infer unstated capabilities in this stage.
+  1566→
+  1567→---
+  1568→
+  1569→# 35. Requirement formulation prompt contract
+  1570→
+  1571→Input:
+  1572→
+  1573→```text
+  1574→approved evidence spans
+  1575→```
+  1576→
+  1577→Output:
+  1578→
+  1579→```json
+  1580→{
+  1581→  "requirements": [
+  1582→    {
+  1583→      "statement": "...",
+  1584→      "type": "FR|NFR|business_rule|constraint",
+  1585→      "source_span_ids": ["..."],
+  1586→      "assumptions": [],
+  1587→      "needs_validation": true
+  1588→    }
+  1589→  ]
+  1590→}
+  1591→```
+  1592→
+  1593→Rule:
+  1594→
+  1595→> Do not introduce a fact that cannot be traced to source evidence or a clearly labeled assumption.
+  1596→
+  1597→---
+  1598→
+  1599→# 36. Question planner prompt contract
+  1600→
+  1601→The LLM should not directly output one final question.
+  1602→
+  1603→First produce candidates:
+  1604→
+  1605→```json
+  1606→{
+  1607→  "questions": [
+  1608→    {
+  1609→      "question": "...",
+  1610→      "targets": ["AMB-03", "REQ-08"],
+  1611→      "expected_information_gain": 0.81,
+  1612→      "impact_reduction": 0.72,
+  1613→      "effort": 0.20,
+  1614→      "redundancy": 0.05
+  1615→    }
+  1616→  ]
+  1617→}
+  1618→```
+  1619→
+  1620→Then use deterministic scoring to choose the final question.
+  1621→
+  1622→This makes the selection process experimentally measurable.
+  1623→
+  1624→---
+  1625→
+  1626→# 37. Why deterministic post-processing matters
+  1627→
+  1628→Many recent requirements papers show a recurring pattern:
+  1629→
+  1630→```text
+  1631→LLM generation
+  1632→      ↓
+  1633→structured post-processing
+  1634→      ↓
+  1635→validation
+  1636→```
+  1637→
+  1638→ProReFiCIA, for example, combines prompting with refinement and filtering rather than trusting one raw output. Formal-requirements research also emphasizes coupling LLM flexibility with deterministic/formal validation.
+  1639→
+  1640→Relevant source:
+  1641→- https://doi.org/10.1016/j.infsof.2025.107697
+  1642→
+  1643→The project should follow this design principle:
+  1644→
+  1645→> **LLM proposes; deterministic logic verifies wherever possible.**
+  1646→
+  1647→---
+  1648→
+  1649→# 38. Formal validation rules
+  1650→
+  1651→Examples:
+  1652→
+  1653→```text
+  1654→Rule R1:
+  1655→Every validated requirement must have >= 1 evidence source or an explicitly accepted assumption.
+  1656→
+  1657→Rule R2:
+  1658→Every acceptance criterion must reference a requirement.
+  1659→
+  1660→Rule R3:
+  1661→Every high-priority functional requirement must have >= 1 acceptance criterion.
+  1662→
+  1663→Rule R4:
+  1664→Every open conflict must have a status.
+  1665→
+  1666→Rule R5:
+  1667→A latent requirement cannot become validated without human approval.
+  1668→
+  1669→Rule R6:
+  1670→A changed requirement must invalidate or re-check affected downstream artifacts.
+  1671→
+  1672→Rule R7:
+  1673→A superseded requirement remains queryable historically.
+  1674→
+  1675→Rule R8:
+  1676→A requirement cannot be deleted if downstream artifacts depend on it; it must be superseded or archived.
+  1677→```
+  1678→
+  1679→---
+  1680→
+  1681→# 39. Evaluation strategy
+  1682→
+  1683→This is where the project becomes a serious research project.
+  1684→
+  1685→Do not evaluate the system using only:
+  1686→
+  1687→> "It looked good in the demo."
+  1688→
+  1689→Use quantitative evaluation.
+  1690→
+  1691→---
+  1692→
+  1693→# 40. Research Questions
+  1694→
+  1695→## RQ1 — Extraction
+  1696→
+  1697→> How accurately can the system identify explicit software requirements from stakeholder conversations?
+  1698→
+  1699→Metrics:
+  1700→
+  1701→- precision
+  1702→- recall
+  1703→- F1
+  1704→
+  1705→---
+  1706→
+  1707→## RQ2 — Question effectiveness
+  1708→
+  1709→> Does impact-aware adaptive question selection retrieve more missing requirements with fewer interview turns than baseline question-selection strategies?
+  1710→
+  1711→Metrics:
+  1712→
+  1713→- requirement coverage;
+  1714→- turns to coverage threshold;
+  1715→- average questions per requirement;
+  1716→- redundant-question rate;
+  1717→- stakeholder effort;
+  1718→- implicit-requirement recall.
+  1719→
+  1720→---
+  1721→
+  1722→## RQ3 — Evidence reliability
+  1723→
+  1724→> Does provenance-first generation reduce unsupported requirement generation?
+  1725→
+  1726→Metrics:
+  1727→
+  1728→- evidence precision;
+  1729→- evidence recall;
+  1730→- unsupported requirement rate;
+  1731→- hallucination rate;
+  1732→- citation/source-span correctness.
+  1733→
+  1734→---
+  1735→
+  1736→## RQ4 — Ambiguity resolution
+  1737→
+  1738→> Does behavioral-branching ambiguity analysis identify and resolve ambiguous requirements more effectively than LLM-only clarification?
+  1739→
+  1740→Metrics:
+  1741→
+  1742→- ambiguity detection F1;
+  1743→- ambiguity resolution accuracy;
+  1744→- number of valid interpretations remaining after clarification;
+  1745→- downstream behavioral divergence.
+  1746→
+  1747→---
+  1748→
+  1749→## RQ5 — Conflict management
+  1750→
+  1751→> Can the system identify and maintain unresolved stakeholder conflicts without collapsing distinct stakeholder positions into one unsupported requirement?
+  1752→
+  1753→Metrics:
+  1754→
+  1755→- conflict detection F1;
+  1756→- stakeholder-position preservation accuracy;
+  1757→- false resolution rate;
+  1758→- decision provenance completeness.
+  1759→
+  1760→---
+  1761→
+  1762→## RQ6 — Change propagation
+  1763→
+  1764→> Can an evidence-grounded requirements graph identify downstream artifacts impacted by approved requirement changes?
+  1765→
+  1766→Metrics:
+  1767→
+  1768→- impact recall;
+  1769→- impact precision;
+  1770→- stale-artifact detection rate;
+  1771→- trace-link validity.
+  1772→
+  1773→---
+  1774→
+  1775→## RQ7 — Arabic/code-switched performance
+  1776→
+  1777→> How does performance change across English, MSA, Egyptian Arabic, and Arabic-English code-switched stakeholder conversations?
+  1778→
+  1779→Metrics:
+  1780→
+  1781→- extraction F1;
+  1782→- ambiguity F1;
+  1783→- conflict F1;
+  1784→- question quality;
+  1785→- evidence-link correctness;
+  1786→- user satisfaction.
+  1787→
+  1788→---
+  1789→
+  1790→# 41. Baselines
+  1791→
+  1792→At minimum compare:
+  1793→
+  1794→```text
+  1795→B1 — single-shot LLM requirement generation
+  1796→B2 — conversational LLM with unrestricted questioning
+  1797→B3 — ontology-guided interview baseline inspired by OntoAgent
+  1798→B4 — proposed impact-aware question planner
+  1799→```
+  1800→
+  1801→For artifact validation:
+  1802→
+  1803→```text
+  1804→B5 — LLM-only conflict detection
+  1805→B6 — embedding retrieval + LLM classification
+  1806→B7 — LLM + deterministic validator
+  1807→```
+  1808→
+  1809→Do not compare only different models. Compare different **system strategies**.
+  1810→
+  1811→---
+  1812→
+  1813→# 42. Dataset strategy
+  1814→
+  1815→Use several levels.
+  1816→
+  1817→## Level 1 — Public requirements documents
+  1818→
+  1819→Use PURE as a foundational requirements source.
+  1820→
+  1821→PURE contains 79 public requirements documents and 34,268 sentences.
+  1822→
+  1823→Source:
+  1824→- https://zenodo.org/records/7118517
+  1825→
+  1826→Also consider:
+  1827→- PROMISE requirements dataset;
+  1828→- public software requirements repositories;
+  1829→- SWARD and related labeled requirements datasets;
+  1830→- public user stories / issue datasets where licensing permits.
+  1831→
+  1832→---
+  1833→
+  1834→## Level 2 — Requirements interview cases
+  1835→
+  1836→ReqElicitBench/ReqElicitGym already provides 101 website requirements-elicitation scenarios and a simulated stakeholder environment.
+  1837→
+  1838→Use it for:
+  1839→
+  1840→- baseline replication;
+  1841→- interviewer evaluation;
+  1842→- regression testing.
+  1843→
+  1844→Source:
+  1845→- https://github.com/jdm4pku/ReqElicitBench
+  1846→
+  1847→---
+  1848→
+  1849→## Level 3 — Create your own controlled interview benchmark
+  1850→
+  1851→This should be the project's main dataset contribution.
+  1852→
+  1853→Target:
+  1854→
+  1855→```text
+  1856→100–200 scenarios
+  1857→```
+  1858→
+  1859→Each scenario should contain:
+  1860→
+  1861→```text
+  1862→project description
+  1863→stakeholder role
+  1864→initial request
+  1865→hidden requirements
+  1866→ambiguities
+  1867→conflicts
+  1868→NFRs
+  1869→business rules
+  1870→expected clarification paths
+  1871→final validated requirement set
+  1872→```
+  1873→
+  1874→---
+  1875→
+  1876→# 43. How to construct your benchmark safely
+  1877→
+  1878→Do not fabricate a benchmark and call it "real industry data."
+  1879→
+  1880→Use three tracks.
+  1881→
+  1882→### Track A — Public-source derived
+  1883→
+  1884→Start from public requirements documents and deliberately create incomplete initial descriptions while retaining a hidden gold specification.
+  1885→
+  1886→### Track B — Expert-designed scenarios
+  1887→
+  1888→Ask software engineers, product people or instructors to design stakeholder scenarios.
+  1889→
+  1890→### Track C — Real anonymized conversations
+  1891→
+  1892→Only with permission.
+  1893→
+  1894→Remove:
+  1895→
+  1896→- names;
+  1897→- emails;
+  1898→- customer information;
+  1899→- internal company names;
+  1900→- credentials;
+  1901→- proprietary business data.
+  1902→
+  1903→Document the anonymization process.
+  1904→
+  1905→---
+  1906→
+  1907→# 44. Benchmark record format
+  1908→
+  1909→```json
+  1910→{
+  1911→  "scenario_id": "REQP-047",
+  1912→  "domain": "delivery",
+  1913→  "language": "egyptian_arabic_code_switched",
+  1914→  "stakeholders": [
+  1915→    "customer",
+  1916→    "operations_manager",
+  1917→    "finance_manager"
+  1918→  ],
+  1919→  "initial_message": "...",
+  1920→  "gold_requirements": [],
+  1921→  "hidden_requirements": [],
+  1922→  "ambiguities": [],
+  1923→  "conflicts": [],
+  1924→  "expected_questions": [],
+  1925→  "acceptable_question_variants": [],
+  1926→  "gold_decisions": [],
+  1927→  "downstream_artifacts": []
+  1928→}
+  1929→```
+  1930→
+  1931→---
+  1932→
+  1933→# 45. Synthetic stakeholder simulator
+  1934→
+  1935→For scalable testing, create an Oracle Stakeholder Agent.
+  1936→
+  1937→The oracle knows:
+  1938→
+  1939→```text
+  1940→hidden requirements
+  1941→persona
+  1942→domain knowledge
+  1943→acceptable answers
+  1944→forbidden assumptions
+  1945→```
+  1946→
+  1947→The interviewer interacts with it as if it were a stakeholder.
+  1948→
+  1949→But synthetic evaluation must not be the only evaluation because both the interviewer and oracle may share the same model biases.
+  1950→
+  1951→Use human evaluation on a smaller subset.
+  1952→
+  1953→---
+  1954→
+  1955→# 46. Human evaluation protocol
+  1956→
+  1957→Recruit:
+  1958→
+  1959→- software students for basic usability;
+  1960→- developers;
+  1961→- product/requirements practitioners if possible.
+  1962→
+  1963→For each conversation, ask reviewers to rate:
+  1964→
+  1965→```text
+  1966→Requirement correctness
+  1967→Requirement completeness
+  1968→Question relevance
+  1969→Question redundancy
+  1970→Evidence correctness
+  1971→Ambiguity detection
+  1972→Conflict handling
+  1973→Trustworthiness
+  1974→Overall usefulness
+  1975→```
+  1976→
+  1977→Use a 5-point Likert scale plus binary factual checks.
+  1978→
+  1979→---
+  1980→
+  1981→# 47. Arabic benchmark design
+  1982→
+  1983→Create matched scenarios:
+  1984→
+  1985→```text
+  1986→Version A: English
+  1987→Version B: Modern Standard Arabic
+  1988→Version C: Egyptian Arabic
+  1989→Version D: Egyptian Arabic + English technical terminology
+  1990→```
+  1991→
+  1992→Keep the underlying gold requirements identical.
+  1993→
+  1994→Then evaluate:
+  1995→
+  1996→```text
+  1997→Cross-language consistency
+  1998→
+  1999→Does the system extract the same underlying requirement?
+  2000→Does it preserve conditions?
+
+[showing lines 1-2000 of 4176; use offset=2001 with limit to continue reading]
