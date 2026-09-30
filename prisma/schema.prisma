@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RequirementPilot — evidence-based, human-in-the-loop
+// agentic requirements engineering platform (MVP)
+// ─────────────────────────────────────────────────────────────
+
+model Project {
+  id           String   @id @default(cuid())
+  name         String
+  brief        String
+  status       String   @default("active") // active | complete | archived
+  currentStage String   @default("ELICITATION")
+  stageStatus  String   @default("awaiting_input") // awaiting_input | agent_running | awaiting_review | approved
+  isDemo       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  evidences  Evidence[]
+  questions  Question[]
+  candidates ProblemCandidate[]
+  artifacts  Artifact[]
+  runs       PipelineRun[]
+  reqs       Requirement[]
+  stories    UserStory[]
+  conflicts  Conflict[]
+}
+
+// Grounding sources: interviews, documents, meeting notes…
+// Supports English, Egyptian Arabic (ar-EG) and code-switched input.
+model Evidence {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code       String // E1, E2, …
+  title      String
+  sourceType String // interview | document | meeting | survey | observation
+  language   String   @default("en") // en | ar-EG | codeswitch
+  content    String
+  createdAt  DateTime @default(now())
+}
+
+// Agent-generated clarifying questions, answered by the human (HITL gate 1)
+model Question {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order     Int     @default(0)
+  text      String
+  rationale String?
+  priority  String  @default("medium") // high | medium | low
+  answer    String?
+  answered  Boolean @default(false)
+}
+
+// Impact-aware problem selection (novelty contribution N2)
+model ProblemCandidate {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  impact      Int     @default(3) // 1..5, human-tuned
+  effort      Int     @default(3) // 1..5, human-tuned
+  evidenceIds String  @default("") // comma-separated Evidence ids (grounding)
+  selected    Boolean @default(false)
+}
+
+// Snapshot of an agent stage output (for audit / traceability)
+model Artifact {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage     String
+  kind      String   @default("json")
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model PipelineRun {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage       String
+  status      String    @default("running") // running | done | failed
+  log         String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+model Requirement {
+  id            String  @id @default(cuid())
+  projectId     String
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  refId         String // REQ-01
+  text          String
+  type          String  @default("functional") // functional | nonfunctional | constraint
+  priority      String  @default("Should") // MoSCoW: Must | Should | Could | Won't
+  ambiguity     Int     @default(-1) // -1 = not yet assessed; 0..100
+  ambiguityNote String?
+  suggestion    String? // proposed rewrite from ambiguity agent
+  language      String  @default("en") // en | ar-EG | codeswitch
+  status        String  @default("draft") // draft | approved
+  order         Int     @default(0)
+
+  stories   UserStory[]
+  conflictA Conflict[]  @relation("reqA")
+  conflictB Conflict[]  @relation("reqB")
+  links     TraceLink[]
+}
+
+// Evidence traceability: which source grounds which requirement
+model TraceLink {
+  id            String      @id @default(cuid())
+  projectId     String
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  evidenceCode  String // E1, E2 …
+  note          String?
+}
+
+model UserStory {
+  id            String      @id @default(cuid())
+  projectId     String
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  refId         String // US-01
+  title         String
+  narrative     String // As a <role>, I want <goal>, so that <value>
+  acceptance    String // one criterion per line
+  investScore   Int? // 0..100
+  investNote    String?
+  status        String      @default("draft") // draft | approved
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Conflict {
+  id          String      @id @default(cuid())
+  projectId   String
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reqAId      String
+  reqA        Requirement @relation("reqA", fields: [reqAId], references: [id], onDelete: Cascade)
+  reqBId      String
+  reqB        Requirement @relation("reqB", fields: [reqBId], references: [id], onDelete: Cascade)
+  kind        String      @default("contradiction") // contradiction | duplication | overlap
+  description String
+  severity    String      @default("medium") // high | medium | low
+  suggestion  String?
+  resolution  String?
+  status      String      @default("open") // open | resolved
+}

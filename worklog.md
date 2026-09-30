@@ -35,3 +35,24 @@ Stage Summary:
 - Final deliverable: /home/z/my-project/download/RequirementPilot_Project_Analysis.docx (898 KB, 27 pages, 11 sections, 10 tables, 5 figures).
 - Figure assets also available standalone in /home/z/my-project/download/assets_rp/.
 - All postcheck validations pass; TOC updates in Word via right-click -> Update Field.
+
+---
+Task ID: 3
+Agent: Main agent (Super Z)
+Task: Build the RequirementPilot MVP as a working Next.js web application (user: "let's go coding").
+
+Work Log:
+- Initialized fullstack scaffold (Next.js 16 + TS + Tailwind 4 + shadcn/ui + Prisma/SQLite + z-ai-web-dev-sdk).
+- Designed Prisma schema: Project, Evidence (en/ar-EG/codeswitch), Question, ProblemCandidate, Artifact, PipelineRun, Requirement, TraceLink, UserStory, Conflict.
+- Implemented 6-stage agent pipeline in src/lib/agents.ts (elicitation, problem selection, extraction, ambiguity, stories, conflicts) with structured JSON LLM prompts, robust parser, and per-stage artifact snapshots for auditability.
+- State machine API: POST /pipeline {run|approve|reopen} with per-stage HITL validation (all questions answered / exactly one candidate selected / >=1 requirement / all conflicts resolved).
+- Generic HITL editing endpoint PATCH/DELETE /items (questions, candidates+sliders, requirements incl. apply_suggestion, stories, conflicts).
+- Single-page UI: project picker (create/demo/delete cards), workspace with 6-step stepper, per-stage panels (evidence library, Q&A, candidate scoring matrix, requirement table w/ evidence chips, ambiguity scores + rewrites, story cards w/ INVEST + acceptance criteria, conflict resolution), completion dashboard w/ MoSCoW bars + JSON export.
+- Fixed en route: Project.reqs vs requirements relation naming (3 call sites), UserStory.projectId FK RESTRICT->CASCADE, STAGES import path, mobile header/card overflow (flex-wrap + min-w-0).
+- End-to-end verified TWICE via API and once via agent-browser golden path: ran all 6 agents live (LLM), answered questions, selected problem (Trust & Safety, impact 5/effort 2), applied ambiguity rewrite, resolved 5 conflicts -> status complete with 6 artifacts; then reset demo to pristine state.
+- Agent-browser checks: home, workspace, RTL Arabic evidence rendering, all stages, mobile 390px (no h-overflow), sticky footer, JSON export click, page errors clean.
+
+Stage Summary:
+- Deliverable: RequirementPilot MVP web app at src/app/page.tsx (single visible route) + 6 API route groups + 9 rp components.
+- Demo project "Cairo Home-Cooking Marketplace" seeds 3 evidence sources (Egyptian Arabic interview E1, English doc E2, code-switched meeting E3) showcasing novelty N2 (impact-aware selection) and N7 (Arabic/code-switching).
+- DB: db/custom.db; demo resettable via POST /api/demo (idempotent while one exists).
