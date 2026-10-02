@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>10 · Architecture review</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="global.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #F6F9F9; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .item { display: flex; gap: 10px; }
+  .item .txt { font-size: 14px; line-height: 1.55; color: var(--ink); }
+  .card-h { display: flex; align-items: center; gap: 10px; }
+  .card-h h2 { font-family: var(--font-heading); font-size: 20px; font-weight: 700; color: var(--primary-deep); margin: 0; line-height: 1.2; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div style="height:100%; display:flex; flex-direction:column; padding:56px 60px;">
+
+    <!-- Header -->
+    <div style="margin-bottom:20px;">
+      <div class="eyebrow" style="font-size:var(--fs-micro); margin-bottom:8px;">Section 03 &middot; Feasibility, Architecture &amp; Risk</div>
+      <h1 style="font-family:var(--font-heading); font-size:var(--fs-h1); font-weight:700; color:var(--primary-deep); line-height:1.12; margin:0;">Architecture: conservative by design — and right</h1>
+    </div>
+
+    <!-- Body: figure 48% + split cards 52% -->
+    <div style="flex:1; min-height:0; display:flex; gap:24px;">
+
+      <figure class="figure-frame" style="flex:0 0 48%; min-width:0; margin:0; padding:12px;">
+        <img src="../assets_rp/fig2_architecture.png" alt="Five-layer RequirementPilot architecture diagram">
+      </figure>
+
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:14px;">
+
+        <!-- What is strong -->
+        <section class="card" style="flex:1; padding:18px 22px 14px; display:flex; flex-direction:column; min-height:0;">
+          <div class="card-h">
+            <span class="material-icons" aria-hidden="true" style="color:var(--ok); font-size:22px;">check_circle</span>
+            <h2>What is strong</h2>
+          </div>
+          <ul style="list-style:none; margin:4px 0 0; padding:0; flex:1; display:flex; flex-direction:column; justify-content:space-evenly;">
+            <li class="item"><span class="tick" style="font-size:15px; line-height:1.5;">&#10003;</span><span class="txt">Explicit state machine instead of a heavyweight agent framework — no hidden non-determinism in a system whose thesis is determinism</span></li>
+            <li class="item"><span class="tick" style="font-size:15px; line-height:1.5;">&#10003;</span><span class="txt">Evidence is a first-class object: <span class="tnum" style="font-weight:600;">22-entity</span> model, event-style requirement versioning (never overwrite; author, source, reason, timestamp stored)</span></li>
+            <li class="item"><span class="tick" style="font-size:15px; line-height:1.5;">&#10003;</span><span class="txt">Authority-aware retrieval: approved policies (<span class="tnum" style="font-weight:600;">authority 1.00 / 0.95</span>) cannot be silently overridden by AI inference (<span class="tnum" style="font-weight:600;">0.3&times;</span>)</span></li>
+            <li class="item"><span class="tick" style="font-size:15px; line-height:1.5;">&#10003;</span><span class="txt">Eight hallucination controls wrapped around the human approval gate.</span></li>
+          </ul>
+        </section>
+
+        <!-- What is unspecified -->
+        <section class="card" style="padding:18px 22px; display:flex; flex-direction:column;">
+          <div class="card-h">
+            <span class="material-icons" aria-hidden="true" style="color:var(--warn); font-size:22px;">error_outline</span>
+            <h2>What is unspecified</h2>
+          </div>
+          <div class="item" style="margin-top:12px;">
+            <span class="cross" style="font-size:15px; line-height:1.5;">&#10005;</span>
+            <span class="txt">Context management, concurrency, and observability are not yet designed &rarr; run graph-query and infrastructure spikes before Phase 3 (Action 5).</span>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

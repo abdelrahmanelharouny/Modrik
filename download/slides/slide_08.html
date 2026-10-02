@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>08 · The defensible core</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="global.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #F6F9F9; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .bullet { display: flex; gap: 11px; }
+  .bullet .dot { flex: none; width: 7px; height: 7px; border-radius: 2px; margin-top: 8px; }
+  .bullet .txt { font-size: 14.5px; line-height: 1.55; color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div style="height:100%; display:flex; flex-direction:column; padding:56px 60px;">
+
+    <!-- Header -->
+    <div style="margin-bottom:20px;">
+      <div class="eyebrow" style="font-size:var(--fs-micro); margin-bottom:8px;">Section 02 &middot; Novelty &amp; Contribution</div>
+      <h1 style="font-family:var(--font-heading); font-size:var(--fs-h1); font-weight:700; color:var(--primary-deep); line-height:1.12; margin:0;">The defensible core: N2 and N7</h1>
+    </div>
+
+    <!-- Two comparison panels -->
+    <div style="flex:1; min-height:0; display:flex; gap:24px;">
+
+      <!-- LEFT: N2 -->
+      <section class="card" style="flex:1; border-top:4px solid var(--primary); padding:22px 26px 18px; display:flex; flex-direction:column; min-width:0;">
+        <h2 style="font-family:var(--font-heading); font-size:21px; font-weight:700; color:var(--primary-deep); margin:0; line-height:1.25;">N2 — Impact-aware question selection</h2>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <span class="chip tnum" style="font-size:12.5px;">impact 4.8</span>
+          <span class="chip tnum" style="font-size:12.5px;">feasibility 3.4</span>
+        </div>
+        <ul style="list-style:none; margin:6px 0 0; padding:0; flex:1; display:flex; flex-direction:column; justify-content:space-evenly;">
+          <li class="bullet"><span class="dot" style="background:var(--primary);"></span><span class="txt">Deterministic utility scoring decides which question the interviewer asks next — no black-box agent loop</span></li>
+          <li class="bullet"><span class="dot" style="background:var(--primary);"></span><span class="txt">The system's central claim stands or falls with this mechanism: ablation-critical</span></li>
+          <li class="bullet"><span class="dot" style="background:var(--warn);"></span><span class="txt"><strong style="color:var(--warn);">Weakness:</strong> utility weights are currently unjustified guesses &rarr; pilot ablation on the first 20 scenarios in month 3 (Action 7)</span></li>
+        </ul>
+      </section>
+
+      <!-- RIGHT: N7 -->
+      <section class="card" style="flex:1; border-top:4px solid var(--accent); padding:22px 26px 18px; display:flex; flex-direction:column; min-width:0;">
+        <h2 style="font-family:var(--font-heading); font-size:21px; font-weight:700; color:var(--primary-deep); margin:0; line-height:1.25;">N7 — Egyptian Arabic / code-switched benchmark</h2>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <span class="chip tnum" style="font-size:12.5px;">impact 4.6</span>
+          <span class="chip tnum" style="font-size:12.5px;">feasibility 3.0</span>
+        </div>
+        <ul style="list-style:none; margin:6px 0 0; padding:0; flex:1; display:flex; flex-direction:column; justify-content:space-evenly;">
+          <li class="bullet"><span class="dot" style="background:var(--accent);"></span><span class="txt">First requirements benchmark of its kind for Egyptian Arabic and code-switching; independently publishable</span></li>
+          <li class="bullet"><span class="dot" style="background:var(--accent);"></span><span class="txt">Aligned with team skills — dedicated NLP/Arabic member — and with the local context</span></li>
+          <li class="bullet"><span class="dot" style="background:var(--warn);"></span><span class="txt"><strong style="color:var(--warn);">Weakness:</strong> currently scheduled in months 5–6, too late to evaluate properly &rarr; production from month 2 (Action 6)</span></li>
+        </ul>
+      </section>
+
+    </div>
+
+    <!-- Bottom strip -->
+    <div class="card-soft" style="margin-top:18px; padding:15px 22px; display:flex; align-items:center; gap:13px;">
+      <span class="material-icons" aria-hidden="true" style="color:var(--primary); font-size:22px;">verified</span>
+      <p style="margin:0; font-size:14.5px; line-height:1.5; color:var(--ink);"><strong style="color:var(--primary-deep);">Why these two are defensible:</strong> both are measurable, both have drawn boundaries (exact dialect, task, benchmark limits), and both match available skills and data.</p>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

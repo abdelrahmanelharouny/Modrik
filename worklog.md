@@ -56,3 +56,70 @@ Stage Summary:
 - Deliverable: RequirementPilot MVP web app at src/app/page.tsx (single visible route) + 6 API route groups + 9 rp components.
 - Demo project "Cairo Home-Cooking Marketplace" seeds 3 evidence sources (Egyptian Arabic interview E1, English doc E2, code-switched meeting E3) showcasing novelty N2 (impact-aware selection) and N7 (Arabic/code-switching).
 - DB: db/custom.db; demo resettable via POST /api/demo (idempotent while one exists).
+
+---
+Task ID: 4-b
+Agent: ppt-expert
+Task: Render slides 7–12 of the RequirementPilot defense briefing deck
+Work Log:
+- slide_07: 55/45 split of fig1 novelty matrix against three cluster cards (PROTECT/KEEP/DEFER) with verbatim N1–N10 text and the self-assessment footnote.
+- slide_08: symmetric two-panel N2 vs N7 comparison with teal/terracotta top borders, impact/feasibility chips, weakness bullets in warn red, and the card-soft defensibility strip.
+- slide_09: full-bleed deep-teal divider (135deg #093A45→#0E4F5C) with semi-transparent "03 / 04" marker, display serif title, tagline, three white-outline chips, and an in-canvas ghost "03" numeral.
+- slide_10: 48/52 layout pairing fig2 architecture diagram with "What is strong" (4 tick items) and "What is unspecified" (cross item, Action 5 pointer) cards.
+- slide_11: three equal stat cards (7 RQs / disciplined baselines / layered data strategy) over a card-accent gap banner with warning icon and Action 3 fix, plus a ghost 4.5 decor numeral.
+- slide_12: 55/45 Gantt (fig3) beside a four-point numbered rail (Arithmetic / Composition / Concentration / Team) with tabular-num badges.
+- Playwright audit on all six: 1280×720, zero bounding-box overflow, zero hidden-overflow clipping, all three local figures load via relative ../assets_rp paths; no speaker notes added.
+Stage Summary:
+- Slides 7–12 rendered verbatim from the brief in the locked DM-1 deep-teal system (global.css tokens, Source Serif 4 + Inter); divider grammar and figure frames consistent for deck-wide cohesion.
+- Output: slide_07.html … slide_12.html in /home/z/my-project/download/slides/ (each standalone, Tailwind CDN + relative global.css).
+
+---
+Task ID: 4-a
+Agent: ppt-expert
+Task: Render slides 1–6 of the RequirementPilot defense briefing deck
+
+Work Log:
+- slide_01.html: Cover with deep-teal left-third panel (eyebrow, stacked serif "RequirementPilot" hero, 2-line subtitle), terracotta verdict chip "CONDITIONAL GO · CONSOLIDATED SCORE 4.0 / 5" on the light zone, ghost RP monogram, and a three-item meta row along the bottom.
+- slide_02.html: Agenda "Briefing roadmap" with eyebrow AGENDA + rule-accent and four num-badged horizontal cards (01–04 with verbatim one-line descriptions and thematic Material icons) over a ghost RP watermark.
+- slide_03.html: Section 01 divider on full-bleed #093A45→#0E4F5C gradient with semi-transparent "01 / 04" chapter marker, serif display title, italic quote tagline, and three white-outline chips (6 dimensions scored · 4 conditions attached · No structural flaws found).
+- slide_04.html: "What is RequirementPilot?" with verbatim lead paragraph (HITL sentence emphasized), a four-stat band (10 / 7 / 8 / 3 in tabular numerals), and a card-soft team/schedule/positioning strip.
+- slide_05.html: "Consolidated verdict — conditional go at 4.0 / 5" splitting the local ../assets_rp/fig5_scores.png figure (52%, figure-frame, aspect preserved at 1920×1040) with six dimension score rows (4.5 row ok-bordered, 3.0 row warn-bordered) and the card-accent "Proceed — subject to four conditions" banner.
+- slide_06.html: Section 02 divider mirroring slide 3's grammar exactly ("02 / 04" marker, rule-accent, display title, 2-line tagline) plus the assessment-basis caption listing the eight benchmarked systems.
+
+Stage Summary: All six 1280×720 slides rendered with the locked DM-1 deep-teal system (bg #F6F9F9, primary #0E4F5C, accent #C05B2E; Source Serif 4 + Inter), every brief fact rendered verbatim, WCAG-AA-safe pairings, and only slide_05 embedding the sole permitted local figure.
+
+---
+Task ID: 4-c
+Agent: ppt-expert
+Task: Render slides 13–17 of the RequirementPilot defense briefing deck
+
+Work Log:
+- slide_13 (Risk register): 46/54 split with fig4_risk_grid.png in a .figure-frame beside a 5-row ranked-exposure card (tan/teal ID chips per legend, tabular P×S scores) and the R11 watch-list footnote.
+- slide_14 (Section 04 divider): full-bleed #093A45→#0E4F5C gradient, semi-transparent "04 / 04" chapter marker, display serif title, tagline, ghost "04" decor, and three white-outline chips (12 actions · 3 horizons · 4 conditions).
+- slide_15 (Action plan): three teal-headed column cards (Weeks 1–3 / Months 2–3 / Months 5–6) with 12 num-badged actions at --fs-small lh 1.4, a terracotta ONGOING sub-block for Action 11, and a card-accent "critical three" banner.
+- slide_16 (Recommendation): four num-badge condition rows (58%) beside "Never descoped" (lock/teal) and "Descoped in order" (stairs/muted) cards (42%), closed by a centered italic serif discipline quote.
+- slide_17 (Closing): full-bleed deep teal mirror of dividers with the hero quotation, Conditional go · 4.0 / 5 verdict line, three Month 2/3/6 milestone chips, and "Thank you — questions welcome" over a rule-accent bar.
+- Self-audit via headless Chromium: all five slides exactly 1280×720 with zero element overflow, fonts loaded, figure image loads, and 59/59 brief strings verified verbatim; WCAG-safe pairings only (white text exclusively on deep teal).
+
+Stage Summary:
+- Delivered slide_13–slide_17.html in /home/z/my-project/download/slides/ using only the DM-1 deep-teal/terracotta palette, global.css design system, and the single permitted figure ../assets_rp/fig4_risk_grid.png (slides 14–17 intentionally image-free).
+- All layout/architecture constraints honored: dense 3-column action plan fits 720px, no headers/footers/page numbers, no speaker notes, relative asset paths only.
+
+---
+Task ID: 5
+Agent: Main agent (Super Z) + 3 ppt-expert subagents (4-a, 4-b, 4-c)
+Task: Stage 2 deliverable — 17-slide English committee defense briefing deck distilled from the RequirementPilot analysis report ("process to second stage").
+
+Work Log:
+- Extracted exact report facts from scripts/rp_content1|2.js: 6 dimension scores, N1-N10 verdict table, R1-R11 risk register, 12 actions/3 horizons, 4 go conditions, descope ladder, SWOT.
+- Committed design system: download/slides/global.css (DM-1 deep teal inherited from the report; Source Serif 4 + Inter; 1280x720 canvas) and slides_brief.json (17 self-contained briefs; 4 chapters with section dividers).
+- 3 parallel ppt-expert subagents rendered slide_01-17.html; reused the 5 report figures via relative ../assets_rp/ paths (fig5 scorecard, fig1 novelty matrix, fig2 architecture, fig3 Gantt, fig4 risk grid).
+- Exported via skills/pptx/batch_html2pptx.js to download/RequirementPilot_Defense_Briefing.pptx (7.9 MB).
+- Visual QA loop (LibreOffice PDF proofs): fixed divider chapter markers (01/04 clipped), slide 17 statement/verdict overlap, slide 3 italic-serif tagline (switched to body-font pattern), slide 11 title wrap, cover eyebrow restructure, slide 17 thank-you/chip tails.
+- Root-cause studies: converter maps Inter -> 'Liberation Sans Narrow' (not installed) -> wrote scripts/rp_pptx_fontfix.py post-processor (Narrow -> Arial, 309 replacements). Investigated suspected sz scale bug; confirmed converter sz values are correct (0.5625 canvas scale) and reverted a trial sz scaling; remaining LO tail-clips proven cosmetic-only (PDF text layer contains all strings complete; PowerPoint unaffected).
+- Generated pixel-perfect PDF companion directly from the HTML slides: scripts/rp_html2pdf.py (Playwright 1280x720 + pypdf merge) -> download/RequirementPilot_Defense_Briefing.pdf (2.5 MB, 17 pages, verified pages 1/17 complete).
+
+Stage Summary:
+- Deliverables: download/RequirementPilot_Defense_Briefing.pptx (17 slides) + download/RequirementPilot_Defense_Briefing.pdf (pixel-perfect backup) + editable HTML sources in download/slides/ (slides_brief.json is the structural source of truth).
+- Deck structure: cover, roadmap, 4 sections (Verdict / Novelty / Feasibility-Architecture-Risk / Actions-Recommendation) with teal dividers, scorecard, novelty matrix, N2+N7 deep dive, architecture, evaluation, Gantt, risk register, 12-action plan, 4 conditions + descope ladder, closing.
+- Design continuity: same DM-1 deep-teal system and figures as the Word report; verdict "Conditional go 4.0/5" consistent throughout.

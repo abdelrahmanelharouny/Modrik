@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>11 · Evaluation methodology</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="global.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #F6F9F9; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .icon-disc {
+    width: 42px; height: 42px; border-radius: 10px; flex: none;
+    background: var(--primary-soft); color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .col-h { font-family: var(--font-heading); font-size: 20px; font-weight: 700; color: var(--primary-deep); margin: 0; line-height: 1.25; }
+  .col-p { margin: 12px 0 0; font-size: 14.5px; line-height: 1.62; color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="slide">
+
+  <!-- Decorative ghost score -->
+  <div data-decor aria-hidden="true" class="tnum" style="position:absolute; top:-42px; right:28px; font-family:var(--font-num); font-weight:800; font-size:210px; line-height:1; color:rgba(14,79,92,0.06); user-select:none;">4.5</div>
+
+  <div style="position:relative; height:100%; display:flex; flex-direction:column; padding:56px 60px;">
+
+    <!-- Header -->
+    <div style="margin-bottom:8px;">
+      <div class="eyebrow" style="font-size:var(--fs-micro); margin-bottom:8px;">Section 03 &middot; Feasibility, Architecture &amp; Risk</div>
+      <h1 style="font-family:var(--font-heading); font-size:33px; font-weight:700; color:var(--primary-deep); line-height:1.15; margin:0;">Evaluation methodology — the strongest dimension <span class="tnum">(4.5 / 5)</span></h1>
+    </div>
+
+    <!-- Three columns, vertically centered in remaining space -->
+    <div style="flex:1; min-height:0; display:flex; align-items:center;">
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px; width:100%;">
+
+        <section class="card" style="padding:22px 24px; display:flex; flex-direction:column;">
+          <div class="icon-disc"><span class="material-icons" aria-hidden="true" style="font-size:23px;">checklist</span></div>
+          <h2 class="col-h" style="margin-top:14px;"><span class="tnum">7</span> research questions</h2>
+          <p class="col-p">Each RQ carries named metrics — extraction accuracy (RQ1), utility of asked questions, conflict-detection quality, trace-link precision — and the design evaluates interview strategies, not model impressions.</p>
+        </section>
+
+        <section class="card" style="padding:22px 24px; display:flex; flex-direction:column;">
+          <div class="icon-disc"><span class="material-icons" aria-hidden="true" style="font-size:23px;">compare_arrows</span></div>
+          <h2 class="col-h" style="margin-top:14px;">Disciplined baselines</h2>
+          <p class="col-p">Four interview strategies — single-shot generation, unrestricted conversational LLM, ontology-guided interviewer, impact-aware planner — crossed with a four-language matrix, plus three artifact-validation baselines.</p>
+        </section>
+
+        <section class="card" style="padding:22px 24px; display:flex; flex-direction:column;">
+          <div class="icon-disc"><span class="material-icons" aria-hidden="true" style="font-size:23px;">layers</span></div>
+          <h2 class="col-h" style="margin-top:14px;">Layered data strategy</h2>
+          <p class="col-p">Public corpora first: PURE (<span class="tnum" style="font-weight:600;">79 documents, 34,268 sentences</span>), PROMISE and SWARD where licensing permits; ReqElicitGym (<span class="tnum" style="font-weight:600;">101 scenarios</span>) for baseline runs; real conversations only where permissions allow.</p>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- Gap banner -->
+    <div class="card-accent" style="padding:16px 22px; display:flex; align-items:center; gap:14px;">
+      <span class="material-icons" aria-hidden="true" style="color:var(--accent); font-size:24px;">warning</span>
+      <p style="margin:0; font-size:14.5px; line-height:1.5; color:var(--ink);"><strong style="color:var(--primary-deep);">Missing before any data collection:</strong> statistical power analysis, random seeds, significance testing plan, and an inter-annotator agreement threshold &rarr; fixed by Action 3 (weeks 1–2).</p>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

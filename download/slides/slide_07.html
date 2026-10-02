@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>07 · Novelty matrix</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="global.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #F6F9F9; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .cluster-label { font-size: 11px; font-weight: 700; letter-spacing: .07em; }
+  .nid { font-weight: 700; color: var(--primary-deep); }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div style="height:100%; display:flex; flex-direction:column; padding:56px 60px;">
+
+    <!-- Header -->
+    <div style="margin-bottom:20px;">
+      <div class="eyebrow" style="font-size:var(--fs-micro); margin-bottom:8px;">Section 02 &middot; Novelty &amp; Contribution</div>
+      <h1 style="font-family:var(--font-heading); font-size:var(--fs-h1); font-weight:700; color:var(--primary-deep); line-height:1.12; margin:0;">Ten contributions positioned by impact vs. feasibility</h1>
+    </div>
+
+    <!-- Body: figure 55% + cluster cards 45% -->
+    <div style="flex:1; min-height:0; display:flex; gap:24px;">
+
+      <figure class="figure-frame" style="flex:0 0 55%; min-width:0; margin:0; padding:12px;">
+        <img src="../assets_rp/fig1_novelty_matrix.png" alt="Scatter matrix positioning contributions N1–N10 by impact versus feasibility">
+      </figure>
+
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:14px;">
+
+        <!-- PROTECT -->
+        <div class="card" style="flex:1; border-left:4px solid var(--accent); padding:14px 18px; display:flex; flex-direction:column; justify-content:center;">
+          <div class="cluster-label" style="color:var(--accent); margin-bottom:6px;">PROTECT — core of the thesis</div>
+          <p style="margin:0; font-size:14px; line-height:1.55; color:var(--ink);"><span class="nid">N2</span> Impact-aware question selection &middot; <span class="nid">N7</span> Arabic / code-switched benchmark — individually defensible, ablation-critical, independently publishable.</p>
+        </div>
+
+        <!-- KEEP -->
+        <div class="card" style="flex:1.15; padding:14px 18px; display:flex; flex-direction:column; justify-content:center;">
+          <div class="cluster-label" style="color:var(--primary); margin-bottom:6px;">KEEP — lightweight</div>
+          <p style="margin:0; font-size:14px; line-height:1.55; color:var(--ink);"><span class="nid">N1</span> Evidence-first objects &middot; <span class="nid">N3</span> Ambiguity branching &middot; <span class="nid">N4</span> Uncertainty ledger &middot; <span class="nid">N5</span> Requirement debt score &middot; <span class="nid">N6</span> Voice preservation &middot; <span class="nid">N10</span> Rationale explanations — valuable engineering, not headline research.</p>
+        </div>
+
+        <!-- DEFER -->
+        <div style="flex:1; border:1.5px dashed var(--muted); border-radius:10px; padding:14px 18px; display:flex; flex-direction:column; justify-content:center; background:transparent;">
+          <div class="cluster-label" style="color:var(--muted); margin-bottom:6px;">DEFER — descope candidates</div>
+          <p style="margin:0; font-size:14px; line-height:1.55; color:var(--muted);"><span class="nid" style="color:var(--muted);">N8</span> Cross-artifact change propagation &middot; <span class="nid" style="color:var(--muted);">N9</span> Requirements time travel — Phase B material; first cuts when time compresses.</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Footnote -->
+    <p style="margin:14px 0 0; font-size:var(--fs-micro); color:var(--muted); line-height:1.4;">Scores are analyst estimates on a 1–5 scale; the matrix is self-assessed by the team, hence Action 2 (systematic search protocol).</p>
+
+  </div>
+</div>
+</body>
+</html>
