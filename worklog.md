@@ -123,3 +123,21 @@ Stage Summary:
 - Deliverables: download/RequirementPilot_Defense_Briefing.pptx (17 slides) + download/RequirementPilot_Defense_Briefing.pdf (pixel-perfect backup) + editable HTML sources in download/slides/ (slides_brief.json is the structural source of truth).
 - Deck structure: cover, roadmap, 4 sections (Verdict / Novelty / Feasibility-Architecture-Risk / Actions-Recommendation) with teal dividers, scorecard, novelty matrix, N2+N7 deep dive, architecture, evaluation, Gantt, risk register, 12-action plan, 4 conditions + descope ladder, closing.
 - Design continuity: same DM-1 deep-teal system and figures as the Word report; verdict "Conditional go 4.0/5" consistent throughout.
+
+---
+Task ID: 6
+Agent: Main agent (Super Z)
+Task: Answer the team's expansion question (what to add, what is missing, what modifications make the idea broader/more comprehensive/more innovative) as a companion Word report to the analysis.
+
+Work Log:
+- Re-grounded in the reference document (sections 3, 14, 86, 90-99: future scope, MCP workflow, research gap, risks) and both prior content modules to reuse the report's facts, scores, and verdicts verbatim.
+- Wrote content modules rp2_content1.js / rp2_content2.js (9 sections, ~6,800 words): gap register G1-G14, innovation portfolio I1-I14 in 4 clusters, strategic modifications M1-M5, tiered adoption roadmap, projected dimension scores.
+- Generated fig6_portfolio.png (impact x effort map, tier-colored) and fig7_roadmap.png (per-item Gantt with V1/V2/Future lanes) via rp2_charts.py; fixed fig7 first render (same-lane bar collisions) by rebuilding as per-row Gantt.
+- Built docx with rp2_generate.js reusing the validated R1 cover / DM-1 palette / 3-section numbering / horizontal zebra tables; installed docx + image-size npm packages (lost with env refresh).
+- Parametrized rp_postprocess.py (argv path); ran pgNumType cleanup + footer ROMAN/arabic patch; add_toc_placeholders --auto injected 14 entries (9 H1 + 5 H2), exit 0.
+- postcheck.py: 9/9 passed, 0 errors, 0 warnings. LibreOffice PDF render: 20 pages, 6,792 words; visually verified cover, TOC, body, table header repeat on page breaks, both figures, natural ending.
+
+Stage Summary:
+- Deliverable: /home/z/my-project/download/RequirementPilot_Expansion_Roadmap.docx (294 KB, 20 pages, 6 tables, 2 new figures in assets_rp/).
+- Core answers: 14 missing elements (G1-G14); 14 developments (I1-I14; flagship = I1 uncertainty-gated ask-vs-proceed, I6 Arabic-first layer); 5 strategic modifications (M1 three flagship claims, M2 continuous lifecycle, M3 verified agent society, M4 platform assets, M5 upgraded evaluation contract with RQ8 + integration-isolation condition).
+- Sequencing: V1 tier (weeks 1-12, seven S-class items ~4 person-weeks), V2 tier (months 4-6), Future tier; all gated by the analysis report's M1 milestone and descope ladder.

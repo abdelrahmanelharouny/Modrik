@@ -9,8 +9,9 @@ import re
 import shutil
 import zipfile
 import os
+import sys
 
-SRC = "/home/z/my-project/download/RequirementPilot_Project_Analysis.docx"
+SRC = sys.argv[1] if len(sys.argv) > 1 else "/home/z/my-project/download/RequirementPilot_Project_Analysis.docx"
 TMP = SRC + ".tmp"
 
 with zipfile.ZipFile(SRC, "r") as zin:
