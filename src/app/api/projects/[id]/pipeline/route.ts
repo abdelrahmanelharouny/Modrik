@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { runStageAgent } from "@/lib/agents";
+import { runStageAgent, harvestMemory } from "@/lib/agents";
+import { logDecision } from "@/lib/journal";
 import { STAGES, type Stage } from "@/lib/rp";
 
 type Params = { params: Promise<{ id: string }> };
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
-  if (project.status === "complete") {
+  if (project.status === "complete" && action !== "reopen") {
     return NextResponse.json({ error: "Pipeline already complete" }, { status: 409 });
   }
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         data: { stageStatus: "agent_running" },
       });
       try {
-        await runStageAgent(stage, id);
+        await runStageAgent(stage, id, run.id);
         await db.pipelineRun.update({
           where: { id: run.id },
           data: { status: "done", completedAt: new Date(), log: "agent finished" },
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           where: { id },
           data: { stageStatus: "awaiting_review", updatedAt: new Date() },
         });
+        await logDecision(id, stage, "agent", "agent_run", `${stage} agent finished — output awaiting human review.`);
       } catch (err) {
         await db.pipelineRun.update({
           where: { id: run.id },
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           where: { id },
           data: { stageStatus: "awaiting_input" },
         });
+        await logDecision(id, stage, "agent", "agent_failed", String(err).slice(0, 300));
         throw err;
       }
       return NextResponse.json({ ok: true, stageStatus: "awaiting_review" });
@@ -81,24 +84,24 @@ export async function POST(req: NextRequest, { params }: Params) {
       // stage-specific completion validation
       if (stage === "ELICITATION") {
         const qs = await db.question.findMany({ where: { projectId: id } });
-        const unanswered = qs.filter((q) => !q.answered);
         if (qs.length === 0) {
           return NextResponse.json(
             { error: "No questions to review — run the agent first" },
             { status: 422 }
           );
         }
-        if (unanswered.length === qs.length) {
+        const pending = qs.filter((q) => q.resolution === "pending");
+        if (pending.length === qs.length) {
           return NextResponse.json(
-            { error: "Answer at least one question before approving" },
+            { error: "Answer at least one question (or mark it proceed-with-uncertainty) before approving" },
             { status: 422 }
           );
         }
-        // mark unanswered as skipped so the record is auditable
-        for (const q of unanswered) {
+        // mark any still-pending questions as explicitly skipped so the record is auditable
+        for (const q of pending) {
           await db.question.update({
             where: { id: q.id },
-            data: { answered: true, answer: "(skipped by analyst)" },
+            data: { answered: true, answer: "(skipped by analyst)", resolution: "answered" },
           });
         }
       }
@@ -143,13 +146,15 @@ export async function POST(req: NextRequest, { params }: Params) {
           data: { currentStage: nxt, stageStatus: "awaiting_input", updatedAt: new Date() },
         });
       } else {
-        // CONFLICTS approved → pipeline complete
+        // CONFLICTS approved → pipeline complete → harvest memory (I4)
         await db.project.update({
           where: { id },
           data: { status: "complete", stageStatus: "approved", updatedAt: new Date() },
         });
+        await harvestMemory(id);
       }
 
+      await logDecision(id, stage, "human", "approved_stage", `Human gate passed for ${stage}.`);
       await db.pipelineRun.update({
         where: { id: run.id },
         data: { status: "done", completedAt: new Date(), log: `stage ${stage} approved` },
@@ -163,6 +168,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         where: { id },
         data: { status: "active", stageStatus: "awaiting_input", updatedAt: new Date() },
       });
+      await logDecision(id, stage, "human", "reopened", "Baseline unlocked for iteration.");
       return NextResponse.json({ ok: true });
     }
 

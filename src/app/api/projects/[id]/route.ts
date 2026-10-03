@@ -15,6 +15,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       stories: { orderBy: { refId: "asc" } },
       conflicts: { include: { reqA: true, reqB: true } },
       artifacts: { orderBy: { createdAt: "desc" } },
+      decisions: { orderBy: { createdAt: "desc" }, take: 200 },
+      runs: { orderBy: { createdAt: "desc" }, take: 50 },
     },
   });
   if (!project) {

@@ -1,11 +1,24 @@
 // ─────────────────────────────────────────────────────────────
 // RequirementPilot — agent stage runners (server-side only)
-// Each stage agent calls the LLM, parses structured JSON output
-// and persists results. Human approval happens between stages.
+// Expansion build:
+//   I1  ask-vs-proceed signals (askCost + fallbackAssumption)
+//   I2  confidence values per requirement (calibration input)
+//   I3  critic-verifier pass (Propose → Verify → Human arbitrates)
+//   I4  cross-project memory re-injection + harvest
+//   I7  synthetic stakeholder wind tunnel (persona + held-out secret)
+//   I8  drift radar over the requirement graph
+//   I11 compliance / NFR constraint pack checks
+//   I13 per-call latency + token estimates recorded per run
+//   I14 requirements health report
+//   G4  structured state re-injection between stages
+//   G6  prompt version recorded on every run
 // ─────────────────────────────────────────────────────────────
 import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
+import { logDecision } from "@/lib/journal";
 import type { Stage } from "@/lib/rp";
+
+export const PROMPT_VERSION = "v2-expansion";
 
 // ---------- LLM plumbing ----------
 
@@ -15,24 +28,39 @@ const SYSTEM_BASE =
   "ground every statement in the provided evidence. Reply with VALID JSON ONLY — " +
   "no markdown fences, no commentary before or after the JSON.";
 
-async function callLLM(userPrompt: string): Promise<string> {
+interface UsageAcc {
+  calls: number;
+  latencyMs: number;
+  estTokens: number;
+}
+
+function newUsage(): UsageAcc {
+  return { calls: 0, latencyMs: 0, estTokens: 0 };
+}
+
+async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
   const zai = await ZAI.create();
+  const t0 = Date.now();
   const completion = await zai.chat.completions.create({
     messages: [
       { role: "system", content: SYSTEM_BASE },
       { role: "user", content: userPrompt },
     ],
   });
+  const latencyMs = Date.now() - t0;
+  usage.calls += 1;
+  usage.latencyMs += latencyMs;
+  // chars/4 heuristic over prompt + completion (I13 estimate)
+  const est = Math.ceil((userPrompt.length + (completion.choices[0]?.message?.content?.length ?? 0)) / 4);
+  usage.estTokens += est;
   return completion.choices[0]?.message?.content ?? "";
 }
 
 function parseJson<T>(raw: string): T {
   let text = raw.trim();
-  // strip possible markdown fences
   text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const start = text.search(/[{[]/);
   if (start > 0) text = text.slice(start);
-  // try progressively: full parse → last balanced brace
   try {
     return JSON.parse(text) as T;
   } catch {
@@ -45,7 +73,25 @@ function parseJson<T>(raw: string): T {
   throw new Error("Agent returned unparseable output");
 }
 
-// ---------- context builders ----------
+// Persist usage for the observatory (I13) — best-effort, never throws
+async function recordUsage(runId: string | undefined, u: UsageAcc) {
+  if (!runId || u.calls === 0) return;
+  try {
+    await db.pipelineRun.update({
+      where: { id: runId },
+      data: {
+        latencyMs: u.latencyMs,
+        estTokens: u.estTokens,
+        estCostUsd: +(u.estTokens * 0.0000006).toFixed(6), // blended $0.60 / 1M tokens (estimate)
+        promptVersion: PROMPT_VERSION,
+      },
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---------- context builders (G4 state re-injection) ----------
 
 function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string }[]): string {
   if (!evidences.length) return "(no evidence sources provided yet)";
@@ -61,31 +107,58 @@ function briefBlock(brief: string): string {
   return brief?.trim() ? brief : "(empty brief)";
 }
 
-// ---------- stage 1: ELICITATION ----------
+async function memoryBlock(): Promise<string> {
+  const lessons = await db.memoryEntry.findMany({
+    where: { kind: "lesson" },
+    orderBy: { createdAt: "desc" },
+    take: 6,
+  });
+  if (!lessons.length) return "";
+  return `\nCROSS-PROJECT LESSONS (learned from previous projects — apply where relevant):\n${lessons
+    .map((l) => `- ${l.term}: ${l.detail}`)
+    .join("\n")}\n`;
+}
+
+function uncertaintyBlock(questions: { text: string; fallbackAssumption: string | null; resolution: string }[]): string {
+  const decided = questions.filter((q) => q.resolution === "proceed_with_uncertainty" && q.fallbackAssumption);
+  if (!decided.length) return "";
+  return `\nUNCERTAINTY LEDGER (the human chose to proceed WITHOUT asking these — treat the stated assumption as an explicit, auditable assumption):\n${decided
+    .map((q) => `- Assume: ${q.fallbackAssumption} (instead of asking: "${q.text.slice(0, 120)}")`)
+    .join("\n")}\n`;
+}
+
+// ---------- stage 1: ELICITATION (I1 + I4) ----------
 
 export interface AgentQuestion {
   text: string;
   rationale: string;
   priority: "high" | "medium" | "low";
+  askCost: number;
+  fallbackAssumption: string;
 }
 
-export async function runElicitation(projectId: string): Promise<void> {
+export async function runElicitation(projectId: string, runId?: string): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { evidences: true },
   });
+  const usage = newUsage();
+
+  const memory = await memoryBlock();
 
   const prompt = `PROJECT BRIEF:
 ${briefBlock(project.brief)}
-
+${memory}
 EVIDENCE SOURCES:
 ${evidenceBlock(project.evidences)}
 
 TASK: Identify the 5 most important clarifying questions a requirements analyst must ask the stakeholders before extracting requirements. Focus on scope, users/roles, constraints, quality attributes and success criteria. Questions may be asked in the same language style as the evidence (English, Egyptian Arabic, or code-switched) if that matches the stakeholder.
 
-Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "priority": "high|medium|low"}]}`;
+This platform implements an UNCERTAINTY-GATED ask-versus-proceed policy: for every question also estimate how costly it is to interrupt the stakeholder, and state what the team would have to ASSUME if the question were skipped. Ask-cost 1 = trivial to ask, 5 = very costly interruption. The fallback assumption must be explicit and testable.
 
-  const out = parseJson<{ questions: AgentQuestion[] }>(await callLLM(prompt));
+Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "if skipped, assume that ..."}]}`;
+
+  const out = parseJson<{ questions: AgentQuestion[] }>(await callLLM(prompt, usage));
   const qs = (out.questions ?? []).slice(0, 7);
 
   await db.question.deleteMany({ where: { projectId } });
@@ -98,11 +171,14 @@ Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "pr
           text: String(q.text ?? "").slice(0, 600),
           rationale: String(q.rationale ?? "").slice(0, 600),
           priority: ["high", "medium", "low"].includes(q.priority) ? q.priority : "medium",
+          askCost: Math.min(5, Math.max(1, Math.round(Number(q.askCost) || 3))),
+          fallbackAssumption: String(q.fallbackAssumption ?? "").slice(0, 400) || null,
         },
       })
     )
   );
   await saveArtifact(projectId, "ELICITATION", out);
+  await recordUsage(runId, usage);
 }
 
 // ---------- stage 2: PROBLEM_SELECTION ----------
@@ -115,11 +191,12 @@ export interface AgentCandidate {
   suggestedEffort: number;
 }
 
-export async function runProblemSelection(projectId: string): Promise<void> {
+export async function runProblemSelection(projectId: string, runId?: string): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { evidences: true, questions: true },
   });
+  const usage = newUsage();
 
   const answers = project.questions
     .filter((q) => q.answered && q.answer)
@@ -134,12 +211,12 @@ ${evidenceBlock(project.evidences)}
 
 STAKEHOLDER ANSWERS:
 ${answers || "(no answers yet)"}
-
-TASK: Propose 3-4 candidate problem statements worth solving in this project. For each: a short title, a 2-3 sentence description, the evidence codes that ground it, and suggested impact (1-5, value to users/business) and effort (1-5, 5 = hardest). Prefer problems strongly supported by the evidence.
+${uncertaintyBlock(project.questions)}
+TASK: Propose 3-4 candidate problem statements worth solving in this project. For each: a short title, a 2-3 sentence description, the evidence codes that ground it, and suggested impact (1-5, value to users/business) and effort (1-5, 5 = hardest). Prefer problems strongly supported by the evidence. Treat ledger assumptions as provisional, not as facts.
 
 Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCodes": ["E1"], "suggestedImpact": 4, "suggestedEffort": 3}]}`;
 
-  const out = parseJson<{ candidates: AgentCandidate[] }>(await callLLM(prompt));
+  const out = parseJson<{ candidates: AgentCandidate[] }>(await callLLM(prompt, usage));
   const cs = (out.candidates ?? []).slice(0, 4);
 
   await db.problemCandidate.deleteMany({ where: { projectId } });
@@ -159,23 +236,32 @@ Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCod
     )
   );
   await saveArtifact(projectId, "PROBLEM_SELECTION", out);
+  await recordUsage(runId, usage);
 }
 
-// ---------- stage 3: EXTRACTION ----------
+// ---------- stage 3: EXTRACTION (I2 confidence + I3 critic) ----------
 
 export interface AgentRequirement {
   text: string;
   type: "functional" | "nonfunctional" | "constraint";
   priority: "Must" | "Should" | "Could" | "Won't";
   evidenceCodes: string[];
+  confidence: number;
   language: string;
 }
 
-export async function runExtraction(projectId: string): Promise<void> {
+interface Verdict {
+  refId: string;
+  verdict: "supported" | "weak";
+  note: string;
+}
+
+export async function runExtraction(projectId: string, runId?: string): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { evidences: true, questions: true, candidates: true },
   });
+  const usage = newUsage();
 
   const answers = project.questions
     .filter((q) => q.answered && q.answer)
@@ -197,17 +283,18 @@ ${evidenceBlock(evidences)}
 
 STAKEHOLDER ANSWERS:
 ${answers || "(no answers yet)"}
+${uncertaintyBlock(project.questions)}
+TASK: Extract 8-12 atomic requirements for the selected problem. Each requirement must be a single testable statement ("The system shall …"). Cite the evidence codes that ground it. Set priority by MoSCoW. Keep the original language of the source when a requirement is grounded in Arabic or code-switched evidence (set language accordingly: "en", "ar-EG" or "codeswitch"); otherwise use English. Also report your confidence (0-100) that each requirement is correct, complete and correctly grounded.
 
-TASK: Extract 8-12 atomic requirements for the selected problem. Each requirement must be a single testable statement ("The system shall …"). Cite the evidence codes that ground it. Set priority by MoSCoW. Keep the original language of the source when a requirement is grounded in Arabic or code-switched evidence (set language accordingly: "en", "ar-EG" or "codeswitch"); otherwise use English.
+Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional|constraint", "priority": "Must|Should|Could|Won't", "evidenceCodes": ["E1"], "confidence": 82, "language": "en"}]}`;
 
-Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional|constraint", "priority": "Must|Should|Could|Won't", "evidenceCodes": ["E1"], "language": "en"}]}`;
-
-  const out = parseJson<{ requirements: AgentRequirement[] }>(await callLLM(prompt));
+  const out = parseJson<{ requirements: AgentRequirement[] }>(await callLLM(prompt, usage));
   const rs = (out.requirements ?? []).slice(0, 14);
 
   // replace previous extraction
   await db.requirement.deleteMany({ where: { projectId } });
   let i = 0;
+  const refIndex: { refId: string; id: string; text: string }[] = [];
   for (const r of rs) {
     i += 1;
     const refId = `REQ-${String(i).padStart(2, "0")}`;
@@ -226,20 +313,55 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
         type,
         priority,
         language: ["en", "ar-EG", "codeswitch"].includes(r.language) ? r.language : "en",
+        confidence: Math.min(100, Math.max(0, Math.round(Number(r.confidence) || 60))),
         ambiguity: -1,
         order: i,
       },
     });
+    refIndex.push({ refId, id: created.id, text: created.text });
     for (const c of codes) {
       await db.traceLink.create({
         data: { projectId, requirementId: created.id, evidenceCode: c, note: "cited by extraction agent" },
       });
     }
   }
+
+  // ── I3 critic-verifier pass: second model call checks each
+  //    requirement against the evidence spans (Propose → Verify).
+  try {
+    const verifyPrompt = `You are the VERIFIER in a propose-verify requirements pipeline. Below are candidate requirements and the evidence sources they claim to be grounded in. For each requirement, judge strictly whether the evidence actually supports it:
+- "supported": the evidence explicitly states or clearly implies it.
+- "weak": the evidence only partially supports it, is stretched, or the requirement adds an assumption not in the evidence.
+
+EVIDENCE SOURCES:
+${evidenceBlock(evidences)}
+
+CANDIDATE REQUIREMENTS:
+${refIndex.map((r) => `${r.refId}: ${r.text}`).join("\n")}
+
+Return JSON: {"verdicts": [{"refId": "REQ-01", "verdict": "supported|weak", "note": "one-line justification"}]}`;
+
+    const vOut = parseJson<{ verdicts: Verdict[] }>(await callLLM(verifyPrompt, usage));
+    for (const v of vOut.verdicts ?? []) {
+      const target = refIndex.find((r) => r.refId === v.refId);
+      if (!target) continue;
+      await db.requirement.update({
+        where: { id: target.id },
+        data: {
+          verifyStatus: v.verdict === "supported" ? "supported" : "weak",
+          verifyNote: String(v.note ?? "").slice(0, 400),
+        },
+      });
+    }
+  } catch {
+    // verifier is best-effort; requirements stay "unverified" on failure
+  }
+
   await saveArtifact(projectId, "EXTRACTION", out);
+  await recordUsage(runId, usage);
 }
 
-// ---------- stage 4: AMBIGUITY ----------
+// ---------- stage 4: AMBIGUITY (Arabic lexicon, G14) ----------
 
 export interface AgentAssessment {
   refId: string;
@@ -248,11 +370,12 @@ export interface AgentAssessment {
   suggestion: string;
 }
 
-export async function runAmbiguity(projectId: string): Promise<void> {
+export async function runAmbiguity(projectId: string, runId?: string): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
   });
+  const usage = newUsage();
 
   const list = project.reqs
     .map((r) => `${r.refId}: ${r.text}`)
@@ -261,11 +384,11 @@ export async function runAmbiguity(projectId: string): Promise<void> {
   const prompt = `REQUIREMENTS:
 ${list}
 
-TASK: Score each requirement for ambiguity from 0 (crisp, testable) to 100 (vague, untestable). Flag the specific weak words (e.g. "fast", "user-friendly", "etc", "appropriate", passive voice, missing quantifiers). For any requirement scoring 30 or above, propose a sharper measurable rewrite. Respond for every requirement, in the requirement's own language.
+TASK: Score each requirement for ambiguity from 0 (crisp, testable) to 100 (vague, untestable). Flag the specific weak words (e.g. "fast", "user-friendly", "etc", "appropriate", passive voice, missing quantifiers). For Arabic and code-switched requirements, also use this Arabic ambiguity lexicon: كثير، سريع، مناسب، جيد، إلخ، تقريبا، غالبا، بسهولة، بشكل مريح، وغيرها — flag them exactly as you would their English equivalents. For any requirement scoring 30 or above, propose a sharper measurable rewrite. Respond for every requirement, in the requirement's own language.
 
 Return JSON: {"assessments": [{"refId": "REQ-01", "score": 42, "issues": "vague term 'fast'", "suggestion": "rewritten requirement"}]}`;
 
-  const out = parseJson<{ assessments: AgentAssessment[] }>(await callLLM(prompt));
+  const out = parseJson<{ assessments: AgentAssessment[] }>(await callLLM(prompt, usage));
   const map = new Map((out.assessments ?? []).map((a) => [a.refId, a]));
 
   for (const r of project.reqs) {
@@ -282,9 +405,10 @@ Return JSON: {"assessments": [{"refId": "REQ-01", "score": 42, "issues": "vague 
     });
   }
   await saveArtifact(projectId, "AMBIGUITY", out);
+  await recordUsage(runId, usage);
 }
 
-// ---------- stage 5: STORIES ----------
+// ---------- stage 5: STORIES (I9 Gherkin-ready) ----------
 
 export interface AgentStory {
   refId: string;
@@ -295,25 +419,25 @@ export interface AgentStory {
   investNote: string;
 }
 
-export async function runStories(projectId: string): Promise<void> {
+export async function runStories(projectId: string, runId?: string): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
   });
+  const usage = newUsage();
 
   const list = project.reqs
-    .filter((r) => r.status !== "draft" || r.ambiguity < 0 || true) // all current reqs
     .map((r) => `${r.refId} (${r.type}, ${r.priority}): ${r.text}`)
     .join("\n");
 
   const prompt = `APPROVED REQUIREMENTS:
 ${list}
 
-TASK: Write one user story per requirement (skip "Won't" priorities). Narrative format: "As a <role>, I want <capability>, so that <benefit>." Give 2-4 acceptance criteria per story, each concrete and testable, in the requirement's own language. Score INVEST quality 0-100 with a one-line note.
+TASK: Write one user story per requirement (skip "Won't" priorities). Narrative format: "As a <role>, I want <capability>, so that <benefit>." Give 2-4 acceptance criteria per story written in Gherkin style — each starting with "Given … when … then …" — concrete and testable, so they can be exported as executable .feature skeletons. Use the requirement's own language. Score INVEST quality 0-100 with a one-line note.
 
-Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative": "As a...", "acceptance": ["Given... when... then..."], "investScore": 78, "investNote": "..."}]}`;
+Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative": "As a...", "acceptance": ["Given ... when ... then ..."], "investScore": 78, "investNote": "..."}]}`;
 
-  const out = parseJson<{ stories: AgentStory[] }>(await callLLM(prompt));
+  const out = parseJson<{ stories: AgentStory[] }>(await callLLM(prompt, usage));
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
   await db.userStory.deleteMany({ where: { projectId } });
@@ -336,6 +460,7 @@ Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative
     });
   }
   await saveArtifact(projectId, "STORIES", out);
+  await recordUsage(runId, usage);
 }
 
 // ---------- stage 6: CONFLICTS ----------
@@ -349,11 +474,12 @@ export interface AgentConflict {
   suggestion: string;
 }
 
-export async function runConflicts(projectId: string): Promise<void> {
+export async function runConflicts(projectId: string, runId?: string): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
   });
+  const usage = newUsage();
 
   const list = project.reqs.map((r) => `${r.refId}: ${r.text}`).join("\n");
 
@@ -364,7 +490,7 @@ TASK: Cross-check all requirement pairs for (a) contradictions — cannot both h
 
 Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "contradiction", "description": "...", "severity": "high", "suggestion": "..."}]}`;
 
-  const out = parseJson<{ conflicts: AgentConflict[] }>(await callLLM(prompt));
+  const out = parseJson<{ conflicts: AgentConflict[] }>(await callLLM(prompt, usage));
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
   await db.conflict.deleteMany({ where: { projectId } });
@@ -385,24 +511,258 @@ Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "
     });
   }
   await saveArtifact(projectId, "CONFLICTS", out);
+  await recordUsage(runId, usage);
+}
+
+// ---------- I7 synthetic stakeholder wind tunnel ----------
+
+export async function runWindTunnel(
+  projectId: string,
+  persona: string,
+  secret: string
+): Promise<{ answered: number }> {
+  const project = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    include: { questions: true },
+  });
+  const usage = newUsage();
+
+  const pending = project.questions.filter((q) => !q.answered);
+  if (!pending.length) return { answered: 0 };
+
+  const prompt = `You are simulating a SYNTHETIC STAKEHOLDER in a requirements "wind tunnel". The purpose is stress-testing the clarifying questions before a real interview.
+
+PERSONA: ${persona}
+
+HELD-OUT SECRET (the persona knows this but will only reveal it if a question DIRECTLY probes the topic; otherwise give an evasive, vague or partially relevant answer): ${secret || "(none)"}
+
+QUESTIONS:
+${pending.map((q) => `[${q.id}] ${q.text}`).join("\n")}
+
+TASK: Answer each question in character. If (and only if) the question directly probes the secret's topic, reveal it naturally. Otherwise answer plausibly but incompletely. Answers should be in the persona's voice; mirror the language style of the question (English, Egyptian Arabic or code-switched).
+
+Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
+
+  const out = parseJson<{ answers: { id: string; answer: string }[] }>(await callLLM(prompt, usage));
+  let n = 0;
+  for (const a of out.answers ?? []) {
+    const q = pending.find((p) => p.id === a.id);
+    if (!q || !a.answer?.trim()) continue;
+    await db.question.update({
+      where: { id: q.id },
+      data: {
+        answer: `[synthetic · wind tunnel] ${String(a.answer).slice(0, 1500)}`,
+        answered: true,
+        resolution: "answered",
+      },
+    });
+    n += 1;
+  }
+  await logDecision(
+    projectId,
+    "ELICITATION",
+    "agent",
+    "synthetic_answers",
+    `Wind tunnel (${persona.slice(0, 80)}) filled ${n} answer(s) with persona-conditioned synthetic responses.`
+  );
+  await saveArtifact(projectId, "WIND_TUNNEL", { persona, secret, answers: out.answers ?? [] });
+  return { answered: n };
+}
+
+// ---------- I8 drift radar ----------
+
+export async function runDrift(projectId: string, signal: string): Promise<{ impacted: number; summary: string }> {
+  const project = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    include: { reqs: { orderBy: { order: "asc" } } },
+  });
+  const usage = newUsage();
+
+  const prompt = `REQUIREMENTS BASELINE:
+${project.reqs.map((r) => `${r.refId}: ${r.text}`).join("\n")}
+
+CHANGE SIGNAL (something that changed in the project's world after the baseline was frozen):
+${signal}
+
+TASK: Determine which requirements are impacted by this change signal (contradicted, invalidated, now incomplete, or needing revision). Be conservative — only flag genuinely impacted requirements (0 to all). Give a one-paragraph summary.
+
+Return JSON: {"impacted": [{"refId": "REQ-03", "note": "why it is impacted"}], "summary": "..."}`;
+
+  const out = parseJson<{ impacted: { refId: string; note: string }[]; summary: string }>(await callLLM(prompt, usage));
+
+  await db.requirement.updateMany({ where: { projectId }, data: { driftStatus: "none" } });
+  for (const imp of out.impacted ?? []) {
+    const r = project.reqs.find((x) => x.refId === imp.refId);
+    if (!r) continue;
+    await db.requirement.update({
+      where: { id: r.id },
+      data: { driftStatus: "suspected" },
+    });
+  }
+  await logDecision(projectId, "LIFECYCLE", "agent", "drift_check", out.summary ?? "");
+  await saveArtifact(projectId, "DRIFT", out);
+  return { impacted: (out.impacted ?? []).length, summary: String(out.summary ?? "") };
+}
+
+// ---------- I11 compliance / NFR constraint packs ----------
+
+export const PACKS: Record<string, { label: string; description: string }> = {
+  gdpr: {
+    label: "Privacy & data protection (GDPR-inspired)",
+    description:
+      "personal data handling, consent & lawful basis, data minimisation, retention & deletion, user rights (access/export/erasure), breach notification, data residency",
+  },
+  accessibility: {
+    label: "Accessibility (WCAG-inspired)",
+    description:
+      "keyboard operability, screen-reader support, colour contrast, text alternatives, focus visibility, RTL/multilingual text handling, low-bandwidth and low-end device support",
+  },
+  performance: {
+    label: "Performance & resilience",
+    description:
+      "response-time targets, throughput, offline/weak connectivity behaviour, graceful degradation, error handling, monitoring and alerting",
+  },
+};
+
+export async function runCompliance(projectId: string, pack: string): Promise<{
+  overall: string;
+  gaps: { aspect: string; note: string; suggestion: string }[];
+  covered: { refId: string; aspect: string }[];
+}> {
+  const project = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    include: { reqs: true },
+  });
+  const usage = newUsage();
+  const p = PACKS[pack] ?? PACKS.gdpr;
+
+  const prompt = `REQUIREMENT GRAPH:
+${project.reqs.map((r) => `${r.refId} (${r.type}, ${r.priority}): ${r.text}`).join("\n")}
+
+CONSTRAINT PACK: ${p.label}
+ASPECTS THE PACK EXPECTS TO SEE COVERED: ${p.description}
+
+TASK: Check the requirement graph against the pack. List which requirements cover which aspects, and list the gaps — aspects with NO adequate coverage. For each gap propose one concrete requirement to add. overall: "pass" if no material gaps, "partial" if some, "fail" if most aspects are missing.
+
+Return JSON: {"overall": "partial", "covered": [{"refId": "REQ-02", "aspect": "consent"}], "gaps": [{"aspect": "data retention", "note": "no requirement covers deletion/retention", "suggestion": "The system shall allow a user to delete their account and all associated data within 30 days."}]}`;
+
+  const out = parseJson<{
+    overall: string;
+    gaps: { aspect: string; note: string; suggestion: string }[];
+    covered: { refId: string; aspect: string }[];
+  }>(await callLLM(prompt, usage));
+  await logDecision(projectId, "LIFECYCLE", "agent", "compliance_check", `${p.label}: ${out.overall}`);
+  await saveArtifact(projectId, "COMPLIANCE", { pack, ...out });
+  return out;
+}
+
+// ---------- I14 requirements health report ----------
+
+export interface HealthReport {
+  summary: string;
+  strengths: string[];
+  risks: { title: string; note: string }[];
+  recommendations: string[];
+  ambiguityDebt: string;
+  uncertaintyLedger: string;
+  conflictDigest: string;
+}
+
+export async function runHealth(projectId: string): Promise<HealthReport> {
+  const project = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    include: { reqs: true, conflicts: { include: { reqA: true, reqB: true } }, questions: true, candidates: true, stories: true },
+  });
+  const usage = newUsage();
+
+  const assessed = project.reqs.filter((r) => r.ambiguity >= 0);
+  const avgAmb = assessed.length ? Math.round(assessed.reduce((s, r) => s + r.ambiguity, 0) / assessed.length) : -1;
+  const flagged = assessed.filter((r) => r.ambiguity >= 30);
+  const uncertain = project.questions.filter((q) => q.resolution === "proceed_with_uncertainty");
+  const unresolvedConflicts = project.conflicts.filter((c) => c.status === "open");
+  const selected = project.candidates.find((c) => c.selected);
+
+  const stats = `PROJECT: ${project.name}
+SELECTED PROBLEM: ${selected ? selected.title : "(none)"}
+REQUIREMENTS: ${project.reqs.length} total; avg ambiguity ${avgAmb < 0 ? "n/a" : avgAmb}; ${flagged.length} flagged >= 30; weak-verification: ${project.reqs.filter((r) => r.verifyStatus === "weak").length}; low-confidence (<50): ${project.reqs.filter((r) => r.confidence >= 0 && r.confidence < 50).length}
+UNCERTAINTY LEDGER: ${uncertain.length} assumption(s) carried without asking:
+${uncertain.map((q) => `- ${q.fallbackAssumption ?? q.text}`).join("\n") || "(none)"}
+CONFLICTS: ${project.conflicts.length} detected, ${unresolvedConflicts.length} still open
+STORIES: ${project.stories.length}`;
+
+  const prompt = `${stats}
+
+TASK: Produce a requirements health report for handoff. Write it for a delivery team lead. Be specific and honest; do not pad. ambiguityDebt / uncertaintyLedger / conflictDigest must each be 1-2 sentences quantifying that debt area.
+
+Return JSON: {"summary": "2-3 sentence overall health assessment", "strengths": ["..."], "risks": [{"title": "...", "note": "..."}], "recommendations": ["..."], "ambiguityDebt": "...", "uncertaintyLedger": "...", "conflictDigest": "..."}`;
+
+  const out = parseJson<HealthReport>(await callLLM(prompt, usage));
+  await logDecision(projectId, "LIFECYCLE", "agent", "health_report", out.summary ?? "");
+  await saveArtifact(projectId, "HEALTH", out);
+  return out;
+}
+
+// ---------- I4 cross-project memory harvest ----------
+
+export async function harvestMemory(projectId: string): Promise<void> {
+  try {
+    const project = await db.project.findUniqueOrThrow({
+      where: { id: projectId },
+      include: { reqs: true, questions: true, candidates: true, evidences: true },
+    });
+    const usage = newUsage();
+
+    const prompt = `A requirements project just completed. Harvest reusable knowledge for FUTURE projects on this platform.
+
+PROJECT: ${project.name}
+BRIEF: ${briefBlock(project.brief)}
+DOMAIN EVIDENCE: ${evidenceBlock(project.evidences).slice(0, 2000)}
+SELECTED PROBLEM: ${project.candidates.find((c) => c.selected)?.title ?? "(none)"}
+Q&A OUTCOMES:
+${project.questions.filter((q) => q.answer).map((q) => `- Q: ${q.text.slice(0, 100)} → A: ${(q.answer ?? "").slice(0, 100)}`).join("\n") || "(none)"}
+
+TASK: Extract (a) 3-5 domain GLOSSARY terms with crisp definitions, and (b) 2-4 reusable LESSONS — what a future analyst should do differently on a similar project (question-outcome lessons, elicitation tactics, domain pitfalls). Lessons must be general enough to carry across projects.
+
+Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"term": "short lesson title", "detail": "..."}]}`;
+
+    const out = parseJson<{
+      glossary: { term: string; definition: string }[];
+      lessons: { term: string; detail: string }[];
+    }>(await callLLM(prompt, usage));
+
+    for (const g of (out.glossary ?? []).slice(0, 5)) {
+      if (!g.term) continue;
+      await db.memoryEntry.create({
+        data: { projectId, kind: "glossary", term: String(g.term).slice(0, 120), detail: String(g.definition ?? "").slice(0, 400) },
+      });
+    }
+    for (const l of (out.lessons ?? []).slice(0, 4)) {
+      if (!l.term) continue;
+      await db.memoryEntry.create({
+        data: { projectId: null, kind: "lesson", term: String(l.term).slice(0, 120), detail: String(l.detail ?? "").slice(0, 400) },
+      });
+    }
+  } catch {
+    // memory harvest is best-effort
+  }
 }
 
 // ---------- dispatcher ----------
 
-export async function runStageAgent(stage: Stage, projectId: string): Promise<void> {
+export async function runStageAgent(stage: Stage, projectId: string, runId?: string): Promise<void> {
   switch (stage) {
     case "ELICITATION":
-      return runElicitation(projectId);
+      return runElicitation(projectId, runId);
     case "PROBLEM_SELECTION":
-      return runProblemSelection(projectId);
+      return runProblemSelection(projectId, runId);
     case "EXTRACTION":
-      return runExtraction(projectId);
+      return runExtraction(projectId, runId);
     case "AMBIGUITY":
-      return runAmbiguity(projectId);
+      return runAmbiguity(projectId, runId);
     case "STORIES":
-      return runStories(projectId);
+      return runStories(projectId, runId);
     case "CONFLICTS":
-      return runConflicts(projectId);
+      return runConflicts(projectId, runId);
   }
 }
 

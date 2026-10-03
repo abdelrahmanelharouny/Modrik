@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logDecision } from "@/lib/journal";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -7,6 +8,7 @@ type Params = { params: Promise<{ id: string }> };
  * Generic HITL item editing endpoint.
  * body: { kind: "question"|"candidate"|"requirement"|"story"|"conflict",
  *         itemId: string, data: object }
+ * Every mutation is recorded in the decision journal (I12).
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
@@ -22,13 +24,49 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   switch (kind) {
     case "question": {
-      const answer = String(data.answer ?? "").slice(0, 2000);
       const q = await db.question.findFirst({ where: { id: itemId, projectId: id } });
       if (!q) return NextResponse.json({ error: "Question not found" }, { status: 404 });
+
+      // I1 — ask-vs-proceed: mark as "proceed with marked uncertainty"
+      if (data.action === "proceed_with_uncertainty") {
+        await db.question.update({
+          where: { id: itemId },
+          data: {
+            resolution: "proceed_with_uncertainty",
+            answered: true,
+            answer: q.fallbackAssumption
+              ? `(proceeding with uncertainty — assume: ${q.fallbackAssumption})`
+              : "(proceeding with uncertainty — no assumption recorded)",
+          },
+        });
+        await logDecision(
+          id,
+          "ELICITATION",
+          "human",
+          "proceed_with_uncertainty",
+          `Skipped asking: "${q.text.slice(0, 120)}" — carrying assumption: ${q.fallbackAssumption ?? "(none)"}`
+        );
+        break;
+      }
+
+      // reopen a previously resolved question
+      if (data.action === "reopen") {
+        await db.question.update({
+          where: { id: itemId },
+          data: { resolution: "pending", answered: false, answer: null },
+        });
+        await logDecision(id, "ELICITATION", "human", "question_reopened", q.text.slice(0, 200));
+        break;
+      }
+
+      const answer = String(data.answer ?? "").slice(0, 2000);
       await db.question.update({
         where: { id: itemId },
-        data: { answer, answered: answer.trim().length > 0 },
+        data: { answer, answered: answer.trim().length > 0, resolution: answer.trim() ? "answered" : "pending" },
       });
+      if (answer.trim()) {
+        await logDecision(id, "ELICITATION", "human", "answered_question", `Q: ${q.text.slice(0, 150)} → A: ${answer.slice(0, 200)}`);
+      }
       break;
     }
 
@@ -43,8 +81,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (data.selected === true) {
         await db.problemCandidate.updateMany({ where: { projectId: id }, data: { selected: false } });
         patch.selected = true;
+        await logDecision(
+          id,
+          "PROBLEM_SELECTION",
+          "human",
+          "selected_problem",
+          `"${c.title}" — impact ${patch.impact ?? c.impact}/5, effort ${patch.effort ?? c.effort}/5`
+        );
       } else if (data.selected === false) {
         patch.selected = false;
+      } else if (patch.impact !== undefined || patch.effort !== undefined) {
+        await logDecision(
+          id,
+          "PROBLEM_SELECTION",
+          "human",
+          "candidate_tuned",
+          `"${c.title}" re-scored: impact ${patch.impact ?? c.impact}, effort ${patch.effort ?? c.effort}`
+        );
       }
       await db.problemCandidate.update({ where: { id: itemId }, data: patch });
       break;
@@ -63,6 +116,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           where: { id: itemId },
           data: { text: r.suggestion, suggestion: null, status: "revised" },
         });
+        await logDecision(id, "AMBIGUITY", "human", "applied_rewrite", `${r.refId}: "${r.text.slice(0, 150)}" → "${r.suggestion.slice(0, 150)}"`);
         break;
       }
 
@@ -75,6 +129,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         patch.priority = data.priority;
       if (typeof data.status === "string") patch.status = data.status;
       await db.requirement.update({ where: { id: itemId }, data: patch });
+      if (Object.keys(patch).length > 0) {
+        await logDecision(id, "EXTRACTION", "human", "edited_requirement", `${r.refId} updated (${Object.keys(patch).join(", ")}).`);
+      }
       break;
     }
 
@@ -87,6 +144,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (typeof data.acceptance === "string") patch.acceptance = data.acceptance.slice(0, 2000);
       if (typeof data.status === "string") patch.status = data.status;
       await db.userStory.update({ where: { id: itemId }, data: patch });
+      if (Object.keys(patch).length > 0) {
+        await logDecision(id, "STORIES", "human", "edited_story", `${s.refId} updated (${Object.keys(patch).join(", ")}).`);
+      }
       break;
     }
 
@@ -101,6 +161,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           status: resolution.trim() ? "resolved" : c.status,
         },
       });
+      if (resolution.trim() && c.status !== "resolved") {
+        await logDecision(id, "CONFLICTS", "human", "resolved_conflict", `${c.reqARef} ↔ ${c.reqBRef} (${c.kind}): ${resolution.slice(0, 200)}`);
+      }
       break;
     }
 
@@ -121,7 +184,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "kind and itemId are required" }, { status: 400 });
   }
   if (kind === "requirement") {
+    const r = await db.requirement.findFirst({ where: { id: itemId, projectId: id } });
     await db.requirement.deleteMany({ where: { id: itemId, projectId: id } });
+    if (r) await logDecision(id, "EXTRACTION", "human", "deleted_requirement", `${r.refId}: ${r.text.slice(0, 200)}`);
   } else if (kind === "story") {
     await db.userStory.deleteMany({ where: { id: itemId, projectId: id } });
   } else if (kind === "conflict") {

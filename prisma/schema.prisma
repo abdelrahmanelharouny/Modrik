@@ -31,6 +31,29 @@ model Project {
   reqs       Requirement[]
   stories    UserStory[]
   conflicts  Conflict[]
+  decisions  DecisionEntry[]
+}
+
+// Immutable audit trail of every human/agent decision (I12 decision journal)
+model DecisionEntry {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage     String
+  actor     String   @default("human") // human | agent | system
+  action    String // answered_question | proceed_with_uncertainty | selected_problem | ...
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+}
+
+// Cross-project learning memory (I4): glossary terms + lessons carried between projects
+model MemoryEntry {
+  id        String   @id @default(cuid())
+  projectId String?
+  kind      String   @default("lesson") // glossary | lesson
+  term      String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
 }
 
 // Grounding sources: interviews, documents, meeting notes…
@@ -41,9 +64,11 @@ model Evidence {
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   code       String // E1, E2, …
   title      String
-  sourceType String // interview | document | meeting | survey | observation
+  sourceType String // interview | document | meeting | survey | observation | transcript | whiteboard_ocr
   language   String   @default("en") // en | ar-EG | codeswitch
   content    String
+  consent    Boolean  @default(false) // stakeholder consent recorded (G13 governance)
+  origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
 }
 
@@ -56,8 +81,11 @@ model Question {
   text      String
   rationale String?
   priority  String  @default("medium") // high | medium | low
+  askCost   Int? // 1..5 estimated stakeholder interruption cost (I1)
+  fallbackAssumption String? // what the agent would assume if the question is skipped (I1)
   answer    String?
   answered  Boolean @default(false)
+  resolution String @default("pending") // pending | answered | proceed_with_uncertainty
 }
 
 // Impact-aware problem selection (novelty contribution N2)
@@ -85,14 +113,18 @@ model Artifact {
 }
 
 model PipelineRun {
-  id          String    @id @default(cuid())
-  projectId   String
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  stage       String
-  status      String    @default("running") // running | done | failed
-  log         String?
-  createdAt   DateTime  @default(now())
-  completedAt DateTime?
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage         String
+  status        String    @default("running") // running | done | failed
+  log           String?
+  latencyMs     Int? // wall-clock agent latency (I13 observatory)
+  estTokens     Int? // estimated total tokens (chars/4 heuristic)
+  estCostUsd    Float? // estimated blended cost in USD
+  promptVersion String? // prompt traceability (G6 observability)
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
 }
 
 model Requirement {
@@ -106,6 +138,10 @@ model Requirement {
   ambiguity     Int     @default(-1) // -1 = not yet assessed; 0..100
   ambiguityNote String?
   suggestion    String? // proposed rewrite from ambiguity agent
+  confidence    Int     @default(-1) // -1 = not assessed; 0..100 agent confidence (I2 calibration)
+  verifyStatus  String  @default("unverified") // supported | weak | unverified (I3 critic-verifier)
+  verifyNote    String?
+  driftStatus   String  @default("none") // none | suspected | confirmed (I8 drift radar)
   language      String  @default("en") // en | ar-EG | codeswitch
   status        String  @default("draft") // draft | approved
   order         Int     @default(0)
