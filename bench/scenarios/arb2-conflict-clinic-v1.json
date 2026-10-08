@@ -1,0 +1,46 @@
+{
+ "id": "arb2-conflict-clinic-v1",
+ "category": "conflict",
+ "task": "detect and classify requirement conflicts",
+ "domain": "Clinic appointment booking",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A booking system for a chain of clinics: slots, follow-ups, insurance verification and reminders.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "د. أحمد: المواعيد اللي بتتلغي آخر لحظة بتضيّرنا أكتر من حاجة. محتاج المريض يأكد قبلها بساعتين وإلا الكرسي يروح لغيره. وكمان العيادة بتشتغل بفيزيائية وكارت تأمين، فلازم النظام يعرف يفرّق بينهم من أول الشاشة. والانتظار محتاج يبقى مرتب مش فوضى زي دلوقتي.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Reception workflow: الـ insurance verification لازم تتم قبل الـ check-in — otherwise الـ patient هيفضل واقف. الـ no-show policy: بعد تأكدين دون حضور، الـ slot التالي يحتاج prepayment.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "conflict_pairs_json",
+  "payload": {
+   "conflicts": [
+    {
+     "reqARef": "REQ-01",
+     "reqBRef": "REQ-02",
+     "kind": "contradiction",
+     "taxonomy": "value",
+     "why": "throughput vs patient autonomy",
+     "implications_only": true
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

@@ -1,0 +1,51 @@
+{
+ "id": "arb2-executability-food_market-v3",
+ "category": "executability",
+ "task": "simulate executability and surface UNDEFINED discoveries",
+ "domain": "Home-cooking marketplace",
+ "languages": [
+  "ar-EG",
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A Cairo marketplace app where home cooks sell fresh meals to nearby customers; orders, payouts and reviews in one place.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "منى: أنا بطبخ أكل بلدي من البيت وبيعته للجيران بس. عايزة تطبيق يعرض أكلاتي اليومية والزباين يطلبوا من التطبيق على طول. المشكلة إن في ناس بتطلب وبتنسى، ومحتاجة أعرف مين اللي لسه مادفعش. وكمان لو الطلب متأخر عايزة الزبون يعرف قبل ما يزعل.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "exec_scenarios_json",
+  "payload": {
+   "scenarios": [
+    {
+     "given": "A cook published 3 meals; a customer ordered meal #2 and paid online.",
+     "when": "The customer cancels 2 minutes after payment.",
+     "then": "The order becomes cancelled and the payment enters refund processing.",
+     "resolution": "defined"
+    },
+    {
+     "given": "A cook published 3 meals; a customer ordered meal #2 and paid online.",
+     "when": "The customer cancels 2 minutes after payment.",
+     "then": "The cook's daily published quantity for meal #2 is restored.",
+     "resolution": "undefined",
+     "expect": "UNDEFINED recorded as a discovery with a clarifying question"
+    }
+   ]
+  }
+ },
+ "notes": "Mixed Arabic interview + English document"
+}

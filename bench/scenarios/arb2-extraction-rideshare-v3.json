@@ -1,0 +1,74 @@
+{
+ "id": "arb2-extraction-rideshare-v3",
+ "category": "extraction",
+ "task": "extract atomic, grounded requirements",
+ "domain": "Ride-sharing for campuses",
+ "languages": [
+  "ar-EG",
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A ride-sharing service limited to university campuses: matched carpools, safety checks and capped fares.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "كريم: بننقل الطلبة من المدينة للجامعة والزحمة قتلتنا. محتاجين matching سريع صباحًا وكل عربية لازم تتسجل عند أمن الجامعة. المشكلة إن الفلوس بتتأخر، وعايزين حد أقصى للأجرة عشان نفضل أرخص من المواصلات الخاصة. والبنات محتاجين خيار إن السواق بنت.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "requirements_json",
+  "payload": {
+   "requirements": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall cap any single-ride fare at 25 EGP.",
+     "type": "constraint",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The system shall match riders within a 20-minute morning window, else move them to a waitlist.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall allow riders to filter for female drivers.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-04",
+     "text": "The system shall verify each driver's campus safety-office registration before activation.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-05",
+     "text": "The system shall settle driver earnings within 48 hours of trip completion.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-06",
+     "text": "Trip history shall be anonymised after 90 days for privacy.",
+     "type": "constraint",
+     "priority": "Could"
+    }
+   ]
+  }
+ },
+ "notes": "Mixed Arabic interview + English document"
+}

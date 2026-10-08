@@ -183,3 +183,34 @@ Work Log:
 Stage Summary:
 - Deliverable: /home/z/my-project/download/RequirementPilot_Agent_Audit_Report.docx (238 KB, 33 pages) — per-agent deep dives with roles, operational dynamics, behavioural patterns, audit verdicts, improvement actions; findings register F-01..F-12; fix ledger with live verification evidence; P0/P1/P2 core-operations roadmap (provider interface + CI regression suite + Arabic ASR decision + ablation harness as P0).
 - Platform state: all agents verified; 9 hardening fixes live; the one open high-severity item is the upstream Arabic ASR deficiency (guarded, visible to humans, decision documented as P0).
+
+---
+Task ID: 9
+Agent: Main agent (Super Z)
+Task: Execute the full confirmed Phase-2 research-completion scope (user: "can you do all of them") — dev items 6-14, open requirements 1-3, constraint-pack dual role, production proposal, registry/UI wiring, verification.
+
+Work Log:
+- Inventoried the repo and confirmed Task 1-8 state (analysis report, MVP, decks, expansion roadmap, Mission Control UI, agent audit all frozen/complete).
+- Prisma: 7 new models (PlannerRun, ReqEdge, ExecScenario, Integration, SyncMap, StudySession, StudyEvent) + Question.utility + Conflict.taxonomy/implications + SyncMap relations; db push + client regen.
+- Dev item 12: src/lib/providers.ts — LLM Provider Interface (GLM via z-ai-web-dev-sdk | OpenAI-compatible Model B | local OpenAI-compatible), fixed strategy kept in agents.ts (retries, JSON repair, usage); provider id recorded per run; /api/providers; agents.ts callLLM refactored.
+- Dev item 7 (research heart): src/lib/planner.ts — utility formula (IG x Impact x Uncertainty x Risk / AskCost), signal scorer, budget-constrained greedy selection, 4 arms (single_shot/random/llm/impact_aware) all judged by the SAME scorer+judge on 5 metrics (avgUtility, utilityPerCost, evidenceCoverage, redundancyRate, dialectFit); PlannerRun persisted; planner is the default ELICITATION engine (RP_PLANNER_ARM / body.arm); Planner Lab UI (arm runner + comparison grid) + utility breakdown chips on question rows + arm selector in the cockpit.
+- Dev item 6: Arabic-native-first elicitation prompt deepened (ALL questions targeting Arabic stakeholders in Egyptian Arabic, code-switch mirroring, fallback assumptions in-question-language).
+- Dev item 9: src/lib/graph.ts — 6 typed edge kinds, LLM edge proposal + conflict materialisation, reverse-impact BFS traversal (hop depth + path kinds); /graph route; Constellation upgraded (typed-edge rendering with kind labels, extract-edges button, trace-impact-from-node with pulsing impact rings, impact set panel).
+- Dev item 8: src/lib/executability.ts — Given/When/Then simulation with resolution pass; UNDEFINED recorded as discovery (undefinedReason + clarifying question; GAP-nn orphans); /executability route + ExecutabilitySim UI.
+- Open req 1: src/lib/calibration.ts — reliability bins, Brier, ECE, over/under-confidence verdict; /calibration route + CalibrationPanel UI.
+- Dev item 11: src/lib/health.ts — 6 deterministic debt dimensions with per-requirement contributions; /health GET returns live debt profile; Health tab renders drill-down meters; LLM narrative stays around computed numbers.
+- Dev item 10: conflict taxonomy (value/terminology/scale/constraint/precedence/knowledge) + implications-only JSON (IF option => impact, never a recommendation); negotiation table renders taxonomy chip + implications list.
+- Open req 2: src/lib/integrations.ts — GitHub Issues push/pull/test + Jira Cloud v3 push/pull/test with SyncMap trace, Integration credential storage (server-side, masked responses, env fallbacks); /integrations route + IntegrationsConsole UI (config dialog, test/push/pull, sync map, pulled-issues review).
+- Constraint-pack dual role: src/lib/constraints.ts + /api/self-audit — deterministic WCAG 2.2 contrast math on live design tokens, performance budgets from telemetry, PDPL structural checks; SelfAuditPanel in the Constraint Pack Bay.
+- Dev item 13: scripts/rp_bench_build.py -> bench/ arbench-v2: 120 scenarios = 8 categories x 5 domains x 3 evidence mixes, 6 gold artifact types, hand-authored Egyptian-Arabic + code-switch seeds, deterministic.
+- Dev item 14: StudySession/StudyEvent + /api/study (open session, NASA-TLX/SUS/events patch, anonymised CSV export) + docs/study-protocol.md (3-group design, task scripts, measures, H1-H3, Kruskal-Wallis/Dunn analysis, PDPL consent, threats).
+- Registry: 9 instruments (Planner Lab, Calibration Panel, Executability Simulator added), integrations flipped to live, FEATURE_ATLAS updated (provider interface, planner, graph, executability, study console live), telemetry +4 counters.
+- Live verification (GLM by Z.ai): all 4 planner arms executed (impact_aware avgUtility 193.2 vs 72.4/81.3/77.8; util-per-cost 107 vs 31-39); full pipeline walked on a new Ablation Lab project with planner as default elicitation; graph extract (4 edges) + traversal (REQ-03 -> REQ-01 hop 1 via depends_on); executability 9 scenarios / 2 UNDEFINED with discoveries; calibration Brier 0.0903 ECE 0.0278 well-calibrated; debt profile 6 dimensions; conflicts taxonomy+implications live (duplication/terminology); integrations graceful unconfigured errors; study API end-to-end + CSV; self-audit 15 pass/2 warn/0 fail (contrast up to 16.81:1); browser check: 9 Debrief tabs, Planner Lab, utility chips (400/200/108/96), no page errors.
+- tsc + eslint clean; stale dev server killed and restarted to pick up new Prisma client (found via /api/self-audit 500, root-caused EADDRINUSE + old client).
+- FEATURES_STATUS.md rewritten (4 categories, honest: 2 in-dev, 2 not-started, 5 missing incl. judge set-level sensitivity); PRODUCTION_PROPOSAL.md written (positioning, reliability, deployment topologies, persistence, security, collaboration, research scalability, radical extensions, 3-horizon sequence).
+
+Stage Summary:
+- All confirmed research-completion items are implemented and live-verified: planner (7), Arabic-first (6), executability (8), graph (9), conflict taxonomy (10), provider interface (12), bench 120 (13), study infra (14), calibration (open 1), integrations (open 2), pack dual role, Arabic interview channel (voice + native questions).
+- New showcase project "Ablation Lab - Clinic Booking" left at CONFLICTS with live planner/graph/calibration/executability data; demo project untouched.
+- Known honest limitations recorded: ablation judge set-level metrics flat across arms in the seeded run; Arabic ASR upstream gap still open (guarded); pilot recruitment not started (protocol ready).
+- Deliverables added: src/lib/{planner,providers,graph,executability,calibration,health,constraints,integrations}.ts, 7 new API routes, bench/ (120 fixtures), docs/study-protocol.md, PRODUCTION_PROPOSAL.md, FEATURES_STATUS.md v2.

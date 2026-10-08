@@ -1,0 +1,58 @@
+{
+ "id": "arb2-ambiguity-food_market-v2",
+ "category": "ambiguity",
+ "task": "score and repair ambiguous statements",
+ "domain": "Home-cooking marketplace",
+ "languages": [
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A Cairo marketplace app where home cooks sell fresh meals to nearby customers; orders, payouts and reviews in one place.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Product one-pager",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Scope: pilot with 50 users. Success: 80% of target workflows completed in-app without phone support. Constraints: launch before the semester starts; no stored card data.",
+   "consent": false
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "ambiguity_scores_json",
+  "payload": {
+   "assessments": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall handle orders quickly.",
+     "score": 85,
+     "issue": "vague quantifier 'quickly' — no latency bound",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The app shall be user-friendly for cooks.",
+     "score": 90,
+     "issue": "subjective 'user-friendly' — untestable",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall support many customers.",
+     "score": 75,
+     "issue": "unbounded scale 'many'",
+     "expected_action": "rewrite"
+    }
+   ]
+  }
+ },
+ "notes": "English documents only"
+}

@@ -1,0 +1,34 @@
+{
+ "id": "arb2-traceability-lms-v2",
+ "category": "traceability",
+ "task": "build the evidence trace matrix",
+ "domain": "University learning management",
+ "languages": [
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A lightweight LMS for a university department: assignments, plagiarism checks, gradebook and attendance.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Product one-pager",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Scope: pilot with 50 users. Success: 80% of target workflows completed in-app without phone support. Constraints: launch before the semester starts; no stored card data.",
+   "consent": false
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "trace_matrix_csv",
+  "payload": "requirement_ref,evidence_code,grounding_strength\nREQ-01,E1,explicit\nREQ-01,E2,implied\nREQ-02,E1,implied\nREQ-02,E2,implied\nREQ-03,E1,explicit\nREQ-03,E2,implied\nREQ-04,E1,implied\nREQ-04,E2,implied\n"
+ },
+ "notes": "English documents only"
+}

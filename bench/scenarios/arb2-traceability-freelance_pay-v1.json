@@ -1,0 +1,35 @@
+{
+ "id": "arb2-traceability-freelance_pay-v1",
+ "category": "traceability",
+ "task": "build the evidence trace matrix",
+ "domain": "Freelance payment escrow",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "An escrow-style payment platform for Egyptian freelancers: milestones, dispute windows and tax receipts.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "هبة: بشتغل ديزاين مع عملاء برّه والتحويل بيضيع وسط. محتاج escrow بحيث العميل يودّع قبل ما أبدأ، وأنا أستلم على مراحل milestones. لو حصل خلاف، في window نقدر نتفاوض فيه. والضرايب… محتاجة إيصالات مرتبة في آخر السنة بدل ما أدور على كل حاجة.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Finance rules: الـ dispute window هو 14 يوم من الـ milestone delivery، وبعدها الـ escrow بيتحرر تلقائيًا. الـ tax receipt لازم يتولد PDF فيه الـ tax ID بتاع الفري لانسر.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "trace_matrix_csv",
+  "payload": "requirement_ref,evidence_code,grounding_strength\nREQ-01,E1,explicit\nREQ-01,E2,implied\nREQ-02,E1,implied\nREQ-02,E2,implied\nREQ-03,E1,explicit\nREQ-03,E2,implied\nREQ-04,E1,implied\nREQ-04,E2,implied\n"
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

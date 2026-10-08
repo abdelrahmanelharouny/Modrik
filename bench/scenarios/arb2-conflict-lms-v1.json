@@ -1,0 +1,46 @@
+{
+ "id": "arb2-conflict-lms-v1",
+ "category": "conflict",
+ "task": "detect and classify requirement conflicts",
+ "domain": "University learning management",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A lightweight LMS for a university department: assignments, plagiarism checks, gradebook and attendance.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "أ. سارة: الطلبة بيسلموا الـ assignments على واتساب وضياع كبير. عايزة نظام ياخد التسليم ويرفض اللي بعد الـ deadline تلقائيًا، بس عندي استثناءات طبية فمحتاجة أقدر أتجاوز الرفض بنفسي. وكمان التشابه في الحلول بقت مشكلة، محتاجة تقرير يشوف ده قبل ما أسلّم الدرجات.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Gradebook rules: الـ late penalty هي 10% per day بحد أقصى 3 أيام، وبعدها الـ submission بيتقفل. الـ plagiarism report لازم يبقى visible للـ TA قبل الـ grading flow يبدأ.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "conflict_pairs_json",
+  "payload": {
+   "conflicts": [
+    {
+     "reqARef": "REQ-01",
+     "reqBRef": "REQ-02",
+     "kind": "contradiction",
+     "taxonomy": "precedence",
+     "why": "automatic rejection vs documented exception flow",
+     "implications_only": true
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

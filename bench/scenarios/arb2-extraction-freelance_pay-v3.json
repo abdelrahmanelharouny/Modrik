@@ -1,0 +1,74 @@
+{
+ "id": "arb2-extraction-freelance_pay-v3",
+ "category": "extraction",
+ "task": "extract atomic, grounded requirements",
+ "domain": "Freelance payment escrow",
+ "languages": [
+  "ar-EG",
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "An escrow-style payment platform for Egyptian freelancers: milestones, dispute windows and tax receipts.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "هبة: بشتغل ديزاين مع عملاء برّه والتحويل بيضيع وسط. محتاج escrow بحيث العميل يودّع قبل ما أبدأ، وأنا أستلم على مراحل milestones. لو حصل خلاف، في window نقدر نتفاوض فيه. والضرايب… محتاجة إيصالات مرتبة في آخر السنة بدل ما أدور على كل حاجة.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "requirements_json",
+  "payload": {
+   "requirements": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall hold client funds in escrow before work starts.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The system shall release milestone funds 14 days after delivery unless disputed.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall generate a PDF tax receipt containing the freelancer's tax ID per payout.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-04",
+     "text": "The system shall allow either party to open a dispute within the window.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-05",
+     "text": "The system shall show both parties the same milestone status at all times.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-06",
+     "text": "Payout data shall be resident on servers located in Egypt.",
+     "type": "constraint",
+     "priority": "Must"
+    }
+   ]
+  }
+ },
+ "notes": "Mixed Arabic interview + English document"
+}

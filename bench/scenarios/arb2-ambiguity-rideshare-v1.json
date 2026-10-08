@@ -1,0 +1,59 @@
+{
+ "id": "arb2-ambiguity-rideshare-v1",
+ "category": "ambiguity",
+ "task": "score and repair ambiguous statements",
+ "domain": "Ride-sharing for campuses",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A ride-sharing service limited to university campuses: matched carpools, safety checks and capped fares.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "كريم: بننقل الطلبة من المدينة للجامعة والزحمة قتلتنا. محتاجين matching سريع صباحًا وكل عربية لازم تتسجل عند أمن الجامعة. المشكلة إن الفلوس بتتأخر، وعايزين حد أقصى للأجرة عشان نفضل أرخص من المواصلات الخاصة. والبنات محتاجين خيار إن السواق بنت.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Ops sync: الـ fare cap اللي هو 25 EGP للرحلة الواحدة non-negotiable — marketing already promised it. الـ matching window في الصبح هو 20 دقيقة، ولو مفيش match الـ rider بيتحول لـ waitlist.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "ambiguity_scores_json",
+  "payload": {
+   "assessments": [
+    {
+     "refId": "REQ-01",
+     "text": "Matching shall happen quickly in the morning.",
+     "score": 84,
+     "issue": "vague 'quickly' — window already defined elsewhere",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The app shall feel safe for riders.",
+     "score": 89,
+     "issue": "subjective 'feel safe' — untestable",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall scale as the campus grows.",
+     "score": 72,
+     "issue": "unbounded growth claim",
+     "expected_action": "rewrite"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

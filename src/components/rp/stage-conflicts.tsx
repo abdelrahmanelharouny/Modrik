@@ -16,6 +16,19 @@ import { useToast } from "@/hooks/use-toast";
 
 const KIND_TONE: Record<string, Tone> = { contradiction: "coral", duplication: "signal", overlap: "aura" };
 const SEV_TONE: Record<string, Tone> = { high: "coral", medium: "signal", low: "muted" };
+const TAX_LABEL: Record<string, string> = {
+  value: "value conflict",
+  terminology: "terminology",
+  scale: "scale",
+  constraint: "constraint",
+  precedence: "precedence",
+  knowledge: "knowledge gap",
+};
+
+interface ImplicationOption {
+  option: string;
+  impact: string;
+}
 
 export function ConflictsStage({
   project,
@@ -82,10 +95,21 @@ export function ConflictsStage({
           const a = reqById.get(c.reqAId);
           const b = reqById.get(c.reqBId);
           const resolved = c.status === "resolved";
+          let implications: ImplicationOption[] = [];
+          try {
+            implications = c.implications ? (JSON.parse(c.implications) as ImplicationOption[]) : [];
+          } catch {
+            implications = [];
+          }
           return (
             <li key={c.id} className={`hud-panel rounded-lg p-5 transition-all ${resolved ? "opacity-70" : "hover:border-aura/30"}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <Chip tone={KIND_TONE[c.kind] ?? "muted"}>{c.kind}</Chip>
+                {c.taxonomy && (
+                  <Chip tone="plasma" mono={false}>
+                    <Scale className="h-3 w-3" /> {TAX_LABEL[c.taxonomy] ?? c.taxonomy}
+                  </Chip>
+                )}
                 <Chip tone={SEV_TONE[c.severity] ?? "muted"}>{c.severity} severity</Chip>
                 {resolved ? (
                   <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-verify">
@@ -129,9 +153,25 @@ export function ConflictsStage({
                 {c.description}
               </p>
 
+              {implications.length > 0 && !resolved && (
+                <div className="mt-3 rounded-md border border-aura/25 bg-aura/5 p-3">
+                  <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-aura">
+                    implications of each direction — the system never picks for you
+                  </p>
+                  <ul className="space-y-1.5">
+                    {implications.map((imp, k) => (
+                      <li key={k} className="flex flex-col gap-0.5 text-xs sm:flex-row sm:gap-2">
+                        <span className="shrink-0 font-medium text-foreground/90" dir="auto">IF {imp.option}:</span>
+                        <span className="text-muted-foreground" dir="auto">{imp.impact}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {c.suggestion && !resolved && (
                 <p className="mt-2 rounded-md border border-aura/25 bg-aura/5 px-3 py-2 text-xs text-aura" dir="auto">
-                  <span className="font-mono font-semibold tracking-wider">IMPLICATION · </span>
+                  <span className="font-mono font-semibold tracking-wider">MEDIATOR NOTE · </span>
                   {c.suggestion}
                 </p>
               )}

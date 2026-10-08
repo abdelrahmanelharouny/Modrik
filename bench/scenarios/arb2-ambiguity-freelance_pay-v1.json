@@ -1,0 +1,59 @@
+{
+ "id": "arb2-ambiguity-freelance_pay-v1",
+ "category": "ambiguity",
+ "task": "score and repair ambiguous statements",
+ "domain": "Freelance payment escrow",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "An escrow-style payment platform for Egyptian freelancers: milestones, dispute windows and tax receipts.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "هبة: بشتغل ديزاين مع عملاء برّه والتحويل بيضيع وسط. محتاج escrow بحيث العميل يودّع قبل ما أبدأ، وأنا أستلم على مراحل milestones. لو حصل خلاف، في window نقدر نتفاوض فيه. والضرايب… محتاجة إيصالات مرتبة في آخر السنة بدل ما أدور على كل حاجة.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Finance rules: الـ dispute window هو 14 يوم من الـ milestone delivery، وبعدها الـ escrow بيتحرر تلقائيًا. الـ tax receipt لازم يتولد PDF فيه الـ tax ID بتاع الفري لانسر.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "ambiguity_scores_json",
+  "payload": {
+   "assessments": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall process payments reliably.",
+     "score": 80,
+     "issue": "vague 'reliably' — needs quantification",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "Disputes shall be resolved fairly.",
+     "score": 92,
+     "issue": "subjective 'fairly' — outside system scope",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The platform shall support many currencies.",
+     "score": 70,
+     "issue": "unbounded 'many' — list required",
+     "expected_action": "rewrite"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

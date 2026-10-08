@@ -1,0 +1,35 @@
+{
+ "id": "arb2-traceability-clinic-v1",
+ "category": "traceability",
+ "task": "build the evidence trace matrix",
+ "domain": "Clinic appointment booking",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A booking system for a chain of clinics: slots, follow-ups, insurance verification and reminders.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "د. أحمد: المواعيد اللي بتتلغي آخر لحظة بتضيّرنا أكتر من حاجة. محتاج المريض يأكد قبلها بساعتين وإلا الكرسي يروح لغيره. وكمان العيادة بتشتغل بفيزيائية وكارت تأمين، فلازم النظام يعرف يفرّق بينهم من أول الشاشة. والانتظار محتاج يبقى مرتب مش فوضى زي دلوقتي.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Reception workflow: الـ insurance verification لازم تتم قبل الـ check-in — otherwise الـ patient هيفضل واقف. الـ no-show policy: بعد تأكدين دون حضور، الـ slot التالي يحتاج prepayment.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "trace_matrix_csv",
+  "payload": "requirement_ref,evidence_code,grounding_strength\nREQ-01,E1,explicit\nREQ-01,E2,implied\nREQ-02,E1,implied\nREQ-02,E2,implied\nREQ-03,E1,explicit\nREQ-03,E2,implied\nREQ-04,E1,implied\nREQ-04,E2,implied\n"
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

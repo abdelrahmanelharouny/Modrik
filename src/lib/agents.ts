@@ -13,9 +13,10 @@
 //   G4  structured state re-injection between stages
 //   G6  prompt version recorded on every run
 // ─────────────────────────────────────────────────────────────
-import ZAI from "z-ai-web-dev-sdk";
+import ZAI from "z-ai-web-dev-sdk"; // retained for direct SDK consumers; agent calls flow through providers.ts
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
+import { getProvider, type ChatMessage } from "@/lib/providers";
 import type { Stage } from "@/lib/rp";
 
 export const PROMPT_VERSION = "v2.1-audit";
@@ -32,6 +33,7 @@ interface UsageAcc {
   calls: number;
   latencyMs: number;
   estTokens: number;
+  provider?: string; // which model served the calls (observatory)
 }
 
 function newUsage(): UsageAcc {
@@ -39,34 +41,31 @@ function newUsage(): UsageAcc {
 }
 
 async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
-  const zai = await ZAI.create();
+  // Dev item 12 — the FIXED STRATEGY (transport retry, usage accounting)
+  // lives here; the MODEL is whatever provider resolves from the environment.
+  const provider = await getProvider();
+  const messages: ChatMessage[] = [
+    { role: "system", content: SYSTEM_BASE },
+    { role: "user", content: userPrompt },
+  ];
   const t0 = Date.now();
-  let completion: Awaited<ReturnType<typeof zai.chat.completions.create>>;
+  let content: string;
   try {
-    completion = await zai.chat.completions.create({
-      messages: [
-        { role: "system", content: SYSTEM_BASE },
-        { role: "user", content: userPrompt },
-      ],
-    });
+    content = await provider.complete(messages);
   } catch (err) {
     // one transient-failure retry (network blips / 5xx) — the audit found a
     // single unguarded failure aborts a whole stage run
     await new Promise((r) => setTimeout(r, 1500));
-    completion = await zai.chat.completions.create({
-      messages: [
-        { role: "system", content: SYSTEM_BASE },
-        { role: "user", content: userPrompt },
-      ],
-    });
+    content = await provider.complete(messages);
   }
   const latencyMs = Date.now() - t0;
   usage.calls += 1;
   usage.latencyMs += latencyMs;
+  usage.provider = provider.id;
   // chars/4 heuristic over prompt + completion (I13 estimate)
-  const est = Math.ceil((userPrompt.length + (completion.choices[0]?.message?.content?.length ?? 0)) / 4);
+  const est = Math.ceil((userPrompt.length + content.length) / 4);
   usage.estTokens += est;
-  return completion.choices[0]?.message?.content ?? "";
+  return content;
 }
 
 // Call + parse with one retry on unparseable output (audit finding: a single
@@ -174,6 +173,7 @@ async function recordUsage(runId: string | undefined, u: UsageAcc) {
         estTokens: u.estTokens,
         estCostUsd: +(u.estTokens * 0.0000006).toFixed(6), // blended $0.60 / 1M tokens (estimate)
         promptVersion: PROMPT_VERSION,
+        log: u.provider ? `provider:${u.provider}` : undefined,
       },
     });
   } catch {
@@ -256,9 +256,11 @@ ${memory}
 EVIDENCE SOURCES:
 ${evidenceBlock(project.evidences)}
 
-TASK: Identify the 5 most important clarifying questions a requirements analyst must ask the stakeholders before extracting requirements. Focus on scope, users/roles, constraints, quality attributes and success criteria. Write each question in the language style of the stakeholder it targets: when the evidence contains substantial Egyptian Arabic (or code-switched) content, at least two questions MUST be written natively in that Arabic (Egyptian dialect), mirroring how the stakeholder actually speaks.
+TASK: Identify the most valuable clarifying questions a requirements analyst must ask the stakeholders before extracting requirements. Focus on scope, users/roles, constraints, quality attributes and success criteria.
 
-This platform implements an UNCERTAINTY-GATED ask-versus-proceed policy: for every question also estimate how costly it is to interrupt the stakeholder, and state what the team would have to ASSUME if the question were skipped. Ask-cost 1 = trivial to ask, 5 = very costly interruption. The fallback assumption must be explicit and testable.
+LANGUAGE POLICY (Arabic-native-first, N7): inspect the evidence languages first. When the evidence contains substantial Egyptian Arabic (or code-switched) content, the DEFAULT output is native Egyptian-Arabic questions written exactly as stakeholders speak (e.g. "طيب إزاي النظام هيتعامل مع...؟") — write ALL questions targeting Arabic-speaking stakeholders in Egyptian Arabic, not merely two; only questions about purely technical constraints written in English sources may stay in English. Mirror code-switched evidence with code-switched questions. This is the platform's native-interview contract: the stakeholder should never have to translate their own context.
+
+This platform implements an UNCERTAINTY-GATED ask-versus-proceed policy: for every question also estimate how costly it is to interrupt the stakeholder, and state what the team would have to ASSUME if the question were skipped. Ask-cost 1 = trivial to ask, 5 = very costly interruption. The fallback assumption must be explicit and testable. Write the fallback assumption in the SAME language as the question.
 
 Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "if skipped, assume that ..."}]}`;
 
@@ -584,9 +586,11 @@ export interface AgentConflict {
   reqARef: string;
   reqBRef: string;
   kind: "contradiction" | "duplication" | "overlap";
+  taxonomy: "value" | "terminology" | "scale" | "constraint" | "precedence" | "knowledge";
   description: string;
   severity: "high" | "medium" | "low";
   suggestion: string;
+  implications: { option: string; impact: string }[];
 }
 
 export async function runConflicts(projectId: string, runId?: string): Promise<void> {
@@ -601,27 +605,49 @@ export async function runConflicts(projectId: string, runId?: string): Promise<v
   const prompt = `REQUIREMENTS:
 ${list}
 
-TASK: Cross-check all requirement pairs for (a) contradictions — cannot both hold, (b) duplications — same need stated twice, (c) overlaps — partially conflicting scopes. Only report genuine findings (0 to 5). For each: the two refIds, kind, a 1-2 sentence explanation, severity, and a suggested resolution in the requirements' own language.
+TASK: Cross-check all requirement pairs and report genuine findings only (0 to 5):
+(a) contradictions — cannot both hold,
+(b) duplications — same need stated twice,
+(c) overlaps — partially conflicting scopes.
 
-Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "contradiction", "description": "...", "severity": "high", "suggestion": "..."}]}`;
+CLASSIFY each finding along the conflict taxonomy (dev item 10):
+- "value"       — stakeholders want opposing outcomes
+- "terminology" — same words mean different things (or vice versa)
+- "scale"       — same intent at incompatible quantities/latencies/budgets
+- "constraint"  — a nonfunctional or regulatory constraint blocks another requirement
+- "precedence"  — ordering/dependency makes one impossible after another
+- "knowledge"   — the conflict exists only because evidence is missing
+
+For each finding, lay out the IMPLICATIONS of each resolution direction — what becomes true, what becomes impossible, what costs or scope shifts follow — WITHOUT recommending one. The human arbitrates; the system never decides (implications-only negotiation contract).
+
+Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "contradiction", "taxonomy": "scale", "description": "...", "severity": "high", "suggestion": "...", "implications": [{"option": "Keep REQ-01 as written", "impact": "..."}, {"option": "Keep REQ-04 as written", "impact": "..."}, {"option": "Merge/re-scope", "impact": "..."}]}]}`;
 
   const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
   await db.conflict.deleteMany({ where: { projectId } });
+  const TAXONOMIES = ["value", "terminology", "scale", "constraint", "precedence", "knowledge"];
   for (const c of (out.conflicts ?? []).slice(0, 6)) {
     const a = byRef.get(c.reqARef);
     const b = byRef.get(c.reqBRef);
     if (!a || !b || a.id === b.id) continue;
+    const implications = Array.isArray(c.implications)
+      ? c.implications
+          .filter((i) => i && i.option)
+          .slice(0, 4)
+          .map((i) => ({ option: String(i.option).slice(0, 200), impact: String(i.impact ?? "").slice(0, 300) }))
+      : [];
     await db.conflict.create({
       data: {
         projectId,
         reqAId: a.id,
         reqBId: b.id,
         kind: ["contradiction", "duplication", "overlap"].includes(c.kind) ? c.kind : "overlap",
+        taxonomy: TAXONOMIES.includes(c.taxonomy) ? c.taxonomy : "value",
         description: String(c.description ?? "").slice(0, 800),
         severity: ["high", "medium", "low"].includes(c.severity) ? c.severity : "medium",
         suggestion: String(c.suggestion ?? "").slice(0, 800),
+        implications: implications.length ? JSON.stringify(implications) : null,
       },
     });
   }

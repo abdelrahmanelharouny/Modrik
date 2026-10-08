@@ -1,0 +1,46 @@
+{
+ "id": "arb2-conflict-freelance_pay-v1",
+ "category": "conflict",
+ "task": "detect and classify requirement conflicts",
+ "domain": "Freelance payment escrow",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "An escrow-style payment platform for Egyptian freelancers: milestones, dispute windows and tax receipts.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "هبة: بشتغل ديزاين مع عملاء برّه والتحويل بيضيع وسط. محتاج escrow بحيث العميل يودّع قبل ما أبدأ، وأنا أستلم على مراحل milestones. لو حصل خلاف، في window نقدر نتفاوض فيه. والضرايب… محتاجة إيصالات مرتبة في آخر السنة بدل ما أدور على كل حاجة.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Finance rules: الـ dispute window هو 14 يوم من الـ milestone delivery، وبعدها الـ escrow بيتحرر تلقائيًا. الـ tax receipt لازم يتولد PDF فيه الـ tax ID بتاع الفري لانسر.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "conflict_pairs_json",
+  "payload": {
+   "conflicts": [
+    {
+     "reqARef": "REQ-01",
+     "reqBRef": "REQ-02",
+     "kind": "contradiction",
+     "taxonomy": "scale",
+     "why": "deterministic release clock vs unbounded review time",
+     "implications_only": true
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

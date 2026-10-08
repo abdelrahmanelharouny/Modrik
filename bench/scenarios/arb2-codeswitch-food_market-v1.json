@@ -1,0 +1,74 @@
+{
+ "id": "arb2-codeswitch-food_market-v1",
+ "category": "codeswitch",
+ "task": "extract requirements preserving code-switched language",
+ "domain": "Home-cooking marketplace",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A Cairo marketplace app where home cooks sell fresh meals to nearby customers; orders, payouts and reviews in one place.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "منى: أنا بطبخ أكل بلدي من البيت وبيعته للجيران بس. عايزة تطبيق يعرض أكلاتي اليومية والزباين يطلبوا من التطبيق على طول. المشكلة إن في ناس بتطلب وبتنسى، ومحتاجة أعرف مين اللي لسه مادفعش. وكمان لو الطلب متأخر عايزة الزبون يعرف قبل ما يزعل.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Meeting notes: اللاجتبويشن الجديد لازم يكون خفيف — first screen يعرض أكلات النهاردة بس. الـ payout ه يكون weekly، والعمولة بـ 5% بس. ولازم الـ reviews تكون verified بعد توصيل فعلٍ.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "requirements_json",
+  "payload": {
+   "requirements": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall let a home cook publish a daily menu with quantities before 10:00.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The system shall show each order's payment state (pending/paid) to the cook.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall notify the customer when an order is delayed by more than 15 minutes.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-04",
+     "text": "The system shall verify a review only after the corresponding delivery is confirmed.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-05",
+     "text": "The system shall compute a 5% platform commission on each completed payout.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-06",
+     "text": "Cooked-food listings shall expire automatically at 23:59 the same day.",
+     "type": "constraint",
+     "priority": "Should"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

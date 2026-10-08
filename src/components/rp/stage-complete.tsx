@@ -16,6 +16,7 @@ import { INTEGRATIONS, INSTRUMENTS, LLM_DISCLOSURE } from "@/lib/registry";
 import { useLang } from "@/lib/i18n";
 import { HudPanel, Eyebrow, Chip, CountUp, Meter, SectionHead, EmptyBay, Reveal, type Tone } from "@/components/rp/hud";
 import { ICONS } from "@/components/rp/icons";
+import { PlannerLab, CalibrationPanel, ExecutabilitySim, SelfAuditPanel, IntegrationsConsole } from "@/components/rp/debrief-instruments";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,10 @@ import {
   Copy,
   CheckCheck,
   Radio,
+  Target,
+  Scale,
+  FlaskConical,
+  Network,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,11 +70,31 @@ interface ComplianceResult {
   gaps: { aspect: string; note: string; suggestion: string }[];
   covered: { refId: string; aspect: string }[];
 }
+// deterministic debt profile from GET /health (item 11)
+interface DebtProfileDTO {
+  dimensions: { id: string; label: string; score: number; detail: string; contributions: { refId: string; text: string; amount: number; note: string }[] }[];
+  headline: Record<string, number | null>;
+}
 const PACKS_UI: { id: string; name: string; desc: string }[] = [
   { id: "accessibility", name: "WCAG 2.2 Accessibility", desc: "Keyboard operability, screen readers, contrast, focus visibility, RTL handling, target size, low-bandwidth support." },
   { id: "gdpr", name: "Egypt PDPL Privacy", desc: "PDPL-inspired: lawful basis, consent, data minimisation, retention & deletion, user rights, breach notification, residency." },
   { id: "performance", name: "Performance & Resilience", desc: "Response-time targets, throughput, weak connectivity, graceful degradation, error handling, monitoring." },
 ];
+
+// registry lookup helper (indices shift when instruments are added)
+function insMeta(id: string) {
+  return INSTRUMENTS.find((i) => i.id === id) ?? INSTRUMENTS[0];
+}
+
+// typed-edge visual contract (kind → colour)
+const EDGE_STYLE: Record<string, { color: string; dash?: string }> = {
+  depends_on: { color: "#2ce8c8" },
+  refines: { color: "#a78bfa" },
+  derived_from: { color: "#7dd3fc" },
+  validates: { color: "#3ddc97", dash: "2 3" },
+  affected_by: { color: "#ffb454", dash: "6 3" },
+  conflicts_with: { color: "#ff6b7a", dash: "4 4" },
+};
 
 function download(name: string, content: string, type = "application/json") {
   const blob = new Blob([content], { type });
@@ -81,9 +106,33 @@ function download(name: string, content: string, type = "application/json") {
   URL.revokeObjectURL(url);
 }
 
-// ── constellation graph ──────────────────────────────────────
+// ── constellation graph (typed edges + impact traversal, item 9) ──
+
+interface GraphEdgeDTO {
+  id: string;
+  fromId: string;
+  toId: string;
+  fromRef: string;
+  toRef: string;
+  kind: string;
+  note: string | null;
+  origin: string;
+}
+interface ImpactNodeDTO {
+  id: string;
+  refId: string;
+  text: string;
+  depth: number;
+  via: { from: string; kind: string }[];
+}
+
 function Constellation({ project }: { project: ProjectDTO }) {
   const [sel, setSel] = useState<{ kind: "req" | "ev"; id: string } | null>(null);
+  const [edges, setEdges] = useState<GraphEdgeDTO[]>([]);
+  const [impact, setImpact] = useState<ImpactNodeDTO[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [tracing, setTracing] = useState(false);
+  const { toast } = useToast();
   const W = 640;
   const H = 400;
   const cx = W / 2;
@@ -112,6 +161,52 @@ function Constellation({ project }: { project: ProjectDTO }) {
 
   const selectedReq = sel?.kind === "req" ? reqs.find((r) => r.id === sel.id) : null;
   const selectedEv = sel?.kind === "ev" ? evs.find((e) => e.id === sel.id) : null;
+  const impactIds = useMemo(() => new Set(impact.map((i) => i.id)), [impact]);
+
+  const loadGraph = useCallback(async () => {
+    try {
+      const d = await api<{ edges: GraphEdgeDTO[] }>(`/api/projects/${project.id}/graph`);
+      setEdges(d.edges);
+    } catch {
+      /* graph may be empty */
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    loadGraph();
+  }, [loadGraph]);
+
+  const extractEdges = async () => {
+    setExtracting(true);
+    try {
+      const d = await api<{ created: number; proposals: number }>(`/api/projects/${project.id}/graph`, {
+        method: "POST",
+        body: JSON.stringify({ action: "extract" }),
+      });
+      toast({ title: "Graph pass complete", description: `${d.created} new edge(s) from ${d.proposals} proposal(s) + materialised conflict edges.` });
+      await loadGraph();
+    } catch (e) {
+      toast({ title: "Edge extraction failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const traceImpact = async (requirementId: string) => {
+    setTracing(true);
+    try {
+      const d = await api<{ impacted: ImpactNodeDTO[] }>(`/api/projects/${project.id}/graph`, {
+        method: "POST",
+        body: JSON.stringify({ action: "traverse", requirementIds: [requirementId] }),
+      });
+      setImpact(d.impacted);
+      toast({ title: "Impact traversal complete", description: `${d.impacted.length} requirement(s) reachable through typed edges.` });
+    } catch (e) {
+      toast({ title: "Traversal failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setTracing(false);
+    }
+  };
 
   if (reqs.length === 0) {
     return <EmptyBay>The constellation lights up once requirements exist — approve the Airframe phase first.</EmptyBay>;
@@ -135,8 +230,28 @@ function Constellation({ project }: { project: ProjectDTO }) {
               );
             })
           )}
-          {/* conflict edges */}
-          {project.conflicts.map((c) => {
+          {/* typed requirement-to-requirement edges (item 9) */}
+          {edges.map((e) => {
+            const p1 = reqPos.get(e.fromId);
+            const p2 = reqPos.get(e.toId);
+            if (!p1 || !p2) return null;
+            const style = EDGE_STYLE[e.kind] ?? { color: "#7e96b0" };
+            const hot = impactIds.has(e.toId) || impactIds.has(e.fromId);
+            const qx = (p1.x + p2.x) / 2;
+            const qy = (p1.y + p2.y) / 2;
+            return (
+              <g key={e.id}>
+                <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={style.color} strokeWidth={hot ? 1.8 : 1} strokeOpacity={hot ? 0.95 : 0.5} strokeDasharray={style.dash}>
+                  {style.dash && <animate attributeName="stroke-dashoffset" values="0;-12" dur="2.4s" repeatCount="indefinite" />}
+                </line>
+                <text x={qx} y={qy - 3} textAnchor="middle" fill={style.color} fontSize="7.5" fontFamily="var(--font-jbmono), monospace" opacity={0.85}>
+                  {e.kind}
+                </text>
+              </g>
+            );
+          })}
+          {/* conflict edges (legacy derived view) */}
+          {project.conflicts.filter((c) => !edges.some((e) => e.kind === "conflicts_with" && ((e.fromId === c.reqAId && e.toId === c.reqBId) || (e.fromId === c.reqBId && e.toId === c.reqAId)))).map((c) => {
             const p1 = reqPos.get(c.reqAId);
             const p2 = reqPos.get(c.reqBId);
             if (!p1 || !p2) return null;
@@ -165,9 +280,16 @@ function Constellation({ project }: { project: ProjectDTO }) {
             if (!p) return null;
             const active = sel?.id === r.id;
             const flagged = r.driftStatus !== "none";
-            const color = flagged ? "#ffb454" : r.ambiguity >= 60 ? "#ff6b7a" : r.ambiguity >= 30 ? "#ffb454" : "#2ce8c8";
+            const impacted = impactIds.has(r.id);
+            const color = impacted ? "#a78bfa" : flagged ? "#ffb454" : r.ambiguity >= 60 ? "#ff6b7a" : r.ambiguity >= 30 ? "#ffb454" : "#2ce8c8";
             return (
               <g key={r.id} onClick={() => setSel(active ? null : { kind: "req", id: r.id })} className="cursor-pointer">
+                {impacted && (
+                  <circle cx={p.x} cy={p.y} r="21" fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="3 3">
+                    <animate attributeName="r" values="18;24;18" dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.8s" repeatCount="indefinite" />
+                  </circle>
+                )}
                 <circle cx={p.x} cy={p.y} r={active ? 17 : 14} fill={active ? "rgba(44,232,200,0.18)" : "rgba(44,232,200,0.07)"} stroke={color} strokeWidth={active ? 2 : 1.2} />
                 <circle cx={p.x} cy={p.y} r="3" fill={color}>
                   <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite" />
@@ -185,21 +307,70 @@ function Constellation({ project }: { project: ProjectDTO }) {
         </svg>
       </div>
       <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-aura" /> requirement (colour = ambiguity / drift)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-aura" /> requirement</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-plasma" /> evidence</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-coral" /> open conflict</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-verify" /> resolved</span>
-        <span className="ml-auto text-muted-foreground/60">click a node</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5" style={{ background: EDGE_STYLE.depends_on.color }} /> depends_on</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5" style={{ background: EDGE_STYLE.refines.color }} /> refines</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5" style={{ background: EDGE_STYLE.affected_by.color }} /> affected_by</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 bg-coral" /> conflicts_with</span>
+        <span className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="outline" disabled={extracting || reqs.length < 2} onClick={extractEdges} className="h-7 border-aura/40 px-2 font-mono text-[10px] text-aura hover:bg-aura/10">
+            {extracting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Network className="mr-1 h-3 w-3" />} extract edges
+          </Button>
+          {impact.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setImpact([])} className="h-7 border-border px-2 font-mono text-[10px]">
+              clear impact ({impact.length})
+            </Button>
+          )}
+        </span>
       </div>
-      {selectedReq && (
+      {selectedReq && (() => {
+        const nodeEdges = edges.filter((e) => e.fromId === selectedReq.id || e.toId === selectedReq.id);
+        return (
+          <HudPanel className="p-4" as="div">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-aura/40 bg-aura/5 font-mono text-xs text-aura">{selectedReq.refId}</Badge>
+              <Chip tone={selectedReq.priority === "Must" ? "coral" : selectedReq.priority === "Should" ? "signal" : "aura"}>{selectedReq.priority}</Chip>
+              <Chip tone="muted">amb {selectedReq.ambiguity < 0 ? "—" : selectedReq.ambiguity}</Chip>
+              {selectedReq.driftStatus !== "none" && <Chip tone="signal">drift: {selectedReq.driftStatus}</Chip>}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={tracing}
+                onClick={() => traceImpact(selectedReq.id)}
+                className="ml-auto h-7 border-plasma/40 px-2 font-mono text-[10px] text-plasma hover:bg-plasma/10"
+              >
+                {tracing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Waypoints className="mr-1 h-3 w-3" />}
+                trace impact from here
+              </Button>
+            </div>
+            <p className="text-sm" dir="auto">{selectedReq.text}</p>
+            {nodeEdges.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {nodeEdges.map((e) => (
+                  <Badge key={e.id} variant="outline" className="font-mono text-[9px]" style={{ borderColor: (EDGE_STYLE[e.kind] ?? { color: "#7e96b0" }).color, color: (EDGE_STYLE[e.kind] ?? { color: "#7e96b0" }).color }}>
+                    {e.fromId === selectedReq.id ? `→ ${e.toRef}` : `${e.fromRef} →`} · {e.kind}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </HudPanel>
+        );
+      })()}
+      {impact.length > 0 && (
         <HudPanel className="p-4" as="div">
-          <div className="mb-1 flex items-center gap-2">
-            <Badge variant="outline" className="border-aura/40 bg-aura/5 font-mono text-xs text-aura">{selectedReq.refId}</Badge>
-            <Chip tone={selectedReq.priority === "Must" ? "coral" : selectedReq.priority === "Should" ? "signal" : "aura"}>{selectedReq.priority}</Chip>
-            <Chip tone="muted">amb {selectedReq.ambiguity < 0 ? "—" : selectedReq.ambiguity}</Chip>
-            {selectedReq.driftStatus !== "none" && <Chip tone="signal">drift: {selectedReq.driftStatus}</Chip>}
-          </div>
-          <p className="text-sm" dir="auto">{selectedReq.text}</p>
+          <Eyebrow tone="plasma" className="mb-2 block">◉ IMPACT SET — reverse traversal through typed edges</Eyebrow>
+          <ul className="space-y-1">
+            {impact.map((n) => (
+              <li key={n.id} className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant="outline" className="border-plasma/40 font-mono text-[10px] text-plasma">{n.refId}</Badge>
+                <span className="font-mono text-[9px] text-muted-foreground">
+                  hop {n.depth} via {n.via.map((v) => `${v.from}·${v.kind}`).join(" → ")}
+                </span>
+                <span className="line-clamp-1 text-muted-foreground" dir="auto">{n.text}</span>
+              </li>
+            ))}
+          </ul>
         </HudPanel>
       )}
       {selectedEv && (
@@ -223,6 +394,8 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
 
   const [health, setHealth] = useState<HealthReport | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
+  const [debt, setDebt] = useState<DebtProfileDTO | null>(null);
+  const [openDim, setOpenDim] = useState<string | null>(null);
   const [drift, setDrift] = useState<DriftResult | null>(null);
   const [driftBusy, setDriftBusy] = useState(false);
   const [signal, setSignal] = useState("");
@@ -235,8 +408,11 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ report: HealthReport | null }>(`/api/projects/${project.id}/health`)
-      .then((d) => setHealth(d.report))
+    api<{ report: HealthReport | null; debt: DebtProfileDTO | null }>(`/api/projects/${project.id}/health`)
+      .then((d) => {
+        setHealth(d.report);
+        setDebt(d.debt);
+      })
       .catch(() => {});
   }, [project.id]);
 
@@ -379,7 +555,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
     JSON.stringify(
       {
         repository_target: "GitHub Issues (REST v3)",
-        mode: "draft payloads — OAuth write pass next",
+        mode: "payload mirror — use the sync console above to push/pull live",
         issues: approved.map((r) => ({
           title: `[${r.refId}] ${r.text.slice(0, 80)}`,
           labels: ["requirement", `priority:${r.priority.toLowerCase()}`, `type:${r.type}`, `verify:${r.verifyStatus}`],
@@ -393,7 +569,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
     JSON.stringify(
       {
         target: "Jira Cloud REST API v3",
-        mode: "draft payloads — site auth pass next",
+        mode: "payload mirror — use the sync console above to push/pull live",
         issues: project.stories.map((s) => ({
           fields: {
             summary: `${s.refId} ${s.title}`,
@@ -415,11 +591,14 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
   };
 
   const INSTR_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+    constellation: Waypoints,
+    planner: Target,
     health: HeartPulse,
+    calibration: Scale,
+    executability: FlaskConical,
     drift: RadarIcon,
     compliance: ShieldCheck,
     windtunnel: Wind,
-    constellation: Waypoints,
     journal: ScrollText,
   };
 
@@ -517,8 +696,26 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
 
             {/* constellation */}
             <TabsContent value="constellation" className="mt-0">
-              <SectionHead icon={Waypoints} title={ar ? "خريطة الأبراج" : "Constellation graph"} blurb={ar ? INSTRUMENTS[4].descAr : INSTRUMENTS[4].desc} />
+              <SectionHead icon={Waypoints} title={ar ? "خريطة الأبراج" : "Constellation graph"} blurb={ar ? insMeta("constellation").descAr : insMeta("constellation").desc} />
               <Constellation project={project} />
+            </TabsContent>
+
+            {/* planner lab (item 7 — the research heart) */}
+            <TabsContent value="planner" className="mt-0">
+              <SectionHead icon={Target} title={ar ? "مختبر المُخطّط" : "Planner Lab — impact-aware question planner"} blurb={ar ? insMeta("planner").descAr : insMeta("planner").desc} />
+              <PlannerLab projectId={project.id} />
+            </TabsContent>
+
+            {/* calibration (open requirement 1) */}
+            <TabsContent value="calibration" className="mt-0">
+              <SectionHead icon={Scale} title={ar ? "لوحة المعايرة" : "Calibration panel"} blurb={ar ? insMeta("calibration").descAr : insMeta("calibration").desc} />
+              <CalibrationPanel projectId={project.id} />
+            </TabsContent>
+
+            {/* executability simulator (item 8) */}
+            <TabsContent value="executability" className="mt-0">
+              <SectionHead icon={FlaskConical} title={ar ? "مُحاكي التنفيذ" : "Executability simulator"} blurb={ar ? insMeta("executability").descAr : insMeta("executability").desc} />
+              <ExecutabilitySim projectId={project.id} />
             </TabsContent>
 
             {/* health */}
@@ -526,7 +723,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
               <SectionHead
                 icon={HeartPulse}
                 title={ar ? "مُفكِّك الصحة" : "Health decomposer"}
-                blurb={ar ? INSTRUMENTS[0].descAr : INSTRUMENTS[0].desc}
+                blurb={ar ? insMeta("health").descAr : insMeta("health").desc}
                 right={
                   <Button size="sm" onClick={runHealth} disabled={healthBusy} className="bg-aura text-primary-foreground hover:bg-aura/85">
                     {healthBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <HeartPulse className="mr-2 h-3.5 w-3.5" />}
@@ -534,7 +731,45 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
                   </Button>
                 }
               />
-              {assessed.length > 0 && (
+              {/* deterministic debt decomposition (item 11) — always live, never cached */}
+              {debt && (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {debt.dimensions.map((dim) => {
+                    const dimTone: Tone = dim.score >= 50 ? "coral" : dim.score >= 20 ? "signal" : "verify";
+                    return (
+                      <HudPanel key={dim.id} className="p-4" as="div">
+                        <button
+                          type="button"
+                          onClick={() => setOpenDim(openDim === dim.id ? null : dim.id)}
+                          className="mb-2 flex w-full items-center justify-between gap-2 text-left"
+                          aria-expanded={openDim === dim.id}
+                        >
+                          <Eyebrow className="block">{dim.label.toUpperCase()}</Eyebrow>
+                          <span className={`font-mono text-xs tabular-nums ${dim.score >= 50 ? "text-coral" : dim.score >= 20 ? "text-signal" : "text-verify"}`}>{dim.score}</span>
+                        </button>
+                        <Meter value={100 - dim.score} tone={dimTone} />
+                        <p className="mt-2 text-xs text-muted-foreground">{dim.detail}</p>
+                        {openDim === dim.id && (
+                          <ul className="mt-2 space-y-1.5 border-t border-border/70 pt-2">
+                            {dim.contributions.length === 0 ? (
+                              <li className="text-[11px] text-verify">no contributing records — this dimension is clean</li>
+                            ) : (
+                              dim.contributions.map((c, i) => (
+                                <li key={i} className="rounded bg-secondary/30 px-2 py-1 text-[11px]">
+                                  <span className="font-mono text-[10px] text-aura">{c.refId}</span>
+                                  <span className="ml-1.5 line-clamp-2 text-muted-foreground" dir="auto">{c.text}</span>
+                                  {c.note && <span className="mt-0.5 block text-[10px] text-muted-foreground/70" dir="auto">{c.note}</span>}
+                                </li>
+                              ))
+                            )}
+                          </ul>
+                        )}
+                      </HudPanel>
+                    );
+                  })}
+                </div>
+              )}
+              {assessed.length > 0 && !debt && (
                 <div className="grid gap-3 sm:grid-cols-3">
                   <HudPanel className="p-4" as="div">
                     <Eyebrow className="mb-2 block">AMBIGUITY DEBT</Eyebrow>
@@ -595,7 +830,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
 
             {/* drift */}
             <TabsContent value="drift" className="mt-0 space-y-4">
-              <SectionHead icon={RadarIcon} title={ar ? "رادار الانحراف" : "Drift radar"} blurb={ar ? INSTRUMENTS[1].descAr : INSTRUMENTS[1].desc} />
+              <SectionHead icon={RadarIcon} title={ar ? "رادار الانحراف" : "Drift radar"} blurb={ar ? insMeta("drift").descAr : insMeta("drift").desc} />
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   placeholder={ar ? "إشارة التغيّر — مثال: القانون الجديد يفرض موافقة ولي أمر" : "Change signal — e.g. 'regulator now requires parental consent for under-16 accounts'"}
@@ -642,7 +877,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
 
             {/* compliance packs */}
             <TabsContent value="compliance" className="mt-0 space-y-4">
-              <SectionHead icon={ShieldCheck} title={ar ? "حِزَم القيود" : "Constraint pack bay"} blurb={ar ? INSTRUMENTS[2].descAr : INSTRUMENTS[2].desc} />
+              <SectionHead icon={ShieldCheck} title={ar ? "حِزَم القيود" : "Constraint pack bay"} blurb={ar ? insMeta("compliance").descAr : insMeta("compliance").desc} />
               <div className="grid gap-3 lg:grid-cols-3">
                 {PACKS_UI.map((p) => {
                   const res = compliance[p.id];
@@ -684,11 +919,15 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
                   );
                 })}
               </div>
-            </TabsContent>
 
-            {/* wind tunnel */}
+              {/* dual role — the platform audits ITSELF on the same standards (deterministic) */}
+              <div className="border-t border-border/70 pt-4">
+                <Eyebrow className="mb-3 block">◉ PLATFORM SELF-AUDIT — the website holds itself to the same packs (deterministic, no LLM)</Eyebrow>
+                <SelfAuditPanel />
+              </div>
+            </TabsContent>
             <TabsContent value="windtunnel" className="mt-0 space-y-4">
-              <SectionHead icon={Wind} title={ar ? "نفق المحاكاة" : "Wind tunnel"} blurb={ar ? INSTRUMENTS[3].descAr : INSTRUMENTS[3].desc} />
+              <SectionHead icon={Wind} title={ar ? "نفق المحاكاة" : "Wind tunnel"} blurb={ar ? insMeta("windtunnel").descAr : insMeta("windtunnel").desc} />
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
                 <Input placeholder={ar ? "الشخصية — مثال: صاحبة مطبخ منزلية تكره التسجيل" : "Persona — e.g. 'home cook who distrusts signup forms'"} value={persona} onChange={(e) => setPersona(e.target.value)} dir="auto" />
                 <Input placeholder={ar ? "السر المحجوب (اختياري)" : "Held-out secret (optional)"} value={secret} onChange={(e) => setSecret(e.target.value)} dir="auto" />
@@ -744,7 +983,23 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
         </HudPanel>
       </Reveal>
 
-      {/* integrations + exports */}
+      {/* integrations: live sync console (open requirement 2) */}
+      <Reveal>
+        <HudPanel className="p-5">
+          <SectionHead
+            icon={Github}
+            title={ar ? "مركز التزامن — GitHub Issues و Jira" : "Sync console — GitHub Issues + Jira"}
+            blurb={
+              ar
+                ? "مزامنة ثنائية الاتجاه بأوراق اعتماد تُدخل وقت التشغيل وتُخزّن جانب الخادم فقط — وكل قفزة مُسجّلة في خريطة المزامنة."
+                : "Bidirectional sync with runtime credentials stored server-side only — every hop traced in the sync map. Push exports approved requirements/stories; pull brings tracker issues back for your curation."
+            }
+          />
+          <IntegrationsConsole projectId={project.id} />
+        </HudPanel>
+      </Reveal>
+
+      {/* payload previews + exports */}
       <Reveal>
         <div className="grid gap-4 lg:grid-cols-2">
           {INTEGRATIONS.map((ig) => {
@@ -759,7 +1014,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-display text-sm font-bold">{ig.name}</h3>
-                      <Chip tone="verify">payload ready</Chip>
+                      <Chip tone="aura">payload preview</Chip>
                     </div>
                     <p className="truncate text-xs text-muted-foreground">{ar ? ig.descAr : ig.desc}</p>
                   </div>

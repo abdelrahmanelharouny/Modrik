@@ -1,0 +1,62 @@
+{
+ "id": "arb2-dialect_ar_eg-rideshare-v1",
+ "category": "dialect_ar_eg",
+ "task": "produce native Egyptian-Arabic interview questions",
+ "domain": "Ride-sharing for campuses",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A ride-sharing service limited to university campuses: matched carpools, safety checks and capped fares.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "كريم: بننقل الطلبة من المدينة للجامعة والزحمة قتلتنا. محتاجين matching سريع صباحًا وكل عربية لازم تتسجل عند أمن الجامعة. المشكلة إن الفلوس بتتأخر، وعايزين حد أقصى للأجرة عشان نفضل أرخص من المواصلات الخاصة. والبنات محتاجين خيار إن السواق بنت.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Ops sync: الـ fare cap اللي هو 25 EGP للرحلة الواحدة non-negotiable — marketing already promised it. الـ matching window في الصبح هو 20 دقيقة، ولو مفيش match الـ rider بيتحول لـ waitlist.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "question_utility_json",
+  "payload": {
+   "questions": [
+    {
+     "text": "لو السواق ألغى بعد ما الراكب استلمت تأكيد، مين بيتعوض؟",
+     "askCost": 5,
+     "utility": {
+      "infoGain": 5,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 5,
+      "askCost": 5,
+      "utility": 80.0
+     }
+    },
+    {
+     "text": "إزاي نتأكد إن تسجيل أمن الجامعة مازال ساري كل ترم؟",
+     "askCost": 4,
+     "utility": {
+      "infoGain": 5,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 5,
+      "askCost": 4,
+      "utility": 100.0
+     }
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

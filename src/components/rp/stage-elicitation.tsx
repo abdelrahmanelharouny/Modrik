@@ -427,6 +427,19 @@ export function ElicitationStage({
           <ul className="space-y-4">
             {project.questions.map((q, i) => {
               const uncertainty = q.resolution === "proceed_with_uncertainty";
+              interface UtilBreakdown {
+                infoGain: number;
+                impact: number;
+                uncertainty: number;
+                risk: number;
+                utility: number;
+              }
+              let util: UtilBreakdown | null = null;
+              try {
+                util = q.utility ? (JSON.parse(q.utility) as UtilBreakdown) : null;
+              } catch {
+                util = null;
+              }
               return (
                 <li
                   key={q.id}
@@ -443,6 +456,15 @@ export function ElicitationStage({
                       <span className="flex items-center gap-2" title={`Ask cost ${q.askCost}/5`}>
                         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">ask cost</span>
                         <Meter value={q.askCost} max={5} tone={q.askCost >= 4 ? "coral" : q.askCost >= 3 ? "signal" : "verify"} className="w-16" />
+                      </span>
+                    )}
+                    {util && (
+                      <span
+                        className="flex items-center gap-1.5 rounded-full border border-aura/40 bg-aura/10 px-2 py-0.5 font-mono text-[10px] text-aura"
+                        title={`Utility = (IG ${util.infoGain} × Impact ${util.impact} × Uncertainty ${util.uncertainty} × Risk ${util.risk}) ÷ AskCost — total ${util.utility}`}
+                      >
+                        ◆ utility {util.utility}
+                        <span className="text-aura/60">IG{util.infoGain}·IMP{util.impact}·UNC{util.uncertainty}·RSK{util.risk}</span>
                       </span>
                     )}
                     {q.answered && !uncertainty && (

@@ -15,6 +15,7 @@ import { HudPanel, Eyebrow, Chip, LiveDot, type Tone } from "@/components/rp/hud
 import { FlightPath } from "@/components/rp/flightpath";
 import { ICONS } from "@/components/rp/icons";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Bot, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +42,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
   const { toast } = useToast();
   const { lang, toggle } = useLang();
   const [viewStage, setViewStage] = useState<Stage | "DEBRIEF" | null>(null);
+  const [plannerArm, setPlannerArm] = useState("impact_aware");
   const ar = lang === "ar";
 
   const complete = project.status === "complete";
@@ -58,7 +60,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
     try {
       await api(`/api/projects/${project.id}/pipeline`, {
         method: "POST",
-        body: JSON.stringify({ action: "run" }),
+        body: JSON.stringify({ action: "run", ...(stage === "ELICITATION" ? { arm: plannerArm } : {}) }),
       });
       await refresh();
       toast({ title: ar ? "أنهى الوكيل عمله" : "Agent finished", description: ar ? `${phase.agent} — النتيجة بانتظار مراجعتك.` : `${phase.agent} output is ready for your review.` });
@@ -167,6 +169,19 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
                 </div>
                 {isCurrent && (
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {project.stageStatus === "awaiting_input" && viewing === "ELICITATION" && (
+                      <Select value={plannerArm} onValueChange={setPlannerArm}>
+                        <SelectTrigger aria-label="Planner arm" className="h-9 w-[220px] border-border/80 bg-secondary/40 font-mono text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="impact_aware">◆ impact-aware planner (utility formula)</SelectItem>
+                          <SelectItem value="single_shot">single-shot baseline</SelectItem>
+                          <SelectItem value="random">random selection</SelectItem>
+                          <SelectItem value="llm">LLM self-selection</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                     {project.stageStatus === "awaiting_input" && (
                       <Button onClick={runAgent} disabled={busy} className="bg-aura font-semibold text-primary-foreground hover:bg-aura/85">
                         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}

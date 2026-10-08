@@ -1,0 +1,62 @@
+{
+ "id": "arb2-dialect_ar_eg-food_market-v1",
+ "category": "dialect_ar_eg",
+ "task": "produce native Egyptian-Arabic interview questions",
+ "domain": "Home-cooking marketplace",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A Cairo marketplace app where home cooks sell fresh meals to nearby customers; orders, payouts and reviews in one place.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "منى: أنا بطبخ أكل بلدي من البيت وبيعته للجيران بس. عايزة تطبيق يعرض أكلاتي اليومية والزباين يطلبوا من التطبيق على طول. المشكلة إن في ناس بتطلب وبتنسى، ومحتاجة أعرف مين اللي لسه مادفعش. وكمان لو الطلب متأخر عايزة الزبون يعرف قبل ما يزعل.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Meeting notes: اللاجتبويشن الجديد لازم يكون خفيف — first screen يعرض أكلات النهاردة بس. الـ payout ه يكون weekly، والعمولة بـ 5% بس. ولازم الـ reviews تكون verified بعد توصيل فعلٍ.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "question_utility_json",
+  "payload": {
+   "questions": [
+    {
+     "text": "إزاي هنحدد مناطق التوصيل اللي بتخدميها؟",
+     "askCost": 4,
+     "utility": {
+      "infoGain": 5,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 5,
+      "askCost": 4,
+      "utility": 100.0
+     }
+    },
+    {
+     "text": "لو الطلب اترجع، مين بيتحمل cost الشحن؟",
+     "askCost": 5,
+     "utility": {
+      "infoGain": 5,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 5,
+      "askCost": 5,
+      "utility": 80.0
+     }
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

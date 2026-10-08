@@ -1,0 +1,74 @@
+{
+ "id": "arb2-codeswitch-lms-v3",
+ "category": "codeswitch",
+ "task": "extract requirements preserving code-switched language",
+ "domain": "University learning management",
+ "languages": [
+  "ar-EG",
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A lightweight LMS for a university department: assignments, plagiarism checks, gradebook and attendance.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "أ. سارة: الطلبة بيسلموا الـ assignments على واتساب وضياع كبير. عايزة نظام ياخد التسليم ويرفض اللي بعد الـ deadline تلقائيًا، بس عندي استثناءات طبية فمحتاجة أقدر أتجاوز الرفض بنفسي. وكمان التشابه في الحلول بقت مشكلة، محتاجة تقرير يشوف ده قبل ما أسلّم الدرجات.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "requirements_json",
+  "payload": {
+   "requirements": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall refuse assignment submissions after the deadline unless an instructor overrides.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The system shall apply a 10%-per-day late penalty capped at 3 days.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall surface a similarity report to the TA before grading starts.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-04",
+     "text": "The system shall record attendance from a QR check-in per session.",
+     "type": "functional",
+     "priority": "Could"
+    },
+    {
+     "refId": "REQ-05",
+     "text": "The system shall let an instructor override a rejected submission with a reason note.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-06",
+     "text": "Grades shall be exportable as CSV compatible with the faculty registry.",
+     "type": "constraint",
+     "priority": "Must"
+    }
+   ]
+  }
+ },
+ "notes": "Mixed Arabic interview + English document"
+}

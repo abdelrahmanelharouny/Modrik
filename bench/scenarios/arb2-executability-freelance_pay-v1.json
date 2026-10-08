@@ -1,0 +1,51 @@
+{
+ "id": "arb2-executability-freelance_pay-v1",
+ "category": "executability",
+ "task": "simulate executability and surface UNDEFINED discoveries",
+ "domain": "Freelance payment escrow",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "An escrow-style payment platform for Egyptian freelancers: milestones, dispute windows and tax receipts.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "هبة: بشتغل ديزاين مع عملاء برّه والتحويل بيضيع وسط. محتاج escrow بحيث العميل يودّع قبل ما أبدأ، وأنا أستلم على مراحل milestones. لو حصل خلاف، في window نقدر نتفاوض فيه. والضرايب… محتاجة إيصالات مرتبة في آخر السنة بدل ما أدور على كل حاجة.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Finance rules: الـ dispute window هو 14 يوم من الـ milestone delivery، وبعدها الـ escrow بيتحرر تلقائيًا. الـ tax receipt لازم يتولد PDF فيه الـ tax ID بتاع الفري لانسر.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "exec_scenarios_json",
+  "payload": {
+   "scenarios": [
+    {
+     "given": "A milestone was delivered 13 days ago; the client opened a dispute.",
+     "when": "The 14-day clock elapses during the open dispute.",
+     "then": "The release is paused while the dispute is open.",
+     "resolution": "defined"
+    },
+    {
+     "given": "A milestone was delivered 13 days ago; the client opened a dispute.",
+     "when": "The 14-day clock elapses during the open dispute.",
+     "then": "What happens to the clock if the dispute is withdrawn 20 days later.",
+     "resolution": "undefined",
+     "expect": "UNDEFINED recorded as a discovery with a clarifying question"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

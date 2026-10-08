@@ -134,12 +134,44 @@ export const TELEMETRY_LABELS = {
 
 export const INSTRUMENTS = [
   {
+    id: "constellation",
+    name: "Constellation Graph",
+    nameAr: "خريطة الأبراج",
+    icon: "Waypoints",
+    desc: "The live requirement graph: typed edges (depends on, refines, derived from, conflicts with, validates, affected by), evidence grounding links, and impact traversal from any node.",
+    descAr: "رسم المتطلبات الحي: حواف مُنوّعة (يعتمد على، يُصفّي، مشتق من، يتعارض مع، يُحقّق، يتأثر بـ) وروابط الأدلة وتتبّع الأثر من أي عقدة.",
+  },
+  {
+    id: "planner",
+    name: "Planner Lab",
+    nameAr: "مختبر المُخطّط",
+    icon: "Target",
+    desc: "The research heart: impact-aware Question Planner. Utility = (Information Gain × Impact × Uncertainty × Risk) ÷ Ask-Cost — with a 4-arm ablation (single-shot / random / LLM / impact-aware) judged on 5 metrics.",
+    descAr: "القلب البحثي: مُخطّط الأسئلة الواعي بالأثر. المنفعة = (كسب المعلومة × الأثر × عدم التأكد × الخطر) ÷ تكلفة السؤال — مع اختبار أذرع رباعي وخمسة مقاييس.",
+  },
+  {
     id: "health",
     name: "Health Decomposer",
     nameAr: "مُفكِّك الصحة",
     icon: "HeartPulse",
-    desc: "No magic single score — dimensions decomposed: ambiguity, verification confidence, uncertainty ledger, conflict pressure, traceability coverage.",
-    descAr: "لا درجة سحرية واحدة — أبعاد مفككة: الغموض، ثقة التحقق، سجل عدم التأكد، ضغط التعارضات، تغطية التتبع.",
+    desc: "No magic single score — six deterministic debt dimensions (ambiguity, verification, uncertainty, conflict, traceability, executability) each with per-requirement contributions, plus the LLM narrative.",
+    descAr: "لا درجة سحرية واحدة — ستة أبعاد دين محسوبة حتميًا، كل بُعد بمساهمات لكل متطلب، مع السرد التحليلي للنموذج.",
+  },
+  {
+    id: "calibration",
+    name: "Calibration Panel",
+    nameAr: "لوحة المعايرة",
+    icon: "Scale",
+    desc: "Does agent confidence mean anything? Reliability bins compare claimed confidence against critic-verifier outcomes — Brier score, calibration error, over/under-confidence verdict.",
+    descAr: "هل تعني ثقة الوكيل شيئًا؟ صناديق الموثوقية تقارن الثقة المُعلنة بنتائج التحقق — درجة Brier وخطأ المعايرة وحكم الثقة الزائدة.",
+  },
+  {
+    id: "executability",
+    name: "Executability Simulator",
+    nameAr: "مُحاكي التنفيذ",
+    icon: "FlaskConical",
+    desc: "Simulates concrete Given/When/Then scenarios against the baseline. Where the baseline is silent, the scenario is UNDEFINED — recorded as a requirement discovery, not a failure.",
+    descAr: "يحاكي سيناريوهات ملموسة (بافتراض/عندما/إذًا) مقابل خط الأساس. حيث يصمت خط الأساس يُسجّل السيناريو UNDEFINED — كاكتشاف لمتطلب ناقص، لا كفشل.",
   },
   {
     id: "drift",
@@ -154,8 +186,8 @@ export const INSTRUMENTS = [
     name: "Constraint Pack Bay",
     nameAr: "حِزَم القيود",
     icon: "ShieldCheck",
-    desc: "Pluggable packs: WCAG 2.2 accessibility, Egypt PDPL-inspired privacy, performance & resilience — each scanned against the requirement graph.",
-    descAr: "حِزَم قابلة للتركيب: إتاحة WCAG 2.2، خصوصية مستوحاة من قانون حماية البيانات المصري، والأداء والمرونة — تُفحص مقابل رسم المتطلبات.",
+    desc: "Pluggable packs scan the requirement graph (WCAG 2.2, Egypt PDPL privacy, performance) — and the platform audits ITSELF with deterministic checks on the same standards.",
+    descAr: "حِزَم قابلة للتركيب تُفحص رسم المتطلبات (WCAG 2.2، خصوصية PDPL، الأداء) — والمنصة تُدقّق نفسها بفحوصات حتمية على المعايير ذاتها.",
   },
   {
     id: "windtunnel",
@@ -164,14 +196,6 @@ export const INSTRUMENTS = [
     icon: "Wind",
     desc: "Persona-conditioned synthetic stakeholder with held-out secrets stress-tests your question set before the real interview.",
     descAr: "شخصية اصطناعية بأسرار محجوبة تختبر مجموعة أسئلتك قبل المقابلة الحقيقية.",
-  },
-  {
-    id: "constellation",
-    name: "Constellation Graph",
-    nameAr: "خريطة الأبراج",
-    icon: "Waypoints",
-    desc: "The live requirement graph: requirements, evidence grounding links, and conflict edges — rendered as a navigable constellation.",
-    descAr: "رسم المتطلبات الحي: المتطلبات وروابط الأدلة وخطوط التعارض — كخريطة أبراج قابلة للاستكشاف.",
   },
   {
     id: "journal",
@@ -190,17 +214,17 @@ export const INTEGRATIONS = [
     id: "github",
     name: "GitHub Issues",
     icon: "Github",
-    status: "ready", // registry-declared capability status (qualitative)
-    desc: "Each approved requirement exports as a draft issue payload — labels carry priority and verification state, bodies carry evidence citations.",
-    descAr: "كل متطلب معتمد يُصدَّر كمسودة Issue — الوسوم تحمل الأولوية وحالة التحقق، والمتن يحمل استشهادات الأدلة.",
+    status: "live", // registry-declared capability status (qualitative)
+    desc: "Bidirectional sync: push approved requirements as issues (labels carry MoSCoW + verification state), pull open issues back for human review — every hop traced in the sync map.",
+    descAr: "مزامنة ثنائية الاتجاه: ادفع المتطلبات كـ Issues واسحب الـ Issues المفتوحة للمراجعة البشرية — كل عملية مُسجّلة في خريطة المزامنة.",
   },
   {
     id: "jira",
     name: "Jira",
     icon: "KanbanSquare",
-    status: "ready",
-    desc: "Stories map to Jira issues with acceptance criteria in the description; the requirement refId is preserved for bidirectional traceability.",
-    descAr: "تُحوَّل القصص إلى Issues في Jira مع معايير القبول في الوصف، ويُحفظ معرّف المتطلب للتتبع ثنائي الاتجاه.",
+    status: "live",
+    desc: "Bidirectional sync: stories become Jira issues with acceptance criteria and preserved requirement refs; open Jira issues pull back for human curation.",
+    descAr: "مزامنة ثنائية الاتجاه: القصص تصبح Issues مع معايير القبول ومعرّفات المتطلبات؛ وتُسحب الـ Issues للمراجعة البشرية.",
   },
 ] as const;
 
@@ -221,9 +245,12 @@ export const FEATURE_ATLAS: {
     items: [
       { name: "Uncertainty-gated asking", nameAr: "السؤال المشروط بعدم التأكد", status: "live", note: "Ask-cost + fallback assumption per question; assumptions ledger" },
       { name: "Impact-aware selection", nameAr: "الاختيار الواعي بالأثر", status: "live", note: "Human-tuned impact/effort with evidence grounding (N2)" },
+      { name: "Question Planner (utility formula)", nameAr: "مُخطّط الأسئلة (معادلة المنفعة)", status: "live", note: "Utility = IG×Impact×Uncertainty×Risk ÷ AskCost; 4-arm ablation lab (N1)" },
       { name: "Critic-verifier extraction", nameAr: "الاستخراج بالناقد", status: "live", note: "Proposer + Critic roles, confidence numbers (I3)" },
       { name: "Arabic-first elicitation", nameAr: "الاستقصاء بالعربية أولاً", status: "live", note: "Egyptian Arabic, code-switching, RTL interface (N7)" },
       { name: "Voice-note intake", nameAr: "الإدخال الصوتي", status: "live", note: "In-browser recording transcribed into evidence (I5)" },
+      { name: "Executability simulator", nameAr: "مُحاكي التنفيذ", status: "live", note: "UNDEFINED scenarios recorded as requirement discoveries" },
+      { name: "Requirement graph (typed edges)", nameAr: "رسم المتطلبات (حواف مُنوّعة)", status: "live", note: "6 edge kinds + reverse impact traversal" },
     ],
   },
   {
@@ -233,6 +260,7 @@ export const FEATURE_ATLAS: {
     items: [
       { name: "Decision journal", nameAr: "سجل القرارات", status: "live", note: "Immutable, per-decision, exportable (I12)" },
       { name: "Cost observatory", nameAr: "مرصد التكاليف", status: "live", note: "Latency, tokens and blended cost per agent run (I13)" },
+      { name: "Calibration panel", nameAr: "لوحة المعايرة", status: "live", note: "Brier + ECE of agent confidence vs critic verdicts" },
       { name: "Artifact snapshots", nameAr: "لقاط الأثر", status: "live", note: "Every stage output frozen for audit" },
       { name: "Consent registry", nameAr: "سجل الموافقات", status: "live", note: "Per-evidence stakeholder consent (G13)" },
     ],
@@ -244,9 +272,9 @@ export const FEATURE_ATLAS: {
     items: [
       { name: "Health decomposer", nameAr: "مُفكِّك الصحة", status: "live", note: "Decomposed dimensions, no magic score (I14)" },
       { name: "Drift radar", nameAr: "رادار الانحراف", status: "live", note: "Change-signal impact sweep (I8)" },
-      { name: "Constraint packs", nameAr: "حِزَم القيود", status: "live", note: "WCAG 2.2 · Egypt-PDPL privacy · performance (I11)" },
+      { name: "Constraint packs", nameAr: "حِزَم القيود", status: "live", note: "WCAG 2.2 · Egypt-PDPL privacy · performance — dual role: scans requirements AND self-audits the platform" },
       { name: "Wind tunnel", nameAr: "نفق المحاكاة", status: "live", note: "Synthetic stakeholder stress-testing (I7)" },
-      { name: "Cross-model probes", nameAr: "اختبارات عابرة للنماذج", status: "in-dev", note: "Provider abstraction for model-agnostic runs (N-layer)" },
+      { name: "Provider interface", nameAr: "واجهة المزودين", status: "live", note: "Fixed strategy, swappable model: GLM (Z.ai) | Model B | local — env-driven" },
     ],
   },
   {
@@ -256,9 +284,10 @@ export const FEATURE_ATLAS: {
     items: [
       { name: "Flight-plan UX", nameAr: "تجربة خطة الرحلة", status: "live", note: "Journey-rail interface with human gates" },
       { name: "Baseline exports", nameAr: "تصدير خط الأساس", status: "live", note: "JSON, Gherkin skeletons, audit log" },
-      { name: "GitHub Issues sync", nameAr: "مزامنة GitHub Issues", status: "in-dev", note: "Draft issue payloads ready; OAuth write-next" },
-      { name: "Jira sync", nameAr: "مزامنة Jira", status: "in-dev", note: "Story→issue mapping ready; site auth-next" },
-      { name: "Ablation harness UI", nameAr: "واجهة اختبار الأذرع", status: "planned", note: "4-arm Question-Planner ablation console" },
+      { name: "GitHub Issues sync", nameAr: "مزامنة GitHub Issues", status: "live", note: "Runtime credentials; push + pull with sync-map traceability" },
+      { name: "Jira sync", nameAr: "مزامنة Jira", status: "live", note: "Cloud REST v3; push + pull with sync-map traceability" },
+      { name: "Ablation harness UI", nameAr: "واجهة اختبار الأذرع", status: "live", note: "4-arm Question-Planner lab live in the Debrief bay" },
+      { name: "User study console", nameAr: "وحدة دراسة المستخدم", status: "live", note: "3-group NASA-TLX sessions + anonymised CSV export (protocol: docs/study-protocol.md)" },
     ],
   },
 ] as const;

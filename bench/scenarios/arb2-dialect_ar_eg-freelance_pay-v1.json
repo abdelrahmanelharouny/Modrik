@@ -1,0 +1,62 @@
+{
+ "id": "arb2-dialect_ar_eg-freelance_pay-v1",
+ "category": "dialect_ar_eg",
+ "task": "produce native Egyptian-Arabic interview questions",
+ "domain": "Freelance payment escrow",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "An escrow-style payment platform for Egyptian freelancers: milestones, dispute windows and tax receipts.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "هبة: بشتغل ديزاين مع عملاء برّه والتحويل بيضيع وسط. محتاج escrow بحيث العميل يودّع قبل ما أبدأ، وأنا أستلم على مراحل milestones. لو حصل خلاف، في window نقدر نتفاوض فيه. والضرايب… محتاجة إيصالات مرتبة في آخر السنة بدل ما أدور على كل حاجة.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Finance rules: الـ dispute window هو 14 يوم من الـ milestone delivery، وبعدها الـ escrow بيتحرر تلقائيًا. الـ tax receipt لازم يتولد PDF فيه الـ tax ID بتاع الفري لانسر.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "question_utility_json",
+  "payload": {
+   "questions": [
+    {
+     "text": "لو العميل فتح dispute واتسحب، الـ 14 يوم بيبدأوا من الأول؟",
+     "askCost": 5,
+     "utility": {
+      "infoGain": 5,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 5,
+      "askCost": 5,
+      "utility": 80.0
+     }
+    },
+    {
+     "text": "الإيصال الضريبي محتاج يطلع بالعربي ولا بالإنجليزي ولا الاتنين؟",
+     "askCost": 3,
+     "utility": {
+      "infoGain": 4,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 4,
+      "askCost": 3,
+      "utility": 85.33333333333333
+     }
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

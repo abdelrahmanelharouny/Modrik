@@ -1,0 +1,1286 @@
+{
+ "name": "arbench-v2",
+ "scenario_count": 120,
+ "scenarios": [
+  {
+   "id": "arb2-extraction-food_market-v1",
+   "category": "extraction",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-food_market-v2",
+   "category": "extraction",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-food_market-v3",
+   "category": "extraction",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-clinic-v1",
+   "category": "extraction",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-clinic-v2",
+   "category": "extraction",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-clinic-v3",
+   "category": "extraction",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-lms-v1",
+   "category": "extraction",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-lms-v2",
+   "category": "extraction",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-lms-v3",
+   "category": "extraction",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-rideshare-v1",
+   "category": "extraction",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-rideshare-v2",
+   "category": "extraction",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-rideshare-v3",
+   "category": "extraction",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-freelance_pay-v1",
+   "category": "extraction",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-freelance_pay-v2",
+   "category": "extraction",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-extraction-freelance_pay-v3",
+   "category": "extraction",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-elicitation-food_market-v1",
+   "category": "elicitation",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-food_market-v2",
+   "category": "elicitation",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-food_market-v3",
+   "category": "elicitation",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-clinic-v1",
+   "category": "elicitation",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-clinic-v2",
+   "category": "elicitation",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-clinic-v3",
+   "category": "elicitation",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-lms-v1",
+   "category": "elicitation",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-lms-v2",
+   "category": "elicitation",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-lms-v3",
+   "category": "elicitation",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-rideshare-v1",
+   "category": "elicitation",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-rideshare-v2",
+   "category": "elicitation",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-rideshare-v3",
+   "category": "elicitation",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-freelance_pay-v1",
+   "category": "elicitation",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-freelance_pay-v2",
+   "category": "elicitation",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-elicitation-freelance_pay-v3",
+   "category": "elicitation",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-ambiguity-food_market-v1",
+   "category": "ambiguity",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-food_market-v2",
+   "category": "ambiguity",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-food_market-v3",
+   "category": "ambiguity",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-clinic-v1",
+   "category": "ambiguity",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-clinic-v2",
+   "category": "ambiguity",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-clinic-v3",
+   "category": "ambiguity",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-lms-v1",
+   "category": "ambiguity",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-lms-v2",
+   "category": "ambiguity",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-lms-v3",
+   "category": "ambiguity",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-rideshare-v1",
+   "category": "ambiguity",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-rideshare-v2",
+   "category": "ambiguity",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-rideshare-v3",
+   "category": "ambiguity",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-freelance_pay-v1",
+   "category": "ambiguity",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-freelance_pay-v2",
+   "category": "ambiguity",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-ambiguity-freelance_pay-v3",
+   "category": "ambiguity",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "ambiguity_scores_json"
+  },
+  {
+   "id": "arb2-conflict-food_market-v1",
+   "category": "conflict",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-food_market-v2",
+   "category": "conflict",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-food_market-v3",
+   "category": "conflict",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-clinic-v1",
+   "category": "conflict",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-clinic-v2",
+   "category": "conflict",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-clinic-v3",
+   "category": "conflict",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-lms-v1",
+   "category": "conflict",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-lms-v2",
+   "category": "conflict",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-lms-v3",
+   "category": "conflict",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-rideshare-v1",
+   "category": "conflict",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-rideshare-v2",
+   "category": "conflict",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-rideshare-v3",
+   "category": "conflict",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-freelance_pay-v1",
+   "category": "conflict",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-freelance_pay-v2",
+   "category": "conflict",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-conflict-freelance_pay-v3",
+   "category": "conflict",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "conflict_pairs_json"
+  },
+  {
+   "id": "arb2-traceability-food_market-v1",
+   "category": "traceability",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-food_market-v2",
+   "category": "traceability",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-food_market-v3",
+   "category": "traceability",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-clinic-v1",
+   "category": "traceability",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-clinic-v2",
+   "category": "traceability",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-clinic-v3",
+   "category": "traceability",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-lms-v1",
+   "category": "traceability",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-lms-v2",
+   "category": "traceability",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-lms-v3",
+   "category": "traceability",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-rideshare-v1",
+   "category": "traceability",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-rideshare-v2",
+   "category": "traceability",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-rideshare-v3",
+   "category": "traceability",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-freelance_pay-v1",
+   "category": "traceability",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-freelance_pay-v2",
+   "category": "traceability",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-traceability-freelance_pay-v3",
+   "category": "traceability",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "trace_matrix_csv"
+  },
+  {
+   "id": "arb2-executability-food_market-v1",
+   "category": "executability",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-food_market-v2",
+   "category": "executability",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-food_market-v3",
+   "category": "executability",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-clinic-v1",
+   "category": "executability",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-clinic-v2",
+   "category": "executability",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-clinic-v3",
+   "category": "executability",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-lms-v1",
+   "category": "executability",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-lms-v2",
+   "category": "executability",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-lms-v3",
+   "category": "executability",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-rideshare-v1",
+   "category": "executability",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-rideshare-v2",
+   "category": "executability",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-rideshare-v3",
+   "category": "executability",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-freelance_pay-v1",
+   "category": "executability",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-freelance_pay-v2",
+   "category": "executability",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-executability-freelance_pay-v3",
+   "category": "executability",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "exec_scenarios_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-food_market-v1",
+   "category": "dialect_ar_eg",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-food_market-v2",
+   "category": "dialect_ar_eg",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-food_market-v3",
+   "category": "dialect_ar_eg",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-clinic-v1",
+   "category": "dialect_ar_eg",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-clinic-v2",
+   "category": "dialect_ar_eg",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-clinic-v3",
+   "category": "dialect_ar_eg",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-lms-v1",
+   "category": "dialect_ar_eg",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-lms-v2",
+   "category": "dialect_ar_eg",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-lms-v3",
+   "category": "dialect_ar_eg",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-rideshare-v1",
+   "category": "dialect_ar_eg",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-rideshare-v2",
+   "category": "dialect_ar_eg",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-rideshare-v3",
+   "category": "dialect_ar_eg",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-freelance_pay-v1",
+   "category": "dialect_ar_eg",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-freelance_pay-v2",
+   "category": "dialect_ar_eg",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-dialect_ar_eg-freelance_pay-v3",
+   "category": "dialect_ar_eg",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "question_utility_json"
+  },
+  {
+   "id": "arb2-codeswitch-food_market-v1",
+   "category": "codeswitch",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-food_market-v2",
+   "category": "codeswitch",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-food_market-v3",
+   "category": "codeswitch",
+   "domain": "Home-cooking marketplace",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-clinic-v1",
+   "category": "codeswitch",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-clinic-v2",
+   "category": "codeswitch",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-clinic-v3",
+   "category": "codeswitch",
+   "domain": "Clinic appointment booking",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-lms-v1",
+   "category": "codeswitch",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-lms-v2",
+   "category": "codeswitch",
+   "domain": "University learning management",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-lms-v3",
+   "category": "codeswitch",
+   "domain": "University learning management",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-rideshare-v1",
+   "category": "codeswitch",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-rideshare-v2",
+   "category": "codeswitch",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-rideshare-v3",
+   "category": "codeswitch",
+   "domain": "Ride-sharing for campuses",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-freelance_pay-v1",
+   "category": "codeswitch",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "codeswitch"
+   ],
+   "difficulty": "hard",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-freelance_pay-v2",
+   "category": "codeswitch",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  },
+  {
+   "id": "arb2-codeswitch-freelance_pay-v3",
+   "category": "codeswitch",
+   "domain": "Freelance payment escrow",
+   "languages": [
+    "ar-EG",
+    "en"
+   ],
+   "difficulty": "medium",
+   "gold_type": "requirements_json"
+  }
+ ]
+}

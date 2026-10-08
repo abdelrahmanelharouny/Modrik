@@ -1,0 +1,59 @@
+{
+ "id": "arb2-ambiguity-clinic-v1",
+ "category": "ambiguity",
+ "task": "score and repair ambiguous statements",
+ "domain": "Clinic appointment booking",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A booking system for a chain of clinics: slots, follow-ups, insurance verification and reminders.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "د. أحمد: المواعيد اللي بتتلغي آخر لحظة بتضيّرنا أكتر من حاجة. محتاج المريض يأكد قبلها بساعتين وإلا الكرسي يروح لغيره. وكمان العيادة بتشتغل بفيزيائية وكارت تأمين، فلازم النظام يعرف يفرّق بينهم من أول الشاشة. والانتظار محتاج يبقى مرتب مش فوضى زي دلوقتي.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Reception workflow: الـ insurance verification لازم تتم قبل الـ check-in — otherwise الـ patient هيفضل واقف. الـ no-show policy: بعد تأكدين دون حضور، الـ slot التالي يحتاج prepayment.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "ambiguity_scores_json",
+  "payload": {
+   "assessments": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall send reminders appropriately.",
+     "score": 80,
+     "issue": "vague 'appropriately' — timing/channel unspecified",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "Booking shall be fast.",
+     "score": 85,
+     "issue": "vague 'fast' — no latency target",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The interface shall be clear for elderly patients.",
+     "score": 78,
+     "issue": "subjective 'clear' — untestable",
+     "expected_action": "rewrite"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

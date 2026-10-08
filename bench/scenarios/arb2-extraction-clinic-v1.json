@@ -1,0 +1,74 @@
+{
+ "id": "arb2-extraction-clinic-v1",
+ "category": "extraction",
+ "task": "extract atomic, grounded requirements",
+ "domain": "Clinic appointment booking",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A booking system for a chain of clinics: slots, follow-ups, insurance verification and reminders.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "د. أحمد: المواعيد اللي بتتلغي آخر لحظة بتضيّرنا أكتر من حاجة. محتاج المريض يأكد قبلها بساعتين وإلا الكرسي يروح لغيره. وكمان العيادة بتشتغل بفيزيائية وكارت تأمين، فلازم النظام يعرف يفرّق بينهم من أول الشاشة. والانتظار محتاج يبقى مرتب مش فوضى زي دلوقتي.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Reception workflow: الـ insurance verification لازم تتم قبل الـ check-in — otherwise الـ patient هيفضل واقف. الـ no-show policy: بعد تأكدين دون حضور، الـ slot التالي يحتاج prepayment.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "requirements_json",
+  "payload": {
+   "requirements": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall release an unconfirmed slot to other patients 2 hours before the appointment.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The system shall distinguish insurance-funded from cash-paying patients at intake.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall require prepayment for a patient with two recent no-shows.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-04",
+     "text": "The system shall verify insurance eligibility before check-in is possible.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-05",
+     "text": "The system shall present the waiting queue position in real time.",
+     "type": "functional",
+     "priority": "Could"
+    },
+    {
+     "refId": "REQ-06",
+     "text": "Medical records shall be retained for 10 years per health regulations.",
+     "type": "constraint",
+     "priority": "Must"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

@@ -201,6 +201,7 @@ export interface QuestionDTO {
   priority: string;
   askCost?: number | null;
   fallbackAssumption?: string | null;
+  utility?: string | null; // JSON utility breakdown from the impact-aware planner (dev item 7)
   answer?: string | null;
   answered: boolean;
   resolution: string;
@@ -257,9 +258,11 @@ export interface ConflictDTO {
   reqAId: string;
   reqBId: string;
   kind: string;
+  taxonomy?: string | null;
   description: string;
   severity: string;
   suggestion?: string | null;
+  implications?: string | null; // JSON [{option, impact}] — implications-only negotiation (dev item 10)
   resolution?: string | null;
   status: string;
   reqA?: { refId: string; text: string };

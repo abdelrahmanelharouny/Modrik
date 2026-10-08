@@ -1,0 +1,74 @@
+{
+ "id": "arb2-codeswitch-freelance_pay-v1",
+ "category": "codeswitch",
+ "task": "extract requirements preserving code-switched language",
+ "domain": "Freelance payment escrow",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "An escrow-style payment platform for Egyptian freelancers: milestones, dispute windows and tax receipts.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "هبة: بشتغل ديزاين مع عملاء برّه والتحويل بيضيع وسط. محتاج escrow بحيث العميل يودّع قبل ما أبدأ، وأنا أستلم على مراحل milestones. لو حصل خلاف، في window نقدر نتفاوض فيه. والضرايب… محتاجة إيصالات مرتبة في آخر السنة بدل ما أدور على كل حاجة.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Finance rules: الـ dispute window هو 14 يوم من الـ milestone delivery، وبعدها الـ escrow بيتحرر تلقائيًا. الـ tax receipt لازم يتولد PDF فيه الـ tax ID بتاع الفري لانسر.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "requirements_json",
+  "payload": {
+   "requirements": [
+    {
+     "refId": "REQ-01",
+     "text": "The system shall hold client funds in escrow before work starts.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The system shall release milestone funds 14 days after delivery unless disputed.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall generate a PDF tax receipt containing the freelancer's tax ID per payout.",
+     "type": "functional",
+     "priority": "Must"
+    },
+    {
+     "refId": "REQ-04",
+     "text": "The system shall allow either party to open a dispute within the window.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-05",
+     "text": "The system shall show both parties the same milestone status at all times.",
+     "type": "functional",
+     "priority": "Should"
+    },
+    {
+     "refId": "REQ-06",
+     "text": "Payout data shall be resident on servers located in Egypt.",
+     "type": "constraint",
+     "priority": "Must"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

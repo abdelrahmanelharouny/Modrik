@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runStageAgent, harvestMemory } from "@/lib/agents";
+import { runPlanner, ARMS, type PlannerArm } from "@/lib/planner";
 import { logDecision } from "@/lib/journal";
 import { STAGES, type Stage } from "@/lib/rp";
 
@@ -43,7 +44,17 @@ export async function POST(req: NextRequest, { params }: Params) {
         data: { stageStatus: "agent_running" },
       });
       try {
-        await runStageAgent(stage, id, run.id);
+        // ELICITATION is served by the impact-aware Question Planner
+        // (dev item 7 — the research heart). The arm defaults to
+        // impact_aware and can be pinned per-request via body.arm or
+        // globally via RP_PLANNER_ARM; single_shot remains available.
+        if (stage === "ELICITATION") {
+          const armRaw = String(body.arm ?? process.env.RP_PLANNER_ARM ?? "impact_aware");
+          const arm = (ARMS.includes(armRaw as PlannerArm) ? armRaw : "impact_aware") as PlannerArm;
+          await runPlanner(id, arm, run.id);
+        } else {
+          await runStageAgent(stage, id, run.id);
+        }
         await db.pipelineRun.update({
           where: { id: run.id },
           data: { status: "done", completedAt: new Date(), log: "agent finished" },

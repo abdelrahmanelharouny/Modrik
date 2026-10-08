@@ -1,0 +1,51 @@
+{
+ "id": "arb2-executability-rideshare-v1",
+ "category": "executability",
+ "task": "simulate executability and surface UNDEFINED discoveries",
+ "domain": "Ride-sharing for campuses",
+ "languages": [
+  "ar-EG",
+  "codeswitch"
+ ],
+ "difficulty": "hard",
+ "brief": "A ride-sharing service limited to university campuses: matched carpools, safety checks and capped fares.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "كريم: بننقل الطلبة من المدينة للجامعة والزحمة قتلتنا. محتاجين matching سريع صباحًا وكل عربية لازم تتسجل عند أمن الجامعة. المشكلة إن الفلوس بتتأخر، وعايزين حد أقصى للأجرة عشان نفضل أرخص من المواصلات الخاصة. والبنات محتاجين خيار إن السواق بنت.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Weekly sync notes (code-switched)",
+   "sourceType": "meeting",
+   "language": "codeswitch",
+   "content": "Ops sync: الـ fare cap اللي هو 25 EGP للرحلة الواحدة non-negotiable — marketing already promised it. الـ matching window في الصبح هو 20 دقيقة، ولو مفيش match الـ rider بيتحول لـ waitlist.",
+   "consent": true
+  }
+ ],
+ "gold": {
+  "type": "exec_scenarios_json",
+  "payload": {
+   "scenarios": [
+    {
+     "given": "A rider requests at 07:55 inside the morning window; no driver matches by 08:15.",
+     "when": "The window closes without a match.",
+     "then": "The rider is moved to the waitlist automatically.",
+     "resolution": "defined"
+    },
+    {
+     "given": "A rider requests at 07:55 inside the morning window; no driver matches by 08:15.",
+     "when": "The window closes without a match.",
+     "then": "Whether the rider is notified and with what message.",
+     "resolution": "undefined",
+     "expect": "UNDEFINED recorded as a discovery with a clarifying question"
+    }
+   ]
+  }
+ },
+ "notes": "Arabic-native + code-switch — the dialect-heavy core of arbench"
+}

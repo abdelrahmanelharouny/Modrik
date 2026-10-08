@@ -1,0 +1,59 @@
+{
+ "id": "arb2-ambiguity-rideshare-v3",
+ "category": "ambiguity",
+ "task": "score and repair ambiguous statements",
+ "domain": "Ride-sharing for campuses",
+ "languages": [
+  "ar-EG",
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A ride-sharing service limited to university campuses: matched carpools, safety checks and capped fares.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Stakeholder interview (Egyptian Arabic)",
+   "sourceType": "interview",
+   "language": "ar-EG",
+   "content": "كريم: بننقل الطلبة من المدينة للجامعة والزحمة قتلتنا. محتاجين matching سريع صباحًا وكل عربية لازم تتسجل عند أمن الجامعة. المشكلة إن الفلوس بتتأخر، وعايزين حد أقصى للأجرة عشان نفضل أرخص من المواصلات الخاصة. والبنات محتاجين خيار إن السواق بنت.",
+   "consent": true
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "ambiguity_scores_json",
+  "payload": {
+   "assessments": [
+    {
+     "refId": "REQ-01",
+     "text": "Matching shall happen quickly in the morning.",
+     "score": 84,
+     "issue": "vague 'quickly' — window already defined elsewhere",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-02",
+     "text": "The app shall feel safe for riders.",
+     "score": 89,
+     "issue": "subjective 'feel safe' — untestable",
+     "expected_action": "rewrite"
+    },
+    {
+     "refId": "REQ-03",
+     "text": "The system shall scale as the campus grows.",
+     "score": 72,
+     "issue": "unbounded growth claim",
+     "expected_action": "rewrite"
+    }
+   ]
+  }
+ },
+ "notes": "Mixed Arabic interview + English document"
+}

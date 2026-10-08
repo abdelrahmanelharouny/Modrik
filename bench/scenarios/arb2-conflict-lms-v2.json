@@ -1,0 +1,45 @@
+{
+ "id": "arb2-conflict-lms-v2",
+ "category": "conflict",
+ "task": "detect and classify requirement conflicts",
+ "domain": "University learning management",
+ "languages": [
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A lightweight LMS for a university department: assignments, plagiarism checks, gradebook and attendance.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Product one-pager",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Scope: pilot with 50 users. Success: 80% of target workflows completed in-app without phone support. Constraints: launch before the semester starts; no stored card data.",
+   "consent": false
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "conflict_pairs_json",
+  "payload": {
+   "conflicts": [
+    {
+     "reqARef": "REQ-01",
+     "reqBRef": "REQ-02",
+     "kind": "contradiction",
+     "taxonomy": "precedence",
+     "why": "automatic rejection vs documented exception flow",
+     "implications_only": true
+    }
+   ]
+  }
+ },
+ "notes": "English documents only"
+}

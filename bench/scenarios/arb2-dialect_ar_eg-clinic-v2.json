@@ -1,0 +1,61 @@
+{
+ "id": "arb2-dialect_ar_eg-clinic-v2",
+ "category": "dialect_ar_eg",
+ "task": "produce native Egyptian-Arabic interview questions",
+ "domain": "Clinic appointment booking",
+ "languages": [
+  "en"
+ ],
+ "difficulty": "medium",
+ "brief": "A booking system for a chain of clinics: slots, follow-ups, insurance verification and reminders.",
+ "evidence": [
+  {
+   "code": "E1",
+   "title": "Product one-pager",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Scope: pilot with 50 users. Success: 80% of target workflows completed in-app without phone support. Constraints: launch before the semester starts; no stored card data.",
+   "consent": false
+  },
+  {
+   "code": "E2",
+   "title": "Ops constraints memo",
+   "sourceType": "document",
+   "language": "en",
+   "content": "Budget covers one engineer and one designer for 3 months. All data must stay on local hosting. Support channel is WhatsApp-first; email secondary.",
+   "consent": false
+  }
+ ],
+ "gold": {
+  "type": "question_utility_json",
+  "payload": {
+   "questions": [
+    {
+     "text": "لو التأمين مرفوض في نفس اللحظة، الميعاد بيتلغي ولا بيتحول كاش؟",
+     "askCost": 5,
+     "utility": {
+      "infoGain": 5,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 5,
+      "askCost": 5,
+      "utility": 80.0
+     }
+    },
+    {
+     "text": "إزاي بنحسب الـ no-show لو المريض اتأخر ربع ساعة بس؟",
+     "askCost": 4,
+     "utility": {
+      "infoGain": 5,
+      "impact": 4,
+      "uncertainty": 4,
+      "risk": 5,
+      "askCost": 4,
+      "utility": 100.0
+     }
+    }
+   ]
+  }
+ },
+ "notes": "English documents only"
+}

@@ -32,6 +32,38 @@ model Project {
   stories    UserStory[]
   conflicts  Conflict[]
   decisions  DecisionEntry[]
+  plannerRuns PlannerRun[]
+  edges      ReqEdge[]
+  execScenarios ExecScenario[]
+  syncMaps   SyncMap[]
+  studySessions StudySession[]
+}
+
+// Three-group between-subjects user study (dev item 14)
+model StudySession {
+  id             String   @id @default(cuid())
+  projectId      String?  // group C sessions bind to a RequirementPilot project
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  groupId        String   // A_traditional | B_unconstrained_llm | C_requirementpilot
+  participantCode String  // anonymised participant code (PDPL: no names)
+  scenarioId     String   // bench scenario id used as the task
+  taskTimeSec    Int?
+  nasaTlx        String?  // JSON: {mental, physical, temporal, performance, effort, frustration} 0-100
+  susScore       Int?     // 0-100 system usability scale (groups B/C)
+  notes          String?
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  events         StudyEvent[]
+}
+
+// Provenance stream inside a study session (what the participant actually did)
+model StudyEvent {
+  id        String       @id @default(cuid())
+  sessionId String
+  session   StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kind      String       // agent_run | human_gate | export | sync | note
+  detail    String       @default("")
+  at        DateTime     @default(now())
 }
 
 // Immutable audit trail of every human/agent decision (I12 decision journal)
@@ -83,9 +115,27 @@ model Question {
   priority  String  @default("medium") // high | medium | low
   askCost   Int? // 1..5 estimated stakeholder interruption cost (I1)
   fallbackAssumption String? // what the agent would assume if the question is skipped (I1)
+  utility   String? // JSON: impact-aware planner breakdown {infoGain, impact, uncertainty, risk, askCost, utility} (dev item 7)
   answer    String?
   answered  Boolean @default(false)
   resolution String @default("pending") // pending | answered | proceed_with_uncertainty
+}
+
+// Impact-aware Question Planner ablation runs (dev item 7 — the research heart)
+// One row per arm execution: single_shot | random | llm | impact_aware.
+// Metrics JSON: {avgUtility, utilityPerCost, evidenceCoverage, redundancyRate, dialectFit}
+model PlannerRun {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  arm           String   // single_shot | random | llm | impact_aware
+  questions     String   // JSON array of selected questions with per-question utility
+  metrics       String?  // JSON five-metric evaluation (same judge for every arm)
+  candidates    Int      @default(0) // size of the candidate pool considered
+  latencyMs     Int?
+  estTokens     Int?
+  promptVersion String?
+  createdAt     DateTime @default(now())
 }
 
 // Impact-aware problem selection (novelty contribution N2)
@@ -150,6 +200,10 @@ model Requirement {
   conflictA Conflict[]  @relation("reqA")
   conflictB Conflict[]  @relation("reqB")
   links     TraceLink[]
+  edgeFrom  ReqEdge[]    @relation("edgeFrom")
+  edgeTo    ReqEdge[]    @relation("edgeTo")
+  execScenarios ExecScenario[]
+  syncMaps  SyncMap[]
 }
 
 // Evidence traceability: which source grounds which requirement
@@ -175,6 +229,7 @@ model UserStory {
   investNote    String?
   status        String      @default("draft") // draft | approved
   project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  syncMaps      SyncMap[]
 }
 
 model Conflict {
@@ -186,9 +241,74 @@ model Conflict {
   reqBId      String
   reqB        Requirement @relation("reqB", fields: [reqBId], references: [id], onDelete: Cascade)
   kind        String      @default("contradiction") // contradiction | duplication | overlap
+  taxonomy    String?     // value | terminology | scale | constraint | precedence | knowledge (dev item 10)
   description String
   severity    String      @default("medium") // high | medium | low
   suggestion  String?
+  implications String?    // JSON: [{option, impact}] — presented only, never chosen by the system (dev item 10)
   resolution  String?
   status      String      @default("open") // open | resolved
+}
+
+// Typed requirement-to-requirement edges (dev item 9)
+model ReqEdge {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromId    String
+  from      Requirement @relation("edgeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId      String
+  to        Requirement @relation("edgeTo", fields: [toId], references: [id], onDelete: Cascade)
+  kind      String      // depends_on | conflicts_with | derived_from | refines | validates | affected_by
+  note      String?
+  origin    String      @default("agent") // agent | human | derived
+  createdAt DateTime    @default(now())
+
+  @@unique([fromId, toId, kind])
+}
+
+// Executability simulation scenarios (dev item 8)
+// resolution "undefined" = a requirement discovery, not a failure.
+model ExecScenario {
+  id              String      @id @default(cuid())
+  projectId       String
+  project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementId   String?
+  requirement     Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  refId           String      // source requirement refId or GAP-nn for orphan discoveries
+  given           String
+  when            String
+  then            String
+  resolution      String      @default("defined") // defined | undefined
+  undefinedReason String?
+  discovery       String?     // the clarifying question / missing requirement the gap suggests
+  createdAt       DateTime    @default(now())
+}
+
+// Runtime credentials for tracker integrations — server-side only,
+// never returned in full to any client (masking in the API layer).
+model Integration {
+  id        String   @id @default(cuid())
+  projectId String?
+  kind      String   // github | jira
+  config    String   // JSON: github {token, owner, repo} · jira {baseUrl, email, token, projectKey}
+  createdAt DateTime @default(now())
+}
+
+// One row per externally synced work item (bidirectional trace)
+model SyncMap {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind          String   // github | jira
+  direction     String   // pushed | pulled
+  requirementId String?  // local requirement pushed out
+  requirement   Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  storyId       String?  // local story pushed out
+  story         UserStory?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  localLabel    String   // REQ-07 / US-03 (stable even if the local row is later deleted)
+  externalKey   String   // GitHub issue number / Jira issue key
+  externalUrl   String
+  title         String
+  syncedAt      DateTime @default(now())
 }
