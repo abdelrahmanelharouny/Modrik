@@ -1,0 +1,24 @@
+{
+  "questions": [
+    {
+      "text": "What specific success metrics will be used to evaluate the pilot's success beyond just student satisfaction scores?",
+      "answer": "[synthetic · wind tunnel] We're looking at on-time performance metrics and route efficiency improvements, alongside the satisfaction scores."
+    },
+    {
+      "text": "What are the exact bandwidth constraints we need to design for, and what percentage of students are likely to use the app on 3G connections or lower?",
+      "answer": "[synthetic · wind tunnel] Bandwidth requirements are optimized for standard mobile networks. We don't track specific connection types for students."
+    },
+    {
+      "text": "What are the exact manual update requirements for the admin dashboard, and what are the expected GPS failure rates?",
+      "answer": "[synthetic · wind tunnel] Admin updates are minimal, focusing on schedule adjustments. GPS failure rates are generally low, around 2-3% in our current system."
+    },
+    {
+      "text": "What specific Arabic dialect and language support requirements are needed, and what percentage of users will primarily use Arabic?",
+      "answer": "[synthetic · wind tunnel] We support Modern Standard Arabic with some regional dialect variations. Approximately 30% of our student body uses Arabic as their primary language."
+    },
+    {
+      "text": "What is the exact budget and timeline approved by the student union, and what are the key milestones for the pilot launch?",
+      "answer": "[synthetic · wind tunnel] The budget and timeline details are still under final approval by administration. I can't share specific figures at this moment."
+    }
+  ]
+}

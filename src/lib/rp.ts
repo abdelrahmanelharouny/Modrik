@@ -322,6 +322,20 @@ export interface MemoryDTO {
   createdAt: string;
 }
 
+// Shared project-card summary — mirrors GET /api/projects exactly
+// (Prisma relation names: evidences / reqs / stories).
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  brief: string;
+  status: string;
+  currentStage: string;
+  stageStatus: string;
+  isDemo: boolean;
+  updatedAt: string;
+  _count: { evidences: number; reqs: number; stories: number };
+}
+
 // ── helpers ───────────────────────────────────────────────────
 
 export const PRIORITY_ORDER = ["Must", "Should", "Could", "Won't"] as const;

@@ -151,7 +151,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     case "conflict": {
-      const c = await db.conflict.findFirst({ where: { id: itemId, projectId: id } });
+      const c = await db.conflict.findFirst({
+        where: { id: itemId, projectId: id },
+        include: { reqA: true, reqB: true },
+      });
       if (!c) return NextResponse.json({ error: "Conflict not found" }, { status: 404 });
       const resolution = String(data.resolution ?? "").slice(0, 1000);
       await db.conflict.update({
@@ -162,7 +165,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       });
       if (resolution.trim() && c.status !== "resolved") {
-        await logDecision(id, "CONFLICTS", "human", "resolved_conflict", `${c.reqARef} ↔ ${c.reqBRef} (${c.kind}): ${resolution.slice(0, 200)}`);
+        // Audit fix: c.reqARef/reqBRef never existed on the model — journal
+        // entries used to read "undefined ↔ undefined". Use the related refIds.
+        await logDecision(id, "CONFLICTS", "human", "resolved_conflict", `${c.reqA.refId} ↔ ${c.reqB.refId} (${c.kind}): ${resolution.slice(0, 200)}`);
       }
       break;
     }

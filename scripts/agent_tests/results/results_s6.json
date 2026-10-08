@@ -1,0 +1,47 @@
+[
+  {
+    "ts": "22:23:08",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_en_transcribe",
+    "status": "pass",
+    "detail": "transcript (latin): The system shall notify the shopkeeper within thirty seconds when a new customer order arrives.",
+    "evidence": null
+  },
+  {
+    "ts": "22:23:08",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_en_script_guard",
+    "status": "pass",
+    "detail": "no false-positive mismatch warning for English clip: True",
+    "evidence": null
+  },
+  {
+    "ts": "22:23:10",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_ar-EG_transcribe",
+    "status": "pass",
+    "detail": "transcript script: NON-ARABIC SCRIPT; text: 한대, 하이, 사에우 후크하하 시히 사인 하 태스 후시 비아 셀",
+    "evidence": null
+  },
+  {
+    "ts": "22:23:10",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_ar-EG_script_guard",
+    "status": "pass",
+    "detail": "script-mismatch guard warning returned: True — The transcript script does not match the expected language of this evidence. Please review or re-record before saving.",
+    "evidence": null
+  },
+  {
+    "ts": "22:23:10",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_oversize_guard",
+    "status": "pass",
+    "detail": "20MB payload rejected: HTTP 413 (expect 413)",
+    "evidence": null
+  }
+]

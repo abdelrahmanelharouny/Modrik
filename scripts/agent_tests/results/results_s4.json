@@ -1,0 +1,101 @@
+[
+  {
+    "ts": "22:22:17",
+    "phase": "s4",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03qhng00udlnuguv87ey53",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 4.3s (server latency 4238 ms, ~1158 tok, cost $0.000695, prompt v2.1-audit)",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "elicitation",
+    "check": "b1_zero_evidence",
+    "status": "pass",
+    "detail": "graceful degradation with '(no evidence sources provided yet)': 5 questions generated from brief alone",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03ql0b00uulnugf7to1ia0",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "extraction",
+    "check": "b2_probe_setup",
+    "status": "info",
+    "detail": "evidence length 2772 chars; critical appendix starts at char 2556 — but every agent prompt truncates each evidence at 1200 chars (evidenceBlock slice)",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:25",
+    "phase": "s4",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 4.1s (server latency 3934 ms, ~1836 tok, cost $0.001102, prompt v2.1-audit)",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:28",
+    "phase": "s4",
+    "agent": "PROBLEM_SELECTION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 2.7s (server latency 2637 ms, ~1434 tok, cost $0.00086, prompt v2.1-audit)",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:38",
+    "phase": "s4",
+    "agent": "EXTRACTION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 9.4s (server latency 9299 ms, ~3260 tok, cost $0.001956, prompt v2.1-audit)",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:38",
+    "phase": "s4",
+    "agent": "extraction",
+    "check": "b2_tail_grounding",
+    "status": "fail",
+    "detail": "requirements referencing the appendix tail: ['REQ-06', 'REQ-07'] (cutoff may not have bitten this run)",
+    "evidence": null
+  },
+  {
+    "ts": "22:22:38",
+    "phase": "s4",
+    "agent": "extraction",
+    "check": "b2_req_count",
+    "status": "info",
+    "detail": "11 requirements extracted from the visible first-1200-chars window",
+    "evidence": null
+  }
+]

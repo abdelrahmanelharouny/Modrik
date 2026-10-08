@@ -46,21 +46,11 @@ import {
   Route,
   Languages,
   Crosshair,
+  Github,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ICONS } from "@/components/rp/icons";
-
-interface ProjectSummary {
-  id: string;
-  name: string;
-  brief: string;
-  status: string;
-  currentStage: string;
-  stageStatus: string;
-  isDemo: boolean;
-  updatedAt: string;
-  _count: { evidences: number; requirements: number; stories: number };
-}
+import type { ProjectSummary } from "@/lib/rp";
 
 interface Telemetry {
   generatedAt: string;

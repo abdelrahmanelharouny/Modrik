@@ -1,0 +1,1482 @@
+[
+  {
+    "ts": "22:21:24",
+    "phase": "s1",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03pd2t00orlnugarpoprf8",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:24",
+    "phase": "s1",
+    "agent": "setup",
+    "check": "add_evidence[ar-EG]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:24",
+    "phase": "s1",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:24",
+    "phase": "s1",
+    "agent": "setup",
+    "check": "add_evidence[codeswitch]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 5.5s (server latency 5345 ms, ~1663 tok, cost $0.000998, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_q_count",
+    "status": "pass",
+    "detail": "5 questions (prompt asks for 5)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_nonempty",
+    "status": "pass",
+    "detail": "all question texts non-empty",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_askcost",
+    "status": "pass",
+    "detail": "askCost 1..5 on all; values=[2, 3, 2, 3, 2]",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_fallback",
+    "status": "pass",
+    "detail": "every question carries a substantive fallbackAssumption",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_priority",
+    "status": "pass",
+    "detail": "priorities=['high', 'high', 'medium', 'high', 'medium']",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_lang_mirror",
+    "status": "pass",
+    "detail": "4/5 questions are Arabic-native (Egyptian dialect) mirroring ar-EG evidence",
+    "evidence": {
+      "arabic_questions": [
+        "بالنسبة للـ pilot في 3 مناطق، هل لكل منطقة خصائص خاصة أو قيود مختلفة في الخدمة أو التسليم؟",
+        "فيما يخص نظام التحقق، هل رقم الهاتف كافٍ للتحقق من هوية العميل أم نحتاج لوسائل إضافية مثل رمز التحقق أو بطاقة الهوية؟",
+        "لو الـ order اتلغت مرتين، العميل هيتحظر مؤقتا - هل ممكن توضحي المدة وآلية الإيقاف؟",
+        "بالنسبة للإشعارات، المفروض تكون real-time - هل هي هتبعت على الـ app بس ولا ممكن نستخدم WhatsApp كخيار إضافي؟"
+      ]
+    },
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_rationale",
+    "status": "pass",
+    "detail": "rationale present on all",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_usage",
+    "status": "pass",
+    "detail": "observatory: latency=5345ms tokens~1663 prompt=v2.1-audit",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "el_artifact",
+    "status": "pass",
+    "detail": "ELICITATION artifact snapshot saved",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "hitl_answer_en",
+    "status": "pass",
+    "detail": "HTTP 200",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "hitl_answer_ar",
+    "status": "pass",
+    "detail": "Egyptian-Arabic answer recorded",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "hitl_uncertainty",
+    "status": "pass",
+    "detail": "question 3 marked proceed-with-uncertainty",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "hitl_answer_extra",
+    "status": "pass",
+    "detail": "HTTP 200",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "gate_approve",
+    "status": "pass",
+    "detail": "HTTP 200 nextStage=PROBLEM_SELECTION",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "gate_autoskip",
+    "status": "pass",
+    "detail": "1 pending question(s) auto-closed with auditable '(skipped by analyst)' marker",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:30",
+    "phase": "s1",
+    "agent": "elicitation",
+    "check": "hitl_journal",
+    "status": "pass",
+    "detail": "journal actions include answered_question + proceed_with_uncertainty (9 entries so far)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "PROBLEM_SELECTION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 2.6s (server latency 2569 ms, ~1177 tok, cost $0.000706, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "scope",
+    "check": "ps_count",
+    "status": "pass",
+    "detail": "4 candidates",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "scope",
+    "check": "ps_sliders",
+    "status": "pass",
+    "detail": "impact/effort within 1..5 ([(5, 3), (4, 2), (3, 4), (4, 3)])",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "scope",
+    "check": "ps_evidence",
+    "status": "pass",
+    "detail": "evidence grounding codes valid; grounded=True",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "scope",
+    "check": "ps_ledger_respect",
+    "status": "info",
+    "detail": "1 uncertainty assumption(s) carried; ledger injected into prompt — qualitative check: candidates treat it as provisional",
+    "evidence": {
+      "assumption": "if skipped, assume a 24-hour suspension period after two order cancellations"
+    },
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "scope",
+    "check": "ps_artifact",
+    "status": "pass",
+    "detail": "artifact snapshot",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "scope",
+    "check": "hitl_tune_select",
+    "status": "pass",
+    "detail": "human re-scored impact/effort and selected exactly one problem (journaled)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:33",
+    "phase": "s1",
+    "agent": "scope",
+    "check": "gate_approve",
+    "status": "pass",
+    "detail": "HTTP 200 nextStage=EXTRACTION",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "EXTRACTION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 9.1s (server latency 9034 ms, ~2637 tok, cost $0.001582, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_count",
+    "status": "pass",
+    "detail": "11 requirements",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_atomic_form",
+    "status": "pass",
+    "detail": "11/11 are atomic 'The system shall…' (or Arabic-native) statements",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_taxonomy",
+    "status": "pass",
+    "detail": "types valid=True, MoSCoW valid=True",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_confidence",
+    "status": "pass",
+    "detail": "confidence 0..100 on all (avg 93) — calibration input I2",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_traceability",
+    "status": "pass",
+    "detail": "every requirement carries valid evidence citations (TraceLinks)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_language_tags",
+    "status": "pass",
+    "detail": "2/11 requirements keep Arabic/code-switched native language ({'ar-EG', 'codeswitch', 'en'})",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_refids",
+    "status": "pass",
+    "detail": "refIds sequential: True",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_critic_pass",
+    "status": "pass",
+    "detail": "critic verdicts: 11/11 verified (3 weak, 0 unverified); weak ones carry notes=True",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "ex_artifact",
+    "status": "pass",
+    "detail": "artifact snapshot",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "hitl_curation",
+    "status": "pass",
+    "detail": "human edited one requirement and deleted another (journaled)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:43",
+    "phase": "s1",
+    "agent": "extraction",
+    "check": "gate_approve",
+    "status": "pass",
+    "detail": "HTTP 200 nextStage=AMBIGUITY",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "AMBIGUITY",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 5.8s (server latency 5761 ms, ~1103 tok, cost $0.000662, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "am_all_scored",
+    "status": "pass",
+    "detail": "10/10 requirements scored",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "am_range",
+    "status": "pass",
+    "detail": "scores within 0..100",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "am_rewrites",
+    "status": "pass",
+    "detail": "5 flagged >=30 all carry measurable rewrites; sub-30 carry none",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "am_weakword_notes",
+    "status": "pass",
+    "detail": "flagged items cite specific weak phrases",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "am_arabic_lexicon",
+    "status": "warn",
+    "detail": "Arabic lexicon used on 0/2 Arabic/code-switched requirements",
+    "evidence": {
+      "sample_notes": [
+        [
+          "REQ-01",
+          "vague term 'dashboard' without specifications"
+        ],
+        [
+          "REQ-09",
+          "missing specification of notification delivery method"
+        ]
+      ]
+    },
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "am_artifact",
+    "status": "pass",
+    "detail": "artifact snapshot",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "hitl_apply_rewrite",
+    "status": "pass",
+    "detail": "rewrite applied to REQ-10 (was ambiguity 50)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:21:49",
+    "phase": "s1",
+    "agent": "ambiguity",
+    "check": "gate_approve",
+    "status": "pass",
+    "detail": "HTTP 200 nextStage=STORIES",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:03",
+    "phase": "s1",
+    "agent": "STORIES",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 14.2s (server latency 14145 ms, ~2249 tok, cost $0.001349, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:03",
+    "phase": "s1",
+    "agent": "stories",
+    "check": "st_count",
+    "status": "pass",
+    "detail": "10 stories vs 10 eligible (non-Won't) requirements",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:03",
+    "phase": "s1",
+    "agent": "stories",
+    "check": "st_narrative",
+    "status": "pass",
+    "detail": "10/10 follow 'As a <role>, I want…' (or Arabic-native)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:03",
+    "phase": "s1",
+    "agent": "stories",
+    "check": "st_gherkin",
+    "status": "pass",
+    "detail": "10/10 stories have Gherkin-style acceptance criteria (Given/When/Then)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:03",
+    "phase": "s1",
+    "agent": "stories",
+    "check": "st_invest",
+    "status": "pass",
+    "detail": "INVEST scores present and in 0..100 ([85, 90, 75, 95, 100, 80, 100, 70, 85, 75])",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:03",
+    "phase": "s1",
+    "agent": "stories",
+    "check": "st_artifact",
+    "status": "pass",
+    "detail": "artifact snapshot",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:03",
+    "phase": "s1",
+    "agent": "stories",
+    "check": "gate_approve",
+    "status": "pass",
+    "detail": "HTTP 200 nextStage=CONFLICTS",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:07",
+    "phase": "s1",
+    "agent": "CONFLICTS",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 3.2s (server latency 3199 ms, ~723 tok, cost $0.000434, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:07",
+    "phase": "s1",
+    "agent": "consistency",
+    "check": "cf_count",
+    "status": "pass",
+    "detail": "3 conflicts detected (cap 6)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:07",
+    "phase": "s1",
+    "agent": "consistency",
+    "check": "cf_integrity",
+    "status": "pass",
+    "detail": "refs valid=True, kinds valid=True, severity valid=True, suggestions present=True",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:07",
+    "phase": "s1",
+    "agent": "consistency",
+    "check": "cf_artifact",
+    "status": "pass",
+    "detail": "artifact snapshot",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:10",
+    "phase": "s1",
+    "agent": "consistency",
+    "check": "completion",
+    "status": "pass",
+    "detail": "pipeline complete: status=complete",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:10",
+    "phase": "s1",
+    "agent": "consistency",
+    "check": "cf_journal_refs",
+    "status": "pass",
+    "detail": "resolved_conflict journal entries render requirement refs correctly",
+    "evidence": {
+      "sample": null
+    },
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:10",
+    "phase": "s1",
+    "agent": "consistency",
+    "check": "hitl_resolution_journal",
+    "status": "pass",
+    "detail": "human conflict resolutions journaled",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:13:23",
+    "phase": "s2",
+    "agent": "health",
+    "check": "hl_fields",
+    "status": "pass",
+    "detail": "all 7 report fields present=True",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:23",
+    "phase": "s2",
+    "agent": "health",
+    "check": "hl_quantified_debt",
+    "status": "warn",
+    "detail": "debt sections are quantified (contain numbers) — no magic single score",
+    "evidence": {
+      "ambiguityDebt": "The requirements carry 5 high-ambiguity items (>=30) averaging 25% overall, which may lead to inconsistent interpretations and rework.",
+      "uncertaintyLedger": "One assumption about the 24-hour temporary period after consecutive cancellations is carried without validation, potentially affecting user experience calculations.",
+      "conflictDigest": "Five conflicts were detected and resolved, but their nature and resolution details should be documented to prevent recurrence during implementation."
+    },
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:23",
+    "phase": "s2",
+    "agent": "health",
+    "check": "hl_body",
+    "status": "info",
+    "detail": "strengths=3, risks=3, recommendations=3",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:23",
+    "phase": "s2",
+    "agent": "health",
+    "check": "hl_persistence",
+    "status": "pass",
+    "detail": "latest report retrievable from stored HEALTH artifact",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:25",
+    "phase": "s2",
+    "agent": "drift",
+    "check": "dr_impact",
+    "status": "pass",
+    "detail": "change signal flagged 1 requirement(s) as impacted",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:25",
+    "phase": "s2",
+    "agent": "drift",
+    "check": "dr_summary",
+    "status": "pass",
+    "detail": "summary: The change signal requiring card payments at launch with PSD-compliant integration directly contradicts REQ-04, which explicitly excluded card processing from the initial phase scope. No other requirements are impacted a",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:25",
+    "phase": "s2",
+    "agent": "drift",
+    "check": "dr_flags_persisted",
+    "status": "pass",
+    "detail": "driftStatus=suspected persisted on 1 requirement(s) ['REQ-04']",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:25",
+    "phase": "s2",
+    "agent": "drift",
+    "check": "dr_clear",
+    "status": "pass",
+    "detail": "flags cleared, 0 remaining",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:29",
+    "phase": "s2",
+    "agent": "compliance",
+    "check": "cp_gdpr",
+    "status": "pass",
+    "detail": "privacy/PDPL: overall=partial, 3 covered aspects, 4 gaps (all with concrete suggestions=True)",
+    "evidence": {
+      "overall": "partial",
+      "gap_aspects": [
+        "lawful basis & consent",
+        "retention & deletion",
+        "user rights",
+        "breach notification"
+      ]
+    },
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:33",
+    "phase": "s2",
+    "agent": "compliance",
+    "check": "cp_accessibility",
+    "status": "pass",
+    "detail": "WCAG 2.2: overall=partial, 2 covered aspects, 5 gaps (all with concrete suggestions=True)",
+    "evidence": {
+      "overall": "partial",
+      "gap_aspects": [
+        "keyboard operability",
+        "screen-reader support",
+        "colour contrast",
+        "text alternatives",
+        "focus visibility"
+      ]
+    },
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:36",
+    "phase": "s2",
+    "agent": "compliance",
+    "check": "cp_performance",
+    "status": "pass",
+    "detail": "performance: overall=partial, 3 covered aspects, 3 gaps (all with concrete suggestions=True)",
+    "evidence": {
+      "overall": "partial",
+      "gap_aspects": [
+        "response-time targets",
+        "throughput",
+        "monitoring and alerting"
+      ]
+    },
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:40",
+    "phase": "s2",
+    "agent": "compliance",
+    "check": "cp_covered_refs",
+    "status": "pass",
+    "detail": "covered aspects cite real requirement refIds",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:44",
+    "phase": "s2",
+    "agent": "compliance",
+    "check": "cp_invalid_pack",
+    "status": "warn",
+    "detail": "unknown pack silently falls back to privacy pack (HTTP 200, overall=partial) — FINDING: no input validation error",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:13:44",
+    "phase": "s2",
+    "agent": "instruments",
+    "check": "snapshot",
+    "status": "info",
+    "detail": "full Scenario-A project snapshot saved (/home/z/my-project/scripts/agent_tests/results/scenario_A_snapshot.json)",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:22:48",
+    "phase": "W1",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03r5vk00xrlnugiii4at0f",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:48",
+    "phase": "W1",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:48",
+    "phase": "W1",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:53",
+    "phase": "s3",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 4.3s (server latency 4226 ms, ~1340 tok, cost $0.000804, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:53",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_questions_ready",
+    "status": "pass",
+    "detail": "5 questions pending",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:56",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_arm1_answered",
+    "status": "pass",
+    "detail": "persona filled 5/5 answers",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:56",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_arm1_secret_kept",
+    "status": "pass",
+    "detail": "unrelated secret NOT leaked into any answer (persona conditioning holds)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:56",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_synthetic_label",
+    "status": "pass",
+    "detail": "synthetic answers visibly labelled '[synthetic · wind tunnel]' — no impersonation of real stakeholders",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:56",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_journal",
+    "status": "pass",
+    "detail": "wind-tunnel fill journaled as synthetic_answers (actor=agent)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:56",
+    "phase": "W2",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03rblp00yklnug7ci8i14b",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:56",
+    "phase": "W2",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:56",
+    "phase": "W2",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:01",
+    "phase": "s3",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 5.5s (server latency 5363 ms, ~1502 tok, cost $0.000901, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:07",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_arm2_answered",
+    "status": "warn",
+    "detail": "persona filled 4/5 answers",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:07",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_arm2_probe_reveals",
+    "status": "warn",
+    "detail": "1 question(s) probed budget/timeline; 0 answer(s) revealed the held-out secret",
+    "evidence": {
+      "budget_questions": [
+        "Which specific routes will be included in the spring semester pilot, and what are the exact boundaries of each"
+      ],
+      "revealing_answers": []
+    },
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:07",
+    "phase": "s3",
+    "agent": "wind_tunnel",
+    "check": "wt_arm2_evasive_elsewhere",
+    "status": "pass",
+    "detail": "secret only surfaced on direct probes (evasive elsewhere)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:17",
+    "phase": "s4",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03qhng00udlnuguv87ey53",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 4.3s (server latency 4238 ms, ~1158 tok, cost $0.000695, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "elicitation",
+    "check": "b1_zero_evidence",
+    "status": "pass",
+    "detail": "graceful degradation with '(no evidence sources provided yet)': 5 questions generated from brief alone",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03ql0b00uulnugf7to1ia0",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:21",
+    "phase": "s4",
+    "agent": "extraction",
+    "check": "b2_probe_setup",
+    "status": "info",
+    "detail": "evidence length 2772 chars; critical appendix starts at char 2556 — but every agent prompt truncates each evidence at 1200 chars (evidenceBlock slice)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:25",
+    "phase": "s4",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 4.1s (server latency 3934 ms, ~1836 tok, cost $0.001102, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:28",
+    "phase": "s4",
+    "agent": "PROBLEM_SELECTION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 2.7s (server latency 2637 ms, ~1434 tok, cost $0.00086, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:38",
+    "phase": "s4",
+    "agent": "EXTRACTION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 9.4s (server latency 9299 ms, ~3260 tok, cost $0.001956, prompt v2.1-audit)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:22:38",
+    "phase": "s4",
+    "agent": "extraction",
+    "check": "b2_tail_grounding",
+    "status": "pass",
+    "detail": "requirements referencing the appendix tail: ['REQ-06', 'REQ-07'] — FIX VERIFIED: appendix now visible to agents",
+    "evidence": null,
+    "run": "post-fix",
+    "note": "semantically a PASS: hits found = truncation fix verified"
+  },
+  {
+    "ts": "22:22:38",
+    "phase": "s4",
+    "agent": "extraction",
+    "check": "b2_req_count",
+    "status": "info",
+    "detail": "11 requirements extracted from the visible first-1200-chars window",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:16:21",
+    "phase": "s5",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03ivgw00n3lnugkhmk6w3g",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:22",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_approve_before_run",
+    "status": "pass",
+    "detail": "approve before any agent run rejected with HTTP 409 (expect 409)",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:22",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_create_no_name",
+    "status": "pass",
+    "detail": "project without name rejected: HTTP 400",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:22",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_bad_kind",
+    "status": "pass",
+    "detail": "unknown item kind rejected: HTTP 400",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:22",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_bad_item",
+    "status": "pass",
+    "detail": "unknown itemId rejected: HTTP 404",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:22",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_drift_empty",
+    "status": "pass",
+    "detail": "empty drift signal rejected: HTTP 400",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:22",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_wt_no_persona",
+    "status": "pass",
+    "detail": "wind tunnel without persona rejected: HTTP 400",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:22",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_asr_empty",
+    "status": "pass",
+    "detail": "ASR without audio rejected: HTTP 400",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:23",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:23",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:23",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:23",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_evidence_renumber",
+    "status": "pass",
+    "detail": "codes ['E1', 'E2', 'E3'] -> after delete ['E1', 'E2']",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:23",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_consent_journal",
+    "status": "pass",
+    "detail": "consent recording surfaced in decision journal (G13)",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:30",
+    "phase": "s5",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "pass",
+    "detail": "stage run ok in 7.2s (server latency 6930 ms, ~1210 tok, cost $0.000726, prompt v2-expansion)",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:30",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_double_run",
+    "status": "pass",
+    "detail": "second run while awaiting_review rejected: HTTP 409",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:30",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_complete_locked",
+    "status": "pass",
+    "detail": "running agents on completed baseline rejected: HTTP 409",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:16:30",
+    "phase": "s5",
+    "agent": "state_machine",
+    "check": "sm_reopen",
+    "status": "pass",
+    "detail": "baseline reopened for iteration (status=active, stage=CONFLICTS)",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:08",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_en_transcribe",
+    "status": "pass",
+    "detail": "transcript (latin): The system shall notify the shopkeeper within thirty seconds when a new customer order arrives.",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:08",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_en_script_guard",
+    "status": "pass",
+    "detail": "no false-positive mismatch warning for English clip: True",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:10",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_ar-EG_transcribe",
+    "status": "pass",
+    "detail": "transcript script: NON-ARABIC SCRIPT; text: 한대, 하이, 사에우 후크하하 시히 사인 하 태스 후시 비아 셀",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:10",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_ar-EG_script_guard",
+    "status": "pass",
+    "detail": "script-mismatch guard warning returned: True — The transcript script does not match the expected language of this evidence. Please review or re-record before saving.",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:10",
+    "phase": "s6",
+    "agent": "asr",
+    "check": "asr_oversize_guard",
+    "status": "pass",
+    "detail": "20MB payload rejected: HTTP 413 (expect 413)",
+    "evidence": null,
+    "run": "post-fix"
+  },
+  {
+    "ts": "22:23:45",
+    "phase": "s7",
+    "agent": "memory",
+    "check": "mem_harvest",
+    "status": "pass",
+    "detail": "33 MemoryEntry rows (lessons=7, glossary=5) — harvested on pipeline completion",
+    "evidence": {
+      "lessons": [
+        "Privacy-First Design: Build data privacy requirements (like customer phone number protection) as core features r",
+        "Constraint Documentation: Document operational constraints (like 21:00 order cutoff, 5km delivery radius) as explici",
+        "Pilot Scoping Clarity: Define pilot boundaries clearly (specific districts, user groups) early to avoid assumptio",
+        "Language-Specific Elicitation: Always conduct domain interviews in the user's native language (e.g., Arabic for Egyptian "
+      ],
+      "glossary_terms": [
+        "order suspension",
+        "real-time notifications",
+        "out-of-stock marking",
+        "delivery time window",
+        "cash-on-delivery"
+      ]
+    },
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:45",
+    "phase": "s7",
+    "agent": "setup",
+    "check": "create_project",
+    "status": "pass",
+    "detail": "HTTP 201, id=cmv03sdnt00zdlnugsdtnfr80",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:45",
+    "phase": "s7",
+    "agent": "setup",
+    "check": "add_evidence[en]",
+    "status": "pass",
+    "detail": "HTTP 201",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "ELICITATION",
+    "check": "run_http",
+    "status": "fail",
+    "detail": "HTTP 500: {\"error\": \"Agent returned unparseable output\"}",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "cleanup",
+    "check": "delete_A",
+    "status": "pass",
+    "detail": "A (cmv03pd2t00orlnugarpoprf8) removed",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "cleanup",
+    "check": "delete_W1",
+    "status": "pass",
+    "detail": "W1 (cmv03r5vk00xrlnugiii4at0f) removed",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "cleanup",
+    "check": "delete_W2",
+    "status": "pass",
+    "detail": "W2 (cmv03rblp00yklnug7ci8i14b) removed",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "cleanup",
+    "check": "delete_B1",
+    "status": "pass",
+    "detail": "B1 (cmv03qhng00udlnuguv87ey53) removed",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "cleanup",
+    "check": "delete_B2",
+    "status": "pass",
+    "detail": "B2 (cmv03ql0b00uulnugf7to1ia0) removed",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "cleanup",
+    "check": "delete_M",
+    "status": "pass",
+    "detail": "M (cmv03sdnt00zdlnugsdtnfr80) removed",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:23:49",
+    "phase": "s7",
+    "agent": "cleanup",
+    "check": "no_residue",
+    "status": "pass",
+    "detail": "audit projects remaining: []",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:08:52",
+    "phase": "sanity",
+    "agent": "platform",
+    "check": "server_up",
+    "status": "pass",
+    "detail": "GET /api -> 200",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:08:52",
+    "phase": "sanity",
+    "agent": "platform",
+    "check": "projects_list",
+    "status": "pass",
+    "detail": "GET /api/projects -> 200, 1 projects",
+    "evidence": null,
+    "run": "baseline"
+  },
+  {
+    "ts": "22:08:52",
+    "phase": "sanity",
+    "agent": "platform",
+    "check": "telemetry",
+    "status": "pass",
+    "detail": "GET /api/telemetry -> 200 keys=['generatedAt', 'fleet', 'totals']",
+    "evidence": null,
+    "run": "baseline"
+  }
+]

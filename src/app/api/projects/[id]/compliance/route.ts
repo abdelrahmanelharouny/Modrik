@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { runCompliance } from "@/lib/agents";
+import { runCompliance, PACKS } from "@/lib/agents";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -9,6 +9,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const pack = String(body.pack ?? "gdpr");
+
+  // Audit fix: unknown packs used to silently fall back to the privacy pack.
+  if (!PACKS[pack]) {
+    return NextResponse.json(
+      { error: `Unknown constraint pack "${pack}". Available packs: ${Object.keys(PACKS).join(", ")}.` },
+      { status: 400 }
+    );
+  }
 
   try {
     const result = await runCompliance(id, pack);

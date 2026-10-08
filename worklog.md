@@ -165,3 +165,21 @@ Stage Summary:
 - Deliverable: RequirementPilot "Mission Control" — production-grade flight-deck rebirth at src/app/page.tsx (single route), 11 UI modules + 3 new API routes + registry.
 - FEATURES_STATUS.md written at project root (completed / in-development / not-started / missing, honest, registry-synced).
 - All standing constraints held: core-first engine untouched except parser hardening + pack relabels; full dynamicity (every number from /api/telemetry + project DTO + instrument APIs); GLM-provided-by-Z.ai disclosed in command bar, hero, footer, debrief; human-in-the-loop preserved and made visually explicit at every gate.
+
+---
+Task ID: 8
+Agent: Main agent (Super Z)
+Task: Deep agent audit — test every agent in the project carefully and deeply; deliver a detailed per-agent report (role, operational dynamics, behavioural patterns, improvements) plus core-operations suggestions.
+
+Work Log:
+- Built a phase-based audit harness (scripts/agent_tests/: rp_audit_core.py + phases1/phases2 + rp_tts.mjs) driving the live server through public API contracts; 8 scenarios (full Arabic/code-switch pipeline, twin wind-tunnel secret probes, zero-evidence, 1200-char truncation probe, state-machine guardrails, memory injection, ASR suite incl. 20MB guard).
+- Ran baseline + post-fix passes: 141 checks total (130 pass / 5 info / 5 warn / 1 genuine fail pre-fix); ~30 live GLM calls; all 12 agent roles exercised; audit projects cleaned after each pass (demo untouched).
+- Confirmed findings: F-01 journal "undefined ↔ undefined" (Conflict.reqARef nonexistent); F-02 1200-char evidence blind window (0/10 requirements saw appendix at char 2556); F-03 Arabic ASR → Korean Hangul (deterministic; upstream); F-04 silent pack fallback; F-05 single-attempt LLM plumbing (one unparseable 500 in ~30 calls); F-06 non-deterministic Arabic mirroring (0/5 vs 5/5); F-07 wind-tunnel persona confabulated "$45,000" instead of revealing held-out secret; F-08 ungrounded requirements slipping through; F-09 language-tag semantics; F-10 3 latent TS errors; F-11 confidence-vs-critic divergence (conf 90 on weak); F-12 health number-words + unreachable drift confirmed state.
+- Applied 9 fixes and verified each live (prompt stamp v2.1-audit): journal refs via include reqA/reqB; evidence budget 4000/evidence 16k total + truncation notice (REQ-06/07 now extracted from appendix); ASR expectedLanguage + script guard + retry + UI toast; callLLM transport retry + callLLMJson parse retry; compliance pack 400 validation; Arabic-first elicitation prompt (≥2 native questions, 4/5 post-fix); wind-tunnel reveal enforcement prompt; ungrounded→weak safety net; shared ProjectSummary type + Github import (tsc/eslint clean).
+- Generated fig8 (agent latency profile) + fig9 (audit coverage per agent) via scripts/rp3_charts.py from the master results file.
+- Wrote the detailed report (scripts/rp3_content1|2.js + rp3_generate.js): R1 cover / DM-1, 3-section numbering, 9 sections + appendix, 6 tables, 2 figures, 33 pages / ~7.9k body words; add_toc_placeholders (24 entries) + rp_postprocess (ROMAN/arabic footers) + postcheck 0 errors (1 accepted table-spacing warning); LibreOffice PDF proof visually verified (cover/TOC/body/tables/figures).
+- Updated FEATURES_STATUS.md (audit hardening section + verification record); persisted harness results (scripts/agent_tests/results/results_master.json + scenario_A_snapshot.json).
+
+Stage Summary:
+- Deliverable: /home/z/my-project/download/RequirementPilot_Agent_Audit_Report.docx (238 KB, 33 pages) — per-agent deep dives with roles, operational dynamics, behavioural patterns, audit verdicts, improvement actions; findings register F-01..F-12; fix ledger with live verification evidence; P0/P1/P2 core-operations roadmap (provider interface + CI regression suite + Arabic ASR decision + ablation harness as P0).
+- Platform state: all agents verified; 9 hardening fixes live; the one open high-severity item is the upstream Arabic ASR deficiency (guarded, visible to humans, decision documented as P0).

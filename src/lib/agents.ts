@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 import type { Stage } from "@/lib/rp";
 
-export const PROMPT_VERSION = "v2-expansion";
+export const PROMPT_VERSION = "v2.1-audit";
 
 // ---------- LLM plumbing ----------
 
@@ -41,12 +41,25 @@ function newUsage(): UsageAcc {
 async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
   const zai = await ZAI.create();
   const t0 = Date.now();
-  const completion = await zai.chat.completions.create({
-    messages: [
-      { role: "system", content: SYSTEM_BASE },
-      { role: "user", content: userPrompt },
-    ],
-  });
+  let completion: Awaited<ReturnType<typeof zai.chat.completions.create>>;
+  try {
+    completion = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: SYSTEM_BASE },
+        { role: "user", content: userPrompt },
+      ],
+    });
+  } catch (err) {
+    // one transient-failure retry (network blips / 5xx) — the audit found a
+    // single unguarded failure aborts a whole stage run
+    await new Promise((r) => setTimeout(r, 1500));
+    completion = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: SYSTEM_BASE },
+        { role: "user", content: userPrompt },
+      ],
+    });
+  }
   const latencyMs = Date.now() - t0;
   usage.calls += 1;
   usage.latencyMs += latencyMs;
@@ -54,6 +67,22 @@ async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
   const est = Math.ceil((userPrompt.length + (completion.choices[0]?.message?.content?.length ?? 0)) / 4);
   usage.estTokens += est;
   return completion.choices[0]?.message?.content ?? "";
+}
+
+// Call + parse with one retry on unparseable output (audit finding: a single
+// malformed LLM response used to abort the whole stage run with a 500).
+// Usage accumulates across attempts so the cost observatory stays honest.
+async function callLLMJson<T>(userPrompt: string, usage: UsageAcc, attempts = 2): Promise<T> {
+  let lastErr: unknown = new Error("Agent returned unparseable output");
+  for (let i = 0; i < attempts; i++) {
+    const raw = await callLLM(userPrompt, usage);
+    try {
+      return parseJson<T>(raw);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
 }
 
 function parseJson<T>(raw: string): T {
@@ -156,11 +185,25 @@ async function recordUsage(runId: string | undefined, u: UsageAcc) {
 
 function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string }[]): string {
   if (!evidences.length) return "(no evidence sources provided yet)";
+  // Audit fix: a hard 1200-char per-evidence window was silently blinding
+  // every agent to everything beyond it (confirmed by the truncation probe).
+  // Budget: up to 4000 chars per evidence, 16000 chars total; when the total
+  // overflows, shrink the per-evidence window fairly but never below 1200.
+  const TOTAL_BUDGET = 16000;
+  const PER_MAX = 4000;
+  const total = evidences.reduce((s, e) => s + e.content.length, 0);
+  let per = PER_MAX;
+  if (total > TOTAL_BUDGET) {
+    per = Math.max(1200, Math.floor(TOTAL_BUDGET / evidences.length));
+  }
   return evidences
-    .map(
-      (e) =>
-        `[${e.code}] (${e.sourceType}, language: ${e.language}) "${e.title}"\n${e.content.slice(0, 1200)}`
-    )
+    .map((e) => {
+      const body =
+        e.content.length > per
+          ? `${e.content.slice(0, per)}\n[…truncated for this stage — ${e.content.length - per} more characters exist in this source]`
+          : e.content;
+      return `[${e.code}] (${e.sourceType}, language: ${e.language}) "${e.title}"\n${body}`;
+    })
     .join("\n\n");
 }
 
@@ -213,13 +256,13 @@ ${memory}
 EVIDENCE SOURCES:
 ${evidenceBlock(project.evidences)}
 
-TASK: Identify the 5 most important clarifying questions a requirements analyst must ask the stakeholders before extracting requirements. Focus on scope, users/roles, constraints, quality attributes and success criteria. Questions may be asked in the same language style as the evidence (English, Egyptian Arabic, or code-switched) if that matches the stakeholder.
+TASK: Identify the 5 most important clarifying questions a requirements analyst must ask the stakeholders before extracting requirements. Focus on scope, users/roles, constraints, quality attributes and success criteria. Write each question in the language style of the stakeholder it targets: when the evidence contains substantial Egyptian Arabic (or code-switched) content, at least two questions MUST be written natively in that Arabic (Egyptian dialect), mirroring how the stakeholder actually speaks.
 
 This platform implements an UNCERTAINTY-GATED ask-versus-proceed policy: for every question also estimate how costly it is to interrupt the stakeholder, and state what the team would have to ASSUME if the question were skipped. Ask-cost 1 = trivial to ask, 5 = very costly interruption. The fallback assumption must be explicit and testable.
 
 Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "if skipped, assume that ..."}]}`;
 
-  const out = parseJson<{ questions: AgentQuestion[] }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ questions: AgentQuestion[] }>(prompt, usage);
   const qs = (out.questions ?? []).slice(0, 7);
 
   await db.question.deleteMany({ where: { projectId } });
@@ -277,7 +320,7 @@ TASK: Propose 3-4 candidate problem statements worth solving in this project. Fo
 
 Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCodes": ["E1"], "suggestedImpact": 4, "suggestedEffort": 3}]}`;
 
-  const out = parseJson<{ candidates: AgentCandidate[] }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ candidates: AgentCandidate[] }>(prompt, usage);
   const cs = (out.candidates ?? []).slice(0, 4);
 
   await db.problemCandidate.deleteMany({ where: { projectId } });
@@ -349,7 +392,7 @@ TASK: Extract 8-12 atomic requirements for the selected problem. Each requiremen
 
 Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional|constraint", "priority": "Must|Should|Could|Won't", "evidenceCodes": ["E1"], "confidence": 82, "language": "en"}]}`;
 
-  const out = parseJson<{ requirements: AgentRequirement[] }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ requirements: AgentRequirement[] }>(prompt, usage);
   const rs = (out.requirements ?? []).slice(0, 14);
 
   // replace previous extraction
@@ -380,6 +423,17 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
       },
     });
     refIndex.push({ refId, id: created.id, text: created.text });
+    if (codes.length === 0) {
+      // Audit fix: an ungrounded requirement used to slip through silently.
+      // Force it into the critic's "weak" lane so the human must ground or delete it.
+      await db.requirement.update({
+        where: { id: created.id },
+        data: {
+          verifyStatus: "weak",
+          verifyNote: "No valid evidence citation provided by the extractor — human must ground or delete this requirement.",
+        },
+      });
+    }
     for (const c of codes) {
       await db.traceLink.create({
         data: { projectId, requirementId: created.id, evidenceCode: c, note: "cited by extraction agent" },
@@ -402,7 +456,7 @@ ${refIndex.map((r) => `${r.refId}: ${r.text}`).join("\n")}
 
 Return JSON: {"verdicts": [{"refId": "REQ-01", "verdict": "supported|weak", "note": "one-line justification"}]}`;
 
-    const vOut = parseJson<{ verdicts: Verdict[] }>(await callLLM(verifyPrompt, usage));
+    const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage);
     for (const v of vOut.verdicts ?? []) {
       const target = refIndex.find((r) => r.refId === v.refId);
       if (!target) continue;
@@ -445,11 +499,11 @@ export async function runAmbiguity(projectId: string, runId?: string): Promise<v
   const prompt = `REQUIREMENTS:
 ${list}
 
-TASK: Score each requirement for ambiguity from 0 (crisp, testable) to 100 (vague, untestable). Flag the specific weak words (e.g. "fast", "user-friendly", "etc", "appropriate", passive voice, missing quantifiers). For Arabic and code-switched requirements, also use this Arabic ambiguity lexicon: كثير، سريع، مناسب، جيد، إلخ، تقريبا، غالبا، بسهولة، بشكل مريح، وغيرها — flag them exactly as you would their English equivalents. For any requirement scoring 30 or above, propose a sharper measurable rewrite. Respond for every requirement, in the requirement's own language.
+TASK: Score each requirement for ambiguity from 0 (crisp, testable) to 100 (vague, untestable). Flag the specific weak words (e.g. "fast", "user-friendly", "etc", "appropriate", passive voice, missing quantifiers). For Arabic and code-switched requirements, also use this Arabic ambiguity lexicon: كثير، سريع، مناسب، جيد، إلخ، تقريبا، غالبا، بسهولة، بشكل مريح، وغيرها — when the requirement text is Arabic or code-switched, quote the exact weak word in Arabic and write both the issues note and the suggestion in the requirement's own language. For any requirement scoring 30 or above, propose a sharper measurable rewrite. Respond for every requirement, in the requirement's own language.
 
 Return JSON: {"assessments": [{"refId": "REQ-01", "score": 42, "issues": "vague term 'fast'", "suggestion": "rewritten requirement"}]}`;
 
-  const out = parseJson<{ assessments: AgentAssessment[] }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ assessments: AgentAssessment[] }>(prompt, usage);
   const map = new Map((out.assessments ?? []).map((a) => [a.refId, a]));
 
   for (const r of project.reqs) {
@@ -498,7 +552,7 @@ TASK: Write one user story per requirement (skip "Won't" priorities). Narrative 
 
 Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative": "As a...", "acceptance": ["Given ... when ... then ..."], "investScore": 78, "investNote": "..."}]}`;
 
-  const out = parseJson<{ stories: AgentStory[] }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ stories: AgentStory[] }>(prompt, usage);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
   await db.userStory.deleteMany({ where: { projectId } });
@@ -551,7 +605,7 @@ TASK: Cross-check all requirement pairs for (a) contradictions — cannot both h
 
 Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "contradiction", "description": "...", "severity": "high", "suggestion": "..."}]}`;
 
-  const out = parseJson<{ conflicts: AgentConflict[] }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
   await db.conflict.deleteMany({ where: { projectId } });
@@ -600,11 +654,11 @@ HELD-OUT SECRET (the persona knows this but will only reveal it if a question DI
 QUESTIONS:
 ${pending.map((q) => `[${q.id}] ${q.text}`).join("\n")}
 
-TASK: Answer each question in character. If (and only if) the question directly probes the secret's topic, reveal it naturally. Otherwise answer plausibly but incompletely. Answers should be in the persona's voice; mirror the language style of the question (English, Egyptian Arabic or code-switched).
+TASK: Answer each question in character. If (and only if) a question directly probes the secret's topic, you MUST reveal the specific facts contained in the secret naturally within that answer — never invent alternative facts (e.g. different figures or dates) to substitute for the secret. Otherwise answer plausibly but incompletely, evading details you were not given. Answers should be in the persona's voice; mirror the language style of the question (English, Egyptian Arabic or code-switched).
 
 Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
 
-  const out = parseJson<{ answers: { id: string; answer: string }[] }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ answers: { id: string; answer: string }[] }>(prompt, usage);
   let n = 0;
   for (const a of out.answers ?? []) {
     const q = pending.find((p) => p.id === a.id);
@@ -649,7 +703,7 @@ TASK: Determine which requirements are impacted by this change signal (contradic
 
 Return JSON: {"impacted": [{"refId": "REQ-03", "note": "why it is impacted"}], "summary": "..."}`;
 
-  const out = parseJson<{ impacted: { refId: string; note: string }[]; summary: string }>(await callLLM(prompt, usage));
+  const out = await callLLMJson<{ impacted: { refId: string; note: string }[]; summary: string }>(prompt, usage);
 
   await db.requirement.updateMany({ where: { projectId }, data: { driftStatus: "none" } });
   for (const imp of out.impacted ?? []) {
@@ -707,11 +761,11 @@ TASK: Check the requirement graph against the pack. List which requirements cove
 
 Return JSON: {"overall": "partial", "covered": [{"refId": "REQ-02", "aspect": "consent"}], "gaps": [{"aspect": "data retention", "note": "no requirement covers deletion/retention", "suggestion": "The system shall allow a user to delete their account and all associated data within 30 days."}]}`;
 
-  const out = parseJson<{
+  const out = await callLLMJson<{
     overall: string;
     gaps: { aspect: string; note: string; suggestion: string }[];
     covered: { refId: string; aspect: string }[];
-  }>(await callLLM(prompt, usage));
+  }>(prompt, usage);
   await logDecision(projectId, "LIFECYCLE", "agent", "compliance_check", `${p.label}: ${out.overall}`);
   await saveArtifact(projectId, "COMPLIANCE", { pack, ...out });
   return out;
@@ -757,7 +811,7 @@ TASK: Produce a requirements health report for handoff. Write it for a delivery 
 
 Return JSON: {"summary": "2-3 sentence overall health assessment", "strengths": ["..."], "risks": [{"title": "...", "note": "..."}], "recommendations": ["..."], "ambiguityDebt": "...", "uncertaintyLedger": "...", "conflictDigest": "..."}`;
 
-  const out = parseJson<HealthReport>(await callLLM(prompt, usage));
+  const out = await callLLMJson<HealthReport>(prompt, usage);
   await logDecision(projectId, "LIFECYCLE", "agent", "health_report", out.summary ?? "");
   await saveArtifact(projectId, "HEALTH", out);
   return out;
@@ -786,10 +840,10 @@ TASK: Extract (a) 3-5 domain GLOSSARY terms with crisp definitions, and (b) 2-4 
 
 Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"term": "short lesson title", "detail": "..."}]}`;
 
-    const out = parseJson<{
+    const out = await callLLMJson<{
       glossary: { term: string; definition: string }[];
       lessons: { term: string; detail: string }[];
-    }>(await callLLM(prompt, usage));
+    }>(prompt, usage);
 
     for (const g of (out.glossary ?? []).slice(0, 5)) {
       if (!g.term) continue;

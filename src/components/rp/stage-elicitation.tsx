@@ -93,7 +93,7 @@ async function blobToWavBase64(blob: Blob): Promise<string> {
 }
 
 // ── voice note recorder ──────────────────────────────────────
-function MicRecorder({ onTranscript }: { onTranscript: (text: string) => void }) {
+function MicRecorder({ onTranscript, expectedLanguage }: { onTranscript: (text: string) => void; expectedLanguage?: string }) {
   const { toast } = useToast();
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -120,12 +120,16 @@ function MicRecorder({ onTranscript }: { onTranscript: (text: string) => void })
           const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
           if (blob.size < 2000) throw new Error("Recording too short");
           const b64 = await blobToWavBase64(blob);
-          const data = await api<{ text: string }>("/api/transcribe", {
+          const data = await api<{ text: string; warning?: string | null }>("/api/transcribe", {
             method: "POST",
-            body: JSON.stringify({ audio: b64 }),
+            body: JSON.stringify({ audio: b64, expectedLanguage }),
           });
           onTranscript(data.text);
-          toast({ title: "Voice note transcribed", description: "Review the transcript, edit if needed, then add the source." });
+          if (data.warning) {
+            toast({ title: "Voice note transcribed — please verify", description: data.warning, variant: "destructive" });
+          } else {
+            toast({ title: "Voice note transcribed", description: "Review the transcript, edit if needed, then add the source." });
+          }
         } catch (e) {
           toast({ title: "Transcription failed", description: (e as Error).message, variant: "destructive" });
         } finally {
@@ -319,7 +323,7 @@ export function ElicitationStage({
                       </SelectContent>
                     </Select>
                   </div>
-                  <MicRecorder onTranscript={transcript} />
+                  <MicRecorder onTranscript={transcript} expectedLanguage={language} />
                   <Textarea
                     rows={6}
                     dir="auto"

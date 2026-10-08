@@ -43,6 +43,17 @@
 ### Production hardening (this build)
 - **Truncated-JSON repair** — structural repair pass for long LLM outputs (found via live testing; run that failed before now completes).
 
+### Agent audit hardening (2026-10-09 deep audit — all verified live, prompt stamp v2.1-audit)
+- **Journal reference integrity** — conflict-resolution entries now log real refIds (were literally "undefined ↔ undefined"; F-01).
+- **Evidence prompt budget** — per-evidence agent visibility 1,200 → 4,000 chars (16k shared budget) + explicit truncation notice; beyond-cutoff requirements now extracted (F-02).
+- **ASR script guard** — `expectedLanguage` hint, script-mismatch detection + one retry + warning flag; UI review toast on Arabic voice notes (F-03 mitigation; upstream GLM ASR Arabic gap remains open).
+- **Transport + parse retry** — 1 retry with backoff on transport errors; `callLLMJson` parse-retry wrapper (one unparseable-output 500 observed in ~30 live calls) (F-05).
+- **Constraint-pack validation** — unknown pack names rejected with 400 + available list (silent fallback removed) (F-04).
+- **Arabic-first elicitation enforcement** — ≥2 native Egyptian-Arabic questions required when evidence is Arabic-heavy (was 0/5 → 5/5 → now stable ≥4/5) (F-06).
+- **Ungrounded-requirement safety net** — requirements with zero valid citations forced to `weak` + human-action note (F-08).
+- **Wind-tunnel reveal enforcement** — direct probes must reveal held-out secrets; substitute-fact invention forbidden (behaviour still model-dependent — documented limitation) (F-07).
+- **Shared ProjectSummary type + icon import** — 3 latent TS errors resolved; `src/` typecheck + eslint clean (F-10).
+
 ---
 
 ## 2 · IN DEVELOPMENT
@@ -77,5 +88,6 @@
 ---
 
 ## Verification record (this build)
-- Lint clean (`eslint` 0 problems).
+- Lint clean (`eslint` 0 problems), `tsc --noEmit` clean for `src/`.
+- **Deep agent audit (2026-10-09)**: 141 automated checks across 8 scripted scenarios, every one of the 12 agent roles exercised live through its API contract (GLM by Z.ai), baseline + post-fix passes; audit report at `download/RequirementPilot_Agent_Audit_Report.docx`; harness + machine-readable results preserved under `scripts/agent_tests/`.
 - Browser-verified end-to-end with live GLM: demo mission flown gate-by-gate (6 agents run, 1 uncertainty assumption carried, route committed, 4 conflicts resolved by human verdicts) → baseline landed → health decomposer, drift sweep (3 impacted), WCAG 2.2 pack scan (partial), journal (21 entries), constellation interaction, tracker payloads, exports — all exercised in-browser at desktop and 390px mobile.

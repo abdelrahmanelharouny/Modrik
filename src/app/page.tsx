@@ -2,22 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { ProjectDTO } from "@/lib/rp";
+import type { ProjectDTO, ProjectSummary } from "@/lib/rp";
 import { Workspace } from "@/components/rp/workspace";
 import { MissionControl } from "@/components/rp/mission-control";
 import { HudPanel, Eyebrow, LiveDot } from "@/components/rp/hud";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface ProjectSummary {
-  id: string;
-  name: string;
-  currentStage: string;
-  stageStatus: string;
-  status: string;
-  isDemo: boolean;
-  updatedAt: string;
-  _count: { evidences: number; requirements: number; stories: number };
-}
 
 export default function Home() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
