@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ProjectDTO } from "@/lib/rp";
 import { Workspace } from "@/components/rp/workspace";
-import { ProjectPicker } from "@/components/rp/project-picker";
+import { MissionControl } from "@/components/rp/mission-control";
+import { HudPanel, Eyebrow, LiveDot } from "@/components/rp/hud";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProjectSummary {
@@ -71,7 +72,7 @@ export default function Home() {
   }
 
   return (
-    <ProjectPicker
+    <MissionControl
       projects={projects}
       busy={busy}
       setBusy={setBusy}
@@ -103,15 +104,18 @@ function WorkspaceShell({
   return project ? (
     <Workspace project={project} busy={busy} setBusy={setBusy} refresh={refresh} backHome={backHome} />
   ) : (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50/60 to-background p-6 lg:p-10">
-      <div className="mx-auto max-w-5xl space-y-4">
-        <Skeleton className="h-10 w-72" />
-        <Skeleton className="h-4 w-96" />
-        <div className="grid gap-4 pt-6 md:grid-cols-2">
-          <Skeleton className="h-40" />
-          <Skeleton className="h-40" />
+    <div className="flex min-h-screen items-center justify-center p-6">
+      <HudPanel className="w-full max-w-md p-8" as="div">
+        <Eyebrow className="mb-4 flex items-center gap-2">
+          <LiveDot tone="aura" /> PREPARING FLIGHT DECK
+        </Eyebrow>
+        <Skeleton className="h-8 w-64 bg-secondary/70" />
+        <Skeleton className="mt-3 h-4 w-80 bg-secondary/70" />
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <Skeleton className="h-32 bg-secondary/70" />
+          <Skeleton className="h-32 bg-secondary/70" />
         </div>
-      </div>
+      </HudPanel>
     </div>
   );
 }

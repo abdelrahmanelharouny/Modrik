@@ -1,37 +1,42 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { LanguageProvider } from "@/lib/i18n";
+import { IDENTITY } from "@/lib/registry";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space",
+  subsets: ["latin"],
+});
+
+const jbMono = JetBrains_Mono({
+  variable: "--font-jbmono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Z.ai Code Scaffold - AI-Powered Development",
-  description: "Modern Next.js scaffold optimized for AI-powered development with Z.ai. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
-  authors: [{ name: "Z.ai Team" }],
-  icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
-  },
+  title: `${IDENTITY.name} — ${IDENTITY.codename}`,
+  description:
+    "Mission Control for software truth: evidence-driven, human-in-the-loop, agentic requirements engineering. From ambiguity fog to a flight-ready baseline.",
+  keywords: [
+    "requirements engineering",
+    "agentic AI",
+    "human-in-the-loop",
+    "evidence-based",
+    "Arabic elicitation",
+    "RequirementPilot",
+  ],
+  authors: [{ name: "RequirementPilot Mission Control" }],
   openGraph: {
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
+    title: `${IDENTITY.name} — ${IDENTITY.codename}`,
+    description: IDENTITY.tagline,
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
   },
 };
 
@@ -43,9 +48,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${spaceGrotesk.variable} ${jbMono.variable} antialiased bg-background text-foreground`}
       >
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
         <Toaster />
       </body>
     </html>

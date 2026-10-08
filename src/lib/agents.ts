@@ -68,9 +68,70 @@ function parseJson<T>(raw: string): T {
   }
   const lastBrace = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
   if (lastBrace > 0) {
-    return JSON.parse(text.slice(0, lastBrace + 1)) as T;
+    try {
+      return JSON.parse(text.slice(0, lastBrace + 1)) as T;
+    } catch {
+      /* fall through to structural repair */
+    }
+  }
+  // Production hardening: long LLM outputs can be truncated mid-element.
+  // Rebuild a valid prefix: cut at the last structural boundary outside
+  // strings, strip dangling commas, then close all open brackets/strings.
+  const repaired = repairTruncatedJson(text);
+  if (repaired !== null) {
+    try {
+      return JSON.parse(repaired) as T;
+    } catch {
+      /* fall through */
+    }
   }
   throw new Error("Agent returned unparseable output");
+}
+
+function repairTruncatedJson(text: string): string | null {
+  // find last structural boundary outside strings
+  let inStr = false;
+  let esc = false;
+  let lastSafe = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+      continue;
+    }
+    if (ch === "," || ch === "}" || ch === "]") lastSafe = i;
+  }
+  if (lastSafe < 0) return null;
+  let cut = text.slice(0, lastSafe + 1);
+  // re-scan the cut for unclosed structures
+  const stack: string[] = [];
+  let s = false;
+  let e = false;
+  for (const ch of cut) {
+    if (s) {
+      if (e) e = false;
+      else if (ch === "\\") e = true;
+      else if (ch === '"') s = false;
+      continue;
+    }
+    if (ch === '"') {
+      s = true;
+      continue;
+    }
+    if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  if (s) cut += '"';
+  cut = cut.replace(/,\s*$/, "");
+  while (stack.length) cut += stack.pop();
+  return cut;
 }
 
 // Persist usage for the observatory (I13) — best-effort, never throws
@@ -608,12 +669,12 @@ Return JSON: {"impacted": [{"refId": "REQ-03", "note": "why it is impacted"}], "
 
 export const PACKS: Record<string, { label: string; description: string }> = {
   gdpr: {
-    label: "Privacy & data protection (GDPR-inspired)",
+    label: "Privacy & data protection (Egypt PDPL-inspired)",
     description:
-      "personal data handling, consent & lawful basis, data minimisation, retention & deletion, user rights (access/export/erasure), breach notification, data residency",
+      "lawful basis & consent, personal data handling, data minimisation, retention & deletion, user rights (access/export/erasure), breach notification, data residency in Egypt where applicable",
   },
   accessibility: {
-    label: "Accessibility (WCAG-inspired)",
+    label: "Accessibility (WCAG 2.2)",
     description:
       "keyboard operability, screen-reader support, colour contrast, text alternatives, focus visibility, RTL/multilingual text handling, low-bandwidth and low-end device support",
   },

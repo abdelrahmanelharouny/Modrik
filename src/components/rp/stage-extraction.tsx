@@ -1,8 +1,12 @@
 "use client";
 
+// PHASE 03 · AIRFRAME — grounded requirement extraction with
+// critic-verifier verdicts, confidence numbers and evidence chips.
+
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { LANG_LABEL, priorityColor, type ProjectDTO } from "@/lib/rp";
+import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
+import { HudPanel, Chip, SectionHead, EmptyBay, type Tone } from "@/components/rp/hud";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,8 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ListChecks, Pencil, Trash2, Link2 } from "lucide-react";
+import { DraftingCompass, Pencil, Trash2, Link2, BadgeCheck, BadgeAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const PRIO_TONE: Record<string, Tone> = { Must: "coral", Should: "signal", Could: "aura", "Won't": "muted" };
+const VERIF_TONE: Record<string, Tone> = { supported: "verify", weak: "signal", unverified: "muted" };
 
 export function ExtractionStage({
   project,
@@ -75,52 +82,54 @@ export function ExtractionStage({
   };
 
   const evidenceTitles = new Map(project.evidences.map((e) => [e.code, e.title]));
+  const weakCount = project.requirements.filter((r) => r.verifyStatus === "weak").length;
 
   if (project.requirements.length === 0) {
     return (
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-2">
-          <ListChecks className="h-4 w-4 text-teal-600" />
-          <h3 className="font-semibold tracking-tight">Extracted requirements</h3>
-        </div>
-        <p className="mt-3 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Run the Extraction Agent to pull atomic, evidence-grounded requirements from your sources.
-        </p>
-      </section>
+      <HudPanel className="p-6">
+        <SectionHead icon={DraftingCompass} title="Extracted requirements" blurb="Atomic, evidence-grounded requirements." />
+        <EmptyBay>Run the Extraction Agent to pull atomic, evidence-grounded requirements from your sources.</EmptyBay>
+      </HudPanel>
     );
   }
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2">
-        <ListChecks className="h-4 w-4 text-teal-600" />
-        <h3 className="font-semibold tracking-tight">Extracted requirements</h3>
-        <span className="text-sm text-muted-foreground">{project.requirements.length} items</span>
-      </div>
+      <SectionHead
+        icon={DraftingCompass}
+        title="Extracted requirements"
+        blurb="Proposer extracts, Critic verifies — confidence numbers included. You arbitrate every verdict."
+        right={
+          <>
+            <Chip tone="aura">{project.requirements.length} items</Chip>
+            {weakCount > 0 && <Chip tone="signal">{weakCount} weak verification</Chip>}
+          </>
+        }
+      />
 
       <ul className="space-y-3">
         {project.requirements.map((r) => (
-          <li key={r.id} className="rounded-xl border bg-white p-4 shadow-sm">
+          <li key={r.id} className="hud-panel rounded-lg p-4 transition-colors hover:border-aura/30">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <Badge variant="outline" className="font-mono text-xs">
+                <Badge variant="outline" className="border-aura/40 bg-aura/5 font-mono text-xs text-aura">
                   {r.refId}
                 </Badge>
-                <Badge variant="outline" className={`text-xs ${priorityColor(r.priority)}`}>
-                  {r.priority}
-                </Badge>
-                <Badge variant="outline" className="text-xs font-normal">
-                  {r.type}
-                </Badge>
+                <Chip tone={PRIO_TONE[r.priority] ?? "muted"}>{r.priority}</Chip>
+                <Chip tone="muted" mono={false}>{r.type}</Chip>
                 {r.language !== "en" && (
-                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-xs font-normal text-amber-800">
-                    {LANG_LABEL[r.language] ?? r.language}
-                  </Badge>
+                  <Chip tone="signal" mono={false}>{LANG_LABEL[r.language] ?? r.language}</Chip>
                 )}
-                {r.status === "approved" && (
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-xs font-normal text-emerald-700">
-                    approved
-                  </Badge>
+                {r.confidence >= 0 && (
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    conf <span className={r.confidence >= 70 ? "text-verify" : r.confidence >= 50 ? "text-signal" : "text-coral"}>{r.confidence}%</span>
+                  </span>
+                )}
+                {r.verifyStatus !== "unverified" && (
+                  <Chip tone={VERIF_TONE[r.verifyStatus] ?? "muted"}>
+                    {r.verifyStatus === "supported" ? <BadgeCheck className="h-3 w-3" /> : <BadgeAlert className="h-3 w-3" />}
+                    {r.verifyStatus}
+                  </Chip>
                 )}
               </div>
               {isCurrent && (
@@ -131,7 +140,7 @@ export function ExtractionStage({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-rose-600"
+                    className="h-7 w-7 text-muted-foreground hover:text-coral"
                     onClick={() => remove(r.id)}
                     aria-label={`Delete ${r.refId}`}
                   >
@@ -145,14 +154,20 @@ export function ExtractionStage({
               {r.text}
             </p>
 
+            {r.verifyNote && (
+              <p className="mt-2 rounded-md bg-secondary/50 px-3 py-1.5 text-xs italic text-muted-foreground" dir="auto">
+                Critic: {r.verifyNote}
+              </p>
+            )}
+
             {r.links.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                <Link2 className="h-3.5 w-3.5 text-aura/70" />
                 {r.links.map((l) => (
                   <Badge
                     key={l.evidenceCode}
                     variant="outline"
-                    className="border-teal-200 bg-teal-50 font-mono text-xs font-normal text-teal-700"
+                    className="border-aura/30 bg-aura/5 font-mono text-xs font-normal text-aura"
                     title={`${evidenceTitles.get(l.evidenceCode) ?? ""} — ${l.note ?? ""}`}
                   >
                     {l.evidenceCode}
@@ -167,7 +182,7 @@ export function ExtractionStage({
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Edit {editing?.refId}</DialogTitle>
+            <DialogTitle className="font-display">Edit {editing?.refId}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <Textarea rows={4} dir="auto" value={draft} onChange={(e) => setDraft(e.target.value)} />
@@ -199,7 +214,7 @@ export function ExtractionStage({
             <Button variant="outline" onClick={() => setEditing(null)}>
               Cancel
             </Button>
-            <Button onClick={saveEdit} className="bg-teal-600 hover:bg-teal-700">
+            <Button onClick={saveEdit} className="bg-aura text-primary-foreground hover:bg-aura/85">
               Save changes
             </Button>
           </DialogFooter>

@@ -141,3 +141,27 @@ Stage Summary:
 - Deliverable: /home/z/my-project/download/RequirementPilot_Expansion_Roadmap.docx (294 KB, 20 pages, 6 tables, 2 new figures in assets_rp/).
 - Core answers: 14 missing elements (G1-G14); 14 developments (I1-I14; flagship = I1 uncertainty-gated ask-vs-proceed, I6 Arabic-first layer); 5 strategic modifications (M1 three flagship claims, M2 continuous lifecycle, M3 verified agent society, M4 platform assets, M5 upgraded evaluation contract with RQ8 + integration-isolation condition).
 - Sequencing: V1 tier (weeks 1-12, seven S-class items ~4 person-weeks), V2 tier (months 4-6), Future tier; all gated by the analysis report's M1 milestone and descope ladder.
+
+---
+Task ID: 7
+Agent: Main agent (Super Z)
+Task: Radical production-stage expansion + complete UI/UX rebirth ("Mission Control" / NIGHTFLIGHT) per user directive: propose radical enhancements, restructure the entire UI with fresh identity/palette/animations, UX-as-journey, test & validate everything.
+
+Work Log:
+- Inventoried the full codebase: engine (agents.ts 778L, 6-stage pipeline, 12 Prisma models, 4 instrument APIs: health/drift/compliance/wind-tunnel) solid; presentation layer (~1,650L across 9 components) rebuilt from scratch.
+- Created central registry src/lib/registry.ts (flight plan phases, telemetry labels, integrations, feature atlas with honest LIVE/IN-DEV/PLANNED statuses, GLM/Z.ai disclosure) — single source of qualitative metadata; all numbers come from APIs (dynamicity rule).
+- New API /api/telemetry: 10 live DB count queries powering Mission Control; new API /api/transcribe: voice notes via z-ai-web-dev-sdk ASR (backend-only).
+- NIGHTFLIGHT design system in globals.css: void-navy palette, aurora/plasma/signal/verify/coral tokens, radar-sweep/pulse-ring/dash-flow/aurora/scan keyframes, HUD utilities; layout.tsx: Space Grotesk + JetBrains Mono, new metadata, LanguageProvider at root.
+- HUD primitives (hud.tsx): HudPanel with corner brackets, CountUp, Meter, Chip/Tone system, animated RadarSweep with clickable blips, Reveal, SectionHead, EmptyBay.
+- Mission Control home (mission-control.tsx replaces project-picker): sticky command bar with GLM disclosure chip + EN/AR toggle, hero + live fleet radar (blips plotted by flight progress), count-up telemetry, flight-plan map, mission cards, capability atlas, integrations bay (GitHub Issues + Jira READY).
+- Flight shell (workspace.tsx + flightpath.tsx): animated flight-path rail (6 phases + Debrief) with traveling marker, AnimatePresence phase transitions, human-gate banners, per-phase HUD headers.
+- Elicitation cockpit rebuilt: evidence library with consent states + MicRecorder (MediaRecorder→WAV 16k mono→base64→GLM ASR→editable transcript) + full uncertainty-gated question flow (answer / proceed-with-uncertainty / reopen, ask-cost meters, IF-SKIPPED-ASSUME boxes).
+- Rebuilt 5 stage panels (problems/extraction/ambiguity/stories/conflicts) in HUD language, preserving every API contract; conflicts panel restructured as negotiation table (Side A vs Side B, implications-only framing).
+- Debrief Bay (stage-complete.tsx → DebriefBay): tabbed instruments — interactive Constellation graph (ambiguity/drift-colored nodes, animated grounding edges, conflict edges, node inspector), Health Decomposer (3 live dimension meters + LLM report: strengths/risks/recommendations), Drift Radar console, Constraint Pack Bay (WCAG 2.2 / Egypt PDPL privacy / performance), Wind Tunnel, Decision Journal stream, GitHub/Jira payload previews with copy/download, JSON/Gherkin/audit exports, MoSCoW bars, count-up stats.
+- agents.ts: PACKS relabeled to WCAG 2.2 + Egypt PDPL-inspired per user config; parseJson hardened with structural repairTruncatedJson (fixes live-found truncated-JSON 500 on long story outputs).
+- Browser verification (agent-browser, live GLM): demo mission flown gate-by-gate — Scope/Extraction/Ambiguity/Story/Consistency agents run, 1 uncertainty assumption carried, route committed, 4 conflicts resolved, baseline landed; Debrief instruments exercised (health report, drift sweep → 3 impacted, WCAG scan → partial, journal 21 entries, constellation node click, payloads); fixed Corners overlay click-interception bug + mobile min-content overflow (truncate nowrap in grid tracks → min-w-0 on Reveal wrappers, line-clamp-1 on integration descs); 390px re-verified 0 overflow; console/error sweep clean; lint clean.
+
+Stage Summary:
+- Deliverable: RequirementPilot "Mission Control" — production-grade flight-deck rebirth at src/app/page.tsx (single route), 11 UI modules + 3 new API routes + registry.
+- FEATURES_STATUS.md written at project root (completed / in-development / not-started / missing, honest, registry-synced).
+- All standing constraints held: core-first engine untouched except parser hardening + pack relabels; full dynamicity (every number from /api/telemetry + project DTO + instrument APIs); GLM-provided-by-Z.ai disclosed in command bar, hero, footer, debrief; human-in-the-loop preserved and made visually explicit at every gate.
