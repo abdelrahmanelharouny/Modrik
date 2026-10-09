@@ -258,3 +258,18 @@ Stage Summary:
 - Capability Atlas removed from UI; capabilities documented in FEATURES_STATUS.md; nav now: Fleet · Flight Plan · Library.
 - New registry vocabulary LIBRARY_STATE keeps library chip labels centralized (dynamicity rule).
 - Suggestions surfaced to user (not yet implemented): mission archive/delete in library, per-mission language/domain filter chips, "load all landed" bulk action, mission templates from arbench scenarios, pinned/favorite missions.
+
+---
+Task ID: 10-v (verification addendum)
+Agent: Main agent (Super Z)
+Task: Post-context-refresh verification that Task 10 deliverables are live and healthy.
+
+Work Log:
+- Confirmed code state: mission-library.ts + library-a/b/c.ts + mission-seed.ts + /api/missions present; zero FEATURE_ATLAS / "Capability Atlas" references in src.
+- Live API: /api/telemetry shows fleet 15 (8 landed / 7 in flight), 41 evidence / 86 reqs / 53 stories / 114 decisions / 36 edges / 10 UNDEFINED — all DB-computed.
+- /api/missions returns 13 catalog entries, all loaded=true with real projectIds.
+- Browser (agent-browser): title "Modrik / مدرك — MISSION CONTROL"; atlas absent; Mission Library present with 13 Open buttons + state chips (BRIEFING/CLEARANCE/STORIES/SELECTION/AMBIGUITY/LANDED); search "pharmacy" filters to 1 card; opened Clinic Booking Companion → lands at Phase 01 · Briefing, AWAITING INPUT, 5 question marks, planner-stamped utility, assumption path offered.
+- Mobile 390px: docW=390 on home + library; anchor #library navigates; dev.log clean; browser errors/console clean.
+
+Stage Summary:
+- Task 10 confirmed complete and live: 13-mission library seeded (fleet 15), atlas removed, library UI fully functional (search/open/load), mobile-clean. No regressions found.
