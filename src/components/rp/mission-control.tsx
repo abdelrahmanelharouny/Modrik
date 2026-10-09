@@ -9,11 +9,10 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { STAGES, type Stage } from "@/lib/rp";
-import { FLIGHT_PLAN, FEATURE_ATLAS, IDENTITY, INTEGRATIONS, STATUS_CHIP, TELEMETRY_LABELS } from "@/lib/registry";
+import { FLIGHT_PLAN, IDENTITY, INTEGRATIONS, LIBRARY_STATE, STATUS_CHIP, TELEMETRY_LABELS } from "@/lib/registry";
 import { useLang } from "@/lib/i18n";
 import { HudPanel, Eyebrow, CountUp, Chip, RadarSweep, Reveal, LiveDot, SectionHead, type Tone } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,6 +46,9 @@ import {
   Languages,
   Crosshair,
   Github,
+  Library,
+  Search,
+  Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ICONS } from "@/components/rp/icons";
@@ -67,11 +69,20 @@ interface Telemetry {
   };
 }
 
-const TONE_OF: Record<string, Tone> = {
-  live: "verify",
-  "in-dev": "signal",
-  planned: "muted",
-};
+interface LibraryEntry {
+  id: string;
+  name: string;
+  domain: string;
+  domainAr: string;
+  tagline: string;
+  taglineAr: string;
+  focus: string;
+  focusAr: string;
+  languages: string[];
+  layout: string;
+  loaded: boolean;
+  projectId: string | null;
+}
 
 export function MissionControl({
   projects,
@@ -94,12 +105,29 @@ export function MissionControl({
   const [name, setName] = useState("");
   const [brief, setBrief] = useState("");
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
+  const [library, setLibrary] = useState<LibraryEntry[] | null>(null);
+  const [libFilter, setLibFilter] = useState("");
+  const [loadingMission, setLoadingMission] = useState<string | null>(null);
   const ar = lang === "ar";
 
   useEffect(() => {
     api<Telemetry>("/api/telemetry")
       .then(setTelemetry)
       .catch(() => setTelemetry(null));
+  }, [projects]);
+
+  const loadLibrary = (signal?: AbortSignal) => {
+    api<{ missions: LibraryEntry[]; total: number }>("/api/missions", { signal })
+      .then((d) => setLibrary(d.missions))
+      .catch(() => {
+        if (!signal?.aborted) setLibrary([]);
+      });
+  };
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    loadLibrary(ctrl.signal);
+    return () => ctrl.abort();
   }, [projects]);
 
   const createProject = async () => {
@@ -132,6 +160,31 @@ export function MissionControl({
     } catch (e) {
       toast({ title: "Could not load demo", description: (e as Error).message, variant: "destructive" });
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadLibraryMission = async (entry: LibraryEntry) => {
+    if (entry.loaded && entry.projectId) {
+      await onOpen(entry.projectId);
+      return;
+    }
+    setLoadingMission(entry.id);
+    setBusy(true);
+    try {
+      const data = await api<{ projectId: string; name: string }>("/api/missions", {
+        method: "POST",
+        body: JSON.stringify({ missionId: entry.id }),
+      });
+      toast({
+        title: ar ? "تم تجهيز المهمة — انطلق" : "Mission loaded — cleared for takeoff",
+        description: (ar ? entry.taglineAr : entry.tagline) + (ar ? " · كل بياناتها حية من قاعدة البيانات" : " · every record now live from the database"),
+      });
+      await onCreated(data.projectId);
+    } catch (e) {
+      toast({ title: "Could not load mission", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setLoadingMission(null);
       setBusy(false);
     }
   };
@@ -189,7 +242,7 @@ export function MissionControl({
           <nav className="hidden items-center gap-5 md:flex" aria-label="Primary">
             <a href="#fleet" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "الأسطول" : "Fleet"}</a>
             <a href="#flightplan" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "خطة الرحلة" : "Flight Plan"}</a>
-            <a href="#instruments" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "الأدوات" : "Instruments"}</a>
+            <a href="#library" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "المكتبة" : "Library"}</a>
           </nav>
           <div className="flex items-center gap-2">
             <Chip tone="plasma" className="hidden sm:inline-flex">
@@ -483,53 +536,142 @@ export function MissionControl({
           )}
         </section>
 
-        {/* ── instruments / feature atlas ── */}
-        <section id="instruments" className="scroll-mt-20 py-10">
+        {/* ── mission library ── */}
+        <section id="library" className="scroll-mt-20 py-10">
           <Reveal>
             <SectionHead
-              icon={Telescope}
-              title={ar ? "أطلس القدرات" : "Capability atlas"}
+              icon={Library}
+              title={ar ? "مكتبة المهام — مُجهّزة بالكامل" : "Mission Library — fully developed"}
               blurb={
                 ar
-                  ? "كل قدرة معلنة حالة حقيقية من السجل المركزي — لا مبالغات تسويقية."
-                  : "Every declared capability, with its honest status from the central registry — no marketing fog."
+                  ? "مهام مرجعية جاهزة للتحميل بمحتوى كامل: أدلة بالعامية المصرية والكود-سويتشينج، أسئلة مُدرَّجة المنفعة، تعارضات، ورسوم متطلبات — كلها تتحول لصفوف حية في قاعدة بياناتك لحظة التحميل."
+                  : "Ready-to-load reference missions with complete content: Egyptian-Arabic and code-switched evidence, utility-ranked questions, conflicts and requirement graphs — everything becomes live database rows the moment you load it."
+              }
+              right={
+                library && (
+                  <Chip tone="aura">
+                    {library.filter((m) => m.loaded).length} / {library.length} {ar ? "في الأسطول" : "in fleet"}
+                  </Chip>
+                )
               }
             />
           </Reveal>
-          <div className="grid gap-4 pb-10 md:grid-cols-2">
-            {FEATURE_ATLAS.map((g, gi) => (
-              <Reveal key={g.group} delay={gi * 0.06} className="min-w-0">
-                <HudPanel className="h-full p-5" as="article">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-display text-sm font-bold tracking-tight">{ar ? g.groupAr : g.group}</h3>
-                      <p className="text-xs text-muted-foreground">{g.blurb}</p>
-                    </div>
-                    <Badge variant="outline" className="border-border font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
-                      {g.items.length} {ar ? "قدرة" : "caps"}
-                    </Badge>
-                  </div>
-                  <ul className="space-y-2.5">
-                    {g.items.map((it) => (
-                      <li key={it.name} className="flex items-start justify-between gap-3 rounded-md bg-secondary/35 px-3 py-2">
-                        <div className="min-w-0">
-                          <span className="block truncate text-sm font-medium">{ar ? it.nameAr : it.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">{it.note}</span>
-                        </div>
-                        <Chip tone={TONE_OF[it.status]} className="mt-0.5 shrink-0">
-                          {STATUS_CHIP[it.status].label}
-                        </Chip>
-                      </li>
-                    ))}
-                  </ul>
-                </HudPanel>
-              </Reveal>
-            ))}
-          </div>
 
-          {/* integrations strip */}
+          <Reveal delay={0.05}>
+            <div className="relative mb-4 max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                value={libFilter}
+                onChange={(e) => setLibFilter(e.target.value)}
+                placeholder={ar ? "ابحث بالاسم أو المجال…" : "Search by name or domain…"}
+                className="pl-9"
+                aria-label={ar ? "بحث في المكتبة" : "Search library"}
+              />
+            </div>
+          </Reveal>
+
+          {library === null ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-40 rounded-lg bg-secondary/50" />
+              ))}
+            </div>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {library
+                .filter((m) => {
+                  const q = libFilter.trim().toLowerCase();
+                  if (!q) return true;
+                  return (
+                    m.name.toLowerCase().includes(q) ||
+                    m.domain.toLowerCase().includes(q) ||
+                    m.domainAr.includes(libFilter.trim()) ||
+                    (ar ? m.taglineAr : m.tagline).toLowerCase().includes(q)
+                  );
+                })
+                .map((m, i) => {
+                  const state = LIBRARY_STATE[m.layout] ?? { label: m.layout, labelAr: m.layout, tone: "muted" as Tone };
+                  return (
+                    <Reveal key={m.id} delay={Math.min(i, 5) * 0.05} className="min-w-0">
+                      <li className="h-full min-w-0">
+                        <HudPanel
+                          className="flex h-full flex-col p-5 transition-all duration-300 hover:-translate-y-1 hover:border-aura/40"
+                          as="div"
+                        >
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Chip tone={state.tone as Tone}>{ar ? state.labelAr : state.label}</Chip>
+                            <Chip tone="muted">{ar ? m.domainAr : m.domain}</Chip>
+                          </div>
+                          <h3 className="mt-2.5 font-display text-base font-bold leading-snug tracking-tight">{m.name}</h3>
+                          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground" dir="auto">
+                            {ar ? m.taglineAr : m.tagline}
+                          </p>
+                          <p className="mt-2 line-clamp-1 font-mono text-[10px] uppercase tracking-wider text-aura/80" dir="auto">
+                            {ar ? m.focusAr : m.focus}
+                          </p>
+                          <div className="mt-3 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                            {m.languages.map((l) => (
+                              <span key={l} className="rounded border border-border/70 bg-secondary/40 px-1.5 py-0.5">
+                                {l === "ar-EG" ? "ع" : l === "codeswitch" ? "ع+EN" : "EN"}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="mt-4 flex-1" />
+                          <Button
+                            size="sm"
+                            variant={m.loaded ? "outline" : "default"}
+                            onClick={() => loadLibraryMission(m)}
+                            disabled={busy && loadingMission === m.id}
+                            className={
+                              m.loaded
+                                ? "border-aura/40 text-aura hover:bg-aura/10"
+                                : "bg-aura font-semibold text-primary-foreground hover:bg-aura/85"
+                            }
+                          >
+                            {m.loaded ? (
+                              <>
+                                <Rocket className="mr-2 h-3.5 w-3.5" />
+                                {loadingMission === m.id ? (ar ? "جارٍ الفتح…" : "Opening…") : ar ? "افتح المهمة" : "Open mission"}
+                              </>
+                            ) : (
+                              <>
+                                <Download className="mr-2 h-3.5 w-3.5" />
+                                {loadingMission === m.id ? (ar ? "جارٍ التجهيز…" : "Loading…") : ar ? "حمّل المهمة" : "Load mission"}
+                              </>
+                            )}
+                          </Button>
+                        </HudPanel>
+                      </li>
+                    </Reveal>
+                  );
+                })}
+              {library.filter((m) => {
+                const q = libFilter.trim().toLowerCase();
+                if (!q) return false;
+                return !(
+                  m.name.toLowerCase().includes(q) ||
+                  m.domain.toLowerCase().includes(q) ||
+                  m.domainAr.includes(libFilter.trim()) ||
+                  (ar ? m.taglineAr : m.tagline).toLowerCase().includes(q)
+                );
+              }).length === library.length && (
+                <li className="md:col-span-2 lg:col-span-3">
+                  <HudPanel className="p-8 text-center" as="div">
+                    <Crosshair className="mx-auto h-8 w-8 text-aura/60" />
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {ar ? "لا توجد مهام تطابق البحث — جرّب كلمة أخرى." : "No missions match that search — try another word."}
+                    </p>
+                  </HudPanel>
+                </li>
+              )}
+            </ul>
+          )}
+        </section>
+
+        {/* ── integrations bay ── */}
+        <section className="pb-10">
           <Reveal>
-            <HudPanel className="mb-10 flex flex-wrap items-center gap-x-8 gap-y-3 p-5" as="div">
+            <HudPanel className="flex flex-wrap items-center gap-x-8 gap-y-3 p-5" as="div">
               <Eyebrow className="w-full">◈ {ar ? "خليج التكامل — جاهز للمزامنة" : "INTEGRATIONS BAY — SYNC TARGETS"}</Eyebrow>
               {INTEGRATIONS.map((ig) => {
                 const Icon = ICONS[ig.icon] ?? Github;

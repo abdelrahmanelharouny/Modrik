@@ -221,70 +221,6 @@ export const INTEGRATIONS = [
   },
 ] as const;
 
-// ── Feature atlas (research-grade capabilities) ──────────────
-// Status values are qualitative registry declarations synced
-// with FEATURES_STATUS.md: "live" | "in-dev" | "planned"
-
-export const FEATURE_ATLAS: {
-  group: string;
-  groupAr: string;
-  blurb: string;
-  items: { name: string; nameAr: string; status: "live" | "in-dev" | "planned"; note: string }[];
-}[] = [
-  {
-    group: "Research Core",
-    groupAr: "النواة البحثية",
-    blurb: "The novel machinery the thesis stands on",
-    items: [
-      { name: "Uncertainty-gated asking", nameAr: "السؤال المشروط بعدم التأكد", status: "live", note: "Ask-cost + fallback assumption per question; assumptions ledger" },
-      { name: "Impact-aware selection", nameAr: "الاختيار الواعي بالأثر", status: "live", note: "Human-tuned impact/effort with evidence grounding (N2)" },
-      { name: "Question Planner (utility formula)", nameAr: "مُخطّط الأسئلة (معادلة المنفعة)", status: "live", note: "Utility = IG×Impact×Uncertainty×Risk ÷ AskCost; 4-arm ablation lab (N1)" },
-      { name: "Critic-verifier extraction", nameAr: "الاستخراج بالناقد", status: "live", note: "Proposer + Critic roles, confidence numbers (I3)" },
-      { name: "Arabic-first elicitation", nameAr: "الاستقصاء بالعربية أولاً", status: "live", note: "Egyptian Arabic, code-switching, RTL interface (N7)" },
-      { name: "Voice-note intake", nameAr: "الإدخال الصوتي", status: "live", note: "In-browser recording transcribed into evidence (I5)" },
-      { name: "Executability simulator", nameAr: "مُحاكي التنفيذ", status: "live", note: "UNDEFINED scenarios recorded as requirement discoveries" },
-      { name: "Requirement graph (typed edges)", nameAr: "رسم المتطلبات (حواف مُنوّعة)", status: "live", note: "6 edge kinds + reverse impact traversal" },
-    ],
-  },
-  {
-    group: "Trust Spine",
-    groupAr: "العمود الفقري للثقة",
-    blurb: "Auditability and the human decision contract",
-    items: [
-      { name: "Decision journal", nameAr: "سجل القرارات", status: "live", note: "Immutable, per-decision, exportable (I12)" },
-      { name: "Cost observatory", nameAr: "مرصد التكاليف", status: "live", note: "Latency, tokens and blended cost per agent run (I13)" },
-      { name: "Calibration panel", nameAr: "لوحة المعايرة", status: "live", note: "Brier + ECE of agent confidence vs critic verdicts" },
-      { name: "Artifact snapshots", nameAr: "لقاط الأثر", status: "live", note: "Every stage output frozen for audit" },
-      { name: "Consent registry", nameAr: "سجل الموافقات", status: "live", note: "Per-evidence stakeholder consent (G13)" },
-    ],
-  },
-  {
-    group: "Instrumentation",
-    groupAr: "الأجهزة القياسية",
-    blurb: "Debrief bay instruments on the live graph",
-    items: [
-      { name: "Health decomposer", nameAr: "مُفكِّك الصحة", status: "live", note: "Decomposed dimensions, no magic score (I14)" },
-      { name: "Drift radar", nameAr: "رادار الانحراف", status: "live", note: "Change-signal impact sweep (I8)" },
-      { name: "Constraint packs", nameAr: "حِزَم القيود", status: "live", note: "WCAG 2.2 · Egypt-PDPL privacy · performance — dual role: scans requirements AND self-audits the platform" },
-      { name: "Wind tunnel", nameAr: "نفق المحاكاة", status: "live", note: "Synthetic stakeholder stress-testing (I7)" },
-      { name: "Provider interface", nameAr: "واجهة المزودين", status: "live", note: "Fixed strategy, swappable model: default GLM | OpenAI-compatible | local — env-driven" },
-    ],
-  },
-  {
-    group: "Journey & Delivery",
-    groupAr: "الرحلة والتسليم",
-    blurb: "From cockpit to trackers",
-    items: [
-      { name: "Flight-plan UX", nameAr: "تجربة خطة الرحلة", status: "live", note: "Journey-rail interface with human gates" },
-      { name: "Baseline exports", nameAr: "تصدير خط الأساس", status: "live", note: "JSON, Gherkin skeletons, audit log" },
-      { name: "GitHub Issues sync", nameAr: "مزامنة GitHub Issues", status: "live", note: "Runtime credentials; push + pull with sync-map traceability" },
-      { name: "Jira sync", nameAr: "مزامنة Jira", status: "live", note: "Cloud REST v3; push + pull with sync-map traceability" },
-      { name: "Ablation harness UI", nameAr: "واجهة اختبار الأذرع", status: "live", note: "4-arm Question-Planner lab live in the Debrief bay" },
-      { name: "User study console", nameAr: "وحدة دراسة المستخدم", status: "live", note: "3-group NASA-TLX sessions + anonymised CSV export (protocol: docs/study-protocol.md)" },
-    ],
-  },
-] as const;
-
 // ── Status chip vocabulary (single vocabulary, registry-driven) ─
 
 export const STATUS_CHIP: Record<string, { label: string; tone: string }> = {
@@ -297,4 +233,18 @@ export const STATUS_CHIP: Record<string, { label: string; tone: string }> = {
   approved: { label: "APPROVED", tone: "verify" },
   complete: { label: "BASELINE READY", tone: "verify" },
   active: { label: "IN FLIGHT", tone: "aura" },
+};
+
+// ── Mission Library state vocabulary (layout → display chip) ───
+
+export const LIBRARY_STATE: Record<
+  string,
+  { label: string; labelAr: string; tone: "verify" | "signal" | "plasma" | "aura" | "muted" }
+> = {
+  landed: { label: "LANDED · BASELINE READY", labelAr: "أرضت · خط أساس جاهز", tone: "verify" },
+  briefing: { label: "IN BRIEFING", labelAr: "في الإحاطة", tone: "plasma" },
+  selection: { label: "ROUTE PLOT", labelAr: "رسم المسار", tone: "aura" },
+  ambiguity: { label: "TURBULENCE SCAN", labelAr: "مسح الاضطراب", tone: "signal" },
+  stories: { label: "PAYLOAD", labelAr: "الحمولة", tone: "signal" },
+  clearance: { label: "CLEARANCE", labelAr: "الإفراج", tone: "signal" },
 };

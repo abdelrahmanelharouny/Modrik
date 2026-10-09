@@ -1,6 +1,6 @@
 # Modrik (مدرك) — FEATURES_STATUS
 
-**Build:** Mission Control × Research Completion build · renamed **Modrik / مدرك** · 2026-10-10
+**Build:** Mission Control × Research Completion build · renamed **Modrik / مدرك** · Mission Library added · 2026-10-10
 **LLM:** every agent and instrument runs on GLM, the **default provider** of the swappable provider interface (dev item 12). Strategy is fixed, the model is hot-swappable: `RP_LLM_PROVIDER=glm | model-b | local` (env-driven, nothing hardcoded). Per product decision, no "Powered by …" branding is rendered anywhere in the UI — provider identity survives only as a technical record in the Cost Observatory and `/api/providers`.
 **Dynamicity rule:** every number, status, and record in the UI is computed live from the database via `/api/telemetry`, `/api/projects/*`, and the instrument APIs — the central registry (`src/lib/registry.ts`) holds only qualitative metadata. Nothing static is rendered. **Re-audited this build:** 35 component API call sites mapped; zero hardcoded stats found; telemetry endpoint computes all figures from DB counts at request time.
 **Human-in-the-loop:** the system presents findings and implications only; every verdict (answers, assumptions, selections, rewrites, conflict resolutions, imports) is a human action recorded in the immutable decision journal.
@@ -10,6 +10,8 @@
 ## 1 · COMPLETED (live in this build)
 
 ### Identity & product surface (this build)
+- **Mission Library (NEW)** — 13 fully-developed reference missions (`src/lib/mission-library.ts`, 3 content parts + seeder `src/lib/mission-seed.ts` + `/api/missions` GET/POST). Domains: transport, ed-tech, health, fintech, nonprofit, health-tech, proptech, govtech, fitness, events, civic-tech. Content depth per mission: 2–3 multilingual evidence artifacts (Egyptian Arabic / English / code-switch), utility-stamped questions (with live pending-question states), grounded requirements with ambiguity/confidence/critic verdicts, stories with acceptance criteria + INVEST, typed-edge graphs, conflicts with taxonomy + IF/impact implications, executability scenarios (10 UNDEFINED discoveries), decision journal entries and cost-observatory runs. 6 pipeline states represented (landed ×8 · briefing ×2 · selection · clearance · stories · ambiguity). Library UI replaces the Capability Atlas: searchable cards (bilingual), registry-driven state chips, idempotent one-click Load that seeds real DB rows and opens the mission.
+- **Capability Atlas removed from the UI** (user decision — internal capabilities are documented in FEATURES_STATUS.md instead; `FEATURE_ATLAS` deleted from the registry). Nav anchor renamed to **Library**. The Integrations bay remains.
 - **Renamed to Modrik / مدرك** everywhere: central registry identity (bilingual name), page title/metadata, agent system prompts, exported artifacts (Gherkin header, GitHub issue bodies, Jira ADF text), tracker labels (`modrik`), study group vocabulary (`C_modrik`), CSV export filename, provider labels, and all code comments. Old `C_requirementpilot` study rows migrated in-place.
 - **Branding purge:** all "Powered by GLM — provided by Z.ai" UI elements removed (command bar chip, hero footnote, workspace footer, debrief footer, LLM disclosure constant deleted). Replaced with product-truth lines: "human-gated · evidence-driven", "every decision journaled". Scaffold Z-logo asset replaced with a neutral Modrik mark.
 
@@ -83,8 +85,9 @@
 
 ---
 
-## Verification record (this build, 2026-10-10 — Modrik rename + dynamicity audit)
-- `tsc --noEmit`: **0 errors in src/** · `eslint`: **clean** · Prisma schema in sync (comment-level changes only).
+## Verification record (this build, 2026-10-10 — Modrik rename + dynamicity audit + Mission Library)
+- **Mission Library live-verified (Agent Browser):** `/api/missions` GET returns 13 catalog entries; POST seeded all 13 (fleet: **15 missions** — 8 landed / 7 in flight; telemetry: 41 evidence, 86 requirements, 53 stories, 114 decisions, 36 typed edges, 10 UNDEFINED discoveries — all live counts). Library search filter narrows to 1 card on "pharmacy". Spot-checked mission states in-browser: TukTuk (landed → Debrief instruments live incl. GAP-01 UNDEFINED + Brier), Clinic (briefing, 4 pending utility-ranked questions), Pharmacy (clearance, 2 open conflicts with 3-direction implications), Complaints Line (ambiguity, 2 weak rewrites awaiting arbitration). Arabic RTL: "مكتبة المهام" + state chips render. Mobile 390px: home + pharmacy clean (docW=390).
+- `tsc --noEmit`: **0 errors in src/** · `eslint`: **clean** · no console errors on the verified paths. One transient Fast-Refresh error during the atlas edit window (FEATURE_ATLAS reference before import landed) — resolved, absent from dev.log tail.
 - **Browser-verified golden path (Agent Browser):** title renders "Modrik / مدرك — MISSION CONTROL"; header shows مدرك in Arabic mode with RTL (`lang="ar"`); telemetry numbers live (2 missions, 21 requirements, 47 decisions…); demo mission lands at Debrief 7·7; all 9 instrument tabs render live data (constellation nodes E1–E3/REQ-01…12, planner ablation arms, calibration Brier/ECE, executability DEFINED/UNDEFINED, constraint packs 16 PASS, drift radar, decision journal); negotiation table gates the Clearance approval (HITL working).
 - **Zero branding residue:** DOM-wide check on home and debrief — no "Powered by …" / "Z.ai" strings; `rg` sweep across `src/`, `prisma/`, `docs/`, `public/` clean.
 - **Mobile 390px:** home OK; Debrief overflow (3900px) caused by payload-preview `<pre>` in the sync-console grid — fixed with `min-w-0` grid items + `whitespace-pre-wrap break-words`; re-verified `docW=390`.

@@ -236,3 +236,25 @@ Stage Summary:
 - Dynamicity rule re-verified end-to-end: all rendered numbers/records flow from DB through APIs; registry = qualitative metadata only.
 - One layout bug fixed (mobile Debrief overflow); one DB vocabulary migration applied.
 - Status: COMPLETED = full research core + trust spine + integrations + benchmarks/study infra + constraint packs; IN DEV = full-bench ablation runs, tracker→drift webhook, OAuth; NOT STARTED = field pilot recruitment, study analysis pipeline; MISSING = multi-stakeholder sessions, RBAC, offline mode, scripted E2E suite, set-level judge calibration.
+
+---
+Task ID: 10
+Agent: Main agent (Super Z)
+Task: Add 10–15 fully-developed diverse missions to the platform; remove the "Capability Atlas" section from the UI; report suggestions/improvements.
+
+Work Log:
+- Designed a seed-catalog architecture honoring the dynamicity rule: qualitative catalog in code (src/lib/mission-library.ts + 3 content parts), but every loaded mission becomes REAL DB rows rendered through the existing APIs — the UI never displays catalog content as live data.
+- Authored 13 deep missions across 3 files (library-a/b/c.ts): Transport (TukTuk Fleet Tracker, landed), EdTech (LMS Offline Mode, landed), Health (Clinic Booking Companion, briefing w/ 4 pending questions), Fintech (Freelancer Escrow Wallet, landed), Nonprofit (Ramadan Food-Bank Relay, briefing), HealthTech (Pharmacy Refill Reminders, clearance w/ 2 open conflicts), PropTech (Rental Portal, landed), Transport (School Bus Safety, selection w/ 3 unselected candidates), Commerce (Group-Buy Groceries, landed), GovTech (Gov Services Kiosk, landed WCAG-focused), Fitness (Gym Membership Pass, stories drafts), Events (Wedding Hall Booking, landed), CivicTech (Complaints Line, ambiguity w/ 2 weak rewrites).
+- Each mission carries: 2–3 bilingual evidence artifacts (Egyptian Arabic / English / code-switch, consent-flagged), planner-stamped questions (utility = IG×Impact×Unc×Risk÷Cost, several deliberately pending for HITL), 4–8 grounded requirements (ambiguity scores, critic verdicts, suggestions), stories w/ acceptance + INVEST, conflicts w/ taxonomy + IF/impact implications, typed-edge graphs, executability scenarios incl. GAP discoveries, decision journal entries, cost-observatory runs, and one impact_aware PlannerRun per landed mission.
+- Built seeder src/lib/mission-seed.ts (idempotent by name; refId→id resolution for stories/edges/execs/conflicts/tracelinks) + /api/missions GET (catalog annotated with live loaded/projectId from DB) and POST (seed + open).
+- Removed the Capability Atlas from mission-control.tsx (user decision): FEATURE_ATLAS deleted from the registry, Badge/TONE_OF cleanup, nav anchor renamed to "Library"; added the Mission Library section (searchable bilingual cards, registry-driven state chips via new LIBRARY_STATE vocabulary, Load/Open buttons, empty-search state).
+- Seeded all 13 missions live: fleet now 15 missions (8 landed / 7 in flight); telemetry jumped to 41 evidence / 86 requirements / 53 stories / 114 decisions / 36 typed edges / 10 UNDEFINED — all live DB counts.
+- Browser verification: atlas absent, library present (13 cards), search filter works ("pharmacy" → 1 card), TukTuk lands at Debrief with GAP-01 UNDEFINED + Brier, Clinic shows pending questions, Pharmacy negotiation table shows 2 OPEN findings with 3-direction implications ("system never picks"), Complaints Line sits at Phase 04 with 2 weak rewrites, Arabic RTL renders مكتبة المهام, mobile 390px clean (home + pharmacy), back-navigation clean. Transient Fast-Refresh error during mid-edit window (FEATURE_ATLAS undefined) confirmed resolved and absent from dev.log tail.
+- Gates: tsc --noEmit 0 src errors; eslint clean.
+- Updated FEATURES_STATUS.md (Mission Library in COMPLETED, atlas removal, new verification record).
+
+Stage Summary:
+- Fleet grew from 2 → 15 missions with 6 distinct pipeline states represented; every mission demonstrates a different slice of the platform (planner, negotiation, executability, ambiguity arbitration, problem selection).
+- Capability Atlas removed from UI; capabilities documented in FEATURES_STATUS.md; nav now: Fleet · Flight Plan · Library.
+- New registry vocabulary LIBRARY_STATE keeps library chip labels centralized (dynamicity rule).
+- Suggestions surfaced to user (not yet implemented): mission archive/delete in library, per-mission language/domain filter chips, "load all landed" bulk action, mission templates from arbench scenarios, pinned/favorite missions.
