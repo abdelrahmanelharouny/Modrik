@@ -7,7 +7,10 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: ['query'],
+    // Full query logging is a local-dev tool. In production (Vercel
+    // serverless) it would flood the function logs and add latency —
+    // surface errors only.
+    log: process.env.NODE_ENV === 'production' ? ['error'] : ['query'],
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

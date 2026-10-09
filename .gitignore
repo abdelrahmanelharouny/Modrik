@@ -52,3 +52,17 @@ prompt
 server.log
 # Skills directory
 /skills/
+# ── Modrik additions ──────────────────────────────────────────
+# runtime data (recreated via `npm run db:push` + in-app seeders)
+/db/
+# generated postgres variant (npm run db:sync:pg)
+/prisma/schema.postgres.prisma
+# user-facing outputs and uploads live outside the repo
+/download/
+/upload/
+/tool-results/
+# audit harness transcripts (large, session-local)
+/scripts/agent_tests/results/
+# platform build output snapshots
+server.log
+Caddyfile

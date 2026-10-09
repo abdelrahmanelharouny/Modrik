@@ -13,6 +13,21 @@ import ZAI from "z-ai-web-dev-sdk";
 const ARABIC_RE = /[\u0600-\u06FF]/;
 const CJK_RE = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF]/;
 
+// Payload cap (base64 chars).
+//   Self-hosted / sandbox runtimes: ~15 MB decoded (~20M base64 chars).
+//   Vercel serverless: request bodies are hard-capped at ~4.5 MB by the
+//   platform — a bigger cap would only produce a cryptic 413 from the
+//   edge, so we clamp early and say so in the error message.
+const MAX_AUDIO_B64 = process.env.VERCEL
+  ? 4_000_000
+  : 20_000_000;
+
+function audioLimitMessage(): string {
+  return process.env.VERCEL
+    ? "Recording too long — on Vercel's serverless runtime request bodies are capped at ~4.5 MB. Keep voice notes under ~30 seconds, or deploy self-hosted for 2-minute notes"
+    : "Recording too long — keep voice notes under ~2 minutes";
+}
+
 function scriptOf(text: string): "arabic" | "latin" | "other" {
   if (ARABIC_RE.test(text)) return "arabic";
   const letters = text.replace(/[^A-Za-z]/g, "").length;
@@ -33,9 +48,9 @@ export async function POST(req: NextRequest) {
     if (!audio) {
       return NextResponse.json({ error: "Audio payload (base64) is required" }, { status: 400 });
     }
-    // Cap payload at ~15MB base64 to protect the route
-    if (audio.length > 20_000_000) {
-      return NextResponse.json({ error: "Recording too long — keep voice notes under ~2 minutes" }, { status: 413 });
+    // Cap payload early with a platform-aware, human-readable limit
+    if (audio.length > MAX_AUDIO_B64) {
+      return NextResponse.json({ error: audioLimitMessage() }, { status: 413 });
     }
 
     const zai = await ZAI.create();

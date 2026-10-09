@@ -41,8 +41,24 @@ class GlmProvider implements LlmProvider {
   readonly model = "GLM (default)";
 
   async complete(messages: ChatMessage[]): Promise<string> {
-    const { default: ZAI } = await import("z-ai-web-dev-sdk");
-    const zai = await ZAI.create();
+    let zai: import("z-ai-web-dev-sdk").default | undefined;
+    try {
+      const { default: ZAI } = await import("z-ai-web-dev-sdk");
+      zai = await ZAI.create();
+    } catch (err) {
+      // Graceful degradation: z-ai-web-dev-sdk resolves its credentials
+      // from its own sandbox environment. On foreign runtimes (e.g. a
+      // Vercel deployment) it cannot — surface a HUMAN-READABLE fix
+      // instead of a cryptic transport error (HITL honesty contract).
+      throw new Error(
+        "GLM provider unavailable — z-ai-web-dev-sdk could not initialize " +
+          "outside its native sandbox. Configure a swappable provider instead: " +
+          "set RP_LLM_PROVIDER=model-b plus RP_MODEL_B_BASE_URL, RP_MODEL_B_API_KEY " +
+          "and RP_MODEL_B_MODEL (any OpenAI-compatible endpoint), or RP_LLM_PROVIDER=local " +
+          "for an on-prem Ollama server. See README → Provider configuration." +
+          (err instanceof Error ? ` [cause: ${err.message.slice(0, 140)}]` : ""),
+      );
+    }
     const completion = await zai.chat.completions.create({
       messages: messages as never,
     });
