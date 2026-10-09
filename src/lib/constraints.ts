@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — CONSTRAINT PACK ENGINE · DUAL ROLE (I11)
+// Modrik (مدرك) — CONSTRAINT PACK ENGINE · DUAL ROLE (I11)
 //
 // Role 1 (product): the LLM pack scans in agents.ts check the
 //   *user's requirement graph* against WCAG 2.2 / PDPL / perf.

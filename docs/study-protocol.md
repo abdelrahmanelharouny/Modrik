@@ -1,4 +1,4 @@
-# RequirementPilot User Study Protocol (dev item 14)
+# Modrik (مدرك) User Study Protocol (dev item 14)
 
 Three-group between-subjects experiment measuring whether an evidence-based,
 human-in-the-loop agentic RE platform reduces stakeholder-interview burden and
@@ -17,7 +17,7 @@ unconstrained LLM chat.
 | Element | Decision |
 | --- | --- |
 | Layout | Between-subjects, 3 arms |
-| Groups | **A_traditional** (docs + spreadsheet craft) · **B_unconstrained_llm** (free-form LLM chat) · **C_requirementpilot** (this platform) |
+| Groups | **A_traditional** (docs + spreadsheet craft) · **B_unconstrained_llm** (free-form LLM chat) · **C_modrik** (this platform) |
 | Tasks | 1 benchmark scenario per participant pair, drawn from `bench/scenarios` (arbench-v2), matched on category and difficulty across groups |
 | Duration | 60-minute task + 15-minute debrief per session |
 | Assignment | Randomised within team; stratified by prior RE coursework (yes/no) |
@@ -36,12 +36,13 @@ documents plus a blank spreadsheet. Script: "Produce a requirements baseline
 for this project: clarifying questions you would ask, the requirement list
 with priorities, and any conflicts you notice. You have 60 minutes."
 
-**B_unconstrained_llm.** Same evidence pack; a chat LLM (GLM via Z.ai, same
+**B_unconstrained_llm.** Same evidence pack; a chat LLM (GLM via the default
+provider, same
 underlying model as group C's default provider — model difference is
 controlled) in a bare chat window with no system prompt and no tooling.
 Script: "Use this assistant however you like to produce the same deliverables."
 
-**C_requirementpilot.** Same evidence pack loaded into a fresh project.
+**C_modrik.** Same evidence pack loaded into a fresh project.
 Script: "Produce the same deliverables with the platform; run the journey,
 answer or mark uncertainties, resolve conflicts, and land the baseline."
 
@@ -117,7 +118,7 @@ dimensions from `/api/projects/[id]/health`), calibration (Brier/ECE from
 
 - **Experimenter novelty:** group C gets a guided tour; B gets a bare chat.
   Mitigation: equal-time familiarisation, help logging.
-- **Model identity:** B and C share the GLM (Z.ai) default so the contrast is
+- **Model identity:** B and C share the GLM default provider so the contrast is
   tooling, not model.
 - **Task familiarity:** scenarios are fictional but domain-grounded; teams
   are randomised to scenarios unknown to all groups.
@@ -134,4 +135,4 @@ dimensions from `/api/projects/[id]/health`), calibration (Brier/ECE from
 | `GET /api/study` | session listing (masked, for moderation dashboards) |
 | `GET /api/study?export=csv` | anonymised analysis export |
 
-Groups: `A_traditional` · `B_unconstrained_llm` · `C_requirementpilot`.
+Groups: `A_traditional` · `B_unconstrained_llm` · `C_modrik`.

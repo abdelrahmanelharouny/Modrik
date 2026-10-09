@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — DECOMPOSABLE HEALTH & DEBT (dev item 11)
+// Modrik (مدرك) — DECOMPOSABLE HEALTH & DEBT (dev item 11)
 //
 // No magic single score. Every debt dimension is computed
 // DETERMINISTICALLY from the database (dynamicity rule — numbers

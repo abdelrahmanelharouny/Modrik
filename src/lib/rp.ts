@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — shared types, pipeline stages, i18n, helpers
+// Modrik (مدرك) — shared types, pipeline stages, i18n, helpers
 // Expansion build: applies I1–I14 / G1–G14 / M1–M5 to the product.
 // ─────────────────────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ export const AR: Record<string, string> = {
   lifecycle: "دورة حياة متصلة — لا تتوقف عند المقابلة",
   projects: "مشاريعك",
   memory: "ذاكرة المنصة",
-  memorySub: "دروس ومصطلحات تعلّمها RequirementPilot من المشاريع السابقة (I4)",
+  memorySub: "دروس ومصطلحات تعلّمها «مدرك» من المشاريع السابقة (I4)",
   assets: "أصول المنصة",
   emptyProjects: "لا توجد مشاريع بعد",
   emptyProjectsSub: "ابدأ من الصفر، أو حمّل المشروع التجريبي بأدلة بالعامية المصرية والكود-سويتشينج.",

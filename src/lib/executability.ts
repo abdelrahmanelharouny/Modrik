@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — REQUIREMENT EXECUTABILITY SIMULATOR (dev item 8)
+// Modrik (مدرك) — REQUIREMENT EXECUTABILITY SIMULATOR (dev item 8)
 //
 // For the requirement baseline, the simulator generates concrete
 // executable scenarios (Given / When / Then) and then runs a
@@ -19,7 +19,7 @@ import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
 
 const SYSTEM =
-  "You are the Executability Simulator inside RequirementPilot, an evidence-based requirements " +
+  "You are the Executability Simulator inside Modrik (مدرك), an evidence-based requirements " +
   "engineering assistant. You think like a rigorous test designer. Reply with VALID JSON ONLY — " +
   "no markdown fences, no commentary.";
 

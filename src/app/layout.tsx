@@ -21,7 +21,7 @@ const jbMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: `${IDENTITY.name} — ${IDENTITY.codename}`,
+  title: `${IDENTITY.name} / ${IDENTITY.nameAr} — ${IDENTITY.codename}`,
   description:
     "Mission Control for software truth: evidence-driven, human-in-the-loop, agentic requirements engineering. From ambiguity fog to a flight-ready baseline.",
   keywords: [
@@ -30,11 +30,12 @@ export const metadata: Metadata = {
     "human-in-the-loop",
     "evidence-based",
     "Arabic elicitation",
-    "RequirementPilot",
+    "Modrik",
+    "مدرك",
   ],
-  authors: [{ name: "RequirementPilot Mission Control" }],
+  authors: [{ name: `${IDENTITY.name} Mission Control` }],
   openGraph: {
-    title: `${IDENTITY.name} — ${IDENTITY.codename}`,
+    title: `${IDENTITY.name} / ${IDENTITY.nameAr} — ${IDENTITY.codename}`,
     description: IDENTITY.tagline,
     type: "website",
   },

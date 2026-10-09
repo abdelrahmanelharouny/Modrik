@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — CALIBRATION VALIDATION (open requirement 1)
+// Modrik (مدرك) — CALIBRATION VALIDATION (open requirement 1)
 //
 // Validates the extraction agent's self-reported confidence (I2)
 // against the critic-verifier's outcomes (I3):

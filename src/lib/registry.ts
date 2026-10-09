@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — CENTRAL REGISTRY
+// Modrik (مدرك) — CENTRAL REGISTRY
 // Single source of truth for every piece of qualitative UI
 // metadata: journey phases, identity, integrations, feature
 // atlas, disclosures. All NUMBERS and RECORDS are rendered
@@ -7,20 +7,13 @@
 // ─────────────────────────────────────────────────────────────
 
 export const IDENTITY = {
-  name: "RequirementPilot",
+  name: "Modrik",
+  nameAr: "مدرك",
   codename: "MISSION CONTROL",
   tagline: "From fog to flight-ready requirements",
   taglineAr: "من ضباب الغموض إلى متطلبات جاهزة للإقلاع",
   subTagline: "Evidence-driven · Human-in-the-loop · Agentic requirements engineering",
   subTaglineAr: "قائم على الأدلة · بشري في الحلقة · وكلاء أذكياء لهندسة المتطلبات",
-} as const;
-
-// LLM disclosure — mandatory, rendered in the UI (hero, footer, debrief)
-export const LLM_DISCLOSURE = {
-  model: "GLM",
-  provider: "Z.ai",
-  line: "Powered by GLM — provided by Z.ai",
-  lineAr: "يعمل بنموذج GLM — من Z.ai",
 } as const;
 
 // ── The Flight Plan: journey phases ──────────────────────────
@@ -274,7 +267,7 @@ export const FEATURE_ATLAS: {
       { name: "Drift radar", nameAr: "رادار الانحراف", status: "live", note: "Change-signal impact sweep (I8)" },
       { name: "Constraint packs", nameAr: "حِزَم القيود", status: "live", note: "WCAG 2.2 · Egypt-PDPL privacy · performance — dual role: scans requirements AND self-audits the platform" },
       { name: "Wind tunnel", nameAr: "نفق المحاكاة", status: "live", note: "Synthetic stakeholder stress-testing (I7)" },
-      { name: "Provider interface", nameAr: "واجهة المزودين", status: "live", note: "Fixed strategy, swappable model: GLM (Z.ai) | Model B | local — env-driven" },
+      { name: "Provider interface", nameAr: "واجهة المزودين", status: "live", note: "Fixed strategy, swappable model: default GLM | OpenAI-compatible | local — env-driven" },
     ],
   },
   {

@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — LLM PROVIDER INTERFACE (dev item 12)
+// Modrik (مدرك) — LLM PROVIDER INTERFACE (dev item 12)
 //
 // Design contract ("strategy fixed, model swappable"):
 //   • The FIXED STRATEGY lives in agents.ts — retry policy, JSON
 //     repair, usage accounting, prompt versioning, evidence
 //     budgets. It never changes per provider.
 //   • The SWAPPABLE MODEL is any class implementing LlmProvider:
-//       glm      — GLM via z-ai-web-dev-sdk (default; provided by Z.ai)
+//       glm      — GLM via z-ai-web-dev-sdk (default provider)
 //       model-b  — any OpenAI-compatible endpoint (env-configured)
 //       local    — a local OpenAI-compatible server e.g. Ollama
 //
@@ -34,11 +34,11 @@ export interface LlmProvider {
   complete(messages: ChatMessage[]): Promise<string>;
 }
 
-// ── GLM (default — provided by Z.ai) ─────────────────────────
+// ── GLM (default provider) ─────────────────────────────────
 
 class GlmProvider implements LlmProvider {
   readonly id: ProviderId = "glm";
-  readonly model = "GLM (Z.ai)";
+  readonly model = "GLM (default)";
 
   async complete(messages: ChatMessage[]): Promise<string> {
     const { default: ZAI } = await import("z-ai-web-dev-sdk");
@@ -94,7 +94,7 @@ export const PROVIDER_META: Record<
   glm: {
     label: "GLM",
     labelAr: "GLM",
-    note: "Provided by Z.ai — default production model",
+    note: "Default production model",
     envKeys: [],
   },
   "model-b": {
@@ -141,7 +141,7 @@ function isConfigured(id: ProviderId): boolean {
 export function describeProvider(id: ProviderId): { id: ProviderId; label: string; model: string } {
   switch (id) {
     case "glm":
-      return { id, label: "GLM", model: "GLM (Z.ai)" };
+      return { id, label: "GLM", model: "GLM (default)" };
     case "model-b":
       return {
         id,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 /**
- * Creates a ready-to-run demo project that showcases RequirementPilot's
+ * Creates a ready-to-run demo project that showcases Modrik's
  * multilingual grounding (Egyptian Arabic + code-switching, novelty N7).
  * Idempotent: returns the existing demo project if one is present.
  */

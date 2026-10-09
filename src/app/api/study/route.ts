@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 // Dev item 14 — three-group between-subjects user study.
-//   A_traditional        — docs + spreadsheet RE toolkit
-//   B_unconstrained_llm  — free-form LLM chat
-//   C_requirementpilot   — this platform
+//   A_traditional   — docs + spreadsheet RE toolkit
+//   B_unconstrained_llm — free-form LLM chat
+//   C_modrik        — this platform
 // Anonymised by design (participantCode only, PDPL-aligned).
 
-const GROUPS = ["A_traditional", "B_unconstrained_llm", "C_requirementpilot"];
+const GROUPS = ["A_traditional", "B_unconstrained_llm", "C_modrik"];
 
 // POST { groupId, participantCode, scenarioId, projectId? } → open a session
 export async function POST(req: NextRequest) {
@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="requirementpilot_study_export.csv"',
+      "Content-Disposition": 'attachment; filename="modrik_study_export.csv"',
     },
   });
 }

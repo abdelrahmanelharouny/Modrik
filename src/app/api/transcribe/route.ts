@@ -3,7 +3,7 @@ import ZAI from "z-ai-web-dev-sdk";
 
 // I5 multimodal intake — voice notes: in-browser audio capture
 // arrives as base64 (MediaRecorder webm/wav); the GLM ASR service
-// provided by Z.ai returns a transcript that flows into evidence.
+// returns a transcript that flows into evidence.
 //
 // Audit hardening: the live audit caught Arabic voice notes being
 // transcribed into an unrelated script (Hangul). The route now accepts an

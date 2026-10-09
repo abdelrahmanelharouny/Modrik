@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — REQUIREMENT GRAPH (dev item 9)
+// Modrik (مدرك) — REQUIREMENT GRAPH (dev item 9)
 //
 // Typed edges:  depends_on · conflicts_with · derived_from ·
 //               refines · validates · affected_by
@@ -39,7 +39,7 @@ export const EDGE_LABEL: Record<EdgeKind, string> = {
 };
 
 const SYSTEM =
-  "You are the Graph Agent inside RequirementPilot, an evidence-based requirements engineering " +
+  "You are the Graph Agent inside Modrik (مدرك), an evidence-based requirements engineering " +
   "assistant. You are precise and conservative. Reply with VALID JSON ONLY — no markdown fences, " +
   "no commentary.";
 

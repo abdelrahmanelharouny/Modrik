@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { STAGES, type Stage } from "@/lib/rp";
-import { FLIGHT_PLAN, FEATURE_ATLAS, IDENTITY, INTEGRATIONS, LLM_DISCLOSURE, STATUS_CHIP, TELEMETRY_LABELS } from "@/lib/registry";
+import { FLIGHT_PLAN, FEATURE_ATLAS, IDENTITY, INTEGRATIONS, STATUS_CHIP, TELEMETRY_LABELS } from "@/lib/registry";
 import { useLang } from "@/lib/i18n";
 import { HudPanel, Eyebrow, CountUp, Chip, RadarSweep, Reveal, LiveDot, SectionHead, type Tone } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
@@ -182,7 +182,7 @@ export function MissionControl({
               <span className="absolute inset-0 animate-pulse-ring rounded-lg border border-aura/30" />
             </span>
             <div className="min-w-0">
-              <div className="truncate font-display text-sm font-bold leading-tight tracking-tight">{IDENTITY.name}</div>
+              <div className="truncate font-display text-sm font-bold leading-tight tracking-tight">{ar ? IDENTITY.nameAr : IDENTITY.name}</div>
               <Eyebrow className="leading-tight">{IDENTITY.codename}</Eyebrow>
             </div>
           </div>
@@ -193,7 +193,7 @@ export function MissionControl({
           </nav>
           <div className="flex items-center gap-2">
             <Chip tone="plasma" className="hidden sm:inline-flex">
-              <LiveDot tone="plasma" /> {LLM_DISCLOSURE.line}
+              <LiveDot tone="plasma" /> {ar ? "بوابة بشرية في كل مرحلة" : "human-gated · evidence-driven"}
             </Chip>
             <Button variant="outline" size="sm" onClick={toggle} aria-label="Toggle language">
               <Languages className="h-4 w-4" />
@@ -269,7 +269,7 @@ export function MissionControl({
               </Button>
             </div>
             <p className="mt-5 font-mono text-[11px] text-muted-foreground/70">
-              {ar ? LLM_DISCLOSURE.lineAr : LLM_DISCLOSURE.line} · {ar ? "التسجيل الصوتي والنص بالعربية مدعومان" : "Voice notes & Arabic text supported"}
+              {ar ? "التسجيل الصوتي والنص بالعربية مدعومان · كل قرار قرار بشري" : "Voice notes & Arabic text supported · every decision is a human decision"}
             </p>
           </Reveal>
 
@@ -557,10 +557,10 @@ export function MissionControl({
       <footer className="mt-auto border-t border-border/70 bg-card/60">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 font-mono text-[11px] text-muted-foreground lg:px-8">
           <span>
-            {IDENTITY.name} · {IDENTITY.codename} — {ar ? IDENTITY.subTaglineAr : IDENTITY.subTagline}
+            {ar ? IDENTITY.nameAr : IDENTITY.name} · {IDENTITY.codename} — {ar ? IDENTITY.subTaglineAr : IDENTITY.subTagline}
           </span>
           <span className="flex items-center gap-1.5">
-            <LiveDot tone="plasma" /> {ar ? LLM_DISCLOSURE.lineAr : LLM_DISCLOSURE.line}
+            <LiveDot tone="plasma" /> {ar ? "قائم على الأدلة · بشري في الحلقة" : "evidence-driven · human-in-the-loop"}
           </span>
         </div>
       </footer>

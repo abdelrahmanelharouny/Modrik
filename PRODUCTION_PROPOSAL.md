@@ -1,7 +1,7 @@
-# RequirementPilot — Production-Stage Proposal
-**Companion to FEATURES_STATUS.md · 2026-10-09 · LLM: GLM provided by Z.ai**
+# Modrik (مدرك) — Production-Stage Proposal
+**Companion to FEATURES_STATUS.md · 2026-10-10 · LLM: GLM (default, swappable)**
 
-This document proposes what it takes to move RequirementPilot from a research-grade,
+This document proposes what it takes to move Modrik from a research-grade,
 single-deployment platform to a production offering that stands alone in the market —
 while protecting the two non-negotiables: the core (evidence-grounded, human-in-the-loop
 agentic RE) and full dynamicity (registry-driven UI, zero hardcoded numbers).
@@ -11,7 +11,7 @@ agentic RE) and full dynamicity (registry-driven UI, zero hardcoded numbers).
 ## 1 · Positioning — why this is a category, not a feature
 
 Traditional RE suites (Jira requirements plugins, DOORS, Polarion) digitise documents;
-LLM chat produces plausible text with no accountability. RequirementPilot occupies the
+LLM chat produces plausible text with no accountability. Modrik occupies the
 empty middle: **agentic elicitation with receipts** — every statement grounded in cited
 evidence, every unknown either asked or carried as a visible assumption, every decision
 journaled. The moat is the combination of four machines that competitors would each have

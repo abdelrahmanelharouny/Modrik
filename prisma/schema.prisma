@@ -8,7 +8,7 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — evidence-based, human-in-the-loop
+// Modrik (مدرك) — evidence-based, human-in-the-loop
 // agentic requirements engineering platform (MVP)
 // ─────────────────────────────────────────────────────────────
 
@@ -42,9 +42,9 @@ model Project {
 // Three-group between-subjects user study (dev item 14)
 model StudySession {
   id             String   @id @default(cuid())
-  projectId      String?  // group C sessions bind to a RequirementPilot project
+  projectId      String?  // group C sessions bind to a Modrik project
   project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  groupId        String   // A_traditional | B_unconstrained_llm | C_requirementpilot
+  groupId        String   // A_traditional | B_unconstrained_llm | C_modrik
   participantCode String  // anonymised participant code (PDPL: no names)
   scenarioId     String   // bench scenario id used as the task
   taskTimeSec    Int?

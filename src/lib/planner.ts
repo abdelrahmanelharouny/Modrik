@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — IMPACT-AWARE QUESTION PLANNER (dev item 7)
+// Modrik (مدرك) — IMPACT-AWARE QUESTION PLANNER (dev item 7)
 // The research heart of the platform.
 //
 //   Utility = (InformationGain × DownstreamImpact × Uncertainty × Risk)
@@ -116,7 +116,7 @@ async function callLLMJson<T>(systemBase: string, userPrompt: string, usage: Usa
 }
 
 const SYSTEM =
-  "You are the Question Planner inside RequirementPilot, an evidence-based, human-in-the-loop " +
+  "You are the Question Planner inside Modrik (مدرك), an evidence-based, human-in-the-loop " +
   "requirements engineering assistant. You are precise and ground every question in the provided " +
   "evidence. Reply with VALID JSON ONLY — no markdown fences, no commentary.";
 

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// RequirementPilot — agent stage runners (server-side only)
+// Modrik (مدرك) — agent stage runners (server-side only)
 // Expansion build:
 //   I1  ask-vs-proceed signals (askCost + fallbackAssumption)
 //   I2  confidence values per requirement (calibration input)
@@ -24,7 +24,7 @@ export const PROMPT_VERSION = "v2.1-audit";
 // ---------- LLM plumbing ----------
 
 const SYSTEM_BASE =
-  "You are part of RequirementPilot, an evidence-based, human-in-the-loop " +
+  "You are part of Modrik (مدرك), an evidence-based, human-in-the-loop " +
   "requirements engineering assistant. You are precise, conservative and " +
   "ground every statement in the provided evidence. Reply with VALID JSON ONLY — " +
   "no markdown fences, no commentary before or after the JSON.";

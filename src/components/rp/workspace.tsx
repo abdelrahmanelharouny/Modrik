@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { STAGES, type ProjectDTO, type Stage } from "@/lib/rp";
-import { FLIGHT_PLAN, LLM_DISCLOSURE, STATUS_CHIP } from "@/lib/registry";
+import { FLIGHT_PLAN, STATUS_CHIP } from "@/lib/registry";
 import { useLang } from "@/lib/i18n";
 import { HudPanel, Eyebrow, Chip, LiveDot, type Tone } from "@/components/rp/hud";
 import { FlightPath } from "@/components/rp/flightpath";
@@ -239,7 +239,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
         </AnimatePresence>
 
         <p className="mt-8 pb-4 text-center font-mono text-[10px] text-muted-foreground/60">
-          {ar ? LLM_DISCLOSURE.lineAr : LLM_DISCLOSURE.line} · {ar ? "كل قرار مسجّل في سجل التدقيق" : "every decision journaled"}
+          {ar ? "كل قرار مسجّل في سجل التدقيق" : "every decision journaled"}
         </p>
       </div>
     </div>

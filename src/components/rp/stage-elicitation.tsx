@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 // PHASE 01 · BRIEFING — Evidence intake + interrogation cockpit.
 // New in this build: voice-note capture (MediaRecorder → WAV →
-// ASR via GLM/Z.ai) and the full uncertainty-gated question flow
+// GLM ASR) and the full uncertainty-gated question flow
 // (answer / proceed with recorded assumption / reopen).
 // ─────────────────────────────────────────────────────────────
 
