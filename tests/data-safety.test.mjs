@@ -13,6 +13,7 @@ import {
   selectDistinctPoolIndices,
   clampSignalScore,
   deduplicateQuestions,
+  pickSeededIndices,
 } from "../src/lib/planner/selection.mjs";
 
 test("only explicitly consented, non-synthetic evidence enters AI context", () => {
@@ -101,4 +102,12 @@ test("evidence prompt allocation never exceeds the aggregate character budget", 
   assert.equal(evidenceContentBudget(0), 0);
   assert.equal(evidenceContentBudget(5), 3200);
   assert.equal(evidenceContentBudget(20), 800);
+});
+
+test("random planner arm is reproducible from an experiment seed", () => {
+  const first = pickSeededIndices(12, 5, "study-2026-round-1");
+  assert.deepEqual(first, pickSeededIndices(12, 5, "study-2026-round-1"));
+  assert.notDeepEqual(first, pickSeededIndices(12, 5, "study-2026-round-2"));
+  assert.equal(new Set(first).size, 5);
+  assert.ok(first.every((index) => index >= 0 && index < 12));
 });
