@@ -1,0 +1,57 @@
+{
+  "formatVersion": 1,
+  "scope": "repository-schema-only",
+  "status": "inventory-only-not-a-deployed-database-baseline",
+  "generatedFrom": "prisma/schema.prisma",
+  "migrationBaseline": null,
+  "providers": {
+    "sqlite": {
+      "provider": "sqlite",
+      "schemaPath": "prisma/schema.prisma",
+      "sha256": "ea1a182835e5913debb250951dd9d9e52891c3166758fc6be6024a79acb68e63"
+    },
+    "postgresql": {
+      "provider": "postgresql",
+      "schemaPath": "prisma/schema.postgres.prisma",
+      "sha256": "43998dc4cfd4f0bb29be9d11321852a52df97a849e760b44d067eee836120af9"
+    }
+  },
+  "models": [
+    "User",
+    "Organization",
+    "Membership",
+    "AuthSession",
+    "Project",
+    "StudySession",
+    "StudyEvent",
+    "DecisionEntry",
+    "MemoryEntry",
+    "Evidence",
+    "EvidenceRevision",
+    "EvidenceClaim",
+    "RequirementClaim",
+    "KnowledgeNode",
+    "KnowledgeEdge",
+    "KnowledgeNodeClaim",
+    "KnowledgeRequirement",
+    "StakeholderProfile",
+    "StakeholderPosition",
+    "StakeholderPositionEvidence",
+    "NegotiationDecision",
+    "NegotiationParticipant",
+    "Question",
+    "PlannerRun",
+    "ProblemCandidate",
+    "Artifact",
+    "PipelineRun",
+    "Requirement",
+    "RequirementQualityAssessment",
+    "TraceLink",
+    "UserStory",
+    "Conflict",
+    "ReqEdge",
+    "ExecScenario",
+    "Integration",
+    "SyncMap"
+  ]
+}
