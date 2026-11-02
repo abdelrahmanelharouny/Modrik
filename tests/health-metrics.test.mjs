@@ -13,15 +13,15 @@ test("health marks dimensions not assessed instead of reporting misleading zero 
 test("ambiguity score uses assessed requirements only and reports coverage", () => {
   const result = computeHealthScores({
     requirements: [
-      { ambiguity: 60, verifyStatus: "supported", links: [{ id: "l1" }] },
-      { ambiguity: -1, verifyStatus: "supported", links: [{ id: "l2" }] },
+      { ambiguity: 60, verifyStatus: "supported", links: [{ id: "l1", evidenceId: "ev1" }] },
+      { ambiguity: -1, verifyStatus: "supported", links: [{ id: "l2", evidenceId: null }] },
       { ambiguity: 40, verifyStatus: "weak", links: [] },
     ],
   });
   assert.equal(result.ambiguity.score, 50);
   assert.equal(result.ambiguity.coverage, 67);
   assert.equal(result.counts.assessedAmbiguity, 2);
-  assert.equal(result.traceability.score, 33);
+  assert.equal(result.traceability.score, 67);
 });
 
 test("uncertainty excludes pending and synthetic-only answers from the denominator", () => {
@@ -58,4 +58,15 @@ test("executability is not assessed before scenarios exist", () => {
     { resolution: "undefined" },
   ] });
   assert.equal(result.executability.score, 50);
+});
+
+test("legacy code-only and deleted-evidence trace links do not count as grounded", () => {
+  const result = computeHealthScores({
+    requirements: [
+      { verifyStatus: "supported", links: [{ id: "legacy", evidenceCode: "EV-01", evidenceId: null }] },
+      { verifyStatus: "supported", links: [{ id: "active", evidenceCode: "EV-02", evidenceId: "evidence-2" }] },
+    ],
+  });
+  assert.equal(result.traceability.score, 50);
+  assert.equal(result.counts.untraced, 1);
 });
