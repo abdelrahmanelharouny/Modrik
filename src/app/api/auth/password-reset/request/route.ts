@@ -55,6 +55,9 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-real-ip")?.trim() || req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "unknown";
   const ipLimit = await consumeRateLimit({ scope: "password-reset:request:ip", identifier: ip, limit: 10, windowMs: 15 * 60 * 1000 });
   const accountLimit = await consumeRateLimit({ scope: "password-reset:request:account", identifier: email, limit: 3, windowMs: 60 * 60 * 1000 });
+  if (ipLimit.backend === "unavailable" || accountLimit.backend === "unavailable") {
+    return NextResponse.json({ error: "Shared recovery protection is unavailable" }, { status: 503, headers: noStore });
+  }
   if (!ipLimit.allowed || !accountLimit.allowed) return genericResponse();
 
   const now = Date.now();
