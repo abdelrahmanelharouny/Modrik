@@ -64,11 +64,11 @@ export function EvidenceRevisionPanel({
             <span className="font-mono text-[10px] text-muted-foreground">current v{evidence.revisions?.[0]?.version ?? 1}</span>
           </div>
           <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} aria-label="Evidence title" />
-          <Textarea value={content} onChange={(event) => setContent(event.target.value)} rows={6} maxLength={8000} dir="auto" aria-label="Evidence content" />
+          <Textarea value={content} onChange={(event) => { const next = event.target.value; setContent(next); if (next !== evidence.content) setConsent(false); }} rows={6} maxLength={8000} dir="auto" aria-label="Evidence content" />
           <Input value={changeNote} onChange={(event) => setChangeNote(event.target.value)} maxLength={500} placeholder="Why is this source changing? (optional)" aria-label="Revision note" />
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-            Permission is recorded to process this revision with the configured AI provider
+            I explicitly confirm permission to process this revision with the configured AI provider
           </label>
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={busy}><X className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
