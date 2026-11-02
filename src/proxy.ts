@@ -17,6 +17,17 @@ function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
 }
 
+function applySecurityHeaders(response: NextResponse) {
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  return response;
+}
+
 function projectPermission(pathname: string, method: string, body?: unknown): string {
   const parts = pathname.slice("/api/projects/".length).split("/");
   const route = parts.slice(1).join("/");
@@ -64,7 +75,7 @@ export async function proxy(request: NextRequest) {
     pathname === "/sitemap.xml" ||
     OPEN_PATHS.has(pathname)
   ) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
   if (isApiPath(pathname) && isPublicApiRequest(pathname, request.method)) {
@@ -73,12 +84,12 @@ export async function proxy(request: NextRequest) {
 
   if (!isSessionSigningConfigured()) {
     if (isApiPath(pathname)) {
-      return NextResponse.json(
+      return applySecurityHeaders(NextResponse.json(
         { error: "Modrik authentication is not configured. See SECURITY.md.", code: "AUTH_NOT_CONFIGURED" },
         { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } }
-      );
+      ));
     }
-    return NextResponse.redirect(new URL("/login?setup=required", request.url));
+    return applySecurityHeaders(NextResponse.redirect(new URL("/login?setup=required", request.url)));
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -89,14 +100,14 @@ export async function proxy(request: NextRequest) {
 
   if (!legacyOwner && !identity) {
     if (isApiPath(pathname)) {
-      return NextResponse.json(
+      return applySecurityHeaders(NextResponse.json(
         { error: "Authentication required", code: "AUTH_REQUIRED" },
         { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } }
-      );
+      ));
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   const forwardedHeaders = new Headers(request.headers);
@@ -113,7 +124,7 @@ export async function proxy(request: NextRequest) {
     if (pathname.startsWith("/api/projects/")) {
       const projectId = decodeURIComponent(pathname.slice("/api/projects/".length).split("/")[0] ?? "");
       if (!projectId) {
-        return NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } });
+        return applySecurityHeaders(NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } }));
       }
       const project = await db.project.findUnique({
         where: { id: projectId },
@@ -141,7 +152,7 @@ export async function proxy(request: NextRequest) {
         userStatus: membership.user.status,
         organizationStatus: membership.organization.status,
       }, permission)) {
-        return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
+        return applySecurityHeaders(NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }));
       }
     } else if (pathname === "/api/projects") {
       const permission = request.method === "GET" ? "projects:read" : "projects:create";
@@ -165,10 +176,10 @@ export async function proxy(request: NextRequest) {
     } else {
       const guardedPermission = resolveOrganizationRoutePermission(pathname, request.method);
       if (!guardedPermission) {
-        return NextResponse.json(
+        return applySecurityHeaders(NextResponse.json(
           { error: "API route has no organization permission policy", code: "API_ROUTE_NOT_CLASSIFIED" },
           { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
-        );
+        ));
       }
       const membership = await db.membership.findUnique({
         where: { id: identity.membershipId },
@@ -200,14 +211,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const response = NextResponse.next({ request: { headers: forwardedHeaders } });
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
-  if (process.env.NODE_ENV === "production") {
-    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-  }
-  return response;
+  return applySecurityHeaders(response);
 }
 
 export const config = {
