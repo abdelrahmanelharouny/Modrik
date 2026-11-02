@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 import {
-  CLAIM_NODE_RELATIONSHIPS, KNOWLEDGE_EDGE_STATUSES, KNOWLEDGE_NODE_STATUSES,
+  CLAIM_NODE_RELATIONSHIPS, KNOWLEDGE_EDGE_STATUSES,
   NODE_REQUIREMENT_ROLES, normalizeEdgeInput, normalizeNodeInput, parseNodeAttributes,
   validateNodeStatus,
 } from "@/lib/knowledge-graph/validation.mjs";
@@ -20,6 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       where: { projectId: id },
       orderBy: [{ kind: "asc" }, { label: "asc" }],
       include: {
+        _count: { select: { outgoing: true } },
         claims: { include: { claim: { select: { id: true, claimRef: true, claimText: true, status: true, quote: true } } } },
         requirements: { include: { requirement: { select: { id: true, refId: true, text: true, status: true } } } },
       },
