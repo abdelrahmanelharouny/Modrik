@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────
 import ZAI from "z-ai-web-dev-sdk"; // retained for direct SDK consumers; agent calls flow through providers.ts
 import { db } from "@/lib/db";
+import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, hasHumanCandidateEdits } from "@/lib/security/data-safety.mjs";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import type { Stage } from "@/lib/rp";
@@ -183,20 +184,25 @@ async function recordUsage(runId: string | undefined, u: UsageAcc) {
 
 // ---------- context builders (G4 state re-injection) ----------
 
-function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string }[]): string {
-  if (!evidences.length) return "(no evidence sources provided yet)";
+function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string; consent?: boolean; origin?: string }[]): string {
+  const eligible = filterEvidenceForAI(evidences);
+  if (!eligible.length) {
+    return evidences.length
+      ? "(evidence sources are stored, but none has explicit permission for AI processing; no source content is sent to the model)"
+      : "(no evidence sources provided yet)";
+  }
   // Audit fix: a hard 1200-char per-evidence window was silently blinding
   // every agent to everything beyond it (confirmed by the truncation probe).
   // Budget: up to 4000 chars per evidence, 16000 chars total; when the total
   // overflows, shrink the per-evidence window fairly but never below 1200.
   const TOTAL_BUDGET = 16000;
   const PER_MAX = 4000;
-  const total = evidences.reduce((s, e) => s + e.content.length, 0);
+  const total = eligible.reduce((s, e) => s + e.content.length, 0);
   let per = PER_MAX;
   if (total > TOTAL_BUDGET) {
-    per = Math.max(1200, Math.floor(TOTAL_BUDGET / evidences.length));
+    per = Math.max(1200, Math.floor(TOTAL_BUDGET / eligible.length));
   }
-  return evidences
+  return eligible
     .map((e) => {
       const body =
         e.content.length > per
@@ -211,9 +217,9 @@ function briefBlock(brief: string): string {
   return brief?.trim() ? brief : "(empty brief)";
 }
 
-async function memoryBlock(): Promise<string> {
+async function memoryBlock(projectId: string): Promise<string> {
   const lessons = await db.memoryEntry.findMany({
-    where: { kind: "lesson" },
+    where: { projectId, kind: "lesson" },
     orderBy: { createdAt: "desc" },
     take: 6,
   });
@@ -246,9 +252,16 @@ export async function runElicitation(projectId: string, runId?: string): Promise
     where: { id: projectId },
     include: { evidences: true },
   });
+  const existingQuestions = await db.question.findMany({
+    where: { projectId },
+    select: { answered: true, answer: true, answerSource: true, resolution: true },
+  });
+  if (hasHumanQuestionDecision(existingQuestions)) {
+    throw new Error("Refusing to regenerate elicitation: human answers or uncertainty decisions already exist.");
+  }
   const usage = newUsage();
 
-  const memory = await memoryBlock();
+  const memory = await memoryBlock(projectId);
 
   const prompt = `PROJECT BRIEF:
 ${briefBlock(project.brief)}
@@ -302,10 +315,17 @@ export async function runProblemSelection(projectId: string, runId?: string): Pr
     where: { id: projectId },
     include: { evidences: true, questions: true },
   });
+  const existingCandidates = await db.problemCandidate.findMany({
+    where: { projectId },
+    select: { selected: true, impact: true, effort: true },
+  });
+  if (hasHumanCandidateEdits(existingCandidates)) {
+    throw new Error("Refusing to regenerate problem candidates: a candidate has been selected or manually scored.");
+  }
   const usage = newUsage();
 
   const answers = project.questions
-    .filter((q) => q.answered && q.answer)
+    .filter(isHumanStakeholderAnswer)
     .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
     .join("\n\n");
 
@@ -367,15 +387,27 @@ export async function runExtraction(projectId: string, runId?: string): Promise<
     where: { id: projectId },
     include: { evidences: true, questions: true, candidates: true },
   });
+  const [existingRequirements, storiesCount, conflictsCount, edgesCount, scenariosCount, syncMapsCount] = await Promise.all([
+    db.requirement.findMany({ where: { projectId }, select: { status: true } }),
+    db.userStory.count({ where: { projectId } }),
+    db.conflict.count({ where: { projectId } }),
+    db.reqEdge.count({ where: { projectId } }),
+    db.execScenario.count({ where: { projectId } }),
+    db.syncMap.count({ where: { projectId } }),
+  ]);
+  if (existingRequirements.some((r) => r.status !== "draft") ||
+      storiesCount + conflictsCount + edgesCount + scenariosCount + syncMapsCount > 0) {
+    throw new Error("Refusing to replace requirements: reviewed requirements or dependent stories, conflicts, graph edges, scenarios or sync records already exist.");
+  }
   const usage = newUsage();
 
   const answers = project.questions
-    .filter((q) => q.answered && q.answer)
+    .filter(isHumanStakeholderAnswer)
     .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
     .join("\n\n");
 
   const selected = project.candidates.find((c) => c.selected);
-  const evidences = project.evidences;
+  const evidences = filterEvidenceForAI(project.evidences);
   const codeToId = new Map(evidences.map((e) => [e.code, e.id]));
 
   const prompt = `PROJECT BRIEF:
@@ -400,7 +432,7 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
   // replace previous extraction
   await db.requirement.deleteMany({ where: { projectId } });
   let i = 0;
-  const refIndex: { refId: string; id: string; text: string }[] = [];
+  const refIndex: { refId: string; id: string; text: string; evidenceCodes: string[] }[] = [];
   for (const r of rs) {
     i += 1;
     const refId = `REQ-${String(i).padStart(2, "0")}`;
@@ -419,12 +451,14 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
         type,
         priority,
         language: ["en", "ar-EG", "codeswitch"].includes(r.language) ? r.language : "en",
-        confidence: Math.min(100, Math.max(0, Math.round(Number(r.confidence) || 60))),
+        confidence: Number.isFinite(Number(r.confidence))
+          ? Math.min(100, Math.max(0, Math.round(Number(r.confidence))))
+          : 60,
         ambiguity: -1,
         order: i,
       },
     });
-    refIndex.push({ refId, id: created.id, text: created.text });
+    refIndex.push({ refId, id: created.id, text: created.text, evidenceCodes: codes });
     if (codes.length === 0) {
       // Audit fix: an ungrounded requirement used to slip through silently.
       // Force it into the critic's "weak" lane so the human must ground or delete it.
@@ -438,7 +472,7 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
     }
     for (const c of codes) {
       await db.traceLink.create({
-        data: { projectId, requirementId: created.id, evidenceCode: c, note: "cited by extraction agent" },
+        data: { projectId, requirementId: created.id, evidenceId: codeToId.get(c), evidenceCode: c, note: "cited by extraction agent" },
       });
     }
   }
@@ -446,29 +480,32 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
   // ── I3 critic-verifier pass: second model call checks each
   //    requirement against the evidence spans (Propose → Verify).
   try {
-    const verifyPrompt = `You are the VERIFIER in a propose-verify requirements pipeline. Below are candidate requirements and the evidence sources they claim to be grounded in. For each requirement, judge strictly whether the evidence actually supports it:
-- "supported": the evidence explicitly states or clearly implies it.
-- "weak": the evidence only partially supports it, is stretched, or the requirement adds an assumption not in the evidence.
+    const verifiable = refIndex.filter((r) => r.evidenceCodes.length > 0);
+    if (verifiable.length) {
+      const verifierCases = verifiable.map((r) => {
+        const cited = evidences.filter((e) => r.evidenceCodes.includes(e.code));
+        return `CANDIDATE ${r.refId}: ${r.text}\nITS CITED EVIDENCE ONLY:\n${evidenceBlock(cited)}`;
+      });
+      const verifyPrompt = `You are the VERIFIER in a propose-verify requirements pipeline.
+Each candidate is paired ONLY with the evidence sources it explicitly cited. Do not use another candidate's evidence or unrelated project context.
+For each candidate, mark "supported" only when its own cited evidence directly states or clearly entails the requirement. Otherwise mark "weak".
 
-EVIDENCE SOURCES:
-${evidenceBlock(evidences)}
-
-CANDIDATE REQUIREMENTS:
-${refIndex.map((r) => `${r.refId}: ${r.text}`).join("\n")}
+${verifierCases.join("\n\n---\n\n")}
 
 Return JSON: {"verdicts": [{"refId": "REQ-01", "verdict": "supported|weak", "note": "one-line justification"}]}`;
 
-    const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage);
-    for (const v of vOut.verdicts ?? []) {
-      const target = refIndex.find((r) => r.refId === v.refId);
-      if (!target) continue;
-      await db.requirement.update({
-        where: { id: target.id },
-        data: {
-          verifyStatus: v.verdict === "supported" ? "supported" : "weak",
-          verifyNote: String(v.note ?? "").slice(0, 400),
-        },
-      });
+      const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage);
+      for (const v of vOut.verdicts ?? []) {
+        const target = refIndex.find((r) => r.refId === v.refId);
+        if (!target || !target.evidenceCodes.length) continue;
+        await db.requirement.update({
+          where: { id: target.id },
+          data: {
+            verifyStatus: v.verdict === "supported" ? "supported" : "weak",
+            verifyNote: String(v.note ?? "").slice(0, 400),
+          },
+        });
+      }
     }
   } catch {
     // verifier is best-effort; requirements stay "unverified" on failure
@@ -554,6 +591,14 @@ TASK: Write one user story per requirement (skip "Won't" priorities). Narrative 
 
 Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative": "As a...", "acceptance": ["Given ... when ... then ..."], "investScore": 78, "investNote": "..."}]}`;
 
+  const [existingStories, existingSyncMaps] = await Promise.all([
+    db.userStory.findMany({ where: { projectId }, select: { status: true } }),
+    db.syncMap.count({ where: { projectId } }),
+  ]);
+  if (existingStories.some((story) => story.status !== "draft") || existingSyncMaps > 0) {
+    throw new Error("Refusing to regenerate stories: reviewed or externally synchronized stories already exist.");
+  }
+
   const out = await callLLMJson<{ stories: AgentStory[] }>(prompt, usage);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
@@ -621,6 +666,11 @@ CLASSIFY each finding along the conflict taxonomy (dev item 10):
 For each finding, lay out the IMPLICATIONS of each resolution direction — what becomes true, what becomes impossible, what costs or scope shifts follow — WITHOUT recommending one. The human arbitrates; the system never decides (implications-only negotiation contract).
 
 Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "contradiction", "taxonomy": "scale", "description": "...", "severity": "high", "suggestion": "...", "implications": [{"option": "Keep REQ-01 as written", "impact": "..."}, {"option": "Keep REQ-04 as written", "impact": "..."}, {"option": "Merge/re-scope", "impact": "..."}]}]}`;
+
+  const resolvedConflict = await db.conflict.findFirst({ where: { projectId, status: "resolved" }, select: { id: true } });
+  if (resolvedConflict) {
+    throw new Error("Refusing to regenerate conflicts: at least one conflict has a human resolution.");
+  }
 
   const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
@@ -695,6 +745,7 @@ Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
         answer: `[synthetic · wind tunnel] ${String(a.answer).slice(0, 1500)}`,
         answered: true,
         resolution: "answered",
+        answerSource: "synthetic",
       },
     });
     n += 1;
@@ -860,7 +911,7 @@ BRIEF: ${briefBlock(project.brief)}
 DOMAIN EVIDENCE: ${evidenceBlock(project.evidences).slice(0, 2000)}
 SELECTED PROBLEM: ${project.candidates.find((c) => c.selected)?.title ?? "(none)"}
 Q&A OUTCOMES:
-${project.questions.filter((q) => q.answer).map((q) => `- Q: ${q.text.slice(0, 100)} → A: ${(q.answer ?? "").slice(0, 100)}`).join("\n") || "(none)"}
+${project.questions.filter(isHumanStakeholderAnswer).map((q) => `- Q: ${q.text.slice(0, 100)} → A: ${(q.answer ?? "").slice(0, 100)}`).join("\n") || "(none)"}
 
 TASK: Extract (a) 3-5 domain GLOSSARY terms with crisp definitions, and (b) 2-4 reusable LESSONS — what a future analyst should do differently on a similar project (question-outcome lessons, elicitation tactics, domain pitfalls). Lessons must be general enough to carry across projects.
 
@@ -880,7 +931,7 @@ Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"
     for (const l of (out.lessons ?? []).slice(0, 4)) {
       if (!l.term) continue;
       await db.memoryEntry.create({
-        data: { projectId: null, kind: "lesson", term: String(l.term).slice(0, 120), detail: String(l.detail ?? "").slice(0, 400) },
+        data: { projectId, kind: "lesson", term: String(l.term).slice(0, 120), detail: String(l.detail ?? "").slice(0, 400) },
       });
     }
   } catch {
