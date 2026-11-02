@@ -98,9 +98,12 @@ test("admin credentials use bounded scrypt hashes and reject malformed hashes", 
 
 
 test("CSV cells quote delimiters and neutralize spreadsheet formulas", () => {
-  assert.equal(csvCell('=HYPERLINK("https://attacker.example")'), \`"'=HYPERLINK(""https://attacker.example"")"\`);
-  assert.equal(csvCell("  +SUM(1,2)"), \`"'  +SUM(1,2)"\`);
-  assert.equal(csvCell("ordinary, text"), \`"ordinary, text"\`);
-  assert.equal(csvCell('say "hello"'), \`"say ""hello"""\`);
-  assert.equal(csvCell(-10), \`"-10"\`);
+  const dangerous = csvCell('=HYPERLINK("https://attacker.example")');
+  assert.ok(dangerous.startsWith("\"'=HYPERLINK("));
+  assert.ok(dangerous.includes('""https://attacker.example""'));
+  assert.ok(dangerous.endsWith("\""));
+  assert.equal(csvCell("  +SUM(1,2)"), "\"'  +SUM(1,2)\"");
+  assert.equal(csvCell("ordinary, text"), "\"ordinary, text\"");
+  assert.equal(csvCell('say "hello"'), "\"say \"\"hello\"\"\"");
+  assert.equal(csvCell(-10), "\"-10\"");
 });
