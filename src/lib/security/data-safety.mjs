@@ -13,7 +13,10 @@ export function isHumanStakeholderAnswer(question) {
   const answer = typeof question.answer === "string" ? question.answer.trim() : "";
   if (!answer) return false;
   if (["synthetic", "assumption", "skipped"].includes(question.answerSource)) return false;
-  return !answer.startsWith(SYNTHETIC_ANSWER_PREFIX);
+  if (answer.startsWith(SYNTHETIC_ANSWER_PREFIX)) return false;
+  // Legacy releases stored skipped questions as answered=true with a text marker.
+  if (answer.toLowerCase().startsWith("(skipped by analyst)")) return false;
+  return true;
 }
 
 export function hasHumanQuestionDecision(questions) {
