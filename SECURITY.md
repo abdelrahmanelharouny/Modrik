@@ -41,6 +41,8 @@ New GitHub/Jira tokens are stored with AES-256-GCM authenticated encryption. Leg
 
 Jira URLs are restricted to official Atlassian Cloud tenant hosts or exact HTTPS origins explicitly allowlisted by the deployment operator. Redirects are disabled for Jira API calls to prevent an approved endpoint from redirecting credentials to another host. Do not add untrusted origins to the allowlist.
 
+Tracker push retries use a local per-item reservation plus a stable marker on the remote GitHub Issue/Jira issue, and search for that marker before creating a replacement. This provides best-effort duplicate recovery after common timeout or local-persistence failures; it is not a distributed exactly-once guarantee because external search indexing and issue creation are controlled by the tracker provider. Reconcile ambiguous failed pushes against the remote tracker before manually retrying them.
+
 ## Evidence processing consent and schema rollout
 
 The evidence consent checkbox is an explicit permission flag for sending that source's text to the configured AI provider. Unchecked sources remain in the private project library but are filtered out of planner, extraction, verification, and memory-generation prompts. A client-supplied `"false"` string is rejected; consent must be a real boolean. Synthetic Wind Tunnel answers are marked with their own provenance and never count as human stakeholder answers.
