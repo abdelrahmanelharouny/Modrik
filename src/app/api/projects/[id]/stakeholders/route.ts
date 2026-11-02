@@ -117,7 +117,17 @@ export async function POST(req: NextRequest, { params }: Params) {
       const count = stakeholderIds.length ? await db.stakeholderProfile.count({ where: { id: { in: stakeholderIds }, projectId: id, engagementStatus: "active" } }) : 0;
       if (count !== stakeholderIds.length) return NextResponse.json({ error: "Every participant must be an active stakeholder in this project." }, { status: 404 });
       const negotiation = await db.negotiationDecision.create({
-        data: { projectId: id, ...data, participants: { create: normalizedParticipants.map((p: any) => ({ projectId: id, ...p })) } },
+        data: {
+          projectId: id,
+          ...data,
+          participants: {
+            create: normalizedParticipants.map((p: any) => ({
+              role: p.role,
+              note: p.note,
+              stakeholder: { connect: { id_projectId: { id: p.stakeholderId, projectId: id } } },
+            })),
+          },
+        },
         include: { participants: true },
       });
       await logDecision(id, "CLEARANCE", "human", "created_multi_stakeholder_negotiation", `${requirement.refId}: ${negotiation.title}; ${normalizedParticipants.length} participants; no option selected by the system.`);
