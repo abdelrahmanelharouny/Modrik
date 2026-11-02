@@ -183,8 +183,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const participant = await db.negotiationParticipant.findFirst({ where: { id: body.participantId, decisionId: negotiation.id, projectId: id }, include: { stakeholder: { select: { stakeholderRef: true, displayName: true } } } });
     if (!participant) return NextResponse.json({ error: "Participant not found in this negotiation." }, { status: 404 });
     if (participant.responseStatus !== "pending") return NextResponse.json({ error: "This participant response is immutable once submitted." }, { status: 409 });
+    // Include the parent negotiation state in the conditional write. A response
+    // must never commit after an approval/rejection wins a concurrent race.
     const transition = await db.negotiationParticipant.updateMany({
-      where: { id: participant.id, decisionId: negotiation.id, projectId: id, responseStatus: "pending" },
+      where: {
+        id: participant.id,
+        decisionId: negotiation.id,
+        projectId: id,
+        responseStatus: "pending",
+        decision: { is: { status: "proposed" } },
+      },
       data: { responseStatus: response.responseStatus, responseOptionId: response.responseOptionId, responseRationale: response.rationale, respondedAt: new Date() },
     });
     if (transition.count !== 1) return NextResponse.json({ error: "Participant response was submitted concurrently. Refresh before continuing." }, { status: 409 });
