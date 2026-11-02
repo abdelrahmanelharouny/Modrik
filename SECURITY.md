@@ -95,11 +95,11 @@ The current bootstrap flow provisions the configured administrator. Invited-user
 
 ## Current boundary and next security phase
 
-This phase does not claim full legal compliance or multi-tenant isolation. The following remain required before serving multiple organizations:
+This phase does not claim full legal compliance or a completed penetration test. Organization-scoped authorization and application-level distributed rate limits are implemented, but production rollout still requires provider configuration and operational verification. The following remain required before serving multiple organizations:
 - distributed rate limiting and abuse controls beyond the current per-process login/recovery throttles;
 - Owner / Admin / Engineer / Reviewer / Approver / Viewer roles;
 - per-resource authorization in every route and background job;
-- MFA/SSO and a shared distributed rate-limit store;
+- MFA/SSO and centralized security event monitoring;
 - auditable retention, erasure, consent purpose and processing-provider policies;
 - automated penetration testing and security review.
 
