@@ -16,6 +16,34 @@ function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
 }
 
+function projectPermission(pathname: string, method: string): string {
+  const parts = pathname.slice("/api/projects/".length).split("/");
+  const route = parts.slice(1).join("/");
+  if (!route) {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "DELETE") return "projects:delete";
+    if (method === "PATCH" || method === "PUT") return "projects:update";
+    return "projects:update";
+  }
+  if (route === "integrations") {
+    return method === "GET" ? "projects:read" : "members:manage";
+  }
+  if (route === "stakeholders") {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "PATCH") return "requirements:approve";
+    return "requirements:write";
+  }
+  if (route === "claims" || route === "quality") {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "PATCH") return "requirements:review";
+    return "requirements:write";
+  }
+  if (route === "compliance" && method !== "GET") return "requirements:review";
+  if (route === "drift" && method === "DELETE") return "requirements:review";
+  if (method === "GET" || method === "HEAD") return "projects:read";
+  return "requirements:write";
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -84,13 +112,7 @@ export async function proxy(request: NextRequest) {
       if (!project || project.organizationId !== identity.organizationId) {
         return NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } });
       }
-      const permission = request.method === "GET" || request.method === "HEAD"
-        ? "projects:read"
-        : request.method === "DELETE"
-          ? "projects:delete"
-          : request.method === "PATCH" || request.method === "PUT"
-            ? "projects:update"
-            : "requirements:write";
+      const permission = projectPermission(pathname, request.method);
       const membership = await db.membership.findUnique({
         where: { id: identity.membershipId },
         select: {
