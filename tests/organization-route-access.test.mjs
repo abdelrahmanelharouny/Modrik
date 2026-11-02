@@ -28,7 +28,8 @@ function methodsIn(source) {
 test("every non-project API handler has an explicit organization permission or exact public exemption", () => {
   const unclassified = [];
   for (const file of collectRouteFiles(apiRoot)) {
-    const pathname = "/api" + file.split(path.sep).slice(0, -1).map((part) => part.replace(/^\[(.*)\]$/, ":$1")).join("/");
+    const routePath = file.split(path.sep).slice(0, -1).map((part) => part.replace(/^\[(.*)\]$/, ":$1")).join("/");
+    const pathname = routePath ? `/api/${routePath}` : "/api";
     if (pathname.startsWith("/api/projects/") || pathname === "/api/projects") continue;
     const source = fs.readFileSync(path.join(apiRoot, file), "utf8");
     const methods = methodsIn(source);
