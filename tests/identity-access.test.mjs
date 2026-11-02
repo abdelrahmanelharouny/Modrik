@@ -34,10 +34,10 @@ test("email normalization is deterministic and defensive", () => {
   assert.equal(normalizeEmail({}), "");
 });
 
-test("owner and admin can manage organization and members", () => {
+test("only owners control organization settings while admins manage members", () => {
   for (const role of ["owner", "admin"]) {
     assert.equal(hasOrganizationPermission(active(role), "members:manage"), true);
-    assert.equal(hasOrganizationPermission(active(role), "organization:manage"), true);
+    assert.equal(hasOrganizationPermission(active(role), "organization:manage"), role === "owner");
     assert.equal(hasOrganizationPermission(active(role), "projects:delete"), true);
   }
 });
