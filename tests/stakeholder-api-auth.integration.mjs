@@ -169,7 +169,7 @@ try {
     await page.getByRole("option", { name: "REQ-INT-1" }).click();
     await page.getByRole("textbox", { name: "Option A", exact: true }).fill("Keep the audit trail");
     await page.getByLabel("Implications of option A").fill("Higher retention cost; stronger traceability");
-    await page.getByLabel("Option B").fill("Reduce retention");
+    await page.getByRole("textbox", { name: "Option B", exact: true }).fill("Reduce retention");
     await page.getByLabel("Implications of option B").fill("Lower cost; weaker historical traceability");
     await page.getByLabel("Stakeholder A1").check();
     await page.getByLabel("Stakeholder A2").check();
