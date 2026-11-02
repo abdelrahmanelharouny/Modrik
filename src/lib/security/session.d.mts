@@ -10,6 +10,7 @@ export type VerifiedSession = {
   membershipId: string | null;
   type: "identity" | "legacy-owner";
 };
+export declare function isSessionSigningConfigured(env?: NodeJS.ProcessEnv): boolean;
 export declare function isAuthConfigured(env?: NodeJS.ProcessEnv): boolean;
 export declare function verifyPasswordHash(password: unknown, passwordHash: unknown): Promise<boolean>;
 export declare function verifyAdminCredentials(email: unknown, password: unknown, env?: NodeJS.ProcessEnv): Promise<boolean>;
