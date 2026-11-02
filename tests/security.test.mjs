@@ -8,6 +8,7 @@ import {
   createSessionToken,
   verifySessionToken,
   verifyAdminCredentials,
+  verifyAdminRequest,
   SESSION_TTL_SECONDS,
 } from "../src/lib/security/session.mjs";
 
@@ -106,4 +107,17 @@ test("CSV cells quote delimiters and neutralize spreadsheet formulas", () => {
   assert.equal(csvCell("ordinary, text"), "\"ordinary, text\"");
   assert.equal(csvCell('say "hello"'), "\"say \"\"hello\"\"\"");
   assert.equal(csvCell(-10), "\"-10\"");
+});
+
+test("API owner authorization rejects missing, expired, misconfigured and non-owner sessions",()=>{
+  const now=Date.now();
+  const env={MODRIK_ADMIN_EMAIL:"owner@example.com",MODRIK_ADMIN_PASSWORD_HASH:"configured",MODRIK_AUTH_SECRET:secret};
+  const token=createSessionToken("owner@example.com",secret,now);
+  assert.equal(verifyAdminRequest(token,env,now)?.role,"owner");
+  assert.equal(verifyAdminRequest(undefined,env,now),null);
+  assert.equal(verifyAdminRequest(token,{...env,MODRIK_ADMIN_EMAIL:"other@example.com"},now),null);
+  assert.equal(verifyAdminRequest(token,{...env,MODRIK_AUTH_SECRET:"short"},now),null);
+  assert.equal(verifyAdminRequest(token,env,now+(SESSION_TTL_SECONDS+1)*1000),null);
+  const other=createSessionToken("other@example.com",secret,now);
+  assert.equal(verifyAdminRequest(other,env,now),null);
 });
