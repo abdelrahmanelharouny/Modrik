@@ -152,11 +152,19 @@ export async function POST(req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const authError = await requireProjectPermission(req, "requirements:approve");
-  if (authError) return authError;
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!objectBody(body)) return bad(new Error("Payload must be an object."));
+  const actionPermission: Record<string, string> = {
+    update_stakeholder: "projects:update",
+    respond_negotiation: "requirements:write",
+    review_position: "requirements:review",
+    decide_negotiation: "requirements:approve",
+  };
+  const permission = actionPermission[String(body.action ?? "")];
+  if (!permission) return NextResponse.json({ error: "Unsupported collaboration action." }, { status: 400 });
+  const authError = await requireProjectPermission(req, permission);
+  if (authError) return authError;
   const project = await db.project.findUnique({ where: { id }, select: { id: true, stageStatus: true } });
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
   if (locked(project.stageStatus)) return NextResponse.json({ error: "Collaboration records are locked while the pipeline is processing." }, { status: 409 });
