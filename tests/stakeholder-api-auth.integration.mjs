@@ -278,6 +278,19 @@ try {
     email: viewerUser.email, userId: viewerUser.id, organizationId: tenantA.id,
     membershipId: viewerMembership.id, role: "viewer", sessionId: viewerSessionId,
   }, secret)}`;
+  const viewerInvitationList = await fetch(`${baseUrl}/api/invitations`, { headers: { cookie: viewerCookie } });
+  await expectStatus(viewerInvitationList, 403, "viewer cannot list organization invitations");
+  const viewerInvitationCreate = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: { cookie: viewerCookie, "content-type": "application/json" },
+    body: JSON.stringify({ email: `forbidden-${randomUUID()}@example.invalid`, role: "viewer" }),
+  });
+  await expectStatus(viewerInvitationCreate, 403, "viewer cannot create organization invitations");
+  const crossOriginInvitation = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: { ...tenantHeaders, origin: "https://attacker.example" },
+    body: JSON.stringify({ email: `csrf-${randomUUID()}@example.invalid`, role: "viewer" }),
+  });
+  await expectStatus(crossOriginInvitation, 403, "cross-origin invitation creation rejected");
+
   const viewerCreate = await fetch(`${baseUrl}/api/projects`, {
     method: "POST", headers: {
       cookie: viewerCookie,
