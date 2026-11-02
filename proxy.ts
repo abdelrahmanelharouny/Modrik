@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isPublicApiPath } from "@/lib/security/api-access.mjs";
 import {
   isAuthConfigured,
   SESSION_COOKIE,
   verifySessionToken,
 } from "@/lib/security/session.mjs";
 
-const OPEN_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/logout", "/study/participant", "/api/study/respond"]);
+const OPEN_PATHS = new Set(["/login", "/study/participant"]);
 
 function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
@@ -24,11 +25,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (isApiPath(pathname) && isPublicApiPath(pathname)) {
+    return NextResponse.next();
+  }
+
   if (!isAuthConfigured()) {
     if (isApiPath(pathname)) {
       return NextResponse.json(
-        { error: "Modrik authentication is not configured. See SECURITY.md." },
-        { status: 503 }
+        { error: "Modrik authentication is not configured. See SECURITY.md.", code: "AUTH_NOT_CONFIGURED" },
+        { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } }
       );
     }
     return NextResponse.redirect(new URL("/login?setup=required", request.url));
@@ -36,9 +41,13 @@ export function proxy(request: NextRequest) {
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = verifySessionToken(token, process.env.MODRIK_AUTH_SECRET);
-  if (!session) {
+  const configuredEmail = process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
+  if (!session || !configuredEmail || session.email !== configuredEmail) {
     if (isApiPath(pathname)) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required", code: "AUTH_REQUIRED" },
+        { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
