@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
-import { isAuthConfigured, SESSION_COOKIE, verifyAdminRequest } from "@/lib/security/session.mjs";
+import { isSessionSigningConfigured, SESSION_COOKIE, verifyAdminRequest } from "@/lib/security/session.mjs";
+import { resolveIdentitySession } from "@/lib/security/identity";
+import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
@@ -13,20 +15,31 @@ const locked = (status: string) => ["agent_running","approving"].includes(status
 const bad = (error: unknown) => NextResponse.json({ error: error instanceof Error ? error.message : "Invalid payload." }, { status: 400 });
 const objectBody = (body: unknown): body is Record<string, any> => Boolean(body && typeof body === "object" && !Array.isArray(body));
 
-function requireOwner(req: NextRequest) {
-  if (!isAuthConfigured()) {
-    return NextResponse.json({ error: "Authentication is not configured." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+async function requireProjectPermission(req: NextRequest, permission: string) {
+  if (!isSessionSigningConfigured()) {
+    return NextResponse.json({ error: "Authentication is not configured." }, { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
-  const session = verifyAdminRequest(req.cookies.get(SESSION_COOKIE)?.value);
-  if (!session) {
-    return NextResponse.json({ error: "A valid owner session is required." }, { status: 401, headers: { "Cache-Control": "no-store" } });
-  }
-  return null;
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  const identity = await resolveIdentitySession(token);
+  if (identity && hasOrganizationPermission({
+    organizationId: identity.organizationId,
+    role: identity.role,
+    status: "active",
+    userStatus: "active",
+    organizationStatus: "active",
+  }, permission)) return null;
+
+  const legacy = verifyAdminRequest(token);
+  if (legacy?.type === "legacy-owner") return null;
+  return NextResponse.json(
+    { error: "Insufficient organization permission", code: identity ? "FORBIDDEN" : "AUTH_REQUIRED" },
+    { status: identity ? 403 : 401, headers: { "Cache-Control": "no-store, max-age=0" } }
+  );
 }
 
 
 export async function GET(req: NextRequest, { params }: Params) {
-  const authError = requireOwner(req);
+  const authError = await requireProjectPermission(req, "projects:read");
   if (authError) return authError;
   const { id } = await params;
   const project = await db.project.findUnique({ where: { id }, select: { id: true } });
@@ -58,7 +71,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 function safeArray(value: string) { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
 
 export async function POST(req: NextRequest, { params }: Params) {
-  const authError = requireOwner(req);
+  const authError = await requireProjectPermission(req, "requirements:write");
   if (authError) return authError;
   const { id } = await params;
   const body = await req.json().catch(() => null);
@@ -139,11 +152,19 @@ export async function POST(req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const authError = requireOwner(req);
-  if (authError) return authError;
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!objectBody(body)) return bad(new Error("Payload must be an object."));
+  const actionPermission: Record<string, string> = {
+    update_stakeholder: "projects:update",
+    respond_negotiation: "requirements:write",
+    review_position: "requirements:review",
+    decide_negotiation: "requirements:approve",
+  };
+  const permission = actionPermission[String(body.action ?? "")];
+  if (!permission) return NextResponse.json({ error: "Unsupported collaboration action." }, { status: 400 });
+  const authError = await requireProjectPermission(req, permission);
+  if (authError) return authError;
   const project = await db.project.findUnique({ where: { id }, select: { id: true, stageStatus: true } });
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
   if (locked(project.stageStatus)) return NextResponse.json({ error: "Collaboration records are locked while the pipeline is processing." }, { status: 409 });

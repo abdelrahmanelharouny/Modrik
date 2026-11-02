@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { randomUUID } from "node:crypto";
+import { randomUUID, scryptSync } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
-import { createSessionToken, SESSION_COOKIE } from "../src/lib/security/session.mjs";
+import { createSessionToken, createIdentitySessionToken, SESSION_COOKIE, SESSION_TTL_SECONDS } from "../src/lib/security/session.mjs";
 
+const bootstrapSalt = Buffer.alloc(16, 7);
+process.env.MODRIK_ADMIN_PASSWORD_HASH = "$scrypt$16384$8$1$" + bootstrapSalt.toString("hex") + "$" + scryptSync("Integration-Owner-Password-42!", bootstrapSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex");
 const port = Number(process.env.MODRIK_E2E_PORT || 3187);
 const baseUrl = `http://127.0.0.1:${port}`;
 const childEnv = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1" };
@@ -17,6 +19,7 @@ let browserDiagnostics = { pageErrors: [], failedRequests: [], projectApi: [], p
 child.stdout.on("data", chunk => { logs += chunk.toString(); });
 child.stderr.on("data", chunk => { logs += chunk.toString(); });
 const projectIds = [randomUUID(), randomUUID()];
+const identityCleanup = { projects: [], users: [], organizations: [] };
 const secret = process.env.MODRIK_AUTH_SECRET;
 const ownerCookie = `${SESSION_COOKIE}=${createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret)}`;
 const headers = { cookie: ownerCookie, "content-type": "application/json" };
@@ -76,6 +79,199 @@ try {
   await expectStatus(publicLogin, 401, "public login endpoint");
   const publicStudy = await fetch(`${baseUrl}/api/study/respond`);
   await expectStatus(publicStudy, 401, "public study endpoint must require its own bearer token");
+
+  const crossOriginLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "https://attacker.example" },
+    body: JSON.stringify({ email: process.env.MODRIK_ADMIN_EMAIL, password: "Integration-Owner-Password-42!" }),
+  });
+  await expectStatus(crossOriginLogin, 403, "cross-origin login rejection");
+
+  const bootstrapLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: process.env.MODRIK_ADMIN_EMAIL, password: "Integration-Owner-Password-42!" }),
+  });
+  await expectStatus(bootstrapLogin, 200, "configured owner identity bootstrap login");
+  const loginCookie = bootstrapLogin.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
+  assert.ok(loginCookie, "successful login must issue an HttpOnly session cookie");
+  const bootstrapSessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: `modrik_session=${loginCookie}` } });
+  await expectStatus(bootstrapSessionStatus, 200, "bootstrapped identity session status");
+  const bootstrapStatus = await json(bootstrapSessionStatus);
+  assert.equal(bootstrapStatus.authenticated, true);
+  assert.equal(bootstrapStatus.role, "owner");
+  const bootstrapUser = await prisma.user.findUnique({ where: { email: process.env.MODRIK_ADMIN_EMAIL.toLowerCase() } });
+  assert.ok(bootstrapUser, "owner login must provision a database user");
+  identityCleanup.users.push(bootstrapUser.id);
+  const bootstrapOrganization = await prisma.organization.findUnique({ where: { slug: "modrik-default" } });
+  assert.ok(bootstrapOrganization, "owner login must provision the default organization");
+  identityCleanup.organizations.push(bootstrapOrganization.id);
+  const bootstrapProject = await fetch(`${baseUrl}/api/projects`, {
+    method: "POST",
+    headers: { cookie: `modrik_session=${loginCookie}`, "content-type": "application/json" },
+    body: JSON.stringify({ name: "Bootstrap-owned project", brief: "Identity context test" }),
+  });
+  await expectStatus(bootstrapProject, 201, "identity-backed project creation");
+  const bootstrapProjectBody = (await json(bootstrapProject)).project;
+  identityCleanup.projects.push(bootstrapProjectBody.id);
+  assert.equal(bootstrapProjectBody.organizationId, bootstrapOrganization.id);
+  assert.equal(bootstrapProjectBody.createdByUserId, bootstrapUser.id);
+  const crossOriginLogout = await fetch(`${baseUrl}/api/auth/logout`, {
+    method: "POST", headers: { cookie: `modrik_session=${loginCookie}`, origin: "https://attacker.example" },
+  });
+  await expectStatus(crossOriginLogout, 403, "cross-origin logout rejection");
+  const bootstrapLogout = await fetch(`${baseUrl}/api/auth/logout`, {
+    method: "POST", headers: { cookie: `modrik_session=${loginCookie}`, origin: baseUrl },
+  });
+  await expectStatus(bootstrapLogout, 200, "bootstrap owner logout");
+  const bootstrapRevokedStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: `modrik_session=${loginCookie}` } });
+  assert.equal((await json(bootstrapRevokedStatus)).authenticated, false);
+  // Identity-backed session + tenant boundary integration.
+  const tenantA = await prisma.organization.create({ data: { name: "Identity Tenant A", slug: `identity-a-${randomUUID()}` } });
+  identityCleanup.organizations.push(tenantA.id);
+  const tenantB = await prisma.organization.create({ data: { name: "Identity Tenant B", slug: `identity-b-${randomUUID()}` } });
+  identityCleanup.organizations.push(tenantB.id);
+  const identityUser = await prisma.user.create({ data: { email: `identity-owner-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(identityUser.id);
+  const identityMembership = await prisma.membership.create({
+    data: { userId: identityUser.id, organizationId: tenantA.id, role: "owner", status: "active", activatedAt: new Date() },
+  });
+  const identitySessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: identitySessionId, userId: identityUser.id, membershipId: identityMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const identityCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: identityUser.email, userId: identityUser.id, organizationId: tenantA.id,
+    membershipId: identityMembership.id, role: "owner", sessionId: identitySessionId,
+  }, secret)}`;
+  const tenantProjectA = await prisma.project.create({ data: { name: "Tenant A private", brief: "A", organizationId: tenantA.id, createdByUserId: identityUser.id } });
+  identityCleanup.projects.push(tenantProjectA.id);
+  const tenantProjectB = await prisma.project.create({ data: { name: "Tenant B private", brief: "B", organizationId: tenantB.id } });
+  identityCleanup.projects.push(tenantProjectB.id);
+  const tenantDemoB = await prisma.project.create({ data: { name: "Tenant B demo", brief: "private demo", organizationId: tenantB.id, isDemo: true } });
+  identityCleanup.projects.push(tenantDemoB.id);
+  const tenantHeaders = { cookie: identityCookie, "content-type": "application/json" };
+  const identitySessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
+  await expectStatus(identitySessionStatus, 200, "identity session status");
+  const identityStatusBody = await json(identitySessionStatus);
+  assert.equal(identityStatusBody.authenticated, true);
+  assert.equal(identityStatusBody.organizationId, tenantA.id);
+  assert.equal(identityStatusBody.role, "owner");
+
+  const tenantIndex = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
+  await expectStatus(tenantIndex, 200, "identity tenant project index");
+  const tenantIndexBody = await json(tenantIndex);
+  assert.deepEqual(tenantIndexBody.projects.map(project => project.id), [tenantProjectA.id], "project index must be tenant-scoped");
+  const ownTenantProject = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}`, { headers: tenantHeaders });
+  await expectStatus(ownTenantProject, 200, "same-tenant project access");
+  const foreignTenantProject = await fetch(`${baseUrl}/api/projects/${tenantProjectB.id}`, { headers: tenantHeaders });
+  await expectStatus(foreignTenantProject, 404, "cross-tenant project access must be hidden");
+  const tenantCreate = await fetch(`${baseUrl}/api/projects`, {
+    method: "POST", headers: tenantHeaders, body: JSON.stringify({ name: "Tenant A created", brief: "scoped" }),
+  });
+  await expectStatus(tenantCreate, 201, "tenant-scoped project creation");
+  const createdTenantProject = (await json(tenantCreate)).project;
+  identityCleanup.projects.push(createdTenantProject.id);
+  assert.equal(createdTenantProject.organizationId, tenantA.id);
+  assert.equal(createdTenantProject.createdByUserId, identityUser.id);
+  const tenantDemoLookup = await fetch(`${baseUrl}/api/demo`, { headers: tenantHeaders });
+  await expectStatus(tenantDemoLookup, 200, "tenant demo lookup");
+  assert.equal((await json(tenantDemoLookup)).projectId, null, "demo lookup must not reveal another tenant's demo");
+  const tenantTelemetry = await fetch(`${baseUrl}/api/telemetry`, { headers: tenantHeaders });
+  await expectStatus(tenantTelemetry, 200, "tenant telemetry");
+  assert.equal((await json(tenantTelemetry)).fleet.missions, 2, "telemetry must count only this tenant's projects");
+
+  const viewerUser = await prisma.user.create({ data: { email: `identity-viewer-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(viewerUser.id);
+  const viewerMembership = await prisma.membership.create({
+    data: { userId: viewerUser.id, organizationId: tenantA.id, role: "viewer", status: "active", activatedAt: new Date() },
+  });
+  const viewerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: viewerSessionId, userId: viewerUser.id, membershipId: viewerMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const viewerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: viewerUser.email, userId: viewerUser.id, organizationId: tenantA.id,
+    membershipId: viewerMembership.id, role: "viewer", sessionId: viewerSessionId,
+  }, secret)}`;
+  const viewerCreate = await fetch(`${baseUrl}/api/projects`, {
+    method: "POST", headers: {
+      cookie: viewerCookie,
+      "content-type": "application/json",
+      "x-modrik-role": "owner",
+      "x-modrik-organization-id": tenantB.id,
+      "x-modrik-user-id": identityUser.id,
+    },
+    body: JSON.stringify({ name: "Forbidden viewer project", brief: "must not be created" }),
+  });
+  await expectStatus(viewerCreate, 403, "viewer cannot create projects");
+  const viewerStakeholders = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/stakeholders`, {
+    headers: { cookie: viewerCookie },
+  });
+  await expectStatus(viewerStakeholders, 200, "viewer can read project collaboration data");
+  const viewerEvidenceWrite = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/evidence`, {
+    method: "POST",
+    headers: { cookie: viewerCookie, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await expectStatus(viewerEvidenceWrite, 403, "viewer cannot write project evidence");
+
+  const reviewerUser = await prisma.user.create({ data: { email: `identity-reviewer-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(reviewerUser.id);
+  const reviewerMembership = await prisma.membership.create({
+    data: { userId: reviewerUser.id, organizationId: tenantA.id, role: "reviewer", status: "active", activatedAt: new Date() },
+  });
+  const reviewerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: reviewerSessionId, userId: reviewerUser.id, membershipId: reviewerMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const reviewerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: reviewerUser.email, userId: reviewerUser.id, organizationId: tenantA.id,
+    membershipId: reviewerMembership.id, role: "reviewer", sessionId: reviewerSessionId,
+  }, secret)}`;
+  const reviewerClaimReview = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/claims`, {
+    method: "PATCH",
+    headers: { cookie: reviewerCookie, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await expectStatus(reviewerClaimReview, 400, "reviewer may enter the claim review action");
+
+  const approverUser = await prisma.user.create({ data: { email: `identity-approver-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(approverUser.id);
+  const approverMembership = await prisma.membership.create({
+    data: { userId: approverUser.id, organizationId: tenantA.id, role: "approver", status: "active", activatedAt: new Date() },
+  });
+  const approverSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: approverSessionId, userId: approverUser.id, membershipId: approverMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const approverCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: approverUser.email, userId: approverUser.id, organizationId: tenantA.id,
+    membershipId: approverMembership.id, role: "approver", sessionId: approverSessionId,
+  }, secret)}`;
+  const approverDecision = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/stakeholders`, {
+    method: "PATCH",
+    headers: { cookie: approverCookie, "content-type": "application/json" },
+    body: JSON.stringify({ action: "decide_negotiation" }),
+  });
+  await expectStatus(approverDecision, 400, "approver may enter stakeholder decision action");
+
+  const viewerTelemetry = await fetch(`${baseUrl}/api/telemetry`, { headers: { cookie: viewerCookie } });
+  await expectStatus(viewerTelemetry, 403, "viewer cannot read audit telemetry");
+  await prisma.user.update({ where: { id: viewerUser.id }, data: { status: "disabled" } });
+  const disabledViewer = await fetch(`${baseUrl}/api/projects`, { headers: { cookie: viewerCookie } });
+  await expectStatus(disabledViewer, 401, "disabled user session must be rejected");
+  const logoutResponse = await fetch(`${baseUrl}/api/auth/logout`, {
+    method: "POST",
+    headers: { cookie: identityCookie, origin: baseUrl },
+  });
+  await expectStatus(logoutResponse, 200, "identity logout");
+  const revokedSessionRequest = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
+  await expectStatus(revokedSessionRequest, 401, "revoked identity session must be rejected");
+  const revokedSessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
+  await expectStatus(revokedSessionStatus, 200, "revoked session status");
+  assert.equal((await json(revokedSessionStatus)).authenticated, false);
+
   const unauthorizedEndpoint = `${baseUrl}/api/projects/phase-4-auth-probe/stakeholders`;
   for (const [label, send] of [
     ["GET", () => fetch(unauthorizedEndpoint)],
@@ -250,9 +446,11 @@ try {
   await writeFile("/tmp/modrik-phase4-e2e-diagnostics.json", JSON.stringify({ error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error), browserDiagnostics, serverLogs: logs.slice(-30000) }, null, 2));
   throw error;
 } finally {
-  for (const id of projectIds) {
+  for (const id of [...projectIds, ...identityCleanup.projects]) {
     try { await prisma.project.delete({ where: { id } }); } catch {}
   }
+  for (const id of identityCleanup.organizations) { try { await prisma.organization.delete({ where: { id } }); } catch {} }
+  for (const id of identityCleanup.users) { try { await prisma.user.delete({ where: { id } }); } catch {} }
   await prisma.$disconnect();
   child.kill("SIGTERM");
   await Promise.race([new Promise(resolve => child.once("exit", resolve)), delay(5000)]);

@@ -22,12 +22,14 @@ datasource db {
 model User {
   id              String       @id @default(cuid())
   email           String       @unique
+  passwordHash    String?
   displayName     String       @default("")
   status          String       @default("active") // active | disabled
   emailVerifiedAt DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   memberships     Membership[]
+  sessions        AuthSession[]
   projectsCreated Project[]    @relation("ProjectCreator")
 
   @@index([status, createdAt])
@@ -58,10 +60,27 @@ model Membership {
   activatedAt    DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  sessions       AuthSession[]
 
   @@unique([userId, organizationId])
   @@index([organizationId, status, role])
   @@index([userId, status])
+}
+
+
+model AuthSession {
+  id             String     @id // signed token jti; raw bearer material is never stored
+  userId         String
+  membershipId   String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership     Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastSeenAt     DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([membershipId, revokedAt, expiresAt])
 }
 
 model Project {

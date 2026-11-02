@@ -6,14 +6,19 @@ import { db } from "@/lib/db";
  * multilingual grounding (Egyptian Arabic + code-switching, novelty N7).
  * Idempotent: returns the existing demo project if one is present.
  */
-export async function POST(_req: NextRequest) {
-  const existing = await db.project.findFirst({ where: { isDemo: true } });
+export async function POST(req: NextRequest) {
+  const organizationId = req.headers.get("x-modrik-organization-id");
+  const userId = req.headers.get("x-modrik-user-id");
+  const existing = await db.project.findFirst({
+    where: { isDemo: true, ...(organizationId ? { organizationId } : {}) },
+  });
   if (existing) {
     return NextResponse.json({ projectId: existing.id, existed: true });
   }
 
   const project = await db.project.create({
     data: {
+      ...(organizationId && userId ? { organizationId, createdByUserId: userId } : {}),
       name: "Demo — Cairo Home-Cooking Marketplace",
       isDemo: true,
       brief:
@@ -67,7 +72,10 @@ export async function POST(_req: NextRequest) {
   return NextResponse.json({ projectId: project.id, existed: false }, { status: 201 });
 }
 
-export async function GET() {
-  const existing = await db.project.findFirst({ where: { isDemo: true } });
+export async function GET(req: NextRequest) {
+  const organizationId = req.headers.get("x-modrik-organization-id");
+  const existing = await db.project.findFirst({
+    where: { isDemo: true, ...(organizationId ? { organizationId } : {}) },
+  });
   return NextResponse.json({ projectId: existing?.id ?? null });
 }

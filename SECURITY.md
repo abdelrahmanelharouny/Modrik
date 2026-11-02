@@ -65,6 +65,16 @@ Project `organizationId` and `createdByUserId` are intentionally nullable in thi
 
 The pure policy in `src/lib/security/organization-access.mjs` defines a fail-closed permission matrix and tenant-ID comparison. Organization-level control is owner-only; admins can manage members and projects but cannot change organization ownership/settings. It is not yet wired into the session or route boundary. Until the next H1 authorization slice replaces the owner-only assumption with authenticated user identity and membership lookup, deployments remain single-owner only. Do not treat the presence of these tables as multi-tenant security.
 
+## Identity-backed sessions and tenant authorization (H1.3)
+
+Identity sessions are signed, short-lived cookies backed by an `AuthSession` row. The database stores the session identifier, user, membership, expiry and revocation timestamp; it never stores the raw cookie token. Every protected request re-resolves the session and checks that the user, organization and membership are still active and that the signed claims still match the database records. Logout revokes the database session.
+
+The configured bootstrap administrator is provisioned into the default `Modrik Workspace` on successful login. Existing unassigned projects are adopted only into that bootstrap organization; projects already assigned to another organization are never reassigned. New project and mission/demo creation stores the trusted organization and creator context injected by the server proxy. Project lists, mission catalogs, demo lookup and telemetry aggregates are tenant-scoped. Project API routes enforce same-tenant access and role permission before reaching route handlers.
+
+Identity context headers (`x-modrik-user-id`, `x-modrik-organization-id`, `x-modrik-membership-id`, `x-modrik-role`) are stripped from incoming requests and injected by the proxy only after a database-backed session is validated. Application code must never accept caller-supplied values as identity.
+
+The current bootstrap flow provisions the configured administrator. Invited-user onboarding, password setup/reset, organization switching, MFA/SSO and distributed session/rate-limit infrastructure remain follow-up work. Do not expose self-service registration or treat the current bootstrap path as a complete identity lifecycle.
+
 ## Current boundary and next security phase
 
 This phase does not claim full legal compliance or multi-tenant isolation. The following remain required before serving multiple organizations:
