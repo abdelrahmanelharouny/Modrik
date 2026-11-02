@@ -46,3 +46,15 @@ export function clampSignalScore(value, fallback = 3) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.min(5, Math.max(1, Math.round(n))) : fallback;
 }
+
+export function deduplicateQuestions(questions) {
+  if (!Array.isArray(questions)) return [];
+  const seen = new Set();
+  return questions.filter((question) => {
+    const text = typeof question?.text === "string" ? question.text.trim() : "";
+    const key = text.toLocaleLowerCase().replace(/\s+/g, " ");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
