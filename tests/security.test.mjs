@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { encryptSecret, decryptSecret, isEncryptedSecret } from "../src/lib/security/secret-box.mjs";
+import { csvCell } from "../src/lib/security/csv.mjs";
 import { validateJiraBaseUrl, buildJiraUrl, jiraFetchOptions } from "../src/lib/security/jira-url.mjs";
 import {
   createSessionToken,
@@ -93,4 +94,13 @@ test("admin credentials use bounded scrypt hashes and reject malformed hashes", 
   assert.equal(await verifyAdminCredentials("OWNER@example.com", "Correct-Horse-Battery-42!", env), true);
   assert.equal(await verifyAdminCredentials("owner@example.com", "wrong", env), false);
   assert.equal(await verifyAdminCredentials("owner@example.com", "Correct-Horse-Battery-42!", { ...env, MODRIK_ADMIN_PASSWORD_HASH: "invalid" }), false);
+});
+
+
+test("CSV cells quote delimiters and neutralize spreadsheet formulas", () => {
+  assert.equal(csvCell('=HYPERLINK("https://attacker.example")'), \`"'=HYPERLINK(""https://attacker.example"")"\`);
+  assert.equal(csvCell("  +SUM(1,2)"), \`"'  +SUM(1,2)"\`);
+  assert.equal(csvCell("ordinary, text"), \`"ordinary, text"\`);
+  assert.equal(csvCell('say "hello"'), \`"say ""hello"""\`);
+  assert.equal(csvCell(-10), \`"-10"\`);
 });
