@@ -12,6 +12,58 @@ datasource db {
 // agentic requirements engineering platform (MVP)
 // ─────────────────────────────────────────────────────────────
 
+
+// ─────────────────────────────────────────────────────────────
+// Identity foundation (H1.2)
+// Users are authentication principals; stakeholders remain domain
+// participants and must never be treated as login identities.
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id              String       @id @default(cuid())
+  email           String       @unique
+  displayName     String       @default("")
+  status          String       @default("active") // active | disabled
+  emailVerifiedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  memberships     Membership[]
+  projectsCreated Project[]    @relation("ProjectCreator")
+
+  @@index([status, createdAt])
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  status      String       @default("active") // active | suspended
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+  projects    Project[]
+
+  @@index([status, createdAt])
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String       @default("viewer") // owner | admin | engineer | reviewer | approver | viewer
+  status         String       @default("invited") // invited | active | suspended | revoked
+  invitedAt      DateTime     @default(now())
+  activatedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, status, role])
+  @@index([userId, status])
+}
+
 model Project {
   id           String   @id @default(cuid())
   name         String
@@ -20,6 +72,12 @@ model Project {
   currentStage String   @default("ELICITATION")
   stageStatus  String   @default("awaiting_input") // awaiting_input | agent_running | awaiting_review | approving | approved
   isDemo       Boolean  @default(false)
+  // Nullable during the additive identity rollout. Existing projects remain
+  // unassigned until an explicit, audited organization-ownership migration.
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdByUserId String?
+  createdBy User? @relation("ProjectCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -52,6 +110,9 @@ model Project {
   stakeholderPositionEvidence StakeholderPositionEvidence[]
   negotiationDecisions NegotiationDecision[]
   negotiationParticipants NegotiationParticipant[]
+
+  @@index([organizationId, updatedAt])
+  @@index([createdByUserId])
 }
 
 // Three-group between-subjects user study (dev item 14)
