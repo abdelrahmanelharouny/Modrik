@@ -21,7 +21,7 @@ import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
 import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision } from "@/lib/security/data-safety.mjs";
-import { selectByUtility, selectDistinctPoolIndices, clampSignalScore } from "@/lib/planner/selection.mjs";
+import { selectByUtility, selectDistinctPoolIndices, clampSignalScore, deduplicateQuestions } from "@/lib/planner/selection.mjs";
 export { selectByUtility } from "@/lib/planner/selection.mjs";
 
 export type PlannerArm = "single_shot" | "random" | "llm" | "impact_aware";
@@ -200,9 +200,8 @@ For each candidate: estimate askCost (1=trivial, 5=very costly interruption) and
 Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
 
   const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage);
-  const pool = (out.questions ?? [])
+  const pool = deduplicateQuestions((out.questions ?? [])
     .filter((q) => q && String(q.text ?? "").trim())
-    .slice(0, count)
     .map((q) => ({
       text: String(q.text).slice(0, 600),
       rationale: String(q.rationale ?? "").slice(0, 600),
@@ -210,7 +209,7 @@ Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "hig
       askCost: Math.min(5, Math.max(1, Math.round(Number(q.askCost) || 3))),
       fallbackAssumption: String(q.fallbackAssumption ?? "").slice(0, 400),
       language: ["en", "ar-EG", "codeswitch"].includes(String(q.language)) ? String(q.language) : "en",
-    }));
+    }))).slice(0, count);
   return { pool, context };
 }
 
@@ -336,14 +335,14 @@ export async function runPlanner(
 TASK: Identify the 5 most important clarifying questions to ask the stakeholders now. For each, estimate askCost (1-5) and a testable fallbackAssumption.
 Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
     const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage);
-    selected = (out.questions ?? []).slice(0, 5).map((q) => ({
+    selected = deduplicateQuestions((out.questions ?? []).map((q) => ({
       text: String(q.text ?? "").slice(0, 600),
       rationale: String(q.rationale ?? "").slice(0, 600),
       priority: (["high", "medium", "low"].includes(q.priority) ? q.priority : "medium") as PlannedQuestion["priority"],
       askCost: Math.min(5, Math.max(1, Math.round(Number(q.askCost) || 3))),
       fallbackAssumption: String(q.fallbackAssumption ?? "").slice(0, 400),
       language: ["en", "ar-EG", "codeswitch"].includes(String(q.language)) ? String(q.language) : "en",
-    }));
+    }))).slice(0, 5);
   } else {
     const { pool, context: ctx } = await generatePool(projectId, usage);
     candidates = pool.length;
@@ -377,6 +376,9 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
     selected = await scoreSignals(context, selected, usage);
   }
 
+  if (!selected.length) {
+    throw new Error("Planner produced no valid questions. Existing live questions were preserved.");
+  }
   const metrics = await judgeArm(context, selected, usage);
 
   // Persist the ablation record
@@ -395,23 +397,23 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
 
   // Materialise as the live question set (same contract as stage 1) with
   // the utility breakdown stored per question (dynamicity: UI reads these).
-  await db.question.deleteMany({ where: { projectId } });
-  await db.$transaction(
-    selected.map((q, i) =>
-      db.question.create({
+  await db.$transaction(async (tx) => {
+    await tx.question.deleteMany({ where: { projectId } });
+    for (const [i, question] of selected.entries()) {
+      await tx.question.create({
         data: {
           projectId,
           order: i,
-          text: q.text,
-          rationale: q.rationale,
-          priority: q.priority,
-          askCost: q.askCost,
-          fallbackAssumption: q.fallbackAssumption || null,
-          utility: q.utility ? JSON.stringify(q.utility) : null,
+          text: question.text,
+          rationale: question.rationale,
+          priority: question.priority,
+          askCost: question.askCost,
+          fallbackAssumption: question.fallbackAssumption || null,
+          utility: question.utility ? JSON.stringify(question.utility) : null,
         },
-      })
-    )
-  );
+      });
+    }
+  });
   await db.artifact.create({
     data: {
       projectId,
