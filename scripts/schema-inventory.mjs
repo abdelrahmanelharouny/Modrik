@@ -46,7 +46,7 @@ function main() {
   }
   const actual = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath, "utf8") : "";
   if (actual !== expected) {
-    console.error("[schema-inventory] Manifest is stale. Run bun run db:inventory:write and review the diff.");
+    console.error("[schema-inventory] Manifest is stale. Expected generated manifest follows:\\n" + expected);
     process.exitCode = 1;
     return;
   }
