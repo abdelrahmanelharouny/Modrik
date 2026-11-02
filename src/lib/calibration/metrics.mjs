@@ -8,6 +8,8 @@ const BIN_EDGES = [
 export function calculateHumanCalibration(requirements) {
   const rows = (Array.isArray(requirements) ? requirements : []).filter((requirement) =>
     requirement?.verificationSource === "human" &&
+    requirement.verifiedAt != null &&
+    Number.isFinite(new Date(requirement.verifiedAt).getTime()) &&
     Number.isInteger(requirement.confidence) &&
     requirement.confidence >= 0 && requirement.confidence <= 100 &&
     ["supported", "weak"].includes(requirement.verifyStatus)
