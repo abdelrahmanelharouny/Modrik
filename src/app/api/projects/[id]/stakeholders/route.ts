@@ -144,6 +144,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let update;
     try { update = normalizeStakeholderUpdate(body, stakeholder); } catch (error) { return bad(error); }
     const { engagementStatus, approvalRole } = update;
+    if (["withdrawn", "unavailable"].includes(engagementStatus) && engagementStatus !== stakeholder.engagementStatus) {
+      const pendingParticipation = await db.negotiationParticipant.count({
+        where: { projectId: id, stakeholderId: stakeholder.id, responseStatus: "pending", decision: { status: "proposed" } },
+      });
+      if (pendingParticipation > 0) {
+        return NextResponse.json({ error: "Resolve or reject pending negotiations before withdrawing or making this stakeholder unavailable." }, { status: 409 });
+      }
+    }
     if (engagementStatus === stakeholder.engagementStatus && approvalRole === stakeholder.approvalRole) {
       return NextResponse.json({ stakeholder, unchanged: true });
     }
