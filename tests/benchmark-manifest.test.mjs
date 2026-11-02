@@ -16,7 +16,7 @@ test("arbench-v2 contains 120 unique, structurally valid, manifest-matched scena
     name: "arbench-v2",
     scenarioCount: 120,
     categories: 8,
-    domains: 4,
+    domains: 5,
     uniqueIds: 120,
   });
 });
