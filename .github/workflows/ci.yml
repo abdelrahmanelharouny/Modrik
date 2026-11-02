@@ -104,6 +104,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Generate PostgreSQL Prisma schema
         run: bun run db:sync:pg
+      - name: Enforce SQLite/PostgreSQL schema parity
+        run: bun run db:validate:parity
       - name: Validate PostgreSQL Prisma schema
         run: bunx prisma validate --schema prisma/schema.postgres.prisma
       - name: Generate PostgreSQL Prisma client
