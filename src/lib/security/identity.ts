@@ -35,7 +35,7 @@ export async function createIdentitySession(input: {
 }
 
 export async function resolveIdentitySession(token: string | undefined | null): Promise<IdentityPrincipal | null> {
-  const claims = verifySessionToken(token, process.env.MODRIK_AUTH_SECRET);
+  const claims = verifySessionToken(token ?? undefined, process.env.MODRIK_AUTH_SECRET);
   if (!claims || claims.type !== "identity" || !claims.sessionId || !claims.userId ||
       !claims.organizationId || !claims.membershipId) return null;
 
