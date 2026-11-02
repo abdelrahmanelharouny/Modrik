@@ -37,6 +37,7 @@ model Project {
   execScenarios ExecScenario[]
   syncMaps   SyncMap[]
   studySessions StudySession[]
+  memories MemoryEntry[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -82,7 +83,8 @@ model DecisionEntry {
 model MemoryEntry {
   id        String   @id @default(cuid())
   projectId String?
-  kind      String   @default("lesson") // glossary | lesson
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind      String   @default("lesson") // glossary | lesson; scoped to one project
   term      String
   detail    String   @default("")
   createdAt DateTime @default(now())
@@ -102,6 +104,7 @@ model Evidence {
   consent    Boolean  @default(false) // stakeholder consent recorded (G13 governance)
   origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
+  traceLinks TraceLink[]
 }
 
 // Agent-generated clarifying questions, answered by the human (HITL gate 1)
@@ -118,7 +121,8 @@ model Question {
   utility   String? // JSON: impact-aware planner breakdown {infoGain, impact, uncertainty, risk, askCost, utility} (dev item 7)
   answer    String?
   answered  Boolean @default(false)
-  resolution String @default("pending") // pending | answered | proceed_with_uncertainty
+  resolution String @default("pending") // pending | answered | proceed_with_uncertainty | skipped
+  answerSource String @default("human") // human | synthetic | assumption | skipped
 }
 
 // Impact-aware Question Planner ablation runs (dev item 7 — the research heart)
@@ -212,7 +216,9 @@ model TraceLink {
   projectId     String
   requirementId String
   requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  evidenceCode  String // E1, E2 …
+  evidenceCode  String // stable code shown to people and in citations
+  evidenceId    String?
+  evidence      Evidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
   note          String?
 }
 
