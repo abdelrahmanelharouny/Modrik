@@ -215,7 +215,12 @@ export function ElicitationStage({
       setConsent(false);
       setOpen(false);
       await refresh();
-      toast({ title: "Evidence logged", description: "The agent will ground its output in this source." });
+      toast({
+        title: "Evidence logged",
+        description: consent
+          ? "This source is eligible for AI analysis."
+          : "Stored in the project library, but its content is excluded from AI analysis until permission is recorded.",
+      });
     } catch (e) {
       toast({ title: "Could not add evidence", description: (e as Error).message, variant: "destructive" });
     }
@@ -334,9 +339,12 @@ export function ElicitationStage({
                   <div className="flex items-center gap-2">
                     <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} />
                     <Label htmlFor="consent" className="text-sm text-muted-foreground">
-                      Stakeholder consent recorded for this source
+                      I have permission to send this source's content to the configured AI provider
                     </Label>
                   </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Leave this unchecked when permission is missing or uncertain. The source remains in the private project library, but its content is never sent to an AI model or used to generate requirements.
+                  </p>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpen(false)}>
