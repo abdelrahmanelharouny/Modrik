@@ -155,7 +155,11 @@ try {
   await prisma.user.update({ where: { id: viewerUser.id }, data: { status: "disabled" } });
   const disabledViewer = await fetch(`${baseUrl}/api/projects`, { headers: { cookie: viewerCookie } });
   await expectStatus(disabledViewer, 401, "disabled user session must be rejected");
-  await prisma.authSession.update({ where: { id: identitySessionId }, data: { revokedAt: new Date() } });
+  const logoutResponse = await fetch(`${baseUrl}/api/auth/logout`, {
+    method: "POST",
+    headers: { cookie: identityCookie, origin: baseUrl },
+  });
+  await expectStatus(logoutResponse, 200, "identity logout");
   const revokedSessionRequest = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
   await expectStatus(revokedSessionRequest, 401, "revoked identity session must be rejected");
   const revokedSessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
