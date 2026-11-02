@@ -3,7 +3,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = join(root, "prisma", "schema.prisma");
@@ -32,6 +32,10 @@ export function renderPostgresSchema(sourceSchema) {
   return HEADER + sourceSchema.replace(dsBlock[0], pgBlock);
 }
 
-const schema = readFileSync(src, "utf8");
-writeFileSync(dst, renderPostgresSchema(schema), "utf8");
-console.log("✓ generated prisma/schema.postgres.prisma (provider: postgresql)");
+function main() {
+  const schema = readFileSync(src, "utf8");
+  writeFileSync(dst, renderPostgresSchema(schema), "utf8");
+  console.log("✓ generated prisma/schema.postgres.prisma (provider: postgresql)");
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === pathToFileURL(process.argv[1]).href) main();
