@@ -31,12 +31,15 @@ export async function computeCalibration(projectId: string): Promise<Calibration
       confidence: { gte: 0, lte: 100 },
       verificationSource: "human",
       verifiedAt: { not: null },
+      verifiedBy: { not: null },
       verifyStatus: { in: ["supported", "weak"] },
     },
     select: {
       confidence: true,
       verifyStatus: true,
       verificationSource: true,
+      verifiedAt: true,
+      verifiedBy: true,
     },
   });
   return {
