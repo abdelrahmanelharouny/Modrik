@@ -35,6 +35,44 @@ function overLimit(key: string, now: number): boolean {
   return false;
 }
 
+// Returns only the state of the caller's own session. It never exposes
+// participant codes, metrics, notes, events or another session's existence.
+export async function GET(req: NextRequest) {
+  const authorization = req.headers.get("authorization") ?? "";
+  const match = /^Bearer\\s+(mps_[A-Za-z0-9_-]{43})$/.exec(authorization);
+  if (!match) return response({ error: "A valid participant session bearer token is required." }, 401);
+
+  let tokenHash: string;
+  try {
+    tokenHash = hashParticipantToken(match[1]);
+  } catch {
+    return response({ error: "Invalid participant session token." }, 401);
+  }
+  if (overLimit(tokenHash, Date.now())) {
+    return response({ error: "Too many requests for this participant session." }, 429);
+  }
+  const session = await db.studySession.findUnique({
+    where: { participantTokenHash: tokenHash },
+    select: {
+      participantTokenHash: true,
+      participantTokenExpiresAt: true,
+      finishedAt: true,
+      withdrawnAt: true,
+      participantConsentAt: true,
+    },
+  });
+  if (!session || !session.participantTokenHash || !session.participantTokenExpiresAt ||
+      !verifyParticipantToken(match[1], session.participantTokenHash, session.participantTokenExpiresAt, Date.now())) {
+    return response({ error: "Participant session token is invalid or expired." }, 401);
+  }
+  if (session.withdrawnAt) return response({ error: "This participant session was withdrawn." }, 410);
+  return response({
+    ok: true,
+    finished: Boolean(session.finishedAt),
+    consentAccepted: Boolean(session.participantConsentAt),
+  });
+}
+
 // Public, session-scoped endpoint. It accepts writes only; the moderator
 // dashboard, session listing and CSV export remain behind owner authentication.
 export async function POST(req: NextRequest) {
