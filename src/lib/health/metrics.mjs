@@ -10,7 +10,7 @@ function assessedMetric(score, coverage) {
   };
 }
 
-export function computeHealthScores({ requirements = [], questions = [], conflicts = [], scenarios = [], conflictDetectionComplete = false }) {
+export function computeHealthScores({ requirements = [], questions = [], conflicts = [], scenarios = [], conflictDetectionComplete = false } = {}) {
   const total = requirements.length;
   const assessedAmbiguity = requirements.filter((requirement) =>
     Number.isFinite(requirement.ambiguity) && requirement.ambiguity >= 0 && requirement.ambiguity <= 100
