@@ -44,7 +44,7 @@ test("human labels produce deterministic Brier score and ECE", () => {
     { confidence: 20, verifyStatus: "weak", verificationSource: "human" },
   ]);
   assert.equal(result.n, 3);
-  assert.equal(result.verdict, "well-calibrated");
+  assert.equal(result.verdict, "mixed-calibration");
   assert.equal(result.spread.supportedAvg, 85);
   assert.equal(result.spread.weakAvg, 20);
 });
