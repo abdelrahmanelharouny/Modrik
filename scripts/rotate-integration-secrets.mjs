@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { decryptSecret, encryptSecret, isEncryptedSecret } from "../src/lib/security/secret-box.mjs";
+import { decryptSecret, encryptSecret } from "../src/lib/security/secret-box.mjs";
 
 function parseConfig(raw) {
   const parsed = JSON.parse(raw);
