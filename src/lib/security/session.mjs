@@ -25,7 +25,7 @@ export function isAuthConfigured(env = process.env) {
 }
 
 export async function verifyPasswordHash(password, passwordHash) {
-  const match = /^\\$scrypt\\$(\\d+)\\$(\\d+)\\$(\\d+)\\$([a-f0-9]{32,128})\\$([a-f0-9]{64,128})$/i.exec(
+  const match = /^\$scrypt\$(\d+)\$(\d+)\$(\d+)\$([a-f0-9]{32,128})\$([a-f0-9]{64,128})$/i.exec(
     typeof passwordHash === "string" ? passwordHash : ""
   );
   if (!match) return false;
