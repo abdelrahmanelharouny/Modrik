@@ -26,8 +26,12 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Security regression tests
-        run: bun run test:security
+      - name: Regression tests
+        run: bun run test
+      - name: Validate and push SQLite schema
+        env:
+          DATABASE_URL: file:./ci.db
+        run: bun run db:push
       - name: TypeScript
         run: bunx tsc --noEmit
       - name: Lint
