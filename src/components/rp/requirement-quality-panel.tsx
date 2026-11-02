@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useMemo,useState} from "react";
+import {useCallback,useEffect,useState} from "react";
 import {api} from "@/lib/api";
 import type {ProjectDTO} from "@/lib/rp";
 import {useLang} from "@/lib/i18n";
@@ -30,7 +30,6 @@ export function RequirementQualityPanel({project,isCurrent,onRefresh}:{project:P
  const [scores,setScores]=useState<Record<Key,number|"">>(INITIAL),[issues,setIssues]=useState(""),[rewrite,setRewrite]=useState(""),[note,setNote]=useState("");
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false);
  const selected=project.requirements.find(r=>r.id===selectedId)??null;
- const latest=useMemo(()=>{const m=new Map<string,Assessment>();items.forEach(x=>{if(!m.has(x.requirementId))m.set(x.requirementId,x)});return m},[items]);
  const reload=useCallback(async()=>{setLoading(true);try{const d=await api<{assessments:Assessment[]}>(`/api/projects/${project.id}/quality`);setItems(d.assessments)}catch(e){toast({title:"Could not load assessments",description:(e as Error).message,variant:"destructive"})}finally{setLoading(false)}},[project.id,toast]);
  useEffect(()=>{void reload()},[reload]);
  useEffect(()=>{if(!project.requirements.some(r=>r.id===selectedId))setSelectedId(project.requirements[0]?.id??"")},[project.requirements,selectedId]);
