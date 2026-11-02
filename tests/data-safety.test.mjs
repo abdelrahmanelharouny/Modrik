@@ -39,10 +39,12 @@ test("wind-tunnel and assumption answers never count as real stakeholder answers
   assert.equal(hasHumanQuestionDecision([assumption]), true);
 });
 
-test("candidate regeneration detects human selection and manual scoring", () => {
-  assert.equal(hasHumanCandidateEdits([{ selected: false, impact: 3, effort: 3 }]), false);
-  assert.equal(hasHumanCandidateEdits([{ selected: true, impact: 3, effort: 3 }]), true);
-  assert.equal(hasHumanCandidateEdits([{ selected: false, impact: 4, effort: 3 }]), true);
+test("candidate regeneration distinguishes AI scores from human and legacy edits", () => {
+  assert.equal(hasHumanCandidateEdits([{ selected: false, impact: 4, effort: 3, humanEdited: false }]), false);
+  assert.equal(hasHumanCandidateEdits([{ selected: true, impact: 3, effort: 3, humanEdited: false }]), true);
+  assert.equal(hasHumanCandidateEdits([{ selected: false, impact: 4, effort: 3, humanEdited: true }]), true);
+  assert.equal(hasHumanCandidateEdits([{ selected: false, impact: 4, effort: 3, humanEdited: null }]), true);
+  assert.equal(hasHumanCandidateEdits([{ selected: false, impact: 3, effort: 3, humanEdited: null }]), false);
 });
 
 test("utility selection never exceeds budget to fill the requested count", () => {
