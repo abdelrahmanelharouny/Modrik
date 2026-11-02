@@ -4,7 +4,7 @@ import { logDecision } from "@/lib/journal";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
-  POSITION_STATUSES,
+  POSITION_STATUSES, STAKEHOLDER_APPROVAL_ROLES, STAKEHOLDER_ENGAGEMENT,
 } from "@/lib/stakeholders/collaboration.mjs";
 
 type Params = { params: Promise<{ id: string }> };
@@ -118,6 +118,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
   if (locked(project.stageStatus)) return NextResponse.json({ error: "Collaboration records are locked while the pipeline is processing." }, { status: 409 });
 
+  if (body.action === "update_stakeholder") {
+    if (typeof body.stakeholderId !== "string" || !body.stakeholderId.trim()) return NextResponse.json({ error: "stakeholderId is required." }, { status: 400 });
+    const stakeholder = await db.stakeholderProfile.findFirst({ where: { id: body.stakeholderId, projectId: id } });
+    if (!stakeholder) return NextResponse.json({ error: "Stakeholder not found in this project." }, { status: 404 });
+    const engagementStatus = body.engagementStatus ?? stakeholder.engagementStatus;
+    const approvalRole = body.approvalRole ?? stakeholder.approvalRole;
+    if (!STAKEHOLDER_ENGAGEMENT.includes(engagementStatus) || !STAKEHOLDER_APPROVAL_ROLES.includes(approvalRole)) {
+      return NextResponse.json({ error: "Unsupported engagement status or approval role." }, { status: 400 });
+    }
+    if (engagementStatus === stakeholder.engagementStatus && approvalRole === stakeholder.approvalRole) {
+      return NextResponse.json({ stakeholder, unchanged: true });
+    }
+    const transition = await db.stakeholderProfile.updateMany({
+      where: { id: stakeholder.id, projectId: id, updatedAt: stakeholder.updatedAt },
+      data: { engagementStatus, approvalRole },
+    });
+    if (transition.count !== 1) return NextResponse.json({ error: "Stakeholder profile changed concurrently. Refresh before retrying." }, { status: 409 });
+    const updated = await db.stakeholderProfile.findFirst({ where: { id: stakeholder.id, projectId: id } });
+    if (!updated) return NextResponse.json({ error: "Stakeholder profile could not be reloaded." }, { status: 500 });
+    await logDecision(id, "CLEARANCE", "human", "updated_stakeholder_governance", `${updated.stakeholderRef}: role ${stakeholder.approvalRole} → ${updated.approvalRole}; engagement ${stakeholder.engagementStatus} → ${updated.engagementStatus}.`);
+    return NextResponse.json({ stakeholder: updated });
+  }
   if (body.action === "review_position") {
     if (typeof body.positionId !== "string" || !POSITION_STATUSES.includes(body.status) || body.status === "proposed") {
       return NextResponse.json({ error: "positionId and accepted/rejected status are required." }, { status: 400 });
