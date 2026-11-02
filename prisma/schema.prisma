@@ -18,7 +18,7 @@ model Project {
   brief        String
   status       String   @default("active") // active | complete | archived
   currentStage String   @default("ELICITATION")
-  stageStatus  String   @default("awaiting_input") // awaiting_input | agent_running | awaiting_review | approved
+  stageStatus  String   @default("awaiting_input") // awaiting_input | agent_running | awaiting_review | approving | approved
   isDemo       Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -96,7 +96,7 @@ model Evidence {
   id         String   @id @default(cuid())
   projectId  String
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  code       String // E1, E2, …
+  code       String // Stable project-scoped source id, e.g. E-AB12CD34
   title      String
   sourceType String // interview | document | meeting | survey | observation | transcript | whiteboard_ocr
   language   String   @default("en") // en | ar-EG | codeswitch
