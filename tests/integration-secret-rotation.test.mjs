@@ -31,6 +31,6 @@ test("rotation is idempotent when a record already uses the destination key", ()
 });
 
 test("rotation fails closed for corrupt ciphertext and malformed config", () => {
-  assert.throws(() => rotateIntegrationConfig(JSON.stringify({ token: "enc:v1:broken" }), oldKey, newKey), /cannot be decrypted/);
+  assert.throws(() => rotateIntegrationConfig(JSON.stringify({ token: "enc:v1:broken" }), oldKey, newKey), /cannot be decrypted/);\n  assert.throws(() => rotateIntegrationConfig(JSON.stringify({ token: "enc:v2:future-format" }), oldKey, newKey), /Unsupported encrypted credential version/);
   assert.throws(() => rotateIntegrationConfig("[]", oldKey, newKey), /JSON object/);
 });
