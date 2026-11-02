@@ -20,7 +20,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (["agent_running", "approving"].includes(projectState.stageStatus)) {
     return NextResponse.json({ error: "Project stage is processing; retry the edit after the current operation completes." }, { status: 409 });
   }
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid item mutation payload" }, { status: 400 });
+  }
+  if (body.data !== undefined && (!body.data || typeof body.data !== "object" || Array.isArray(body.data))) {
+    return NextResponse.json({ error: "data must be an object" }, { status: 400 });
+  }
   const kind = String(body.kind ?? "");
   const itemId = String(body.itemId ?? "");
   const data = (body.data ?? {}) as Record<string, unknown>;
@@ -102,8 +108,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       if (data.selected === true) {
-        // A Serializable transaction prevents two simultaneous requests from
-        // leaving two selected candidates in the same project.
+        // Compare-and-swap on the project row prevents two simultaneous
+        // requests from leaving two selected candidates in the same project.
         const projectVersion = await db.project.findUnique({
           where: { id },
           select: { updatedAt: true },
@@ -132,6 +138,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       } else {
         if (data.selected === false) patch.selected = false;
         await db.problemCandidate.update({ where: { id: itemId, projectId: id }, data: patch });
+        if (data.selected === false && c.selected) {
+          await logDecision(id, "PROBLEM_SELECTION", "human", "deselected_problem", c.title.slice(0, 180));
+        }
         if (patch.impact !== undefined || patch.effort !== undefined) {
           await logDecision(
             id,
@@ -198,6 +207,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         include: { reqA: true, reqB: true },
       });
       if (!c) return NextResponse.json({ error: "Conflict not found" }, { status: 404 });
+      if (data.resolution !== undefined && typeof data.resolution !== "string") {
+        return NextResponse.json({ error: "resolution must be a string" }, { status: 400 });
+      }
       const resolution = String(data.resolution ?? "").slice(0, 1000);
       await db.conflict.update({
         where: { id: itemId },
@@ -264,5 +276,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   } else {
     return NextResponse.json({ error: "Unknown item kind" }, { status: 400 });
   }
+  await db.project.update({ where: { id }, data: { updatedAt: new Date() } });
   return NextResponse.json({ ok: true });
 }
