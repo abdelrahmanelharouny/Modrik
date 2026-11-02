@@ -228,6 +228,40 @@ try {
   await expectStatus(existingAccept, 200, "existing account accepts invitation without resetting password");
   const unchangedInvitee = await prisma.user.findUnique({ where: { id: existingInvitee.id } });
   assert.equal(unchangedInvitee.passwordHash, existingHash, "invitation acceptance must never overwrite an existing password");
+
+  // Re-inviting a revoked membership must revoke every old session before
+  // the membership can become active again.
+  const formerMember = await prisma.user.create({
+    data: { email: `former-member-${randomUUID()}@example.invalid`, status: "active" },
+  });
+  identityCleanup.users.push(formerMember.id);
+  const formerMembership = await prisma.membership.create({
+    data: { userId: formerMember.id, organizationId: tenantA.id, role: "viewer", status: "revoked" },
+  });
+  const formerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: formerSessionId, userId: formerMember.id, membershipId: formerMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const formerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: formerMember.email, userId: formerMember.id, organizationId: tenantA.id,
+    membershipId: formerMembership.id, role: "viewer", sessionId: formerSessionId,
+  }, secret)}`;
+  const formerInviteResponse = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ email: formerMember.email, role: "reviewer" }),
+  });
+  await expectStatus(formerInviteResponse, 201, "re-invite a revoked former member");
+  const formerInvite = await json(formerInviteResponse);
+  const formerToken = new URL(formerInvite.inviteUrl).searchParams.get("token");
+  const oldSessionRecord = await prisma.authSession.findUnique({ where: { id: formerSessionId } });
+  assert.ok(oldSessionRecord.revokedAt, "re-invitation must revoke stale sessions before membership reactivation");
+  const formerAccept = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: formerToken, password: "Former-Member-Password-2026!" }),
+  });
+  await expectStatus(formerAccept, 200, "former member accepts a fresh invitation");
+  const staleFormerSession = await fetch(`${baseUrl}/api/projects`, { headers: { cookie: formerCookie } });
+  await expectStatus(staleFormerSession, 401, "previously revoked session must remain revoked after re-invitation");
   const activeInvitedMembership = await prisma.membership.findUnique({
     where: { userId_organizationId: { userId: invitedUser.id, organizationId: tenantA.id } },
   });
