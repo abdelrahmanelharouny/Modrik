@@ -311,7 +311,7 @@ export async function runProblemSelection(projectId: string, runId?: string): Pr
   });
   const existingCandidates = await db.problemCandidate.findMany({
     where: { projectId },
-    select: { selected: true, impact: true, effort: true },
+    select: { selected: true, humanEdited: true },
   });
   if (hasHumanCandidateEdits(existingCandidates)) {
     throw new Error("Refusing to regenerate problem candidates: a candidate has been selected or manually scored.");
