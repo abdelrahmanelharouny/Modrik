@@ -88,7 +88,7 @@ export function validateBenchmark(manifest, readScenario) {
   }
 
   if (categories.size !== 8) errors.push(`expected 8 benchmark categories; found ${categories.size}`);
-  if (domains.size !== 4) errors.push(`expected 4 benchmark domains; found ${domains.size}`);
+  if (domains.size !== 5) errors.push(`expected 5 benchmark domains; found ${domains.size}`);
   for (const category of categories) {
     for (const domain of domains) {
       const count = categoryDomainCounts.get(`${category}::${domain}`) ?? 0;
