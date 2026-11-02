@@ -11,8 +11,8 @@ const sqliteSchema = fs.readFileSync(path.join(root, "prisma", "schema.prisma"),
 
 test("PostgreSQL schema renderer changes only the datasource provider", () => {
   const postgres = renderPostgresSchema(sqliteSchema);
-  assert.match(postgres, /provider\\s*=\\s*"postgresql"/);
-  assert.equal(postgres.replace('provider = "postgresql"', 'provider = "sqlite"').replace(/^.*?\\n\\n/, ""), sqliteSchema);
+  assert.match(postgres, /provider\s*=\s*"postgresql"/);
+  assert.equal(postgres.replace('provider = "postgresql"', 'provider = "sqlite"').replace(/^.*?\n\n/, ""), sqliteSchema);
 });
 
 test("schema parity rejects provider drift and independent model edits", () => {
