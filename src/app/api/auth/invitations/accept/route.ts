@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         where: { id: invitation.userId, status: "active", passwordHash: null },
         data: { passwordHash, ...(displayName ? { displayName } : {}) },
       });
-      if (passwordSet.count !== 1) return null;
+      if (passwordSet.count !== 1) throw new Error("INVITATION_ACCOUNT_CHANGED");
     } else if (displayName && !currentUser.displayName) {
       await tx.user.updateMany({
         where: { id: invitation.userId, status: "active", passwordHash: { not: null } },
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       role: invitation.role,
     };
   }).catch((error) => {
-    if (error instanceof Error && error.message === "INVITATION_MEMBERSHIP_NOT_PENDING") return null;
+    if (error instanceof Error && ["INVITATION_MEMBERSHIP_NOT_PENDING", "INVITATION_ACCOUNT_CHANGED"].includes(error.message)) return null;
     throw error;
   });
 
