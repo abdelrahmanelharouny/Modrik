@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { isSameOriginMutation } from "../src/lib/security/request-origin.mjs";
 import { encryptSecret, decryptSecret, isEncryptedSecret } from "../src/lib/security/secret-box.mjs";
 import { csvCell } from "../src/lib/security/csv.mjs";
 import { validateJiraBaseUrl, buildJiraUrl, jiraFetchOptions } from "../src/lib/security/jira-url.mjs";
@@ -120,4 +121,18 @@ test("API owner authorization rejects missing, expired, misconfigured and non-ow
   assert.equal(verifyAdminRequest(token,env,now+(SESSION_TTL_SECONDS+1)*1000),null);
   const other=createSessionToken("other@example.com",secret,now);
   assert.equal(verifyAdminRequest(other,env,now),null);
+});
+
+
+test("state-changing request origin validation uses the actual request host", () => {
+  const sameOrigin = new Headers({ host: "127.0.0.1:3187", origin: "http://127.0.0.1:3187", "sec-fetch-site": "same-origin" });
+  assert.equal(isSameOriginMutation(sameOrigin, "http:"), true);
+  const crossOrigin = new Headers({ host: "127.0.0.1:3187", origin: "https://attacker.example", "sec-fetch-site": "cross-site" });
+  assert.equal(isSameOriginMutation(crossOrigin, "http:"), false);
+  const crossSiteWithoutOrigin = new Headers({ host: "127.0.0.1:3187", "sec-fetch-site": "cross-site" });
+  assert.equal(isSameOriginMutation(crossSiteWithoutOrigin, "http:"), false);
+  const trustedProxyHttps = new Headers({ host: "app.example.com", origin: "https://app.example.com", "x-forwarded-proto": "https" });
+  assert.equal(isSameOriginMutation(trustedProxyHttps, "http:"), true);
+  const malformedOrigin = new Headers({ host: "app.example.com", origin: "not a URL" });
+  assert.equal(isSameOriginMutation(malformedOrigin, "https:"), false);
 });
