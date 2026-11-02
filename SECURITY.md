@@ -39,6 +39,14 @@ New GitHub/Jira tokens are stored with AES-256-GCM authenticated encryption. Leg
 
 Jira URLs are restricted to official Atlassian Cloud tenant hosts or exact HTTPS origins explicitly allowlisted by the deployment operator. Redirects are disabled for Jira API calls to prevent an approved endpoint from redirecting credentials to another host. Do not add untrusted origins to the allowlist.
 
+## Evidence processing consent and schema rollout
+
+The evidence consent checkbox is an explicit permission flag for sending that source's text to the configured AI provider. Unchecked sources remain in the private project library but are filtered out of planner, extraction, verification, and memory-generation prompts. A client-supplied `"false"` string is rejected; consent must be a real boolean. Synthetic Wind Tunnel answers are marked with their own provenance and never count as human stakeholder answers.
+
+Evidence codes are stable identifiers, not list positions. Deleting a cited source removes its trace links and moves affected requirements back to revised/unverified review. It does not renumber remaining sources. Existing `TraceLink` rows are attached to `Evidence` by their new optional `evidenceId` as new trace links are created; legacy code-only links are handled during deletion.
+
+Phase 1 adds schema relations for project-scoped memory and stable evidence trace IDs. Back up the database before applying the schema update. For local SQLite run `bun run db:push`; for PostgreSQL run `bun run db:push:pg` with the production `DATABASE_URL` set. These commands intentionally do not use Prisma's destructive `--accept-data-loss` flag.
+
 ## Current boundary and next security phase
 
 This phase does not claim full legal compliance or multi-tenant isolation. The following remain required before serving multiple organizations:
