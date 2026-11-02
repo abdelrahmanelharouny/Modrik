@@ -48,7 +48,9 @@ export function proxy(request: NextRequest) {
   // Cookie sessions must not be usable cross-origin for state-changing calls.
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) {
+    const fetchSite = request.headers.get("sec-fetch-site");
+    if ((origin && origin !== request.nextUrl.origin) ||
+        (!origin && fetchSite && fetchSite !== "same-origin" && fetchSite !== "none")) {
       return NextResponse.json({ error: "Cross-origin state change rejected" }, { status: 403 });
     }
   }
