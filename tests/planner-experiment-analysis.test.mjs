@@ -27,7 +27,13 @@ test("paired bootstrap returns deterministic improvement evidence for repeated i
   assert.equal(first.comparisons.llm.redundancyRate.verdict, "evidence-of-improvement");
 });
 
-test("analysis accepts persisted Prisma metrics JSON strings", () => {\n  const rows = rowsFor("stored").map((row) => ({ ...row, metrics: JSON.stringify(row.metrics) }));\n  const result = analyzePlannerExperiments(rows);\n  assert.equal(result.pairedExperiments, 1);\n});\n\ntest("insufficient independent experiments never produce confidence intervals", () => {
+test("analysis accepts persisted Prisma metrics JSON strings", () => {
+  const rows = rowsFor("stored").map((row) => ({ ...row, metrics: JSON.stringify(row.metrics) }));
+  const result = analyzePlannerExperiments(rows);
+  assert.equal(result.pairedExperiments, 1);
+});
+
+test("insufficient independent experiments never produce confidence intervals", () => {
   const result = analyzePlannerExperiments(rowsFor("one"), { bootstrapSamples: 100 });
   assert.equal(result.pairedExperiments, 1);
   assert.equal(result.comparisons.single_shot.avgUtility.verdict, "insufficient-data");
