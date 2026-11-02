@@ -40,6 +40,8 @@ model Project {
   memories MemoryEntry[]
   integrations Integration[]
   traceLinks TraceLink[]
+  evidenceClaims EvidenceClaim[]
+  requirementClaims RequirementClaim[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -112,6 +114,7 @@ model Evidence {
   origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
   traceLinks TraceLink[]
+  claims     EvidenceClaim[]
   revisions  EvidenceRevision[]
   @@unique([projectId, code])
 }
@@ -136,6 +139,61 @@ model EvidenceRevision {
 
   @@unique([evidenceId, version])
   @@index([evidenceId, createdAt])
+  claims      EvidenceClaim[]
+}
+
+
+// Verbatim claims extracted from a specific immutable evidence revision.
+// Offsets are JavaScript UTF-16 code-unit offsets into EvidenceRevision.content.
+model EvidenceClaim {
+  id                    String   @id @default(cuid())
+  projectId             String
+  project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  evidenceId            String
+  evidence              Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  revisionId            String
+  revision              EvidenceRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  claimRef              String
+  claimText             String
+  quote                 String
+  quoteStart            Int
+  quoteEnd              Int
+  offsetUnit            String   @default("utf16")
+  sourceRevisionVersion Int
+  claimKind             String   // need | goal | constraint | preference | risk | metric | pain_point | assumption | fact
+  polarity              String   @default("neutral") // affirmative | negative | neutral
+  modality              String   @default("reported") // must | should | may | wants | reported | hypothetical
+  speaker               String?
+  extractionConfidence  Float    @default(0.5)
+  status                String   @default("proposed") // proposed | in_review | accepted | rejected | needs_clarification
+  extractionNote        String   @default("")
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  reviewNote            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  requirementLinks      RequirementClaim[]
+
+  @@unique([projectId, claimRef])
+  @@unique([revisionId, quoteStart, quoteEnd, claimText])
+  @@index([projectId, status, claimKind])
+  @@index([evidenceId, revisionId])
+}
+
+model RequirementClaim {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementId String
+  requirement   Requirement   @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  claimId       String
+  claim         EvidenceClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  relationship  String        @default("supports") // supports | contradicts | qualifies | derives
+  note          String        @default("")
+  createdAt     DateTime      @default(now())
+
+  @@unique([requirementId, claimId])
+  @@index([projectId, claimId])
 }
 
 // Agent-generated clarifying questions, answered by the human (HITL gate 1)
