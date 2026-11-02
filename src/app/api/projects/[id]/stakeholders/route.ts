@@ -4,7 +4,7 @@ import { logDecision } from "@/lib/journal";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
-  POSITION_STATUSES, normalizeStakeholderUpdate,
+  POSITION_STATUSES, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum,
 } from "@/lib/stakeholders/collaboration.mjs";
 
 type Params = { params: Promise<{ id: string }> };
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const requirement = await db.requirement.findFirst({ where: { id: data.requirementId, projectId: id }, select: { id: true, refId: true } });
       if (!requirement) return NextResponse.json({ error: "Requirement not found in this project." }, { status: 404 });
       const participants = body.participants ?? [];
-      if (!Array.isArray(participants) || participants.length < 2 || participants.length > 30) throw new Error("A multi-stakeholder negotiation requires 2 to 30 participants.");
+      assertNegotiationQuorum(participants);
       const normalizedParticipants = participants.map((p: any) => {
         if (!p || typeof p.stakeholderId !== "string" || !p.stakeholderId.trim() || !NEGOTIATION_ROLES.includes(p.role ?? "consulted")) throw new Error("Invalid negotiation participant.");
         if (p.note !== undefined && (typeof p.note !== "string" || p.note.length > 500)) throw new Error("Participant note must be text up to 500 characters.");
@@ -142,11 +142,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (typeof body.negotiationId !== "string" || typeof body.participantId !== "string") {
       return NextResponse.json({ error: "negotiationId and participantId are required." }, { status: 400 });
     }
-    const allowed = ["supports", "opposes", "conditional", "abstains"];
-    if (!allowed.includes(body.responseStatus)) return NextResponse.json({ error: "Unsupported participant response." }, { status: 400 });
-    if (typeof body.rationale !== "string" || !body.rationale.trim() || body.rationale.length > 2000) {
-      return NextResponse.json({ error: "A response rationale of up to 2000 characters is required." }, { status: 400 });
-    }
+    let response;
+    try { response = normalizeNegotiationResponse(body); } catch (error) { return bad(error); }
     const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, select: { id: true, status: true, requirement: { select: { refId: true } } } });
     if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
     if (negotiation.status !== "proposed") return NextResponse.json({ error: "Participant responses are closed after a decision is recorded." }, { status: 409 });
@@ -155,7 +152,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (participant.responseStatus !== "pending") return NextResponse.json({ error: "This participant response is immutable once submitted." }, { status: 409 });
     const transition = await db.negotiationParticipant.updateMany({
       where: { id: participant.id, decisionId: negotiation.id, projectId: id, responseStatus: "pending" },
-      data: { responseStatus: body.responseStatus, responseRationale: body.rationale.trim(), respondedAt: new Date() },
+      data: { responseStatus: response.responseStatus, responseRationale: response.rationale, respondedAt: new Date() },
     });
     if (transition.count !== 1) return NextResponse.json({ error: "Participant response was submitted concurrently. Refresh before continuing." }, { status: 409 });
     const updated = await db.negotiationParticipant.findFirst({ where: { id: participant.id, projectId: id } });
