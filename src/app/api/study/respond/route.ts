@@ -73,10 +73,6 @@ export async function POST(req: NextRequest) {
   if (session.withdrawnAt) {
     return response({ error: "This study session was withdrawn and its response data was scrubbed." }, 410);
   }
-  if (session.finishedAt) {
-    return response({ error: "This study session is finished and cannot be changed." }, 409);
-  }
-
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return response({ error: "Invalid participant response body." }, 400);
@@ -102,7 +98,6 @@ export async function POST(req: NextRequest) {
         where: {
           id: session.id,
           participantTokenHash: tokenHash,
-          finishedAt: null,
           withdrawnAt: null,
           participantTokenExpiresAt: { gt: withdrawnAt },
         },
@@ -130,6 +125,10 @@ export async function POST(req: NextRequest) {
     });
     if (!withdrawn) return response({ error: "Study session expired or was already closed." }, 409);
     return response({ ok: true, withdrawn: true });
+  }
+
+  if (session.finishedAt) {
+    return response({ error: "This study session is finished. You may still withdraw it before the participant token expires." }, 409);
   }
 
   const data: Record<string, unknown> = {};
@@ -190,8 +189,6 @@ export async function POST(req: NextRequest) {
   }
   if (body.finished === true) {
     data.finishedAt = new Date(now);
-    data.participantTokenHash = null;
-    data.participantTokenExpiresAt = null;
   }
   if (Object.keys(data).length === 0 && body.event === undefined) {
     return response({ error: "No supported study update was provided." }, 400);
