@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
+import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { HudPanel, Eyebrow, Chip, Meter, SectionHead, EmptyBay, LiveDot } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -454,6 +455,11 @@ export function ElicitationStage({
                 <p className="mt-2 line-clamp-3 text-sm text-muted-foreground" dir="auto">
                   {ev.content}
                 </p>
+                <EvidenceRevisionPanel
+                  projectId={project.id}
+                  evidence={ev}
+                  onSaved={refresh}
+                />
               </li>
             ))}
           </ul>
