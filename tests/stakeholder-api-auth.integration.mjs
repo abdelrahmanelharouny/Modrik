@@ -199,6 +199,57 @@ try {
     body: JSON.stringify({ name: "Forbidden viewer project", brief: "must not be created" }),
   });
   await expectStatus(viewerCreate, 403, "viewer cannot create projects");
+  const viewerStakeholders = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/stakeholders`, {
+    headers: { cookie: viewerCookie },
+  });
+  await expectStatus(viewerStakeholders, 200, "viewer can read project collaboration data");
+  const viewerEvidenceWrite = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/evidence`, {
+    method: "POST",
+    headers: { cookie: viewerCookie, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await expectStatus(viewerEvidenceWrite, 403, "viewer cannot write project evidence");
+
+  const reviewerUser = await prisma.user.create({ data: { email: `identity-reviewer-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(reviewerUser.id);
+  const reviewerMembership = await prisma.membership.create({
+    data: { userId: reviewerUser.id, organizationId: tenantA.id, role: "reviewer", status: "active", activatedAt: new Date() },
+  });
+  const reviewerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: reviewerSessionId, userId: reviewerUser.id, membershipId: reviewerMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const reviewerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: reviewerUser.email, userId: reviewerUser.id, organizationId: tenantA.id,
+    membershipId: reviewerMembership.id, role: "reviewer", sessionId: reviewerSessionId,
+  }, secret)}`;
+  const reviewerClaimReview = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/claims`, {
+    method: "PATCH",
+    headers: { cookie: reviewerCookie, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await expectStatus(reviewerClaimReview, 400, "reviewer may enter the claim review action");
+
+  const approverUser = await prisma.user.create({ data: { email: `identity-approver-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(approverUser.id);
+  const approverMembership = await prisma.membership.create({
+    data: { userId: approverUser.id, organizationId: tenantA.id, role: "approver", status: "active", activatedAt: new Date() },
+  });
+  const approverSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: approverSessionId, userId: approverUser.id, membershipId: approverMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const approverCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: approverUser.email, userId: approverUser.id, organizationId: tenantA.id,
+    membershipId: approverMembership.id, role: "approver", sessionId: approverSessionId,
+  }, secret)}`;
+  const approverDecision = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/stakeholders`, {
+    method: "PATCH",
+    headers: { cookie: approverCookie, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await expectStatus(approverDecision, 400, "approver may enter stakeholder decision action");
+
   const viewerTelemetry = await fetch(`${baseUrl}/api/telemetry`, { headers: { cookie: viewerCookie } });
   await expectStatus(viewerTelemetry, 403, "viewer cannot read audit telemetry");
   await prisma.user.update({ where: { id: viewerUser.id }, data: { status: "disabled" } });
