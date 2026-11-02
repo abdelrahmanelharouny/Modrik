@@ -39,7 +39,7 @@ function overLimit(key: string, now: number): boolean {
 // participant codes, metrics, notes, events or another session's existence.
 export async function GET(req: NextRequest) {
   const authorization = req.headers.get("authorization") ?? "";
-  const match = /^Bearer\\s+(mps_[A-Za-z0-9_-]{43})$/.exec(authorization);
+  const match = /^Bearer\s+(mps_[A-Za-z0-9_-]{43})$/.exec(authorization);
   if (!match) return response({ error: "A valid participant session bearer token is required." }, 401);
 
   let tokenHash: string;
