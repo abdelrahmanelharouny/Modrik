@@ -4,7 +4,7 @@ import { logDecision } from "@/lib/journal";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
-  POSITION_STATUSES, STAKEHOLDER_APPROVAL_ROLES, STAKEHOLDER_ENGAGEMENT,
+  POSITION_STATUSES, normalizeStakeholderUpdate,
 } from "@/lib/stakeholders/collaboration.mjs";
 
 type Params = { params: Promise<{ id: string }> };
@@ -122,11 +122,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (typeof body.stakeholderId !== "string" || !body.stakeholderId.trim()) return NextResponse.json({ error: "stakeholderId is required." }, { status: 400 });
     const stakeholder = await db.stakeholderProfile.findFirst({ where: { id: body.stakeholderId, projectId: id } });
     if (!stakeholder) return NextResponse.json({ error: "Stakeholder not found in this project." }, { status: 404 });
-    const engagementStatus = body.engagementStatus ?? stakeholder.engagementStatus;
-    const approvalRole = body.approvalRole ?? stakeholder.approvalRole;
-    if (!STAKEHOLDER_ENGAGEMENT.includes(engagementStatus) || !STAKEHOLDER_APPROVAL_ROLES.includes(approvalRole)) {
-      return NextResponse.json({ error: "Unsupported engagement status or approval role." }, { status: 400 });
-    }
+    let update;
+    try { update = normalizeStakeholderUpdate(body, stakeholder); } catch (error) { return bad(error); }
+    const { engagementStatus, approvalRole } = update;
     if (engagementStatus === stakeholder.engagementStatus && approvalRole === stakeholder.approvalRole) {
       return NextResponse.json({ stakeholder, unchanged: true });
     }
