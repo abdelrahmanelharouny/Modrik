@@ -212,6 +212,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         break;
       }
 
+      if (data.driftDecision !== undefined) {
+        if (data.driftDecision !== "confirmed" && data.driftDecision !== "dismissed") {
+          return NextResponse.json({ error: "driftDecision must be confirmed or dismissed" }, { status: 400 });
+        }
+        if (r.driftStatus === "none") {
+          return NextResponse.json({ error: "This requirement has no pending drift signal to review." }, { status: 409 });
+        }
+        const nextStatus = data.driftDecision === "confirmed" ? "confirmed" : "none";
+        await db.requirement.update({
+          where: { id: itemId },
+          data: { driftStatus: nextStatus },
+        });
+        await logDecision(
+          id,
+          "LIFECYCLE",
+          "human",
+          data.driftDecision === "confirmed" ? "confirmed_requirement_drift" : "dismissed_requirement_drift",
+          `${r.refId}: human reviewer ${data.driftDecision} the suspected change impact.`
+        );
+        break;
+      }
+
       if (data.verificationDecision !== undefined) {
         if (data.verificationDecision !== "supported" && data.verificationDecision !== "weak") {
           return NextResponse.json({ error: "verificationDecision must be supported or weak" }, { status: 400 });
