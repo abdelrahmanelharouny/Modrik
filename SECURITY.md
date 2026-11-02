@@ -73,15 +73,23 @@ The configured bootstrap administrator is provisioned into the default `Modrik W
 
 Identity context headers (`x-modrik-user-id`, `x-modrik-organization-id`, `x-modrik-membership-id`, `x-modrik-role`) are stripped from incoming requests and injected by the proxy only after a database-backed session is validated. Application code must never accept caller-supplied values as identity.
 
-The current bootstrap flow provisions the configured administrator. Invited-user onboarding, password setup/reset, organization switching, MFA/SSO and distributed session/rate-limit infrastructure remain follow-up work. Do not expose self-service registration or treat the current bootstrap path as a complete identity lifecycle.
+The current bootstrap flow provisions the configured administrator. Invited-user onboarding and password recovery are implemented in H1.7–H1.8. Organization switching, MFA/SSO and distributed session/rate-limit infrastructure remain follow-up work. Do not expose self-service registration or treat the current bootstrap path as a complete identity lifecycle.
+
+## Password recovery (H1.8)
+
+- Public recovery requests use a generic response for unknown, disabled, and eligible accounts to reduce account enumeration.
+- A configured Resend sender and trusted application URL are required. Set `RESEND_API_KEY`, `PASSWORD_RESET_EMAIL_FROM`, and `APP_URL`; recovery remains disabled with HTTP 503 until all are configured.
+- Reset links carry a random 256-bit token, while only its SHA-256 digest is stored. Tokens expire after 30 minutes, are single-use, and are revoked after a successful reset.
+- Password reset revokes every active session and every other outstanding reset token. The user must sign in again.
+- Delivery failures revoke the newly created token. The endpoint does not return reset URLs to callers or log bearer tokens.
 
 ## Current boundary and next security phase
 
 This phase does not claim full legal compliance or multi-tenant isolation. The following remain required before serving multiple organizations:
-- user and organization records with membership-scoped project queries;
+- distributed rate limiting and abuse controls beyond the current per-process login/recovery throttles;
 - Owner / Admin / Engineer / Reviewer / Approver / Viewer roles;
 - per-resource authorization in every route and background job;
-- distributed rate limiting, recovery flows, MFA/SSO and session revocation;
+- MFA/SSO and a shared distributed rate-limit store;
 - auditable retention, erasure, consent purpose and processing-provider policies;
 - automated penetration testing and security review.
 
