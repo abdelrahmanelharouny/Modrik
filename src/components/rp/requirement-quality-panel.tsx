@@ -24,7 +24,7 @@ interface Assessment extends Scores {
  requirement:{id:string;refId:string;text:string;type:string;priority:string;language:string};
 }
 
-export function RequirementQualityPanel({project,onRefresh}:{project:ProjectDTO;onRefresh:()=>Promise<void>}){
+export function RequirementQualityPanel({project,isCurrent,onRefresh}:{project:ProjectDTO;isCurrent:boolean;onRefresh:()=>Promise<void>}){
  const {lang}=useLang(),ar=lang==="ar";const {toast}=useToast();
  const [items,setItems]=useState<Assessment[]>([]),[selectedId,setSelectedId]=useState(project.requirements[0]?.id??"");
  const [scores,setScores]=useState<Scores>(INITIAL),[issues,setIssues]=useState(""),[rewrite,setRewrite]=useState(""),[note,setNote]=useState("");
@@ -46,14 +46,14 @@ export function RequirementQualityPanel({project,onRefresh}:{project:ProjectDTO;
    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{DIMS.map(([key,en,arabic])=><label key={key} className="space-y-1 text-xs"><span className="flex justify-between"><span>{ar?arabic:en}</span><span className="font-mono text-aura">{scores[key]}</span></span><Input type="number" min={0} max={100} step={1} value={scores[key]} onChange={e=>setScores(s=>({...s,[key]:Math.max(0,Math.min(100,Number(e.target.value)||0))}))} aria-label={ar?arabic:en} className="h-9"/></label>)}</div>
    <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs">Issues (one per line)<Textarea rows={3} value={issues} onChange={e=>setIssues(e.target.value)} maxLength={5000} dir="auto"/></label><label className="space-y-1 text-xs">Suggested rewrite<Textarea rows={3} value={rewrite} onChange={e=>setRewrite(e.target.value)} maxLength={5000} dir="auto" placeholder="Optional; never applied automatically"/></label></div>
    <label className="block space-y-1 text-xs">Reviewer note<Textarea rows={2} value={note} onChange={e=>setNote(e.target.value)} maxLength={1000} dir="auto"/></label>
-   <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-[10px] text-muted-foreground">Source text and SHA-256 snapshot will be preserved.</span><Button size="sm" onClick={save} disabled={busy||!selected}>Save proposed assessment</Button></div>
+   <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-[10px] text-muted-foreground">Source text and SHA-256 snapshot will be preserved.</span><Button size="sm" onClick={save} disabled={busy||!selected||!isCurrent}>Save proposed assessment</Button></div>
   </>}
   {items.length>0&&<div className="space-y-2 border-t border-border/70 pt-3"><div className="text-xs font-semibold">Assessment history</div>{items.map(item=><div key={item.id} className="rounded border border-border/60 p-3">
    <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="font-mono">{item.requirement.refId}</Badge><Chip tone={item.overallScore>=80?"verify":item.overallScore>=60?"signal":"coral"}>{item.overallScore}/100</Chip><Badge variant={item.status==="accepted"?"default":"secondary"}>{item.status}</Badge>{!item.isCurrent&&<Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Stale</Badge>}</div>
    <p className="mt-2 text-xs" dir="auto">{item.sourceText}</p>{item.issues.length>0&&<ul className="mt-2 list-disc pl-4 text-[11px] text-muted-foreground">{item.issues.map((v,i)=><li key={i}>{v}</li>)}</ul>}
    {item.suggestedRewrite&&<p className="mt-2 rounded bg-secondary/40 p-2 text-xs" dir="auto">{item.suggestedRewrite}</p>}
    <p className="mt-2 font-mono text-[9px] text-muted-foreground">SHA-256 {item.sourceHash.slice(0,20)}…</p>
-   {item.status==="proposed"&&<div className="mt-2 flex flex-wrap gap-2"><Button size="sm" className="h-7" disabled={busy||!item.isCurrent} onClick={()=>review(item,"accepted")}><CheckCircle2 className="mr-1 h-3 w-3"/>Accept</Button><Button size="sm" variant="outline" className="h-7" disabled={busy} onClick={()=>review(item,"rejected")}><XCircle className="mr-1 h-3 w-3"/>Reject</Button>{!item.isCurrent&&<span className="self-center text-[10px] text-coral">Stale assessments cannot be accepted.</span>}</div>}
+   {item.status==="proposed"&&<div className="mt-2 flex flex-wrap gap-2"><Button size="sm" className="h-7" disabled={busy||!isCurrent||!item.isCurrent} onClick={()=>review(item,"accepted")}><CheckCircle2 className="mr-1 h-3 w-3"/>Accept</Button><Button size="sm" variant="outline" className="h-7" disabled={busy||!isCurrent} onClick={()=>review(item,"rejected")}><XCircle className="mr-1 h-3 w-3"/>Reject</Button>{!item.isCurrent&&<span className="self-center text-[10px] text-coral">Stale assessments cannot be accepted.</span>}</div>}
   </div>)}</div>}
  </HudPanel>;
 }
