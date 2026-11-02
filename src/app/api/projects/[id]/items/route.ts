@@ -156,8 +156,38 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     case "requirement": {
-      const r = await db.requirement.findFirst({ where: { id: itemId, projectId: id } });
+      const r = await db.requirement.findFirst({
+        where: { id: itemId, projectId: id },
+        include: { links: { select: { id: true } } },
+      });
       if (!r) return NextResponse.json({ error: "Requirement not found" }, { status: 404 });
+
+      if (data.verificationDecision !== undefined) {
+        if (data.verificationDecision !== "supported" && data.verificationDecision !== "weak") {
+          return NextResponse.json({ error: "verificationDecision must be supported or weak" }, { status: 400 });
+        }
+        if (r.links.length === 0) {
+          return NextResponse.json({ error: "A requirement must have at least one evidence trace link before a human verification decision." }, { status: 422 });
+        }
+        await db.requirement.update({
+          where: { id: itemId },
+          data: {
+            verifyStatus: data.verificationDecision,
+            verificationSource: "human",
+            verifiedAt: new Date(),
+            verifiedBy: "owner",
+            verifyNote: "Human reviewer inspected the linked evidence and recorded this independent verdict.",
+          },
+        });
+        await logDecision(
+          id,
+          "EXTRACTION",
+          "human",
+          "human_verification",
+          `${r.refId}: human reviewer marked cited evidence as ${data.verificationDecision}.`
+        );
+        break;
+      }
 
       // apply the ambiguity agent's suggested rewrite
       if (data.action === "apply_suggestion") {
@@ -166,7 +196,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
         await db.requirement.update({
           where: { id: itemId },
-          data: { text: r.suggestion, suggestion: null, status: "revised" },
+          data: {
+            text: r.suggestion,
+            suggestion: null,
+            status: "revised",
+            verifyStatus: "unverified",
+            verificationSource: "unverified",
+            verifiedAt: null,
+            verifiedBy: null,
+            verifyNote: "Requirement text changed; previous evidence verification is stale.",
+          },
         });
         await logDecision(id, "AMBIGUITY", "human", "applied_rewrite", `${r.refId}: "${r.text.slice(0, 150)}" → "${r.suggestion.slice(0, 150)}"`);
         break;
@@ -180,6 +219,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (typeof data.priority === "string" && ["Must", "Should", "Could", "Won't"].includes(data.priority))
         patch.priority = data.priority;
       if (Object.keys(patch).length > 0) patch.status = "revised";
+      if (typeof patch.text === "string") {
+        Object.assign(patch, {
+          verifyStatus: "unverified",
+          verificationSource: "unverified",
+          verifiedAt: null,
+          verifiedBy: null,
+          verifyNote: "Requirement text changed; previous evidence verification is stale.",
+        });
+      }
       await db.requirement.update({ where: { id: itemId }, data: patch });
       if (Object.keys(patch).length > 0) {
         await logDecision(id, "EXTRACTION", "human", "edited_requirement", `${r.refId} updated (${Object.keys(patch).join(", ")}).`);
