@@ -62,11 +62,14 @@ export function analyzePlannerExperiments(rows, options = {}) {
   const groups = new Map();
 
   for (const row of Array.isArray(rows) ? rows : []) {
-    const metrics = parseMetrics(row?.metrics);
-    if (!row || typeof row.experimentId !== "string" || !row.experimentId ||
-        !ARMS.includes(row.arm) || !validMetrics(metrics)) continue;
+    if (!row || typeof row.experimentId !== "string" || !row.experimentId) continue;
     if (!groups.has(row.experimentId)) groups.set(row.experimentId, new Map());
     const group = groups.get(row.experimentId);
+    const metrics = parseMetrics(row.metrics);
+    if (!ARMS.includes(row.arm) || !validMetrics(metrics)) {
+      group.set("__invalid__", true);
+      continue;
+    }
     if (group.has(row.arm)) group.set(row.arm, null); // duplicate arm invalidates the whole paired unit
     else group.set(row.arm, metrics);
   }
@@ -74,7 +77,7 @@ export function analyzePlannerExperiments(rows, options = {}) {
   const paired = [];
   let excludedExperiments = 0;
   for (const group of groups.values()) {
-    if (ARMS.every((arm) => group.has(arm) && group.get(arm))) paired.push(group);
+    if (!group.get("__invalid__") && ARMS.every((arm) => group.has(arm) && group.get(arm))) paired.push(group);
     else excludedExperiments++;
   }
 
