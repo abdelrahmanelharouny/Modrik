@@ -4,20 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ProjectDTO, ProjectSummary } from "@/lib/rp";
 import { Workspace } from "@/components/rp/workspace";
-import { AuthGate } from "@/components/rp/auth-gate";
 import { MissionControl } from "@/components/rp/mission-control";
 import { HudPanel, Eyebrow, LiveDot } from "@/components/rp/hud";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Home() {
-  return (
-    <AuthGate>
-      <HomeContent />
-    </AuthGate>
-  );
-}
-
-function HomeContent() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [project, setProject] = useState<ProjectDTO | null>(null);
