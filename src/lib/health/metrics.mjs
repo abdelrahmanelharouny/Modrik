@@ -32,7 +32,8 @@ export function computeHealthScores({ requirements = [], questions = [], conflic
       question.answerSource !== "synthetic" &&
       typeof question.answer === "string" &&
       question.answer.trim().length > 0 &&
-      !question.answer.trim().startsWith("[synthetic · wind tunnel]"))
+      !question.answer.trim().startsWith("[synthetic · wind tunnel]") &&
+      !question.answer.trim().toLowerCase().startsWith("(skipped by analyst)"))
   );
   const assumptions = questions.filter((question) => question.resolution === "proceed_with_uncertainty");
   const uncertaintyScore = decided.length ? (assumptions.length / decided.length) * 100 : null;
