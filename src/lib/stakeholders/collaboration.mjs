@@ -123,3 +123,23 @@ export function normalizeStakeholderUpdate(input, current) {
   if (!STAKEHOLDER_APPROVAL_ROLES.includes(approvalRole)) throw new Error("Unsupported approvalRole.");
   return { engagementStatus, approvalRole };
 }
+
+export const NEGOTIATION_RESPONSE_STATUSES = ["supports","opposes","conditional","abstains"];
+export function normalizeNegotiationResponse(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Participant response must be an object.");
+  if (!NEGOTIATION_RESPONSE_STATUSES.includes(input.responseStatus)) throw new Error("Unsupported participant response.");
+  return {
+    responseStatus: input.responseStatus,
+    rationale: boundedText(input.rationale, "rationale", 2000, { required: true }),
+  };
+}
+export function assertNegotiationQuorum(participants) {
+  if (!Array.isArray(participants) || participants.length < 2 || participants.length > 30) {
+    throw new Error("A multi-stakeholder negotiation requires 2 to 30 participants.");
+  }
+  const ids = participants.map(p => p?.stakeholderId);
+  if (ids.some(id => typeof id !== "string" || !id.trim()) || new Set(ids).size !== ids.length) {
+    throw new Error("Negotiation participants must have unique stakeholder ids.");
+  }
+  return true;
+}
