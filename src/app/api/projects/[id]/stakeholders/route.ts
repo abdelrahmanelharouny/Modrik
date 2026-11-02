@@ -25,7 +25,9 @@ function requireOwner(req: NextRequest) {
 }
 
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
+  const authError = requireOwner(req);
+  if (authError) return authError;
   const { id } = await params;
   const project = await db.project.findUnique({ where: { id }, select: { id: true } });
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
@@ -56,6 +58,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 function safeArray(value: string) { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
 
 export async function POST(req: NextRequest, { params }: Params) {
+  const authError = requireOwner(req);
+  if (authError) return authError;
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!objectBody(body)) return bad(new Error("Payload must be an object."));
@@ -124,6 +128,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  const authError = requireOwner(req);
+  if (authError) return authError;
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!objectBody(body)) return bad(new Error("Payload must be an object."));
