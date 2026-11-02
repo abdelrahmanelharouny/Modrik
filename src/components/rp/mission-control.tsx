@@ -227,6 +227,10 @@ export function MissionControl({
     <div className="relative flex min-h-screen flex-col">
       <div className="grid-bg pointer-events-none absolute inset-x-0 top-0 h-[640px]" aria-hidden />
 
+      <a href="#main-content" className="sr-only z-[100] rounded-md bg-background px-4 py-3 text-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+        Skip to main content
+      </a>
+
       {/* ── command bar ── */}
       <header className="glass sticky top-0 z-40 border-b border-border/70">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 lg:px-8">
@@ -258,7 +262,7 @@ export function MissionControl({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 lg:px-8">
+      <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 lg:px-8">
         {/* ── hero ── */}
         <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.1fr_0.9fr] lg:py-16">
           <Reveal>
