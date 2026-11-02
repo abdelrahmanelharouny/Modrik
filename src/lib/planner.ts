@@ -22,6 +22,7 @@ import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
 import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision } from "@/lib/security/data-safety.mjs";
 import { selectByUtility, selectDistinctPoolIndices, clampSignalScore } from "@/lib/planner/selection.mjs";
+export { selectByUtility } from "@/lib/planner/selection.mjs";
 
 export type PlannerArm = "single_shot" | "random" | "llm" | "impact_aware";
 
