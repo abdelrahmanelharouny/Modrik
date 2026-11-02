@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { buildSchemaInventory } from "../scripts/schema-inventory.mjs";
 import { renderPostgresSchema } from "../scripts/sync-postgres-schema.mjs";
 
@@ -23,4 +24,19 @@ test("schema inventory is deterministic and explicitly not a deployed baseline",
 test("inventory rejects provider drift and schema divergence", () => {
   assert.throws(() => buildSchemaInventory(sqlite.replace('provider = "sqlite"', 'provider = "postgresql"')), /Canonical schema provider/);
   assert.throws(() => buildSchemaInventory(sqlite, renderPostgresSchema(sqlite).replace("model User {", "model Account {")), /deterministic provider-only transform/);
+});
+
+test("migration deployment entry point refuses execution even with caller-supplied approval flags", () => {
+  const script = path.join(root, "scripts", "guarded-migrate-deploy.mjs");
+  const result = spawnSync(process.execPath, [script], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      MODRIK_MIGRATIONS_ENABLED: "true",
+      MODRIK_MIGRATION_BASELINE_ID: "reviewed-baseline",
+      MODRIK_MIGRATION_APPROVED: "yes",
+    },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /no production runner is implemented/);
 });
