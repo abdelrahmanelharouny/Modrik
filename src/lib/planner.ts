@@ -20,7 +20,7 @@ import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
-import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision } from "@/lib/security/data-safety.mjs";
+import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
 import { selectByUtility, selectDistinctPoolIndices, clampSignalScore, deduplicateQuestions } from "@/lib/planner/selection.mjs";
 export { selectByUtility } from "@/lib/planner/selection.mjs";
 
@@ -130,10 +130,7 @@ function evidenceBlock(evidences: { code: string; title: string; sourceType: str
       ? "(evidence sources are stored, but none has explicit permission for AI processing; no source content is sent to the model)"
       : "(no evidence sources provided yet)";
   }
-  const TOTAL_BUDGET = 16000;
-  const PER_MAX = 4000;
-  const total = eligible.reduce((s, e) => s + e.content.length, 0);
-  const per = total > TOTAL_BUDGET ? Math.max(1200, Math.floor(TOTAL_BUDGET / eligible.length)) : PER_MAX;
+  const per = evidenceContentBudget(eligible.length, 16000, 4000);
   return eligible
     .map((e) => {
       const body =
