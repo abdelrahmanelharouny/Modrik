@@ -96,3 +96,11 @@ jobs:
         run: bunx prisma generate --schema prisma/schema.postgres.prisma
       - name: Push schema to PostgreSQL 16
         run: bunx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
+
+      - name: Upload stakeholder E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stakeholder-e2e-diagnostics
+          path: /tmp/modrik-phase4-e2e-diagnostics.json
+          if-no-files-found: ignore
