@@ -5,7 +5,7 @@ import { resolveIdentitySession } from "@/lib/security/identity";
 import { isPublicApiPath } from "@/lib/security/api-access.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import {
-  isAuthConfigured,
+  isSessionSigningConfigured,
   SESSION_COOKIE,
   verifySessionToken,
 } from "@/lib/security/session.mjs";
@@ -33,7 +33,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!isAuthConfigured()) {
+  if (!isSessionSigningConfigured()) {
     if (isApiPath(pathname)) {
       return NextResponse.json(
         { error: "Modrik authentication is not configured. See SECURITY.md.", code: "AUTH_NOT_CONFIGURED" },
