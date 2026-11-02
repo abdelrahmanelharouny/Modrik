@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const project = await db.project.findUnique({ where: { id }, select: { id: true } });
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
-  const [stakeholders, positions, negotiations] = await Promise.all([
+  const [stakeholders, positions, negotiations, acceptedClaims] = await Promise.all([
     db.stakeholderProfile.findMany({ where: { projectId: id }, orderBy: { updatedAt: "desc" } }),
     db.stakeholderPosition.findMany({
       where: { projectId: id }, orderBy: { createdAt: "desc" },
@@ -29,11 +29,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       include: { requirement: { select: { id: true, refId: true, text: true } },
         participants: { include: { stakeholder: { select: { id: true, stakeholderRef: true, displayName: true } } } } },
     }),
+    db.evidenceClaim.findMany({ where: { projectId: id, status: "accepted" }, orderBy: { createdAt: "desc" },
+      select: { id: true, claimRef: true, claimText: true, quote: true, evidence: { select: { code: true, title: true } } } }),
   ]);
   return NextResponse.json({
     stakeholders: stakeholders.map(x => ({ ...x, goals: safeArray(x.goals), concerns: safeArray(x.concerns) })),
     positions,
     negotiations: negotiations.map(x => ({ ...x, options: safeArray(x.options), dissent: safeArray(x.dissent) })),
+    acceptedClaims,
   });
 }
 
@@ -73,9 +76,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       const link = normalizePositionEvidence(body);
       const claim = await db.evidenceClaim.findFirst({ where: { id: link.claimId, projectId: id, status: "accepted" }, select: { id: true } });
       if (!claim) return NextResponse.json({ error: "Accepted evidence claim not found in this project." }, { status: 404 });
-      const saved = await db.stakeholderPositionEvidence.create({ data: { projectId: id, positionId, ...link } });
-      await logDecision(id, "CLEARANCE", "human", "linked_position_evidence", `Accepted claim ${claim.id} linked to stakeholder position ${positionId}.`);
-      return NextResponse.json({ evidenceLink: saved }, { status: 201 });
+      try {
+        const saved = await db.stakeholderPositionEvidence.create({ data: { projectId: id, positionId, ...link } });
+        await logDecision(id, "CLEARANCE", "human", "linked_position_evidence", `Accepted claim ${claim.id} linked to stakeholder position ${positionId}.`);
+        return NextResponse.json({ evidenceLink: saved }, { status: 201 });
+      } catch {
+        return NextResponse.json({ error: "This evidence claim is already linked to the position." }, { status: 409 });
+      }
     }
     if (body.action === "create_negotiation") {
       const data = normalizeNegotiation(body);
@@ -84,8 +91,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       const participants = body.participants ?? [];
       if (!Array.isArray(participants) || participants.length > 30) throw new Error("participants must be an array of at most 30 entries.");
       const normalizedParticipants = participants.map((p: any) => {
-        if (!p || typeof p.stakeholderId !== "string" || !NEGOTIATION_ROLES.includes(p.role ?? "consulted")) throw new Error("Invalid negotiation participant.");
-        return { stakeholderId: p.stakeholderId, role: p.role ?? "consulted", note: typeof p.note === "string" ? p.note.trim().slice(0,500) : "" };
+        if (!p || typeof p.stakeholderId !== "string" || !p.stakeholderId.trim() || !NEGOTIATION_ROLES.includes(p.role ?? "consulted")) throw new Error("Invalid negotiation participant.");
+        if (p.note !== undefined && (typeof p.note !== "string" || p.note.length > 500)) throw new Error("Participant note must be text up to 500 characters.");
+        return { stakeholderId: p.stakeholderId.trim(), role: p.role ?? "consulted", note: (p.note ?? "").trim() };
       });
       if (new Set(normalizedParticipants.map((p: any) => p.stakeholderId)).size !== normalizedParticipants.length) throw new Error("A stakeholder can only participate once per negotiation.");
       const stakeholderIds = normalizedParticipants.map((p: any) => p.stakeholderId);
@@ -117,7 +125,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const position = await db.stakeholderPosition.findFirst({ where: { id: body.positionId, projectId: id }, include: { stakeholder: true, requirement: true } });
     if (!position) return NextResponse.json({ error: "Position not found in this project." }, { status: 404 });
     if (position.stakeholder.engagementStatus === "withdrawn" && body.status === "accepted") return NextResponse.json({ error: "A withdrawn stakeholder's position cannot be accepted." }, { status: 409 });
-    const updated = await db.stakeholderPosition.update({ where: { id: position.id }, data: { status: body.status, reviewedBy: "owner", reviewedAt: new Date() } });
+    if (position.status !== "proposed") return NextResponse.json({ error: "A reviewed position is immutable. Capture a new position to record a changed view." }, { status: 409 });
+    const transition = await db.stakeholderPosition.updateMany({ where: { id: position.id, projectId: id, status: "proposed" }, data: { status: body.status, reviewedBy: "owner", reviewedAt: new Date() } });
+    if (transition.count !== 1) return NextResponse.json({ error: "This position was reviewed by another action. Refresh before continuing." }, { status: 409 });
+    const updated = await db.stakeholderPosition.findUnique({ where: { id: position.id } });
     await logDecision(id, "CLEARANCE", "human", "reviewed_stakeholder_position", `${position.stakeholder.stakeholderRef} position on ${position.requirement.refId} marked ${body.status}.`);
     return NextResponse.json({ position: updated });
   }
@@ -125,12 +136,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (typeof body.negotiationId !== "string") return NextResponse.json({ error: "negotiationId is required." }, { status: 400 });
     const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true } });
     if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
+    if (negotiation.status !== "proposed") return NextResponse.json({ error: "A recorded negotiation decision is immutable. Create a follow-up negotiation to revisit it." }, { status: 409 });
     let decision;
     try { decision = normalizeNegotiationDecision(body, negotiation.options); } catch (error) { return bad(error); }
-    const updated = await db.negotiationDecision.update({
-      where: { id: negotiation.id },
+    const transition = await db.negotiationDecision.updateMany({
+      where: { id: negotiation.id, projectId: id, status: "proposed" },
       data: { ...decision, decidedBy: "owner", decidedAt: new Date() },
     });
+    if (transition.count !== 1) return NextResponse.json({ error: "This negotiation was decided by another action. Refresh before continuing." }, { status: 409 });
+    const updated = await db.negotiationDecision.findUnique({ where: { id: negotiation.id } });
+    if (!updated) return NextResponse.json({ error: "Negotiation decision could not be reloaded." }, { status: 500 });
     await logDecision(id, "CLEARANCE", "human", "decided_multi_stakeholder_negotiation",
       `${negotiation.requirement.refId}: ${updated.status}; selected option ${updated.chosenOption ?? "none"}; human rationale recorded.`);
     return NextResponse.json({ negotiation: { ...updated, options: safeArray(updated.options), dissent: safeArray(updated.dissent) } });
