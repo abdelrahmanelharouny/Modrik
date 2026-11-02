@@ -8,12 +8,12 @@
     "sqlite": {
       "provider": "sqlite",
       "schemaPath": "prisma/schema.prisma",
-      "sha256": "b5143e4fab310d09bc2d768b7b5896fd2b2f4072441d08cdbcfdb41c157e3e5c"
+      "sha256": "63cc78168b2087e7a27070a40ab368773bc832293dc99aa23694d126bec0b478"
     },
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "f8a24a4c4ec20a66d95d24576b7a275a6ccfcd75aee61c443d78d8ccad70e423"
+      "sha256": "449eecad44e4af0d3b3bfb8914dca9fd3206fafa13f747a9a692c08d24127d83"
     }
   },
   "models": [
