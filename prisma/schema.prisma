@@ -156,7 +156,7 @@ model ProblemCandidate {
   effort      Int     @default(3) // 1..5, human-tuned
   evidenceIds String  @default("") // comma-separated Evidence ids (grounding)
   selected    Boolean @default(false)
-  humanEdited Boolean @default(false) // true only after an explicit human curation action
+  humanEdited Boolean? // true only after an explicit human curation action
 }
 
 // Snapshot of an agent stage output (for audit / traceability)
