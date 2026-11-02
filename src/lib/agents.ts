@@ -911,7 +911,11 @@ Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
 
 // ---------- I8 drift radar ----------
 
-export async function runDrift(projectId: string, signal: string): Promise<{ impacted: number; summary: string }> {
+export async function runDrift(projectId: string, signal: string): Promise<{
+  impacted: number;
+  summary: string;
+  requirements: { refId: string; note: string }[];
+}> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
