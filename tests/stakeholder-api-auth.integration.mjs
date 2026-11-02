@@ -187,11 +187,19 @@ try {
     body: JSON.stringify({ token: invitationToken, password: "too-short" }),
   });
   await expectStatus(shortPassword, 400, "reject weak invitation password");
-  const acceptedInvitation = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+  const crossOriginAccept = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json", origin: "https://attacker.example" },
+    body: JSON.stringify({ token: invitationToken, password: "Invitation-Password-2026!" }),
+  });
+  await expectStatus(crossOriginAccept, 403, "cross-origin invitation acceptance rejected");
+  const competingAccepts = await Promise.all([1, 2].map(() => fetch(`${baseUrl}/api/auth/invitations/accept`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ token: invitationToken, password: "Invitation-Password-2026!", displayName: "Invited Member" }),
-  });
-  await expectStatus(acceptedInvitation, 200, "accept organization invitation");
+  })));
+  const acceptedInvitation = competingAccepts.find((response) => response.status === 200);
+  const losingAccept = competingAccepts.find((response) => response.status !== 200);
+  assert.ok(acceptedInvitation, "exactly one concurrent invitation acceptance must succeed");
+  assert.ok(losingAccept && [400, 409].includes(losingAccept.status), "competing invitation acceptance must be rejected");
   const invitedSessionCookie = acceptedInvitation.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
   assert.ok(invitedSessionCookie, "accepted invitation must issue an HttpOnly session");
   const acceptedBody = await json(acceptedInvitation);
