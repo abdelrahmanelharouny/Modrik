@@ -22,19 +22,13 @@ export function validateRequirementApproval(requirements) {
     return "Requirements without an active Evidence ID trace link must be grounded or removed: " +
       ungrounded.map((r) => r.refId).join(", ") + ".";
   }
-  const unverified = requirements.filter((requirement) =>
-    !["supported", "weak"].includes(requirement.verifyStatus)
-  );
-  if (unverified.length) {
-    return "Requirements without a verifier verdict must be reviewed: " +
-      unverified.map((r) => r.refId).join(", ") + ".";
-  }
-  const notHumanReviewed = requirements.filter((requirement) =>
+  const unreviewed = requirements.filter((requirement) =>
+    !["supported", "weak"].includes(requirement.verifyStatus) ||
     requirement.verificationSource !== "human"
   );
-  if (notHumanReviewed.length) {
-    return "Every requirement must receive an explicit human evidence review before approval: " +
-      notHumanReviewed.map((r) => r.refId).join(", ") + ".";
+  if (unreviewed.length) {
+    return "Every requirement needs an explicit human evidence-verification decision before approval: " +
+      unreviewed.map((r) => r.refId).join(", ") + ".";
   }
   return null;
 }
