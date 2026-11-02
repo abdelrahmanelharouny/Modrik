@@ -5,7 +5,7 @@ import {
   verifySessionToken,
 } from "@/lib/security/session.mjs";
 
-const OPEN_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/logout", "/api/study/respond"]);
+const OPEN_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/logout", "/study/participant", "/api/study/respond"]);
 
 function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
