@@ -58,7 +58,10 @@ export function proxy(request: NextRequest) {
   // Cookie sessions must not be usable cross-origin for state-changing calls.
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     if (!isSameOriginMutation(request.headers, request.nextUrl.protocol)) {
-      return NextResponse.json({ error: "Cross-origin state change rejected" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Cross-origin state change rejected", code: "CSRF_ORIGIN_REJECTED" },
+        { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
     }
   }
 
