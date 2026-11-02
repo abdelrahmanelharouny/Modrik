@@ -16,8 +16,10 @@ export async function GET(req: NextRequest) {
   }
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const session = verifySessionToken(token, process.env.MODRIK_AUTH_SECRET);
+  const configuredEmail = process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
+  const authenticated = Boolean(session && configuredEmail && session.email === configuredEmail);
   return NextResponse.json(
-    session
+    authenticated && session
       ? { configured: true, authenticated: true, email: session.email, expiresAt: session.expiresAt }
       : { configured: true, authenticated: false },
     { headers: { "Cache-Control": "no-store, max-age=0" } }
