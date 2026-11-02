@@ -105,6 +105,7 @@ model Evidence {
   origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
   traceLinks TraceLink[]
+  @@unique([projectId, code])
 }
 
 // Agent-generated clarifying questions, answered by the human (HITL gate 1)
