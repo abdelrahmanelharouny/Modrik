@@ -124,6 +124,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             create: normalizedParticipants.map((p: any) => ({
               role: p.role,
               note: p.note,
+              project: { connect: { id } },
               stakeholder: { connect: { id_projectId: { id: p.stakeholderId, projectId: id } } },
             })),
           },
