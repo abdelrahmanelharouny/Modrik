@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
 import { createSessionToken, SESSION_COOKIE } from "../src/lib/security/session.mjs";
@@ -12,6 +13,7 @@ const childEnv = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1" };
 const child = spawn(process.execPath, [".next/standalone/server.js"], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
 const prisma = new PrismaClient();
 let logs = "";
+let browserDiagnostics = { pageErrors: [], failedRequests: [], projectApi: [], pageText: "" };
 child.stdout.on("data", chunk => { logs += chunk.toString(); });
 child.stderr.on("data", chunk => { logs += chunk.toString(); });
 const projectIds = [randomUUID(), randomUUID()];
@@ -145,7 +147,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.addCookies([{ name: SESSION_COOKIE, value: createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret), url: baseUrl }]);
     const page = await context.newPage();
-    const browserDiagnostics = { pageErrors: [], failedRequests: [], projectApi: [] };
+
     page.on("pageerror", error => browserDiagnostics.pageErrors.push(error.message));
     page.on("requestfailed", request => browserDiagnostics.failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
     page.on("response", response => {
@@ -156,7 +158,8 @@ try {
     try {
       await missionCard.waitFor({ state: "visible", timeout: 15000 });
     } catch {
-      throw new Error(`Seeded project exists through API but is not rendered in Mission Control. Browser diagnostics: ${JSON.stringify(browserDiagnostics)}. Main text: ${(await page.locator("body").innerText()).slice(0, 5000)}. Server logs: ${logs.slice(-12000)}`);
+      browserDiagnostics.pageText = (await page.locator("body").innerText()).slice(0, 5000);
+      throw new Error(`Seeded project exists through API but is not rendered in Mission Control. Browser diagnostics: ${JSON.stringify(browserDiagnostics)}. Server logs: ${logs.slice(-12000)}`);
     }
     await missionCard.click();
     await page.getByText("Stakeholder collaboration", { exact: true }).waitFor();
@@ -197,6 +200,9 @@ try {
     await browser.close();
   }
   process.stdout.write("Stakeholder API integration: auth 4/4; project isolation 3/3; negotiation race invariant passed; browser negotiation E2E + 390px RTL/mobile checks passed.\\n");
+} catch (error) {
+  await writeFile("/tmp/modrik-phase4-e2e-diagnostics.json", JSON.stringify({ error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error), browserDiagnostics, serverLogs: logs.slice(-30000) }, null, 2));
+  throw error;
 } finally {
   for (const id of projectIds) {
     try { await prisma.project.delete({ where: { id } }); } catch {}
