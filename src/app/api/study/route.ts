@@ -9,6 +9,24 @@ import { issueParticipantToken } from "@/lib/study/participant-token.mjs";
 //   C_modrik        — this platform
 // Anonymised by design (participantCode only, PDPL-aligned).
 
+function parseNasaTlx(raw: string | null): Record<string, number> | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const result: Record<string, number> = {};
+    for (const key of ["mental", "physical", "temporal", "performance", "effort", "frustration"]) {
+      const value = (parsed as Record<string, unknown>)[key];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100) {
+        result[key] = value;
+      }
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 const GROUPS = ["A_traditional", "B_unconstrained_llm", "C_modrik"];
 
 
@@ -184,11 +202,13 @@ export async function GET(req: NextRequest) {
         participantCode: s.participantCode,
         scenarioId: s.scenarioId,
         taskTimeSec: s.taskTimeSec,
-        nasaTlx: s.nasaTlx ? JSON.parse(s.nasaTlx) : null,
+        nasaTlx: parseNasaTlx(s.nasaTlx),
         susScore: s.susScore,
         notes: s.notes,
         startedAt: s.startedAt,
         finishedAt: s.finishedAt,
+        withdrawnAt: s.withdrawnAt,
+        participantConsentAt: s.participantConsentAt,
         eventCount: s.events.length,
       })),
     });
@@ -211,9 +231,10 @@ export async function GET(req: NextRequest) {
     "sus",
     "started_at",
     "finished_at",
+    "withdrawn_at",
   ].join(",");
   const rows = sessions.map((s) => {
-    const tlx = s.nasaTlx ? (JSON.parse(s.nasaTlx) as Record<string, number>) : {};
+    const tlx = parseNasaTlx(s.nasaTlx) ?? {};
     const vals = [tlx.mental, tlx.physical, tlx.temporal, tlx.performance, tlx.effort, tlx.frustration];
     const known = vals.filter((v) => v !== undefined);
     const overall = known.length ? Math.round(known.reduce((a, b) => a + b, 0) / known.length) : "";
@@ -228,6 +249,7 @@ export async function GET(req: NextRequest) {
       s.susScore ?? "",
       s.startedAt.toISOString(),
       s.finishedAt?.toISOString() ?? "",
+      s.withdrawnAt?.toISOString() ?? "",
     ].map(csvCell).join(",");
   });
   const csv = [header, ...rows].join("\n");
