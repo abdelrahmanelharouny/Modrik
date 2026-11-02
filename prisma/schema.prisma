@@ -198,6 +198,9 @@ model Requirement {
   suggestion    String? // proposed rewrite from ambiguity agent
   confidence    Int     @default(-1) // -1 = not assessed; 0..100 agent confidence (I2 calibration)
   verifyStatus  String  @default("unverified") // supported | weak | unverified (I3 critic-verifier)
+  verificationSource String @default("agent") // agent | human | unverified
+  verifiedAt DateTime?
+  verifiedBy String?
   verifyNote    String?
   driftStatus   String  @default("none") // none | suspected | confirmed (I8 drift radar)
   language      String  @default("en") // en | ar-EG | codeswitch
