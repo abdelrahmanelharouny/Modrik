@@ -49,6 +49,33 @@ async function createStakeholder(projectId, suffix, approvalRole = "consulted", 
 
 try {
   await waitForServer();
+
+  // Exercise the global Next.js proxy boundary, not only route-local guards.
+  // All application APIs must fail closed without the owner cookie; only the
+  // deliberately narrow auth and participant endpoints remain public.
+  for (const [label, send] of [
+    ["project index", () => fetch(`${baseUrl}/api/projects`)],
+    ["telemetry", () => fetch(`${baseUrl}/api/telemetry`)],
+    ["project detail", () => fetch(`${baseUrl}/api/projects/proxy-auth-probe`)],
+    ["project creation", () => fetch(`${baseUrl}/api/projects`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "unauthorized" }) })],
+    ["evidence mutation", () => fetch(`${baseUrl}/api/projects/proxy-auth-probe/evidence`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })],
+  ]) {
+    const response = await send();
+    assert.equal(response.status, 401, `${label} must be protected by the global proxy`);
+    assert.equal(response.headers.get("cache-control"), "no-store, max-age=0");
+    assert.equal((await json(response)).code, "AUTH_REQUIRED");
+  }
+
+  const publicSession = await fetch(`${baseUrl}/api/auth/session`);
+  await expectStatus(publicSession, 200, "public auth session status");
+  assert.deepEqual(await json(publicSession), { configured: true, authenticated: false });
+  const publicLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "wrong@example.invalid", password: "wrong" }),
+  });
+  await expectStatus(publicLogin, 401, "public login endpoint");
+  const publicStudy = await fetch(`${baseUrl}/api/study/respond`);
+  await expectStatus(publicStudy, 401, "public study endpoint must require its own bearer token");
   const unauthorizedEndpoint = `${baseUrl}/api/projects/phase-4-auth-probe/stakeholders`;
   for (const [label, send] of [
     ["GET", () => fetch(unauthorizedEndpoint)],
