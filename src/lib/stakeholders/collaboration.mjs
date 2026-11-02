@@ -125,11 +125,22 @@ export function normalizeStakeholderUpdate(input, current) {
 }
 
 export const NEGOTIATION_RESPONSE_STATUSES = ["supports","opposes","conditional","abstains"];
-export function normalizeNegotiationResponse(input) {
+export function normalizeNegotiationResponse(input, optionsJson = "[]") {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Participant response must be an object.");
   if (!NEGOTIATION_RESPONSE_STATUSES.includes(input.responseStatus)) throw new Error("Unsupported participant response.");
+  const options = JSON.parse(optionsJson || "[]");
+  const responseOptionId = input.responseOptionId == null || input.responseOptionId === ""
+    ? null
+    : boundedText(input.responseOptionId, "responseOptionId", 40, { required: true });
+  if (input.responseStatus === "supports" && (!responseOptionId || !options.some(option => option.id === responseOptionId))) {
+    throw new Error("A supporting response must identify one of the recorded negotiation options.");
+  }
+  if (responseOptionId && !options.some(option => option.id === responseOptionId)) {
+    throw new Error("responseOptionId must reference a recorded negotiation option.");
+  }
   return {
     responseStatus: input.responseStatus,
+    responseOptionId,
     rationale: boundedText(input.rationale, "rationale", 2000, { required: true }),
   };
 }
