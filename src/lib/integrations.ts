@@ -39,14 +39,27 @@ export interface JiraConfig {
 async function loadConfig(projectId: string, kind: "github" | "jira"): Promise<GithubConfig | JiraConfig | null> {
   const row = await db.integration.findFirst({ where: { projectId, kind }, orderBy: { createdAt: "desc" } });
   if (row) {
+    let config: Record<string, unknown>;
     try {
-      const config = JSON.parse(row.config) as Record<string, unknown>;
-      if (typeof config.token === "string") config.token = decryptSecret(config.token);
-      if (kind === "jira" && typeof config.baseUrl === "string") validateJiraBaseUrl(config.baseUrl);
-      return config as unknown as GithubConfig | JiraConfig;
+      config = JSON.parse(row.config) as Record<string, unknown>;
     } catch {
-      /* fall through to env */
+      throw new Error(`Saved ${kind} configuration is corrupt. Re-save the integration before retrying.`);
     }
+    // Do not silently fall back to deployment credentials when ciphertext is
+    // corrupt or the encryption key is wrong; that would target another account.
+    if (typeof config.token === "string") config.token = decryptSecret(config.token);
+    if (kind === "github") {
+      const owner = String(config.owner ?? "");
+      const repo = String(config.repo ?? "");
+      if (!/^[A-Za-z0-9-]{1,39}$/.test(owner) ||
+          !/^[A-Za-z0-9_.-]{1,100}$/.test(repo) || repo === "." || repo === "..") {
+        throw new Error("Saved GitHub owner/repository values are invalid; re-save the integration.");
+      }
+    } else {
+      if (typeof config.baseUrl !== "string") throw new Error("Saved Jira base URL is missing");
+      validateJiraBaseUrl(config.baseUrl);
+    }
+    return config as unknown as GithubConfig | JiraConfig;
   }
   // Environment fallback (deployment-level credentials, university lab / demo)
   if (kind === "github" && process.env.RP_GITHUB_TOKEN && process.env.RP_GITHUB_OWNER && process.env.RP_GITHUB_REPO) {
