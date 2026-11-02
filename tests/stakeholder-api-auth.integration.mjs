@@ -32,12 +32,15 @@ async function request(projectId, method, body) {
   });
 }
 async function json(response) { return response.json(); }
+async function expectStatus(response, expected, label) {
+  if (response.status !== expected) throw new Error(`${label}: expected HTTP ${expected}, received ${response.status}: ${await response.text()}`);
+}
 async function createStakeholder(projectId, suffix, approvalRole = "consulted", engagementStatus = "active") {
   const response = await request(projectId, "POST", {
     action: "create_stakeholder", stakeholderRef: `ST-${suffix}`,
     displayName: `Stakeholder ${suffix}`, role: "Reviewer", approvalRole, engagementStatus,
   });
-  assert.equal(response.status, 201, await response.text());
+  await expectStatus(response, 201, "create stakeholder");
   return (await json(response)).stakeholder;
 }
 
@@ -91,7 +94,7 @@ try {
     participants: [{ stakeholderId: approver.id, role: "approver" }, { stakeholderId: second.id, role: "consulted" }],
     options: [{ id: "a", label: "Option A", implications: "A implications" }, { id: "b", label: "Option B", implications: "B implications" }],
   });
-  assert.equal(create.status, 201, await create.text());
+  await expectStatus(create, 201, "create negotiation");
   const negotiation = (await json(create)).negotiation;
   const participants = negotiation.participants;
   assert.equal(participants.length, 2);
@@ -100,7 +103,7 @@ try {
     action: "respond_negotiation", negotiationId: negotiation.id, participantId: participants[0].id,
     responseStatus: "supports", responseOptionId: "a", rationale: "Option A meets the stated need.",
   });
-  assert.equal(firstResponse.status, 201, await firstResponse.text());
+  await expectStatus(firstResponse, 201, "first participant response");
 
   // Compete the final participant response against approval. If approval wins,
   // the participant write must observe the closed parent and return 409.
