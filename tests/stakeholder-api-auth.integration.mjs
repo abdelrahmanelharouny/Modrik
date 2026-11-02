@@ -80,6 +80,13 @@ try {
   const publicStudy = await fetch(`${baseUrl}/api/study/respond`);
   await expectStatus(publicStudy, 401, "public study endpoint must require its own bearer token");
 
+  const crossOriginLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "https://attacker.example" },
+    body: JSON.stringify({ email: process.env.MODRIK_ADMIN_EMAIL, password: "Integration-Owner-Password-42!" }),
+  });
+  await expectStatus(crossOriginLogin, 403, "cross-origin login rejection");
+
   const bootstrapLogin = await fetch(`${baseUrl}/api/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -109,6 +116,10 @@ try {
   identityCleanup.projects.push(bootstrapProjectBody.id);
   assert.equal(bootstrapProjectBody.organizationId, bootstrapOrganization.id);
   assert.equal(bootstrapProjectBody.createdByUserId, bootstrapUser.id);
+  const crossOriginLogout = await fetch(`${baseUrl}/api/auth/logout`, {
+    method: "POST", headers: { cookie: `modrik_session=${loginCookie}`, origin: "https://attacker.example" },
+  });
+  await expectStatus(crossOriginLogout, 403, "cross-origin logout rejection");
   const bootstrapLogout = await fetch(`${baseUrl}/api/auth/logout`, {
     method: "POST", headers: { cookie: `modrik_session=${loginCookie}`, origin: baseUrl },
   });
