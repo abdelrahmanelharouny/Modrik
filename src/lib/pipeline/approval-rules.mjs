@@ -21,10 +21,19 @@ export function validateRequirementApproval(requirements) {
     return "Requirements without evidence trace links must be grounded or removed: " +
       ungrounded.map((r) => r.refId).join(", ") + ".";
   }
-  const unverified = requirements.filter((requirement) => requirement.verifyStatus === "unverified");
+  const unverified = requirements.filter((requirement) =>
+    !["supported", "weak"].includes(requirement.verifyStatus)
+  );
   if (unverified.length) {
-    return "Requirements whose verifier did not complete must be reviewed and re-verified: " +
+    return "Requirements without a verifier verdict must be reviewed: " +
       unverified.map((r) => r.refId).join(", ") + ".";
+  }
+  const notHumanReviewed = requirements.filter((requirement) =>
+    requirement.verificationSource !== "human"
+  );
+  if (notHumanReviewed.length) {
+    return "Every requirement must receive an explicit human evidence review before approval: " +
+      notHumanReviewed.map((r) => r.refId).join(", ") + ".";
   }
   return null;
 }
