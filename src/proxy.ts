@@ -33,7 +33,8 @@ export function proxy(request: NextRequest) {
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = verifySessionToken(token, process.env.MODRIK_AUTH_SECRET);
-  if (!session) {
+  const configuredEmail = process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
+  if (!session || !configuredEmail || session.email !== configuredEmail) {
     return jsonError("Authentication required. Sign in to access this resource.", 401, "AUTH_REQUIRED");
   }
 
