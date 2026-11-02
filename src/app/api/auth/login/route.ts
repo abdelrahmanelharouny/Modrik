@@ -14,8 +14,20 @@ const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
 function clientKey(req: NextRequest): string {
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || req.headers.get("x-real-ip") || "unknown";
+  // Prefer the ingress-provided real IP; if unavailable, use the last
+  // forwarded hop (normally appended by the trusted reverse proxy).
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean);
+  return realIp || forwarded?.at(-1) || "unknown";
+}
+
+function pruneAttempts(now: number): boolean {
+  if (attempts.size < 4_000) return true;
+  for (const [key, value] of attempts) {
+    if (value.resetAt <= now) attempts.delete(key);
+  }
+  // Bound memory even if a hostile client rotates source headers.
+  return attempts.size < 5_000;
 }
 
 export async function POST(req: NextRequest) {
@@ -26,8 +38,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const key = clientKey(req);
   const now = Date.now();
+  if (!pruneAttempts(now)) {
+    return NextResponse.json({ error: "Login service is temporarily rate-limited. Try again later." }, { status: 429 });
+  }
+  const key = clientKey(req);
   const previous = attempts.get(key);
   if (previous && previous.resetAt > now && previous.count >= MAX_ATTEMPTS) {
     return NextResponse.json({ error: "Too many login attempts. Try again later." }, { status: 429 });
