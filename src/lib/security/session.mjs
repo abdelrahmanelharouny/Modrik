@@ -15,6 +15,10 @@ function safeEqual(left, right) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export function isSessionSigningConfigured(env = process.env) {
+  return Boolean(env.MODRIK_AUTH_SECRET && Buffer.byteLength(env.MODRIK_AUTH_SECRET, "utf8") >= 32);
+}
+
 export function isAuthConfigured(env = process.env) {
   return Boolean(
     env.MODRIK_ADMIN_EMAIL?.trim() &&
