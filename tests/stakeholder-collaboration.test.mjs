@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
-  normalizeNegotiation, normalizeNegotiationDecision,
+  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate,
 } from "../src/lib/stakeholders/collaboration.mjs";
 
 const profile = { stakeholderRef:"ST-01",displayName:"Product owner",role:"Owner",approvalRole:"approver",goals:["Reduce onboarding time"] };
@@ -53,4 +53,13 @@ test("rejected negotiation requires a rationale and records dissent without a se
   assert.equal(result.chosenOption,null);
   assert.deepEqual(JSON.parse(result.dissent),["Security team disagrees."]);
   assert.throws(()=>normalizeNegotiationDecision({status:"rejected",rationale:""},JSON.stringify([])),/rationale/);
+});
+
+test("stakeholder lifecycle updates preserve omitted values and validate transitions",()=>{
+  const current={engagementStatus:"active",approvalRole:"consulted"};
+  assert.deepEqual(normalizeStakeholderUpdate({engagementStatus:"unavailable"},current),{engagementStatus:"unavailable",approvalRole:"consulted"});
+  assert.deepEqual(normalizeStakeholderUpdate({approvalRole:"approver"},current),{engagementStatus:"active",approvalRole:"approver"});
+  assert.deepEqual(normalizeStakeholderUpdate({engagementStatus:"withdrawn",approvalRole:"observer"},current),{engagementStatus:"withdrawn",approvalRole:"observer"});
+  assert.throws(()=>normalizeStakeholderUpdate({engagementStatus:"deleted"},current),/engagementStatus/);
+  assert.throws(()=>normalizeStakeholderUpdate({approvalRole:"superuser"},current),/approvalRole/);
 });
