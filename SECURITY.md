@@ -2,7 +2,7 @@
 
 ## Authentication shipped in Phase 0
 
-This release adds a **single-owner deployment access boundary**. It is not multi-user authentication, organization tenancy, or a replacement for enterprise SSO/RBAC. Every page and API route is protected by the Next.js 16 `proxy.ts` boundary, except the sign-in and sign-out endpoints. The API boundary is enforced server-side; hiding UI controls is not relied upon.
+This release adds a **single-owner deployment access boundary**. It is not multi-user authentication, organization tenancy, or a replacement for enterprise SSO/RBAC. Application pages and API routes are protected by the Next.js 16 `proxy.ts` boundary, except the sign-in/sign-out endpoints and the public study participant page/write endpoint. Those two study paths expose no session listing or export; the write endpoint requires a high-entropy per-session bearer token, applies metric bounds and rate limits, expires after seven days, and becomes write-locked after finish except for withdrawal. The API boundary is enforced server-side; hiding UI controls is not relied upon.
 
 Set these variables before deploying:
 
@@ -27,6 +27,8 @@ For local development, add the generated values to the ignored `.env` file. The 
 
 ## Session controls
 
+- Public study routes are narrowly scoped: `/study/participant` is a generic form, while `/api/study/respond` accepts only a session-specific bearer token. Study dashboard, session creation, moderation, and CSV export stay owner-authenticated.
+- Study participant tokens are random 256-bit secrets. Only a SHA-256 hash is stored; the raw token is returned once at moderator session creation and should be handed to the participant over a separate trusted channel. Tokens expire after seven days. After a participant finishes, only withdrawal remains allowed until token expiry; withdrawal scrubs measurements and session events and revokes the token.
 - Eight-hour signed sessions, HttpOnly, SameSite=Strict cookies, Secure in production.
 - Login attempts are throttled in-process. This is a best-effort single-instance control, not distributed rate limiting; production deployments with multiple instances should add a shared Redis/Upstash limiter and edge/WAF rules.
 - State-changing requests with an explicit cross-origin Origin are rejected.
