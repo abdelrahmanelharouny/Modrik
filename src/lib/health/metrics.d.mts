@@ -24,7 +24,7 @@ export interface HealthScores {
     definedScenarios: number;
   };
 }
-export declare function computeHealthScores(input: {
+export declare function computeHealthScores(input?: {
   requirements?: any[];
   questions?: any[];
   conflicts?: any[];
