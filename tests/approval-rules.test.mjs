@@ -28,9 +28,12 @@ test("requirement gate requires every requirement to have trace links and a veri
   assert.match(validateRequirementApproval([
     { refId: "REQ-01", verifyStatus: "unverified", links: [{ id: "link-1" }] },
   ]), /REQ-01/);
+  assert.match(validateRequirementApproval([
+    { refId: "REQ-01", verifyStatus: "weak", verificationSource: "agent", links: [{ id: "link-1" }] },
+  ]), /explicit human evidence review/);
   assert.equal(validateRequirementApproval([
-    { refId: "REQ-01", verifyStatus: "weak", links: [{ id: "link-1" }] },
-    { refId: "REQ-02", verifyStatus: "supported", links: [{ id: "link-2" }] },
+    { refId: "REQ-01", verifyStatus: "weak", verificationSource: "human", links: [{ id: "link-1" }] },
+    { refId: "REQ-02", verifyStatus: "supported", verificationSource: "human", links: [{ id: "link-2" }] },
   ]), null);
 });
 
