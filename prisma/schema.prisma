@@ -51,6 +51,9 @@ model StudySession {
   participantCode String  // anonymised participant code (PDPL: no names)
   participantTokenHash String? @unique // one-session participant write credential; raw token is never stored
   participantTokenExpiresAt DateTime?
+  participantConsentAt DateTime? // participant acknowledged the study notice
+  participantConsentVersion String?
+  withdrawnAt DateTime? // withdrawn sessions are scrubbed and locked
   scenarioId     String   // bench scenario id used as the task
   taskTimeSec    Int?
   nasaTlx        String?  // JSON: {mental, physical, temporal, performance, effort, frustration} 0-100
