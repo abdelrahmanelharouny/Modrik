@@ -52,6 +52,7 @@
     "ReqEdge",
     "ExecScenario",
     "Integration",
-    "SyncMap"
+    "SyncMap",
+    "OrganizationInvitation"
   ]
 }
