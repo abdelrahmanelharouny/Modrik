@@ -37,3 +37,20 @@ test("human decision must select a recorded option and provide rationale",()=>{
   assert.throws(()=>normalizeNegotiationDecision({status:"approved",chosenOption:"c",rationale:"x"},options),/recorded options/);
   assert.throws(()=>normalizeNegotiationDecision({status:"approved",chosenOption:"a"},options),/rationale/);
 });
+
+test("rejects malformed objects, unsupported language and oversized text",()=>{
+  assert.throws(()=>normalizeStakeholder(null),/object/);
+  assert.throws(()=>normalizeStakeholder({...profile,preferredLanguage:"xx"}),/preferredLanguage/);
+  assert.throws(()=>normalizeStakeholder({...profile,displayName:"x".repeat(121)}),/displayName/);
+  assert.throws(()=>normalizeStakeholderPosition({stakeholderId:"s",requirementId:"r",position:"supports",rationale:"x".repeat(2001)}),/rationale/);
+});
+test("rejects duplicate option identifiers and malformed participant-independent payloads",()=>{
+  assert.throws(()=>normalizeNegotiation({requirementId:"r1",title:"Policy",options:[{id:"same",label:"A",implications:"A"},{id:"same",label:"B",implications:"B"}]}),/unique/);
+});
+test("rejected negotiation requires a rationale and records dissent without a selected option",()=>{
+  const result=normalizeNegotiationDecision({status:"rejected",rationale:"Neither option meets the retention obligation.",tradeoffs:"Delay pending legal review.",dissent:["Security team disagrees."]},JSON.stringify([{id:"a"},{id:"b"}]));
+  assert.equal(result.status,"rejected");
+  assert.equal(result.chosenOption,null);
+  assert.deepEqual(JSON.parse(result.dissent),["Security team disagrees."]);
+  assert.throws(()=>normalizeNegotiationDecision({status:"rejected",rationale:""},JSON.stringify([])),/rationale/);
+});
