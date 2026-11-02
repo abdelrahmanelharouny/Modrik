@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, Copy, Link2, MailPlus, RefreshCw, ShieldCheck, Users, X } from "lucide-react";
 
@@ -44,7 +45,7 @@ export function MembersManager() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function createInvitation(event: React.FormEvent<HTMLFormElement>) {
+  async function createInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
