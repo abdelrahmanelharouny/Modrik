@@ -61,7 +61,7 @@ export function calculateHumanCalibration(requirements) {
       ? "overconfident"
       : netDelta < -0.05
         ? "underconfident"
-        : "well-calibrated";
+        : "mixed-calibration";
 
   return {
     n,
