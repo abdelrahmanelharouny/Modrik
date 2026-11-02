@@ -508,6 +508,7 @@ Return JSON: {"verdicts": [{"refId": "REQ-01", "verdict": "supported|weak", "not
           where: { id: target.id },
           data: {
             verifyStatus: v.verdict === "supported" ? "supported" : "weak",
+            verificationSource: "agent",
             verifyNote: String(v.note ?? "").slice(0, 400),
           },
         });
