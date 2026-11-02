@@ -59,6 +59,10 @@ export async function GET(req: NextRequest) {
       finishedAt: true,
       withdrawnAt: true,
       participantConsentAt: true,
+      taskTimeSec: true,
+      nasaTlx: true,
+      susScore: true,
+      notes: true,
     },
   });
   if (!session || !session.participantTokenHash || !session.participantTokenExpiresAt ||
@@ -66,10 +70,25 @@ export async function GET(req: NextRequest) {
     return response({ error: "Participant session token is invalid or expired." }, 401);
   }
   if (session.withdrawnAt) return response({ error: "This participant session was withdrawn." }, 410);
+  let nasaTlx: Record<string, number> | null = null;
+  if (session.nasaTlx) {
+    try {
+      const parsed = JSON.parse(session.nasaTlx) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        nasaTlx = parsed as Record<string, number>;
+      }
+    } catch {
+      nasaTlx = null;
+    }
+  }
   return response({
     ok: true,
     finished: Boolean(session.finishedAt),
     consentAccepted: Boolean(session.participantConsentAt),
+    taskTimeSec: session.taskTimeSec,
+    nasaTlx,
+    susScore: session.susScore,
+    notes: session.notes,
   });
 }
 
