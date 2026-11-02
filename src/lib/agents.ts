@@ -15,7 +15,7 @@
 // ─────────────────────────────────────────────────────────────
 import ZAI from "z-ai-web-dev-sdk"; // retained for direct SDK consumers; agent calls flow through providers.ts
 import { db } from "@/lib/db";
-import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, hasHumanCandidateEdits } from "@/lib/security/data-safety.mjs";
+import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, hasHumanCandidateEdits, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import type { Stage } from "@/lib/rp";
@@ -195,13 +195,7 @@ function evidenceBlock(evidences: { code: string; title: string; sourceType: str
   // every agent to everything beyond it (confirmed by the truncation probe).
   // Budget: up to 4000 chars per evidence, 16000 chars total; when the total
   // overflows, shrink the per-evidence window fairly but never below 1200.
-  const TOTAL_BUDGET = 16000;
-  const PER_MAX = 4000;
-  const total = eligible.reduce((s, e) => s + e.content.length, 0);
-  let per = PER_MAX;
-  if (total > TOTAL_BUDGET) {
-    per = Math.max(1200, Math.floor(TOTAL_BUDGET / eligible.length));
-  }
+  const per = evidenceContentBudget(eligible.length, 16000, 4000);
   return eligible
     .map((e) => {
       const body =
