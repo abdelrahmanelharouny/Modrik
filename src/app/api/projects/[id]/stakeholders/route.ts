@@ -168,17 +168,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (typeof body.negotiationId !== "string" || typeof body.participantId !== "string") {
       return NextResponse.json({ error: "negotiationId and participantId are required." }, { status: 400 });
     }
-    let response;
-    try { response = normalizeNegotiationResponse(body); } catch (error) { return bad(error); }
-    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, select: { id: true, status: true, requirement: { select: { refId: true } } } });
+    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, select: { id: true, status: true, options: true, requirement: { select: { refId: true } } } });
     if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
+    let response;
+    try { response = normalizeNegotiationResponse(body, negotiation.options); } catch (error) { return bad(error); }
     if (negotiation.status !== "proposed") return NextResponse.json({ error: "Participant responses are closed after a decision is recorded." }, { status: 409 });
     const participant = await db.negotiationParticipant.findFirst({ where: { id: body.participantId, decisionId: negotiation.id, projectId: id }, include: { stakeholder: { select: { stakeholderRef: true, displayName: true } } } });
     if (!participant) return NextResponse.json({ error: "Participant not found in this negotiation." }, { status: 404 });
     if (participant.responseStatus !== "pending") return NextResponse.json({ error: "This participant response is immutable once submitted." }, { status: 409 });
     const transition = await db.negotiationParticipant.updateMany({
       where: { id: participant.id, decisionId: negotiation.id, projectId: id, responseStatus: "pending" },
-      data: { responseStatus: response.responseStatus, responseRationale: response.rationale, respondedAt: new Date() },
+      data: { responseStatus: response.responseStatus, responseOptionId: response.responseOptionId, responseRationale: response.rationale, respondedAt: new Date() },
     });
     if (transition.count !== 1) return NextResponse.json({ error: "Participant response was submitted concurrently. Refresh before continuing." }, { status: 409 });
     const updated = await db.negotiationParticipant.findFirst({ where: { id: participant.id, projectId: id } });
@@ -202,7 +202,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (body.action === "decide_negotiation") {
     if (typeof body.negotiationId !== "string") return NextResponse.json({ error: "negotiationId is required." }, { status: 400 });
-    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true, participants: { select: { id: true, responseStatus: true, stakeholder: { select: { approvalRole: true, stakeholderRef: true } } } } } });
+    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true, participants: { select: { id: true, responseStatus: true, responseOptionId: true, stakeholder: { select: { approvalRole: true, stakeholderRef: true } } } } } });
     if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
     if (negotiation.status !== "proposed") return NextResponse.json({ error: "A recorded negotiation decision is immutable. Create a follow-up negotiation to revisit it." }, { status: 409 });
     let decision;
