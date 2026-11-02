@@ -16,7 +16,7 @@ function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
 }
 
-function projectPermission(pathname: string, method: string): string {
+function projectPermission(pathname: string, method: string, body?: unknown): string {
   const parts = pathname.slice("/api/projects/".length).split("/");
   const route = parts.slice(1).join("/");
   if (!route) {
@@ -30,7 +30,16 @@ function projectPermission(pathname: string, method: string): string {
   }
   if (route === "stakeholders") {
     if (method === "GET" || method === "HEAD") return "projects:read";
-    if (method === "PATCH") return "requirements:approve";
+    if (method === "PATCH") {
+      const action = body && typeof body === "object" ? String((body as Record<string, unknown>).action ?? "") : "";
+      const actionPermissions: Record<string, string> = {
+        update_stakeholder: "projects:update",
+        respond_negotiation: "requirements:write",
+        review_position: "requirements:review",
+        decide_negotiation: "requirements:approve",
+      };
+      return actionPermissions[action] ?? "organization:manage";
+    }
     return "requirements:write";
   }
   if (route === "claims" || route === "quality") {
@@ -112,7 +121,10 @@ export async function proxy(request: NextRequest) {
       if (!project || project.organizationId !== identity.organizationId) {
         return NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } });
       }
-      const permission = projectPermission(pathname, request.method);
+      const permissionBody = pathname.endsWith("/stakeholders") && request.method === "PATCH"
+        ? await request.clone().json().catch(() => null)
+        : undefined;
+      const permission = projectPermission(pathname, request.method, permissionBody);
       const membership = await db.membership.findUnique({
         where: { id: identity.membershipId },
         select: {
