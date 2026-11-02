@@ -133,18 +133,31 @@ try {
   const isolatedBody = await json(isolatedRead);
   assert.equal(isolatedBody.stakeholders.length, 1);
   assert.equal(isolatedBody.stakeholders[0].id, foreign.id);
+  // Verify the same HTTP project index used by the client before involving
+  // React/Playwright. This separates persistence/API failures from UI rendering.
+  const projectIndexResponse = await fetch(`${baseUrl}/api/projects`);
+  await expectStatus(projectIndexResponse, 200, "project index API");
+  const projectIndex = await json(projectIndexResponse);
+  assert.ok(projectIndex.projects.some(project => project.id === projectA), "project index API must expose the seeded project");
+
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.addCookies([{ name: SESSION_COOKIE, value: createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret), url: baseUrl }]);
     const page = await context.newPage();
+    const browserDiagnostics = { pageErrors: [], failedRequests: [], projectApi: [] };
+    page.on("pageerror", error => browserDiagnostics.pageErrors.push(error.message));
+    page.on("requestfailed", request => browserDiagnostics.failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
+    page.on("response", response => {
+      if (response.url().includes("/api/projects")) browserDiagnostics.projectApi.push({ url: response.url(), status: response.status() });
+    });
     await page.goto(baseUrl, { waitUntil: "networkidle" });
-    // The client project index can mount before the standalone server's first
-    // Prisma request settles. Refresh once after the server is warm, then assert
-    // the seeded project is actually present before attempting the workspace.
-    await page.reload({ waitUntil: "networkidle" });
     const missionCard = page.getByRole("button", { name: "Open mission Phase 4 integration A" });
-    await missionCard.waitFor({ state: "visible", timeout: 15000 });
+    try {
+      await missionCard.waitFor({ state: "visible", timeout: 15000 });
+    } catch {
+      throw new Error(`Seeded project exists through API but is not rendered in Mission Control. Browser diagnostics: ${JSON.stringify(browserDiagnostics)}. Main text: ${(await page.locator("body").innerText()).slice(0, 5000)}. Server logs: ${logs.slice(-12000)}`);
+    }
     await missionCard.click();
     await page.getByText("Stakeholder collaboration", { exact: true }).waitFor();
 
