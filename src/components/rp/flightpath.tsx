@@ -48,6 +48,7 @@ export function FlightPath({
                 disabled={!clickable}
                 onClick={() => clickable && onSelect(i)}
                 aria-current={viewingIdx === i ? "step" : undefined}
+                aria-label={`${ph.title}${done ? " — completed" : current ? " — current phase" : locked ? " — locked" : ""}`}
                 className="group flex w-full flex-col items-center gap-1.5 px-1 py-2 text-center"
               >
                 <span
@@ -98,6 +99,8 @@ export function FlightPath({
               <button
                 disabled={!clickable}
                 onClick={() => clickable && onSelect(i)}
+                aria-current={viewingIdx === i ? "step" : undefined}
+                aria-label={`${ph.title}${done ? " — completed" : current ? " — current phase" : locked ? " — locked" : ""}`}
                 className={cn(
                   "flex min-w-[76px] flex-col items-center gap-1 rounded-md border px-2 py-2 text-center",
                   done && "border-verify/40 bg-verify/5 text-verify",
