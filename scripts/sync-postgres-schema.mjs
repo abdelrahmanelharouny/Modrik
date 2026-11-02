@@ -23,12 +23,12 @@ export function renderPostgresSchema(sourceSchema) {
   if (typeof sourceSchema !== "string" || !sourceSchema.trim()) {
     throw new TypeError("SQLite Prisma schema must be a non-empty string");
   }
-  const dsBlock = /datasource\\s+db\\s*\\{[^}]*\\}/.exec(sourceSchema);
+  const dsBlock = /datasource\s+db\s*\{[^}]*\}/.exec(sourceSchema);
   if (!dsBlock) throw new Error("could not locate datasource db block in schema.prisma");
-  if (!/provider\\s*=\\s*"sqlite"/.test(dsBlock[0])) {
+  if (!/provider\s*=\s*"sqlite"/.test(dsBlock[0])) {
     throw new Error('datasource provider must be "sqlite" in the canonical schema');
   }
-  const pgBlock = dsBlock[0].replace(/provider\\s*=\\s*"sqlite"/, 'provider = "postgresql"');
+  const pgBlock = dsBlock[0].replace(/provider\s*=\s*"sqlite"/, 'provider = "postgresql"');
   return HEADER + sourceSchema.replace(dsBlock[0], pgBlock);
 }
 
