@@ -1,0 +1,48 @@
+export function selectByUtility(pool, k = 5, costBudget = 15) {
+  const maxCount = Number.isFinite(k) ? Math.max(0, Math.floor(k)) : 0;
+  const budget = Number.isFinite(costBudget) ? Math.max(0, costBudget) : 0;
+  if (!Array.isArray(pool) || maxCount === 0 || budget === 0) return [];
+
+  const scored = pool
+    .map((question, index) => ({ question, index }))
+    .filter(({ question }) =>
+      question && question.utility &&
+      Number.isFinite(Number(question.utility.utility)) &&
+      Number.isFinite(Number(question.askCost)) &&
+      Number(question.askCost) >= 1 && Number(question.askCost) <= 5
+    )
+    .sort((a, b) =>
+      Number(b.question.utility.utility) - Number(a.question.utility.utility) || a.index - b.index
+    );
+
+  const selected = [];
+  let spent = 0;
+  for (const { question } of scored) {
+    if (selected.length >= maxCount) break;
+    const cost = Number(question.askCost);
+    if (spent + cost > budget) continue;
+    selected.push(question);
+    spent += cost;
+  }
+  return selected;
+}
+
+export function selectDistinctPoolIndices(indices, poolLength, limit = 5) {
+  if (!Array.isArray(indices) || !Number.isInteger(poolLength) || poolLength < 0) return [];
+  const maxCount = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+  const seen = new Set();
+  const selected = [];
+  for (const value of indices) {
+    const index = Number(value) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= poolLength || seen.has(index)) continue;
+    seen.add(index);
+    selected.push(index);
+    if (selected.length >= maxCount) break;
+  }
+  return selected;
+}
+
+export function clampSignalScore(value, fallback = 3) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(5, Math.max(1, Math.round(n))) : fallback;
+}
