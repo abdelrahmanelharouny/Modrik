@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       evidences: { orderBy: { createdAt: "asc" } },
       questions: { orderBy: { order: "asc" } },
       candidates: true,
-      reqs: { orderBy: { order: "asc" }, include: { links: true } },
+      reqs: { orderBy: { order: "asc" }, include: { links: { select: { id: true, evidenceId: true, evidenceCode: true, note: true } } } },
       stories: { orderBy: { refId: "asc" } },
       conflicts: { include: { reqA: true, reqB: true } },
       artifacts: { orderBy: { createdAt: "desc" } },
