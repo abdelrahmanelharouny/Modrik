@@ -18,10 +18,10 @@ export function validateProviderSchemaParity(sqliteSchema, postgresSchema) {
   if (postgresSchema !== expected) {
     errors.push("PostgreSQL schema differs from the canonical SQLite schema beyond the datasource provider transformation; run bun run db:sync:pg and commit the generator change if needed.");
   }
-  if (!/datasource\\s+db\\s*\\{[^}]*provider\\s*=\\s*"postgresql"/s.test(postgresSchema)) {
+  if (!/datasource\s+db\s*\{[^}]*provider\s*=\s*"postgresql"/s.test(postgresSchema)) {
     errors.push('generated schema datasource provider must be "postgresql"');
   }
-  if (/datasource\\s+db\\s*\\{[^}]*provider\\s*=\\s*"sqlite"/s.test(postgresSchema)) {
+  if (/datasource\s+db\s*\{[^}]*provider\s*=\s*"sqlite"/s.test(postgresSchema)) {
     errors.push("generated PostgreSQL schema must not retain the SQLite provider");
   }
   return { valid: errors.length === 0, errors };
