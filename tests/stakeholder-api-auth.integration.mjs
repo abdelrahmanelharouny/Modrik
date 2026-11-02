@@ -8,7 +8,7 @@ import { chromium } from "playwright";
 import { createSessionToken, createIdentitySessionToken, SESSION_COOKIE, SESSION_TTL_SECONDS } from "../src/lib/security/session.mjs";
 
 const bootstrapSalt = Buffer.alloc(16, 7);
-process.env.MODRIK_ADMIN_PASSWORD_HASH = `$scrypt$16384$8$1${bootstrapSalt.toString("hex")}${scryptSync("Integration-Owner-Password-42!", bootstrapSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex")}`;
+process.env.MODRIK_ADMIN_PASSWORD_HASH = "$scrypt$16384$8$1$" + bootstrapSalt.toString("hex") + "$" + scryptSync("Integration-Owner-Password-42!", bootstrapSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex");
 const port = Number(process.env.MODRIK_E2E_PORT || 3187);
 const baseUrl = `http://127.0.0.1:${port}`;
 const childEnv = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1" };
