@@ -16,7 +16,7 @@ type Position = { id:string; position:string; rationale:string; confidence:numbe
 type Negotiation = { id:string; title:string; status:string; chosenOption:string|null; options:{id:string;label:string;implications:string}[]; requirement:{refId:string}; };
 type Data = { stakeholders:Stakeholder[]; positions:Position[]; negotiations:Negotiation[] };
 
-export function StakeholderCollaboration({projectId, refresh}:{projectId:string;refresh:()=>Promise<void>}) {
+export function StakeholderCollaboration({projectId, requirements, refresh}:{projectId:string;requirements:{id:string;refId:string;text:string}[];refresh:()=>Promise<void>}) {
   const {toast}=useToast();
   const {lang}=useLang();
   const ar=lang==="ar";
@@ -57,7 +57,7 @@ export function StakeholderCollaboration({projectId, refresh}:{projectId:string;
       <HudPanel className="space-y-3 p-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4"/> {ar?"تسجيل موقف من متطلب":"Capture requirement position"}</h3>
         <Select value={stakeholderId} onValueChange={setStakeholderId}><SelectTrigger><SelectValue placeholder={ar?"اختر صاحب المصلحة":"Select stakeholder"}/></SelectTrigger><SelectContent>{data.stakeholders.filter(s=>s.engagementStatus!=="withdrawn").map(s=><SelectItem key={s.id} value={s.id}>{s.displayName} · {s.stakeholderRef}</SelectItem>)}</SelectContent></Select>
-        <Select value={requirementId} onValueChange={setRequirementId}><SelectTrigger><SelectValue placeholder={ar?"اختر المتطلب":"Select requirement"}/></SelectTrigger><SelectContent>{/* requirement ids are selected from existing positions in this first iteration; server still validates project scope */}</SelectContent></Select>
+        <Select value={requirementId} onValueChange={setRequirementId}><SelectTrigger><SelectValue placeholder={ar?"اختر المتطلب":"Select requirement"}/></SelectTrigger><SelectContent>{requirements.map(r=><SelectItem key={r.id} value={r.id}>{r.refId} · {r.text.slice(0,72)}</SelectItem>)}</SelectContent></Select>
         <Select value={stance} onValueChange={setStance}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{["supports","opposes","neutral","conditional"].map(x=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
         <Textarea value={rationale} onChange={e=>setRationale(e.target.value)} placeholder={ar?"اشرح سبب الموقف والشروط":"Rationale and conditions"} />
         <Button disabled={busy||!stakeholderId||!requirementId||!rationale.trim()} onClick={()=>send({action:"create_position",stakeholderId,requirementId,position:stance,rationale})}>{ar?"تسجيل الموقف":"Record position"}</Button>
@@ -73,7 +73,7 @@ export function StakeholderCollaboration({projectId, refresh}:{projectId:string;
     </HudPanel>
     <HudPanel className="space-y-3 p-4">
       <SectionHead icon={GitMerge} title={ar?"جلسات التفاوض":"Negotiation decisions"} blurb={ar?"الخيارات تعرض آثارها فقط؛ لا يوجد اختيار آلي.":"Options expose implications only. No automated recommendation or selection."}/>
-      <div className="grid gap-2 sm:grid-cols-2"><Input value={negTitle} onChange={e=>setNegTitle(e.target.value)} placeholder="Decision title"/><Input value={requirementId} onChange={e=>setRequirementId(e.target.value)} placeholder="Requirement ID (from project)"/></div>
+      <div className="grid gap-2 sm:grid-cols-2"><Input value={negTitle} onChange={e=>setNegTitle(e.target.value)} placeholder="Decision title"/><Select value={requirementId} onValueChange={setRequirementId}><SelectTrigger><SelectValue placeholder="Select requirement"/></SelectTrigger><SelectContent>{requirements.map(r=><SelectItem key={r.id} value={r.id}>{r.refId}</SelectItem>)}</SelectContent></Select></div>
       <div className="grid gap-2 sm:grid-cols-2"><Input value={optionA} onChange={e=>setOptionA(e.target.value)} placeholder="Option A"/><Input value={impactA} onChange={e=>setImpactA(e.target.value)} placeholder="Implications of A"/><Input value={optionB} onChange={e=>setOptionB(e.target.value)} placeholder="Option B"/><Input value={impactB} onChange={e=>setImpactB(e.target.value)} placeholder="Implications of B"/></div>
       <Button disabled={busy||!negTitle.trim()||!requirementId.trim()||!optionA.trim()||!optionB.trim()||!impactA.trim()||!impactB.trim()} onClick={()=>send({action:"create_negotiation",requirementId,title:negTitle,options:[{id:"a",label:optionA,implications:impactA},{id:"b",label:optionB,implications:impactB}]})}>Create negotiation</Button>
       {data.negotiations.map(n=><div key={n.id} className="rounded-lg border border-border/70 p-3"><div className="flex items-center justify-between"><b className="text-sm">{n.requirement.refId} · {n.title}</b><Chip tone={n.status==="approved"?"verify":"signal"}>{n.status}</Chip></div><div className="mt-2 grid gap-2 sm:grid-cols-2">{n.options.map(o=><div key={o.id} className="rounded-md bg-secondary/40 p-2"><p className="text-xs font-semibold">{o.label}</p><p className="mt-1 text-xs text-muted-foreground">{o.implications}</p>{n.status==="proposed"&&<Button size="sm" className="mt-2" disabled={busy} onClick={()=>decide(n.id,o.id)}>Select this option</Button>}</div>)}</div></div>)}
