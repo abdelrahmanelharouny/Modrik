@@ -26,6 +26,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Synchronize generated design tokens
+        run: bun run tokens:sync
       - name: Regression tests
         run: bun run test
       - name: Validate and push SQLite schema
