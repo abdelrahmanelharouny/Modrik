@@ -71,21 +71,21 @@ test("multi-stakeholder quorum requires 2-30 unique participant identities",()=>
   assert.equal(assertNegotiationQuorum([{stakeholderId:"a"},{stakeholderId:"b"}]),true);
 });
 test("participant response requires a supported stance and a rationale",()=>{
-  assert.deepEqual(normalizeNegotiationResponse({responseStatus:"conditional",rationale:"Only if audit logs remain exportable."}),{responseStatus:"conditional",rationale:"Only if audit logs remain exportable."});
+  assert.deepEqual(normalizeNegotiationResponse({responseStatus:"conditional",rationale:"Only if audit logs remain exportable."}),{responseStatus:"conditional",responseOptionId:null,rationale:"Only if audit logs remain exportable."});
   assert.throws(()=>normalizeNegotiationResponse({responseStatus:"maybe",rationale:"x"}),/response/);
-  assert.throws(()=>normalizeNegotiationResponse({responseStatus:"supports",rationale:""}),/rationale/);
+  assert.throws(()=>normalizeNegotiationResponse({responseStatus:"supports",rationale:"I support it."}),/identify one/);\n  assert.throws(()=>normalizeNegotiationResponse({responseStatus:"supports",responseOptionId:"unknown",rationale:"I support it."},JSON.stringify([{id:"a"}])),/recorded/);\n  assert.deepEqual(normalizeNegotiationResponse({responseStatus:"supports",responseOptionId:"a",rationale:"Option A meets the need."},JSON.stringify([{id:"a"}])),{responseStatus:"supports",responseOptionId:"a",rationale:"Option A meets the need."});\n  assert.throws(()=>normalizeNegotiationResponse({responseStatus:"supports",rationale:""}),/identify one/);
 });
 
 test("approved negotiation requires explicit support from a participating decision maker or approver",()=>{
   const participants=[
-    {responseStatus:"supports",stakeholder:{approvalRole:"consulted"}},
-    {responseStatus:"opposes",stakeholder:{approvalRole:"approver"}},
+    {responseStatus:"supports",responseOptionId:"a",stakeholder:{approvalRole:"consulted"}},
+    {responseStatus:"opposes",responseOptionId:null,stakeholder:{approvalRole:"approver"}},
   ];
   assert.throws(()=>assertNegotiationDecisionAuthority(participants,{status:"approved"}),/explicit support/);
   assert.equal(assertNegotiationDecisionAuthority([
     ...participants,
-    {responseStatus:"supports",stakeholder:{approvalRole:"decision_maker"}},
-  ],{status:"approved"}),true);
+    {responseStatus:"supports",responseOptionId:"b",stakeholder:{approvalRole:"decision_maker"}},
+  ],{status:"approved",chosenOption:"b"}),true);
   assert.equal(assertNegotiationDecisionAuthority(participants,{status:"rejected"}),true);
 });
 
