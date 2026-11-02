@@ -4,6 +4,7 @@ import { createIdentitySession } from "@/lib/security/identity";
 import {
   verifyPasswordHash,
   isAuthConfigured,
+  isSessionSigningConfigured,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
   verifyAdminCredentials,
@@ -33,9 +34,9 @@ function pruneAttempts(now: number): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthConfigured()) {
+  if (!isSessionSigningConfigured()) {
     return NextResponse.json(
-      { error: "Authentication is not configured. Set MODRIK_ADMIN_EMAIL, MODRIK_ADMIN_PASSWORD_HASH and a 32-byte MODRIK_AUTH_SECRET." },
+      { error: "Authentication signing is not configured. Set a 32-byte MODRIK_AUTH_SECRET. Bootstrap administrator credentials are only required for first-time owner provisioning." },
       { status: 503 }
     );
   }
@@ -60,8 +61,9 @@ export async function POST(req: NextRequest) {
   }
   const email = typeof body?.email === "string" ? body.email.slice(0, 254).trim().toLowerCase() : "";
   const password = typeof body?.password === "string" ? body.password.slice(0, 1024) : "";
-  const configuredOwner = email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
-  const bootstrapPasswordValid = configuredOwner && await verifyAdminCredentials(email, password);
+  const configuredOwner = Boolean(process.env.MODRIK_ADMIN_EMAIL?.trim()) &&
+    email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
+  const bootstrapPasswordValid = configuredOwner && isAuthConfigured() && await verifyAdminCredentials(email, password);
   let user = await db.user.findUnique({ where: { email } });
 
   if (!user && !bootstrapPasswordValid) {
@@ -98,15 +100,17 @@ export async function POST(req: NextRequest) {
             emailVerifiedAt: new Date(),
           },
         });
-    const organization = await tx.organization.upsert({
-      where: { slug: "modrik-default" },
-      create: { name: "Modrik Workspace", slug: "modrik-default", status: "active" },
-      update: {},
-    });
+    let organization = await tx.organization.findUnique({ where: { slug: "modrik-default" } });
+    if (!organization && configuredOwner) {
+      organization = await tx.organization.create({
+        data: { name: "Modrik Workspace", slug: "modrik-default", status: "active" },
+      });
+    }
+    if (!organization) throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
     let membership = await tx.membership.findUnique({
       where: { userId_organizationId: { userId: resolvedUser.id, organizationId: organization.id } },
     });
-    if (!membership) {
+    if (!membership && configuredOwner && resolvedUser.email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase()) {
       membership = await tx.membership.create({
         data: {
           userId: resolvedUser.id,
@@ -117,7 +121,7 @@ export async function POST(req: NextRequest) {
         },
       });
     }
-    if (membership.status !== "active") {
+    if (!membership || membership.status !== "active") {
       throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
     }
     // One-time safe adoption of legacy unassigned projects into the bootstrap
