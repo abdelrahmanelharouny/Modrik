@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
@@ -61,18 +61,37 @@ export async function POST(req: NextRequest, { params }: Params) {
   // Codes are immutable identifiers, not positions in a list. This removes
   // the count+1 race and prevents unrelated citations from being rebound after deletion.
   const idempotentId = randomUUID();
-  const evidence = await db.evidence.create({
-    data: {
-      id: idempotentId,
-      projectId: id,
-      code: `E-${idempotentId.slice(0, 8).toUpperCase()}`,
-      title,
-      content,
-      sourceType: SOURCE_TYPES.includes(sourceType) ? sourceType : "interview",
-      language: ["en", "ar-EG", "codeswitch"].includes(language) ? language : "en",
-      consent,
-      origin,
-    },
+  const normalized = {
+    title,
+    content,
+    sourceType: SOURCE_TYPES.includes(sourceType) ? sourceType : "interview",
+    language: ["en", "ar-EG", "codeswitch"].includes(language) ? language : "en",
+    consent,
+  };
+  const contentHash = createHash("sha256")
+    .update(JSON.stringify(normalized))
+    .digest("hex");
+  const evidence = await db.$transaction(async (tx) => {
+    const created = await tx.evidence.create({
+      data: {
+        id: idempotentId,
+        projectId: id,
+        code: `E-${idempotentId.slice(0, 8).toUpperCase()}`,
+        ...normalized,
+        origin,
+      },
+    });
+    await tx.evidenceRevision.create({
+      data: {
+        evidenceId: created.id,
+        version: 1,
+        ...normalized,
+        contentHash,
+        changeNote: "Initial source capture",
+        createdBy: "human",
+      },
+    });
+    return created;
   });
 
   await logDecision(
@@ -88,6 +107,76 @@ export async function POST(req: NextRequest, { params }: Params) {
     evidence,
     aiEligible: consent,
   }, { status: 201 });
+}
+
+
+// Update the current evidence projection while preserving every prior revision.
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { id } = await params;
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid evidence update payload" }, { status: 400 });
+  }
+  const project = await db.project.findUnique({
+    where: { id },
+    select: { id: true, stageStatus: true },
+  });
+  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (["agent_running", "approving"].includes(project.stageStatus)) {
+    return NextResponse.json({ error: "Evidence cannot change while the current stage is processing." }, { status: 409 });
+  }
+  if (typeof body.evidenceId !== "string" || !body.evidenceId) {
+    return NextResponse.json({ error: "evidenceId is required" }, { status: 400 });
+  }
+  if (body.consent !== undefined && typeof body.consent !== "boolean") {
+    return NextResponse.json({ error: "consent must be a boolean" }, { status: 400 });
+  }
+  const existing = await db.evidence.findFirst({ where: { id: body.evidenceId, projectId: id } });
+  if (!existing) return NextResponse.json({ error: "Evidence not found" }, { status: 404 });
+
+  const normalized = {
+    title: typeof body.title === "string" ? body.title.trim() : existing.title,
+    content: typeof body.content === "string" ? body.content.trim() : existing.content,
+    sourceType: typeof body.sourceType === "string" && SOURCE_TYPES.includes(body.sourceType) ? body.sourceType : existing.sourceType,
+    language: typeof body.language === "string" && ["en", "ar-EG", "codeswitch"].includes(body.language) ? body.language : existing.language,
+    consent: body.consent === undefined ? existing.consent : body.consent,
+  };
+  if (!normalized.title || !normalized.content || normalized.title.length > 200 || normalized.content.length > 8000) {
+    return NextResponse.json({ error: "Title/content are required; limits are 200 and 8,000 characters." }, { status: 400 });
+  }
+  const changeNote = typeof body.changeNote === "string" ? body.changeNote.trim().slice(0, 500) : "";
+  const contentHash = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+
+  const result = await db.$transaction(async (tx) => {
+    const latest = await tx.evidenceRevision.findFirst({
+      where: { evidenceId: existing.id },
+      orderBy: { version: "desc" },
+      select: { version: true, contentHash: true },
+    });
+    const revision = (latest?.version ?? 0) + 1;
+    const updated = await tx.evidence.update({
+      where: { id: existing.id },
+      data: normalized,
+    });
+    if (latest?.contentHash !== contentHash) {
+      await tx.evidenceRevision.create({
+        data: {
+          evidenceId: existing.id,
+          version: revision,
+          ...normalized,
+          contentHash,
+          changeNote: changeNote || "Evidence updated",
+          createdBy: "human",
+        },
+      });
+    }
+    return { evidence: updated, revision: latest?.contentHash === contentHash ? latest.version : revision };
+  });
+
+  await logDecision(id, "ELICITATION", "human", "updated_evidence",
+    `Evidence ${existing.code} updated; current revision ${result.revision}. ${changeNote}`);
+  await db.project.update({ where: { id }, data: { updatedAt: new Date() } });
+  return NextResponse.json(result);
 }
 
 // Delete a source without renumbering any surviving source. Any requirement
