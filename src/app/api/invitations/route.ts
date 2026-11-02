@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
     limit: 20,
     windowMs: 60 * 60 * 1000,
   });
+  if (invitationLimit.backend === "unavailable") return jsonError("Shared invitation protection is unavailable", 503);
   if (!invitationLimit.allowed) {
     return NextResponse.json({ error: "Invitation creation is temporarily rate-limited" }, {
       status: 429, headers: { ...noStore, "Retry-After": String(invitationLimit.retryAfterSeconds) },
