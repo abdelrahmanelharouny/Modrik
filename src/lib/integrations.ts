@@ -20,6 +20,99 @@ import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 import { decryptSecret, encryptSecret } from "@/lib/security/secret-box.mjs";
 import { buildJiraUrl, validateJiraBaseUrl } from "@/lib/security/jira-url.mjs";
+import { makeSyncKey, makeSyncMarker } from "@/lib/integrations/sync-key.mjs";
+
+
+interface SyncReservationInput {
+  projectId: string;
+  kind: "github" | "jira";
+  localItemId: string;
+  localLabel: string;
+  title: string;
+  requirementId?: string;
+  storyId?: string;
+}
+
+async function acquireSyncReservation(input: SyncReservationInput): Promise<{ id: string; syncKey: string; acquired: boolean }> {
+  const syncKey = makeSyncKey(input.projectId, input.kind, input.localItemId);
+  let row = await db.syncMap.findUnique({ where: { idempotencyKey: syncKey }, select: { id: true, direction: true } });
+
+  if (!row) {
+    try {
+      const created = await db.syncMap.create({
+        data: {
+          projectId: input.projectId,
+          kind: input.kind,
+          direction: "pending",
+          requirementId: input.requirementId,
+          storyId: input.storyId,
+          localLabel: input.localLabel,
+          externalKey: "PENDING",
+          externalUrl: "",
+          title: input.title.slice(0, 200),
+          idempotencyKey: syncKey,
+        },
+        select: { id: true, direction: true },
+      });
+      row = created;
+    } catch (error) {
+      // Two requests may race to create the same reservation. The unique
+      // idempotency key elects one row; the loser reads the winner's row.
+      row = await db.syncMap.findUnique({ where: { idempotencyKey: syncKey }, select: { id: true, direction: true } });
+      if (!row) throw error;
+    }
+  }
+
+  if (row.direction === "pushed") return { id: row.id, syncKey, acquired: false };
+  const now = new Date();
+  const leaseExpiresAt = new Date(now.getTime() + 2 * 60 * 1000);
+  const claimed = await db.syncMap.updateMany({
+    where: {
+      id: row.id,
+      direction: { not: "pushed" },
+      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
+    },
+    data: {
+      direction: "creating",
+      leaseExpiresAt,
+      externalKey: "PENDING",
+      externalUrl: "",
+      syncedAt: now,
+    },
+  });
+  return { id: row.id, syncKey, acquired: claimed.count === 1 };
+}
+
+async function completeSyncReservation(
+  reservationId: string,
+  externalKey: string,
+  externalUrl: string,
+  title: string
+): Promise<void> {
+  await db.syncMap.update({
+    where: { id: reservationId },
+    data: {
+      direction: "pushed",
+      externalKey,
+      externalUrl,
+      title: title.slice(0, 200),
+      leaseExpiresAt: null,
+      syncedAt: new Date(),
+    },
+  });
+}
+
+async function failSyncReservation(reservationId: string): Promise<void> {
+  try {
+    await db.syncMap.update({
+      where: { id: reservationId },
+      data: { direction: "failed", leaseExpiresAt: null },
+    });
+  } catch {
+    // Keep the original tracker error; the lease eventually expires if even
+    // this recovery write cannot complete.
+  }
+}
 
 // ── Credential resolution ────────────────────────────────────
 
