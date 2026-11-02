@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
 const SCRYPT_HASH = /^\$scrypt\$(16384|32768|65536|131072)\$(8|9|10|11|12|13|14|15|16)\$(1|2|3|4)\$[a-f0-9]{32,128}\$[a-f0-9]{64,128}$/i;
 
@@ -10,6 +11,7 @@ function validEmail(value) {
 }
 function validEncryptionKey(value) {
   if (typeof value !== "string") return false;
+  if (!/^[a-f0-9]{64}$/i.test(value) && !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false;
   const bytes = /^[a-f0-9]{64}$/i.test(value) ? Buffer.from(value, "hex") : Buffer.from(value, "base64");
   return bytes.length === 32;
 }
@@ -41,7 +43,7 @@ export function validateProductionEnv(env = process.env) {
   return { ok: errors.length === 0, errors };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   if (!process.argv.includes("--production")) {
     process.stderr.write("Usage: node scripts/validate-production-env.mjs --production\n");
     process.exitCode = 2;
