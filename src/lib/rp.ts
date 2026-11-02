@@ -218,6 +218,8 @@ export interface CandidateDTO {
 }
 
 export interface TraceLinkDTO {
+  id: string;
+  evidenceId?: string | null;
   evidenceCode: string;
   note?: string | null;
 }
