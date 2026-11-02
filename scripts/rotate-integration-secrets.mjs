@@ -24,6 +24,9 @@ export function rotateIntegrationConfig(rawConfig, oldKey, newKey) {
 
   let plaintext;
   if (config.token.startsWith("enc:")) {
+    if (!config.token.startsWith("enc:v1:")) {
+      throw new Error("Unsupported encrypted credential version");
+    }
     try {
       plaintext = decryptSecret(config.token, oldKey);
     } catch (oldKeyError) {
