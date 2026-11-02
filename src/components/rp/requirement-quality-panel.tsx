@@ -33,7 +33,8 @@ export function RequirementQualityPanel({project,isCurrent,onRefresh}:{project:P
  const reload=useCallback(async()=>{setLoading(true);try{const d=await api<{assessments:Assessment[]}>(`/api/projects/${project.id}/quality`);setItems(d.assessments)}catch(e){toast({title:"Could not load assessments",description:(e as Error).message,variant:"destructive"})}finally{setLoading(false)}},[project.id,toast]);
  useEffect(()=>{void reload()},[reload]);
  useEffect(()=>{if(!project.requirements.some(r=>r.id===selectedId))setSelectedId(project.requirements[0]?.id??"")},[project.requirements,selectedId]);
- const complete=DIMS.every(([key])=>scores[key]!=="");\n const average=complete?Math.round(DIMS.reduce((sum,[key])=>sum+Number(scores[key]),0)/DIMS.length):null;
+ const complete=DIMS.every(([key])=>scores[key]!=="");
+ const average=complete?Math.round(DIMS.reduce((sum,[key])=>sum+Number(scores[key]),0)/DIMS.length):null;
  const save=async()=>{if(!selected)return;setBusy(true);try{await api(`/api/projects/${project.id}/quality`,{method:"POST",body:JSON.stringify({requirementId:selected.id,...scores,issues:issues.split("\n").map(x=>x.trim()).filter(Boolean),suggestedRewrite,assessmentNote:note})});await reload();await onRefresh();toast({title:ar?"تم حفظ التقييم":"Assessment saved"})}catch(e){toast({title:"Save failed",description:(e as Error).message,variant:"destructive"})}finally{setBusy(false)}};
  const review=async(item:Assessment,status:"accepted"|"rejected")=>{setBusy(true);try{await api(`/api/projects/${project.id}/quality`,{method:"PATCH",body:JSON.stringify({assessmentId:item.id,status})});await reload()}catch(e){toast({title:"Review failed",description:(e as Error).message,variant:"destructive"})}finally{setBusy(false)}};
  return <HudPanel className="space-y-4 p-4">
