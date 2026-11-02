@@ -17,12 +17,45 @@
 //   dialectFit (Arabic-native fit, N7)
 // ─────────────────────────────────────────────────────────────
 import { db } from "@/lib/db";
+import { z } from "zod";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
 import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
 import { selectByUtility, selectDistinctPoolIndices, clampSignalScore, deduplicateQuestions } from "@/lib/planner/selection.mjs";
 export { selectByUtility } from "@/lib/planner/selection.mjs";
+
+
+const plannerPoolSchema = z.object({
+  questions: z.array(z.object({
+    text: z.string().trim().min(1).max(600),
+    rationale: z.string().max(600).catch(""),
+    priority: z.enum(["high", "medium", "low"]).catch("medium"),
+    askCost: z.number().int().min(1).max(5).catch(3),
+    fallbackAssumption: z.string().max(400).catch(""),
+    language: z.enum(["en", "ar-EG", "codeswitch"]).catch("en"),
+  })).max(30),
+});
+
+const plannerScoresSchema = z.object({
+  scores: z.array(z.object({
+    index: z.number().int().min(1),
+    infoGain: z.number().min(1).max(5),
+    impact: z.number().min(1).max(5),
+    uncertainty: z.number().min(1).max(5),
+    risk: z.number().min(1).max(5),
+  })).max(100),
+});
+
+const plannerJudgeSchema = z.object({
+  evidenceCoverage: z.number().min(0).max(100),
+  redundancyRate: z.number().min(0).max(100),
+  dialectFit: z.number().min(0).max(100),
+});
+
+const plannerSelectionSchema = z.object({
+  selected: z.array(z.number().int().min(1)).max(30),
+});
 
 export type PlannerArm = "single_shot" | "random" | "llm" | "impact_aware";
 
@@ -105,12 +138,12 @@ function parseJson<T>(raw: string): T {
   throw new Error("Planner: unparseable LLM output");
 }
 
-async function callLLMJson<T>(systemBase: string, userPrompt: string, usage: UsageAcc): Promise<T> {
+async function callLLMJson<T>(systemBase: string, userPrompt: string, usage: UsageAcc, schema: z.ZodType<T>): Promise<T> {
   let lastErr: unknown = new Error("Planner: unparseable output");
   for (let i = 0; i < 2; i++) {
     const raw = await callLLM(systemBase, userPrompt, usage);
     try {
-      return parseJson<T>(raw);
+      return schema.parse(parseJson<unknown>(raw));
     } catch (err) {
       lastErr = err;
     }
@@ -196,7 +229,7 @@ For each candidate: estimate askCost (1=trivial, 5=very costly interruption) and
 
 Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
 
-  const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage);
+  const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage, plannerPoolSchema);
   const pool = deduplicateQuestions((out.questions ?? [])
     .filter((q) => q && String(q.text ?? "").trim())
     .map((q) => ({
@@ -234,7 +267,8 @@ Return JSON: {"scores": [{"index": 1, "infoGain": 4, "impact": 3, "uncertainty":
   const out = await callLLMJson<{ scores: { index: number; infoGain: number; impact: number; uncertainty: number; risk: number }[] }>(
     SYSTEM,
     prompt,
-    usage
+    usage,
+    plannerScoresSchema
   );
   return questions.map((q, i) => {
     const s = (out.scores ?? []).find((x) => Number(x.index) === i + 1);
@@ -287,7 +321,7 @@ Be strict and numeric.
 
 Return JSON: {"evidenceCoverage": 62, "redundancyRate": 10, "dialectFit": 80}`;
 
-  const out = await callLLMJson<{ evidenceCoverage: number; redundancyRate: number; dialectFit: number }>(SYSTEM, prompt, usage);
+  const out = await callLLMJson<{ evidenceCoverage: number; redundancyRate: number; dialectFit: number }>(SYSTEM, prompt, usage, plannerJudgeSchema);
   const pct = (n: unknown) => Math.min(100, Math.max(0, Math.round(Number(n) || 0)));
   return {
     avgUtility,
@@ -353,7 +387,7 @@ ${pool.map((q, i) => `${i + 1}. ${q.text} (askCost ${q.askCost})`).join("\n")}
 
 TASK: Select the 5 BEST questions from this pool for the next interview round — the ones whose answers most change what the team builds. Return ONLY their indices.
 Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
-      const out = await callLLMJson<{ selected: number[] }>(SYSTEM, prompt, usage);
+      const out = await callLLMJson<{ selected: number[] }>(SYSTEM, prompt, usage, plannerSelectionSchema);
       const idxs = selectDistinctPoolIndices(out.selected ?? [], pool.length, 5);
       if (!idxs.length) {
         throw new Error("Planner returned no valid, distinct candidate indices; refusing to silently substitute the entire pool.");
