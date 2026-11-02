@@ -41,6 +41,41 @@ export function ParticipantForm() {
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
+    const storedToken = window.sessionStorage.getItem("modrik-study-participant-token");
+    if (!storedToken) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/study/respond", {
+          method: "GET",
+          headers: { Authorization: "Bearer " + storedToken },
+          cache: "no-store",
+          credentials: "omit",
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          window.sessionStorage.removeItem("modrik-study-participant-token");
+          if (!cancelled) setError(result.error || "The saved session code has expired.");
+          return;
+        }
+        if (cancelled) return;
+        setToken(storedToken);
+        setSessionStarted(true);
+        setConsent(result.consentAccepted === true);
+        setFinished(result.finished === true);
+        setNotice(result.finished
+          ? "Your finished session was restored. You may still withdraw before the session code expires."
+          : "Your participant session was restored in this tab.");
+      } catch {
+        if (!cancelled) setError("Could not restore the session. Check your connection and try again.");
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (!running || startedAt === null) return;
     const timer = window.setInterval(() => {
       setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
@@ -103,6 +138,7 @@ export function ParticipantForm() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "The session code could not be verified.");
       setSessionStarted(true);
+      window.sessionStorage.setItem("modrik-study-participant-token", cleanToken);
       setTokenDraft("");
       setNotice("Your session is ready. Start the timer when the task begins.");
     } catch (cause) {
@@ -207,6 +243,7 @@ export function ParticipantForm() {
       setRunning(false);
       setWithdrawn(true);
       setFinished(true);
+      window.sessionStorage.removeItem("modrik-study-participant-token");
       setToken("");
       setTlx({});
       setSusScore("");
