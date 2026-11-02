@@ -64,7 +64,11 @@ try {
     const response = await send();
     assert.equal(response.status, label === "cross-origin mutation" ? 403 : 401, `${label} must be rejected at the expected security boundary`);
     assert.equal(response.headers.get("cache-control"), "no-store, max-age=0");
-    assert.match((await json(response)).error, /authentication required|owner session/i);
+    const body = await json(response);
+    assert.match(
+      body.error,
+      label === "cross-origin mutation" ? /cross-origin state change rejected/i : /authentication required|owner session/i
+    );
   }
 
   const [projectA, projectB] = projectIds;
