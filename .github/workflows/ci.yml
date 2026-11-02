@@ -50,6 +50,11 @@ jobs:
         run: |
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
           npx playwright install --with-deps chromium
+      - name: Prepare standalone static assets for browser E2E
+        run: |
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/static
+          cp -a public .next/standalone/public
       - name: Stakeholder API and browser E2E integration
         env:
           DATABASE_URL: file:${{ github.workspace }}/ci.db
@@ -58,11 +63,6 @@ jobs:
           MODRIK_AUTH_SECRET: 0123456789abcdef0123456789abcdef
           MODRIK_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
         run: node tests/stakeholder-api-auth.integration.mjs
-      - name: Prepare standalone static assets for browser E2E
-        run: |
-          mkdir -p .next/standalone/.next
-          cp -a .next/static .next/standalone/.next/static
-          cp -a public .next/standalone/public
 
   postgres-schema:
     runs-on: ubuntu-latest
