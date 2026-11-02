@@ -150,8 +150,18 @@ try {
 
     page.on("pageerror", error => browserDiagnostics.pageErrors.push(error.message));
     page.on("requestfailed", request => browserDiagnostics.failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
-    page.on("response", response => {
-      if (response.url().includes("/api/projects")) browserDiagnostics.projectApi.push({ url: response.url(), status: response.status() });
+    page.on("response", async response => {
+      if (response.url().includes("/api/projects")) {
+        const requestHeaders = await response.request().allHeaders();
+        browserDiagnostics.projectApi.push({
+          url: response.url(),
+          status: response.status(),
+          origin: requestHeaders.origin ?? null,
+          host: requestHeaders.host ?? null,
+          secFetchSite: requestHeaders["sec-fetch-site"] ?? null,
+          responseBody: response.status() >= 400 ? (await response.text().catch(() => "")).slice(0, 2000) : undefined,
+        });
+      }
     });
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     const missionCard = page.getByRole("button", { name: "Open mission Phase 4 integration A" });
