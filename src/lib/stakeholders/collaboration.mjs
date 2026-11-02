@@ -166,7 +166,8 @@ export function assertNegotiationDecisionAuthority(participants, decision) {
   if (decision?.status !== "approved") return true;
   const authorizedSupport = participants.some(participant =>
     ["decision_maker", "approver"].includes(participant?.stakeholder?.approvalRole) &&
-    participant?.responseStatus === "supports"
+    participant?.responseStatus === "supports" &&
+    participant?.responseOptionId === decision.chosenOption
   );
   if (!authorizedSupport) {
     throw new Error("Approval requires explicit support from at least one participating decision maker or approver.");
