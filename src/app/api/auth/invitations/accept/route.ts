@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createIdentitySession } from "@/lib/security/identity";
-import { hashPassword, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/security/session.mjs";
+import { hashPassword, isSessionSigningConfigured, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/security/session.mjs";
 import { hashInvitationToken, getInvitationState } from "@/lib/security/invitations.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 
@@ -14,6 +13,7 @@ function jsonError(error: string, status: number) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isSessionSigningConfigured()) return jsonError("Authentication is not configured", 503);
   if (!isSameOriginMutation(req.headers, req.nextUrl.protocol)) {
     return jsonError("Cross-origin invitation acceptance rejected", 403);
   }
@@ -54,6 +54,16 @@ export async function POST(req: NextRequest) {
   const now = new Date();
 
   const accepted = await db.$transaction(async (tx) => {
+    const currentUser = await tx.user.findUnique({
+      where: { id: invitation.userId },
+      select: { status: true, passwordHash: true, displayName: true },
+    });
+    const currentOrganization = await tx.organization.findUnique({
+      where: { id: invitation.organizationId },
+      select: { status: true },
+    });
+    if (!currentUser || currentUser.status !== "active" || !currentOrganization || currentOrganization.status !== "active") return null;
+    if (passwordHash && currentUser.passwordHash) return null;
     const claim = await tx.organizationInvitation.updateMany({
       where: {
         id: invitation.id, tokenHash, acceptedAt: null, revokedAt: null,
@@ -64,15 +74,16 @@ export async function POST(req: NextRequest) {
     if (claim.count !== 1) return null;
 
     if (passwordHash) {
-      await tx.user.update({
-        where: { id: invitation.userId },
-        data: {
-          passwordHash,
-          ...(displayName ? { displayName } : {}),
-        },
+      const passwordSet = await tx.user.updateMany({
+        where: { id: invitation.userId, status: "active", passwordHash: null },
+        data: { passwordHash, ...(displayName ? { displayName } : {}) },
       });
-    } else if (displayName && !invitation.user.displayName) {
-      await tx.user.update({ where: { id: invitation.userId }, data: { displayName } });
+      if (passwordSet.count !== 1) return null;
+    } else if (displayName && !currentUser.displayName) {
+      await tx.user.updateMany({
+        where: { id: invitation.userId, status: "active", passwordHash: { not: null } },
+        data: { displayName },
+      });
     }
 
     const membership = await tx.membership.updateMany({
@@ -88,7 +99,6 @@ export async function POST(req: NextRequest) {
       userId: invitation.userId,
       email: invitation.user.email,
       organizationId: invitation.organizationId,
-      membershipId: invitation.id,
       role: invitation.role,
     };
   }).catch((error) => {
@@ -99,7 +109,7 @@ export async function POST(req: NextRequest) {
   if (!accepted) return jsonError("Invitation is invalid or no longer available", 409);
   const membership = await db.membership.findUnique({
     where: { userId_organizationId: { userId: accepted.userId, organizationId: accepted.organizationId } },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!membership) return jsonError("Invitation could not activate membership", 500);
   const session = await createIdentitySession({
@@ -107,7 +117,7 @@ export async function POST(req: NextRequest) {
     email: accepted.email,
     organizationId: accepted.organizationId,
     membershipId: membership.id,
-    role: accepted.role,
+    role: membership.role,
   });
   const response = NextResponse.json({ ok: true, email: accepted.email, role: accepted.role }, { headers: noStore });
   response.cookies.set({
