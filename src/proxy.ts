@@ -196,7 +196,7 @@ export async function proxy(request: NextRequest) {
         userStatus: membership.user.status,
         organizationStatus: membership.organization.status,
       }, guardedPermission)) {
-        return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
+        return applySecurityHeaders(NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }));
       }
     }
   }
