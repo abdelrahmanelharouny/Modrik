@@ -138,6 +138,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     await logDecision(id, "CLEARANCE", "human", "updated_stakeholder_governance", `${updated.stakeholderRef}: role ${stakeholder.approvalRole} → ${updated.approvalRole}; engagement ${stakeholder.engagementStatus} → ${updated.engagementStatus}.`);
     return NextResponse.json({ stakeholder: updated });
   }
+  if (body.action === "respond_negotiation") {
+    if (typeof body.negotiationId !== "string" || typeof body.participantId !== "string") {
+      return NextResponse.json({ error: "negotiationId and participantId are required." }, { status: 400 });
+    }
+    const allowed = ["supports", "opposes", "conditional", "abstains"];
+    if (!allowed.includes(body.responseStatus)) return NextResponse.json({ error: "Unsupported participant response." }, { status: 400 });
+    if (typeof body.rationale !== "string" || !body.rationale.trim() || body.rationale.length > 2000) {
+      return NextResponse.json({ error: "A response rationale of up to 2000 characters is required." }, { status: 400 });
+    }
+    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, select: { id: true, status: true, requirement: { select: { refId: true } } } });
+    if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
+    if (negotiation.status !== "proposed") return NextResponse.json({ error: "Participant responses are closed after a decision is recorded." }, { status: 409 });
+    const participant = await db.negotiationParticipant.findFirst({ where: { id: body.participantId, decisionId: negotiation.id, projectId: id }, include: { stakeholder: { select: { stakeholderRef: true, displayName: true } } } });
+    if (!participant) return NextResponse.json({ error: "Participant not found in this negotiation." }, { status: 404 });
+    if (participant.responseStatus !== "pending") return NextResponse.json({ error: "This participant response is immutable once submitted." }, { status: 409 });
+    const transition = await db.negotiationParticipant.updateMany({
+      where: { id: participant.id, decisionId: negotiation.id, projectId: id, responseStatus: "pending" },
+      data: { responseStatus: body.responseStatus, responseRationale: body.rationale.trim(), respondedAt: new Date() },
+    });
+    if (transition.count !== 1) return NextResponse.json({ error: "Participant response was submitted concurrently. Refresh before continuing." }, { status: 409 });
+    const updated = await db.negotiationParticipant.findFirst({ where: { id: participant.id, projectId: id } });
+    await logDecision(id, "CLEARANCE", "human", "recorded_stakeholder_negotiation_response",
+      `${participant.stakeholder.stakeholderRef} responded ${body.responseStatus} to ${negotiation.requirement.refId}: ${body.rationale.trim().slice(0, 300)}`);
+    return NextResponse.json({ participant: updated }, { status: 201 });
+  }
   if (body.action === "review_position") {
     if (typeof body.positionId !== "string" || !POSITION_STATUSES.includes(body.status) || body.status === "proposed") {
       return NextResponse.json({ error: "positionId and accepted/rejected status are required." }, { status: 400 });
