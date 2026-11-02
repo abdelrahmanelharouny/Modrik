@@ -102,6 +102,10 @@ export function EvidenceRevisionPanel({
                 </div>
                 <p className="mt-0.5 text-xs text-foreground/80">{revision.changeNote || "No change note"}</p>
                 <p className="mt-0.5 break-all font-mono text-[9px] text-muted-foreground">SHA-256 {revision.contentHash.slice(0, 24)}…</p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-[10px] text-aura">View preserved source snapshot</summary>
+                  <p className="mt-2 whitespace-pre-wrap rounded bg-background/50 p-2 text-xs leading-relaxed" dir="auto">{revision.content}</p>
+                </details>
               </li>
             ))}
           </ol>
