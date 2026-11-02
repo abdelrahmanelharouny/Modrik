@@ -114,3 +114,12 @@ export function normalizeNegotiationDecision(input, optionsJson) {
     dissent: stringList(input.dissent, "dissent", 20),
   };
 }
+
+export function normalizeStakeholderUpdate(input, current) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Stakeholder update must be an object.");
+  const engagementStatus = input.engagementStatus ?? current.engagementStatus;
+  const approvalRole = input.approvalRole ?? current.approvalRole;
+  if (!STAKEHOLDER_ENGAGEMENT.includes(engagementStatus)) throw new Error("Unsupported engagementStatus.");
+  if (!STAKEHOLDER_APPROVAL_ROLES.includes(approvalRole)) throw new Error("Unsupported approvalRole.");
+  return { engagementStatus, approvalRole };
+}
