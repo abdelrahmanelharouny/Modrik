@@ -198,10 +198,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true, participants: { select: { id: true, responseStatus: true, stakeholder: { select: { approvalRole: true, stakeholderRef: true } } } } } });
     if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
     if (negotiation.status !== "proposed") return NextResponse.json({ error: "A recorded negotiation decision is immutable. Create a follow-up negotiation to revisit it." }, { status: 409 });
-    const pendingResponses = negotiation.participants.filter(p => p.responseStatus === "pending").length;
-    if (pendingResponses > 0) return NextResponse.json({ error: `All stakeholder participants must submit a response before the decision. ${pendingResponses} response(s) pending.` }, { status: 409 });
     let decision;
     try { decision = normalizeNegotiationDecision(body, negotiation.options); } catch (error) { return bad(error); }
+    if (decision.status === "approved") {
+      const pendingResponses = negotiation.participants.filter(p => p.responseStatus === "pending").length;
+      if (pendingResponses > 0) return NextResponse.json({ error: `All stakeholder participants must submit a response before approval. ${pendingResponses} response(s) pending.` }, { status: 409 });
+    }
     try { assertNegotiationDecisionAuthority(negotiation.participants, decision); }
     catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Approval authority requirement not met." }, { status: 403 }); }
     const transition = await db.negotiationDecision.updateMany({
