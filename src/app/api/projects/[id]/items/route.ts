@@ -238,8 +238,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         if (data.verificationDecision !== "supported" && data.verificationDecision !== "weak") {
           return NextResponse.json({ error: "verificationDecision must be supported or weak" }, { status: 400 });
         }
-        if (r.links.length === 0) {
-          return NextResponse.json({ error: "A requirement must have at least one evidence trace link before a human verification decision." }, { status: 422 });
+        if (!r.links.some((link) => typeof link.evidenceId === "string" && link.evidenceId.length > 0)) {
+          return NextResponse.json({ error: "A requirement must have at least one active Evidence ID trace link before a human verification decision." }, { status: 422 });
         }
         await db.requirement.update({
           where: { id: itemId },
