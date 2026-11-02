@@ -8,7 +8,9 @@ import { validateJiraBaseUrl, buildJiraUrl, jiraFetchOptions } from "../src/lib/
 import { isPublicApiPath } from "../src/lib/security/api-access.mjs";
 import {
   createSessionToken,
+  createIdentitySessionToken,
   verifySessionToken,
+  verifyPasswordHash,
   verifyAdminCredentials,
   verifyAdminRequest,
   SESSION_TTL_SECONDS,
@@ -99,6 +101,41 @@ test("admin credentials use bounded scrypt hashes and reject malformed hashes", 
   assert.equal(await verifyAdminCredentials("owner@example.com", "Correct-Horse-Battery-42!", { ...env, MODRIK_ADMIN_PASSWORD_HASH: "invalid" }), false);
 });
 
+
+test("identity sessions bind principal, tenant, membership, role and revocable session id", () => {
+  const claims = {
+    email: "owner@example.com",
+    userId: "user_1",
+    organizationId: "org_1",
+    membershipId: "membership_1",
+    role: "owner",
+    sessionId: "session_1",
+  };
+  const token = createIdentitySessionToken(claims, secret);
+  const session = verifySessionToken(token, secret);
+  assert.equal(session?.type, "identity");
+  assert.equal(session?.email, claims.email);
+  assert.equal(session?.userId, claims.userId);
+  assert.equal(session?.organizationId, claims.organizationId);
+  assert.equal(session?.membershipId, claims.membershipId);
+  assert.equal(session?.role, claims.role);
+  assert.equal(session?.sessionId, claims.sessionId);
+  assert.equal(verifySessionToken(token, randomBytes(32).toString("base64")), null);
+  assert.throws(() => createIdentitySessionToken({ ...claims, membershipId: "" }, secret), /incomplete/i);
+});
+
+test("scrypt password verification accepts valid bounded hashes and rejects malformed or unsafe parameters", async () => {
+  const { scrypt: scryptCallback, randomBytes: bytes } = await import("node:crypto");
+  const { promisify } = await import("node:util");
+  const scrypt = promisify(scryptCallback);
+  const salt = bytes(16);
+  const derived = await scrypt("Identity-Password-42!", salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  const hash = `$scrypt$16384$8$1${salt.toString("hex")}${Buffer.from(derived).toString("hex")}`;
+  assert.equal(await verifyPasswordHash("Identity-Password-42!", hash), true);
+  assert.equal(await verifyPasswordHash("wrong", hash), false);
+  assert.equal(await verifyPasswordHash("Identity-Password-42!", "$scrypt$1048576$8$1$" + "a".repeat(32) + "$" + "b".repeat(64)), false);
+  assert.equal(await verifyPasswordHash("anything", "malformed"), false);
+});
 
 test("CSV cells quote delimiters and neutralize spreadsheet formulas", () => {
   const dangerous = csvCell('=HYPERLINK("https://attacker.example")');
