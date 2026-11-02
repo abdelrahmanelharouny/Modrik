@@ -1,8 +1,7 @@
-import { randomBytes, createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeEmail } from "@/lib/security/organization-access.mjs";
-import { isInvitableRole, INVITATION_TTL_MS } from "@/lib/security/invitations.mjs";
+import { createInvitationToken, hashInvitationToken, isInvitableRole, INVITATION_TTL_MS } from "@/lib/security/invitations.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 
 export const runtime = "nodejs";
@@ -56,8 +55,19 @@ export async function POST(req: NextRequest) {
   }
   if (!isInvitableRole(role)) return jsonError("The selected role cannot be assigned by invitation", 400);
 
-  const token = randomBytes(32).toString("base64url");
-  const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+  const configuredBase = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  let base: URL;
+  try {
+    base = configuredBase ? new URL(configuredBase) : new URL(req.url);
+    if (base.username || base.password || (process.env.NODE_ENV === "production" && base.protocol !== "https:")) {
+      throw new Error("Unsafe invitation base URL");
+    }
+  } catch {
+    return jsonError("A safe application base URL is not configured", 500);
+  }
+  const token = createInvitationToken();
+  const tokenHash = hashInvitationToken(token);
+  if (!tokenHash) return jsonError("Could not create invitation token", 500);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS);
 
@@ -124,8 +134,6 @@ export async function POST(req: NextRequest) {
     return jsonError(messages[result.error] ?? "Invitation could not be created", result.status);
   }
 
-  const configuredBase = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
-  const base = configuredBase ? new URL(configuredBase) : new URL(req.url);
   const inviteUrl = new URL("/invite/accept", base);
   inviteUrl.searchParams.set("token", token);
   return NextResponse.json({
