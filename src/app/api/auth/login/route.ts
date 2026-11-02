@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { createIdentitySession } from "@/lib/security/identity";
 import {
-  createSessionToken,
+  verifyPasswordHash,
   isAuthConfigured,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
@@ -56,23 +58,97 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-  const email = typeof body?.email === "string" ? body.email.slice(0, 254) : "";
+  const email = typeof body?.email === "string" ? body.email.slice(0, 254).trim().toLowerCase() : "";
   const password = typeof body?.password === "string" ? body.password.slice(0, 1024) : "";
-  const valid = await verifyAdminCredentials(email, password);
+  const configuredOwner = email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
+  const bootstrapPasswordValid = configuredOwner && await verifyAdminCredentials(email, password);
+  let user = await db.user.findUnique({ where: { email } });
 
-  if (!valid) {
+  if (!user && !bootstrapPasswordValid) {
+    const state = attempts.get(key) ?? { count: 0, resetAt: now + WINDOW_MS };
+    state.count += 1;
+    attempts.set(key, state);
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+  }
+  if (user && user.status !== "active") {
+    return NextResponse.json({ error: "This account is disabled" }, { status: 403 });
+  }
+  const passwordValid = user?.passwordHash
+    ? await verifyPasswordHash(password, user.passwordHash)
+    : bootstrapPasswordValid;
+  if (!passwordValid) {
     const state = attempts.get(key) ?? { count: 0, resetAt: now + WINDOW_MS };
     state.count += 1;
     attempts.set(key, state);
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
+  const identity = await db.$transaction(async (tx) => {
+    const resolvedUser = user
+      ? await tx.user.update({
+          where: { id: user.id },
+          data: user.passwordHash ? {} : { passwordHash: process.env.MODRIK_ADMIN_PASSWORD_HASH },
+        })
+      : await tx.user.create({
+          data: {
+            email,
+            displayName: email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase() ? "Workspace Owner" : "",
+            passwordHash: process.env.MODRIK_ADMIN_PASSWORD_HASH,
+            status: "active",
+            emailVerifiedAt: new Date(),
+          },
+        });
+    const organization = await tx.organization.upsert({
+      where: { slug: "modrik-default" },
+      create: { name: "Modrik Workspace", slug: "modrik-default", status: "active" },
+      update: {},
+    });
+    let membership = await tx.membership.findUnique({
+      where: { userId_organizationId: { userId: resolvedUser.id, organizationId: organization.id } },
+    });
+    if (!membership) {
+      membership = await tx.membership.create({
+        data: {
+          userId: resolvedUser.id,
+          organizationId: organization.id,
+          role: "owner",
+          status: "active",
+          activatedAt: new Date(),
+        },
+      });
+    }
+    if (membership.status !== "active") {
+      throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
+    }
+    // One-time safe adoption of legacy unassigned projects into the bootstrap
+    // workspace. Never reassign projects already owned by another tenant.
+    if (membership.role === "owner" && configuredOwner) {
+      await tx.project.updateMany({
+        where: { organizationId: null },
+        data: { organizationId: organization.id, createdByUserId: resolvedUser.id },
+      });
+    }
+    return {
+      userId: resolvedUser.id,
+      email: resolvedUser.email,
+      organizationId: organization.id,
+      membershipId: membership.id,
+      role: membership.role,
+    };
+  }).catch((error) => {
+    if (error instanceof Error && error.message === "ACCOUNT_MEMBERSHIP_INACTIVE") return null;
+    throw error;
+  });
+
+  if (!identity) {
+    return NextResponse.json({ error: "Organization membership is inactive" }, { status: 403 });
+  }
+  const session = await createIdentitySession(identity);
   attempts.delete(key);
-  const token = createSessionToken(email, process.env.MODRIK_AUTH_SECRET!);
   const response = NextResponse.json({ ok: true });
   response.cookies.set({
     name: SESSION_COOKIE,
-    value: token,
+    value: session.token,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
