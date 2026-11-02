@@ -27,6 +27,8 @@ export function StakeholderCollaboration({projectId, requirements, refresh}:{pro
   const [role,setRole]=useState("");
   const [org,setOrg]=useState("");
   const [approvalRole,setApprovalRole]=useState("consulted");
+  const [editingRoles,setEditingRoles]=useState<Record<string,string>>({});
+  const [editingStatus,setEditingStatus]=useState<Record<string,string>>({});
   const [stakeholderId,setStakeholderId]=useState("");
   const [requirementId,setRequirementId]=useState("");
   const [stance,setStance]=useState("supports");
@@ -73,7 +75,12 @@ export function StakeholderCollaboration({projectId, requirements, refresh}:{pro
     </div>
     <HudPanel className="space-y-3 p-4">
       <SectionHead icon={Users} title={ar?"خريطة أصحاب المصلحة":"Stakeholder map"} blurb={ar?"الأدوار وحالة المشاركة":"Roles and engagement status"}/>
-      {data.stakeholders.length===0?<EmptyBay>{ar?"لم تتم إضافة أصحاب مصلحة بعد.":"No stakeholders captured yet."}</EmptyBay>:<div className="grid gap-2 md:grid-cols-2">{data.stakeholders.map(s=><div key={s.id} className="rounded-lg border border-border/70 p-3"><div className="flex items-center justify-between gap-2"><b className="text-sm">{s.displayName}</b><Chip tone={s.engagementStatus==="active"?"verify":"muted"}>{s.engagementStatus}</Chip></div><p className="mt-1 text-xs text-muted-foreground">{s.stakeholderRef} · {s.role} · {s.approvalRole.replace("_"," ")}</p><p className="mt-2 text-[11px] text-muted-foreground">Influence {s.influenceScore}/100 · Interest {s.interestScore}/100</p></div>)}</div>}
+      {data.stakeholders.length===0?<EmptyBay>{ar?"لم تتم إضافة أصحاب مصلحة بعد.":"No stakeholders captured yet."}</EmptyBay>:<div className="grid gap-2 md:grid-cols-2">{data.stakeholders.map(s=><div key={s.id} className="rounded-lg border border-border/70 p-3"><div className="flex items-center justify-between gap-2"><b className="text-sm">{s.displayName}</b><Chip tone={s.engagementStatus==="active"?"verify":"muted"}>{s.engagementStatus}</Chip></div><p className="mt-1 text-xs text-muted-foreground">{s.stakeholderRef} · {s.role} · {s.approvalRole.replace("_"," ")}</p><p className="mt-2 text-[11px] text-muted-foreground">Influence {s.influenceScore}/100 · Interest {s.interestScore}/100</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Select value={editingRoles[s.id]??s.approvalRole} onValueChange={v=>setEditingRoles(old=>({...old,[s.id]:v}))}><SelectTrigger aria-label="Approval role"><SelectValue/></SelectTrigger><SelectContent>{["decision_maker","approver","contributor","consulted","informed","observer"].map(v=><SelectItem key={v} value={v}>{v.replace("_"," ")}</SelectItem>)}</SelectContent></Select>
+        <Select value={editingStatus[s.id]??s.engagementStatus} onValueChange={v=>setEditingStatus(old=>({...old,[s.id]:v}))}><SelectTrigger aria-label="Engagement status"><SelectValue/></SelectTrigger><SelectContent>{["active","pending","unavailable","withdrawn"].map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select>
+        <Button size="sm" variant="outline" className="sm:col-span-2" disabled={busy||(editingRoles[s.id]??s.approvalRole)===s.approvalRole&&(editingStatus[s.id]??s.engagementStatus)===s.engagementStatus} onClick={async()=>{setBusy(true);try{await api(`/api/projects/${projectId}/stakeholders`,{method:"PATCH",body:JSON.stringify({action:"update_stakeholder",stakeholderId:s.id,approvalRole:editingRoles[s.id]??s.approvalRole,engagementStatus:editingStatus[s.id]??s.engagementStatus})});await load();await refresh();toast({title:ar?"تم تحديث صاحب المصلحة":"Stakeholder updated"});}catch(e){toast({title:"Update failed",description:(e as Error).message,variant:"destructive"});}finally{setBusy(false);}}}>Save governance changes</Button>
+      </div></div>)}</div>}
     </HudPanel>
     <HudPanel className="space-y-3 p-4">
       <SectionHead icon={ShieldCheck} title={ar?"مواقف أصحاب المصلحة":"Requirement positions"} blurb={ar?"كل موقف يظل مقترحًا حتى يراجعه إنسان.":"Positions remain proposed until a human reviews them."}/>
