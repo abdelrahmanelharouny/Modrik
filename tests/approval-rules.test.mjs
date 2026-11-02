@@ -20,20 +20,26 @@ test("elicitation gate rejects generated and synthetic-only answers", () => {
   ]), null);
 });
 
-test("requirement gate requires every requirement to have trace links and a verifier result", () => {
+test("requirement gate requires active evidence IDs and an independent human verdict", () => {
   assert.match(validateRequirementApproval([]), /No requirements/);
   assert.match(validateRequirementApproval([
-    { refId: "REQ-01", verifyStatus: "supported", links: [] },
+    { refId: "REQ-01", verifyStatus: "supported", verificationSource: "human", links: [] },
   ]), /REQ-01/);
   assert.match(validateRequirementApproval([
-    { refId: "REQ-01", verifyStatus: "unverified", links: [{ id: "link-1" }] },
-  ]), /REQ-01/);
+    { refId: "REQ-01", verifyStatus: "supported", verificationSource: "human", links: [{ id: "link-1", evidenceId: null }] },
+  ]), /active Evidence ID/);
   assert.match(validateRequirementApproval([
-    { refId: "REQ-01", verifyStatus: "weak", verificationSource: "agent", links: [{ id: "link-1" }] },
-  ]), /explicit human evidence review/);
+    { refId: "REQ-01", verifyStatus: "unverified", verificationSource: "agent", links: [{ id: "link-1", evidenceId: "evidence-1" }] },
+  ]), /explicit human evidence-verification decision/);
+  assert.match(validateRequirementApproval([
+    { refId: "REQ-01", verifyStatus: "weak", verificationSource: "agent", links: [{ id: "link-1", evidenceId: "evidence-1" }] },
+  ]), /explicit human evidence-verification decision/);
+  assert.match(validateRequirementApproval([
+    { refId: "REQ-01", verifyStatus: "supported", verificationSource: "agent", links: [{ id: "link-1", evidenceId: "evidence-1" }] },
+  ]), /explicit human evidence-verification decision/);
   assert.equal(validateRequirementApproval([
-    { refId: "REQ-01", verifyStatus: "weak", verificationSource: "human", links: [{ id: "link-1" }] },
-    { refId: "REQ-02", verifyStatus: "supported", verificationSource: "human", links: [{ id: "link-2" }] },
+    { refId: "REQ-01", verifyStatus: "weak", verificationSource: "human", links: [{ id: "link-1", evidenceId: "evidence-1" }] },
+    { refId: "REQ-02", verifyStatus: "supported", verificationSource: "human", links: [{ id: "link-2", evidenceId: "evidence-2" }] },
   ]), null);
 });
 
