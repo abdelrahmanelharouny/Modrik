@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
-  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority,
+  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority, assertStakeholderCanLeaveEngagement,
 } from "../src/lib/stakeholders/collaboration.mjs";
 
 const profile = { stakeholderRef:"ST-01",displayName:"Product owner",role:"Owner",approvalRole:"approver",goals:["Reduce onboarding time"] };
@@ -87,4 +87,13 @@ test("approved negotiation requires explicit support from a participating decisi
     {responseStatus:"supports",stakeholder:{approvalRole:"decision_maker"}},
   ],{status:"approved"}),true);
   assert.equal(assertNegotiationDecisionAuthority(participants,{status:"rejected"}),true);
+});
+
+test("stakeholders cannot withdraw or become unavailable with pending negotiation responses",()=>{
+  assert.equal(assertStakeholderCanLeaveEngagement("active",2),true);
+  assert.equal(assertStakeholderCanLeaveEngagement("withdrawn",0),true);
+  assert.equal(assertStakeholderCanLeaveEngagement("unavailable",0),true);
+  assert.throws(()=>assertStakeholderCanLeaveEngagement("withdrawn",1),/Resolve or reject/);
+  assert.throws(()=>assertStakeholderCanLeaveEngagement("unavailable",2),/Resolve or reject/);
+  assert.throws(()=>assertStakeholderCanLeaveEngagement("invalid",0),/engagementStatus/);
 });
