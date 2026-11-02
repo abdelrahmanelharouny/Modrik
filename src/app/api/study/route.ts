@@ -11,8 +11,8 @@ const GROUPS = ["A_traditional", "B_unconstrained_llm", "C_modrik"];
 
 function csvCell(value: unknown): string {
   let raw = value == null ? "" : String(value);
-  if (typeof value === "string" && /^[\\s]*[=+\\-@]/.test(raw)) raw = "'" + raw;
-  return `"${raw.replace(/"/g, '""')}"`;
+  if (typeof value === "string" && /^[\s]*[=+\-@]/.test(raw)) raw = "'" + raw;
+  return \`"\${raw.replace(/"/g, '""')}"\`;
 }
 
 // POST { groupId, participantCode, scenarioId, projectId? } → open a session
