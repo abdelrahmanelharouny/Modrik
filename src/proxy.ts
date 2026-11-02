@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import { resolveIdentitySession } from "@/lib/security/identity";
 import { isPublicApiPath } from "@/lib/security/api-access.mjs";
+import { resolveOrganizationRoutePermission } from "@/lib/security/organization-route-access.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import {
   isSessionSigningConfigured,
@@ -162,34 +163,29 @@ export async function proxy(request: NextRequest) {
         return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
       }
     } else {
-      const guardedPermission =
-        pathname === "/api/missions" || pathname === "/api/demo"
-          ? request.method === "GET" ? "projects:read" : "projects:create"
-          : pathname === "/api/telemetry"
-            ? "audit:read"
-            : pathname === "/api/study" || pathname === "/api/self-audit"
-              ? "organization:manage"
-              : pathname === "/api/providers"
-                ? "organization:read"
-                : null;
-      if (guardedPermission) {
-        const membership = await db.membership.findUnique({
-          where: { id: identity.membershipId },
-          select: {
-            organizationId: true, role: true, status: true,
-            user: { select: { status: true } },
-            organization: { select: { status: true } },
-          },
-        });
-        if (!membership || !hasOrganizationPermission({
-          organizationId: membership.organizationId,
-          role: membership.role,
-          status: membership.status,
-          userStatus: membership.user.status,
-          organizationStatus: membership.organization.status,
-        }, guardedPermission)) {
-          return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
-        }
+      const guardedPermission = resolveOrganizationRoutePermission(pathname, request.method);
+      if (!guardedPermission) {
+        return NextResponse.json(
+          { error: "API route has no organization permission policy", code: "API_ROUTE_NOT_CLASSIFIED" },
+          { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
+        );
+      }
+      const membership = await db.membership.findUnique({
+        where: { id: identity.membershipId },
+        select: {
+          organizationId: true, role: true, status: true,
+          user: { select: { status: true } },
+          organization: { select: { status: true } },
+        },
+      });
+      if (!membership || !hasOrganizationPermission({
+        organizationId: membership.organizationId,
+        role: membership.role,
+        status: membership.status,
+        userStatus: membership.user.status,
+        organizationStatus: membership.organization.status,
+      }, guardedPermission)) {
+        return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
       }
     }
   }
