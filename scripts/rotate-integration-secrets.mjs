@@ -27,6 +27,7 @@ export function rotateIntegrationConfig(rawConfig, oldKey, newKey) {
     try {
       plaintext = decryptSecret(config.token, oldKey);
     } catch (oldKeyError) {
+      if (oldKeyError instanceof Error && oldKeyError.message === "Unsupported encrypted credential version") throw oldKeyError;
       try {
         decryptSecret(config.token, newKey);
         return { config: rawConfig, changed: false };
