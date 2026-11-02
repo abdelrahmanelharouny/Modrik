@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
-  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum,
+  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority,
 } from "../src/lib/stakeholders/collaboration.mjs";
 
 const profile = { stakeholderRef:"ST-01",displayName:"Product owner",role:"Owner",approvalRole:"approver",goals:["Reduce onboarding time"] };
@@ -74,4 +74,17 @@ test("participant response requires a supported stance and a rationale",()=>{
   assert.deepEqual(normalizeNegotiationResponse({responseStatus:"conditional",rationale:"Only if audit logs remain exportable."}),{responseStatus:"conditional",rationale:"Only if audit logs remain exportable."});
   assert.throws(()=>normalizeNegotiationResponse({responseStatus:"maybe",rationale:"x"}),/response/);
   assert.throws(()=>normalizeNegotiationResponse({responseStatus:"supports",rationale:""}),/rationale/);
+});
+
+test("approved negotiation requires explicit support from a participating decision maker or approver",()=>{
+  const participants=[
+    {responseStatus:"supports",stakeholder:{approvalRole:"consulted"}},
+    {responseStatus:"opposes",stakeholder:{approvalRole:"approver"}},
+  ];
+  assert.throws(()=>assertNegotiationDecisionAuthority(participants,{status:"approved"}),/explicit support/);
+  assert.equal(assertNegotiationDecisionAuthority([
+    ...participants,
+    {responseStatus:"supports",stakeholder:{approvalRole:"decision_maker"}},
+  ],{status:"approved"}),true);
+  assert.equal(assertNegotiationDecisionAuthority(participants,{status:"rejected"}),true);
 });
