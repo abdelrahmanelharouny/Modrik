@@ -162,3 +162,14 @@ export function assertNegotiationDecisionAuthority(participants, decision) {
   }
   return true;
 }
+
+export function assertStakeholderCanLeaveEngagement(nextStatus, pendingParticipationCount) {
+  if (!STAKEHOLDER_ENGAGEMENT.includes(nextStatus)) throw new Error("Unsupported engagementStatus.");
+  if (!Number.isInteger(pendingParticipationCount) || pendingParticipationCount < 0) {
+    throw new Error("pendingParticipationCount must be a non-negative integer.");
+  }
+  if (["withdrawn", "unavailable"].includes(nextStatus) && pendingParticipationCount > 0) {
+    throw new Error("Resolve or reject pending negotiations before withdrawing or making this stakeholder unavailable.");
+  }
+  return true;
+}
