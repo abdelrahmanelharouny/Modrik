@@ -83,7 +83,7 @@ Finally, Modrik is deliberately **Arabic-first**. Its primary stakeholders think
 - **Not a document generator.** There is no "generate my SRS" button, by design. A baseline can only be exported after a human has passed six gates (see [D1](#19-design-decision-records--the-why-behind-every-choice)).
 - **Not autonomous.** Agents never commit decisions. The word "gate" is load-bearing: each phase ends in `awaiting_input` / `awaiting_review` states that only a human transitions (see [D2](#19-design-decision-records--the-why-behind-every-choice)).
 - **Not a chatbot.** There is no free-form chat surface. Every agent interaction is a structured payload with a schema, stored as an artifact, and rendered as a reviewable card.
-- **Not a multi-tenant SaaS.** There is no auth/RBAC yet — it is on the roadmap ([§21](#21-roadmap)). Deploy it for a team, a lab, or behind your own gateway.
+- **Not yet a public, production-ready multi-tenant SaaS.** H1 adds signed sessions, organization membership RBAC, project-level authorization, tenant-isolation checks, invitation and password-recovery flows, and shared rate limiting. Production adoption still requires a reconciled database migration baseline, live provider verification, and completion of the remaining H1 integration/research release gates.
 
 ## 3. The Flight Plan — six gates and a debrief
 
@@ -551,7 +551,7 @@ The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./
 
 The roadmap is ordered by release risk. A feature is not considered complete until its implementation, tests, migrations, accessibility and operator documentation are verified.
 
-1. **H1 — production foundation:** extend the existing single-owner login/session boundary to organization and project membership RBAC; verify tenant/project isolation; versioned Prisma migrations; API integration tests; scripted Playwright E2E; CI coverage of the 120-scenario benchmark; set-level judge calibration; OAuth and secret rotation for GitHub/Jira.
+1. **H1 — production foundation (implementation substantially advanced; release not yet cleared):** organization and project membership RBAC, tenant-isolation checks, invitation/recovery lifecycle, shared rate limiting, API integration tests, scripted Playwright E2E, CI benchmark validation, and production configuration validation are implemented on the H1 branch stack. Remaining release gates: reconcile and commit a provider-specific Prisma baseline against each real deployed database; verify live Redis/email/database credentials and restore procedures; implement and test GitHub/Jira OAuth plus integration-secret rotation; complete set-level judge sensitivity/calibration. Do not treat repository schema inventory as a deployed-database baseline.
 2. **H2 — field research and collaboration:** complete stakeholder response/review workflows; run a 2–3-team pilot; recruit study participants and execute the analysis pipeline; publish reproducible four-arm ablation results; tracker webhooks feeding evidence-drift review.
 3. **H3 — scale and resilience:** offline-first capture and conflict-safe sync; organization-level governance and audit exports; reverse mode from implementation changes to living requirements; requirement-level cost-of-change modelling; organization-scale knowledge memory.
 
@@ -621,9 +621,9 @@ A platform whose brand is honesty owes you this list:
 2. **Set-level ablation sensitivity** — the seeded planner comparison differentiates arms clearly on per-question utility, but set-level metrics are close; judge design needs a sensitivity upgrade before publication-grade claims.
 3. **No auth/RBAC** — deploy behind your own gateway; RBAC is roadmap H1.
 4. **No automated E2E suite** — verification is audit-harness + live browser sweeps; a scripted E2E suite is a named gap.
-5. **Pilot recruitment not started** — study infrastructure is complete and verified; participants haven't been recruited.
-6. **Single-stakeholder sessions** — negotiation is one human against implications, not multi-stakeholder deliberation (roadmap H2).
-7. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
+7. **Pilot recruitment not started** — study infrastructure is complete and verified; participants haven't been recruited.
+8. **Single-stakeholder sessions** — negotiation is one human against implications, not multi-stakeholder deliberation (roadmap H2).
+9. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
 
 ## 25. Glossary
 
