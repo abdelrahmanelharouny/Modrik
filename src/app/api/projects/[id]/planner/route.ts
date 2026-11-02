@@ -19,6 +19,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     runs: runs.map((r) => ({
       id: r.id,
       arm: r.arm,
+      experimentId: r.experimentId,
+      seed: r.seed,
+      candidatePoolHash: r.candidatePoolHash,
+      candidatePoolUsed: r.candidatePoolUsed,
       candidates: r.candidates,
       metrics: r.metrics ? JSON.parse(r.metrics) : null,
       latencyMs: r.latencyMs,
