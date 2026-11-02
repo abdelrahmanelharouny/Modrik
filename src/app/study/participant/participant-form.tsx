@@ -64,6 +64,17 @@ export function ParticipantForm() {
         setSessionStarted(true);
         setConsent(result.consentAccepted === true);
         setFinished(result.finished === true);
+        setElapsedSeconds(Number.isFinite(Number(result.taskTimeSec)) ? Math.max(0, Number(result.taskTimeSec)) : 0);
+        const restoredTlx: Partial<Record<Dimension, string>> = {};
+        if (result.nasaTlx && typeof result.nasaTlx === "object") {
+          for (const item of DIMENSIONS) {
+            const value = result.nasaTlx[item.key];
+            if (typeof value === "number" && Number.isFinite(value)) restoredTlx[item.key] = String(value);
+          }
+        }
+        setTlx(restoredTlx);
+        setSusScore(typeof result.susScore === "number" ? String(result.susScore) : "");
+        setNotes(typeof result.notes === "string" ? result.notes : "");
         setNotice(result.finished
           ? "Your finished session was restored. You may still withdraw before the session code expires."
           : "Your participant session was restored in this tab.");
