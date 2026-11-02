@@ -51,6 +51,20 @@ Evidence codes are stable identifiers, not list positions. Deleting a cited sour
 
 Phase 1 adds schema relations for project-scoped memory and stable evidence trace IDs. Back up the database before applying the schema update. For local SQLite run `bun run db:push`; for PostgreSQL run `bun run db:push:pg` with the production `DATABASE_URL` set. These commands intentionally do not use Prisma's destructive `--accept-data-loss` flag.
 
+## Identity and organization foundation (H1.2)
+
+The identity schema introduces three distinct concepts:
+
+- `User` is an authentication principal with a unique normalized email and an explicit active/disabled state.
+- `Organization` is a tenant boundary.
+- `Membership` connects one user to one organization and carries one of six roles: `owner`, `admin`, `engineer`, `reviewer`, `approver`, or `viewer`. Membership status is explicit: `invited`, `active`, `suspended`, or `revoked`.
+
+Stakeholder profiles remain project-domain records. They are not users, cannot authenticate, and their influence/approval metadata does not grant application permissions.
+
+Project `organizationId` and `createdByUserId` are intentionally nullable in this additive schema slice. Existing projects are not silently assigned to a guessed tenant or account. A later, explicit backfill must establish an owner organization before tenant-scoped access is enabled.
+
+The pure policy in `src/lib/security/organization-access.mjs` defines a fail-closed permission matrix and tenant-ID comparison. It is not yet wired into the session or route boundary. Until the next H1 authorization slice replaces the owner-only assumption with authenticated user identity and membership lookup, deployments remain single-owner only. Do not treat the presence of these tables as multi-tenant security.
+
 ## Current boundary and next security phase
 
 This phase does not claim full legal compliance or multi-tenant isolation. The following remain required before serving multiple organizations:
