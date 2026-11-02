@@ -367,7 +367,7 @@ export async function runPlanner(
     const prompt = `${context}
 TASK: Identify the 5 most important clarifying questions to ask the stakeholders now. For each, estimate askCost (1-5) and a testable fallbackAssumption.
 Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
-    const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage);
+    const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage, plannerPoolSchema);
     selected = deduplicateQuestions((out.questions ?? []).map((q) => ({
       text: String(q.text ?? "").slice(0, 600),
       rationale: String(q.rationale ?? "").slice(0, 600),
