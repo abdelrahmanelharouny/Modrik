@@ -55,6 +55,16 @@ export function KnowledgeGraphExplorer({project}:{project:ProjectDTO}) {
   const selected=graph?.nodes.find(n=>n.id===selectedId)??null;
   const filtered=useMemo(()=> (graph?.nodes??[]).filter(n=>(kindFilter==="all"||n.kind===kindFilter)&&(!search.trim()||[n.nodeRef,n.label,n.description].join(" ").toLowerCase().includes(search.trim().toLowerCase()))),[graph,kindFilter,search]);
   const relatedEdges=useMemo(()=>graph?.edges.filter(e=>e.fromNodeId===selectedId||e.toNodeId===selectedId)??[],[graph,selectedId]);
+  const nodePositions=useMemo(()=>{
+    const nodes=(graph?.nodes??[]).slice(0,24);
+    const positions=new Map<string,{x:number;y:number}>();
+    nodes.forEach((node,index)=>{
+      const angle=(index/Math.max(1,nodes.length))*Math.PI*2-Math.PI/2;
+      const radius=nodes.length<=8?125:155;
+      positions.set(node.id,{x:360+radius*Math.cos(angle),y:215+radius*Math.sin(angle)});
+    });
+    return positions;
+  },[graph]);
 
   const mutate=async(action:string,payload:Record<string,unknown>)=>{
     setBusy(true);
@@ -116,6 +126,44 @@ export function KnowledgeGraphExplorer({project}:{project:ProjectDTO}) {
         <Button size="sm" onClick={createEdge} disabled={busy||!fromId||!toId||fromId===toId}>{ar?"إضافة علاقة":"Propose edge"}</Button>
       </div>
       <p className="text-[10px] text-muted-foreground">{ar?"العلاقات الجديدة تبدأ كمقترحات ولا تدخل في المعرفة المعتمدة قبل مراجعتها.":"New relationships begin as proposals and do not become accepted knowledge until reviewed."}</p>
+    </HudPanel>
+
+    <HudPanel className="overflow-hidden p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-semibold">{ar?"العلاقات المرئية":"Relationship map"}</div>
+        <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-verify"/>Accepted node</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-aura"/>Proposed node</span>
+          <span className="flex items-center gap-1"><span className="h-0.5 w-4 bg-coral"/>Contradiction</span>
+        </div>
+      </div>
+      {(graph?.nodes.length??0)===0?<EmptyBay>{ar?"ستظهر الشبكة هنا بعد إضافة الكيانات والعلاقات.":"The network appears here after nodes and relationships are added."}</EmptyBay>:<>
+        <div className="overflow-x-auto rounded-md border border-border/50 bg-abyss/40">
+          <svg viewBox="0 0 720 430" role="img" aria-label="Project knowledge graph showing typed nodes and relationships" className="mx-auto block h-[300px] w-full min-w-[560px] sm:h-[390px]">
+            <circle cx="360" cy="215" r="190" fill="none" stroke="rgba(126,150,176,0.12)" strokeDasharray="3 7"/>
+            {graph?.edges.map(edge=>{
+              const a=nodePositions.get(edge.fromNodeId),b=nodePositions.get(edge.toNodeId);
+              if(!a||!b)return null;
+              const color=edge.relationType==="contradicts"?"#ff6b7a":edge.relationType==="constrains"?"#ffb454":edge.status==="accepted"?"#2ce8c8":"#a78bfa";
+              const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+              return <g key={edge.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={edge.status==="accepted"?2:1.2} strokeOpacity={edge.status==="accepted"?0.85:0.4} strokeDasharray={edge.status==="accepted"?"none":"4 4"}/><text x={mx} y={my-4} textAnchor="middle" fill={color} fontSize="8" fontFamily="monospace">{edge.relationType.replaceAll("_"," ")}</text></g>;
+            })}
+            {[...(graph?.nodes??[])].slice(0,24).map(node=>{
+              const p=nodePositions.get(node.id);if(!p)return null;
+              const active=node.id===selectedId;
+              const color=node.status==="accepted"?"#2ce8c8":node.status==="rejected"?"#ff6b7a":"#a78bfa";
+              return <g key={node.id} opacity={node.status==="archived"?0.4:1}>
+                {active&&<circle cx={p.x} cy={p.y} r="27" fill="none" stroke="#f5d76e" strokeWidth="1.5" strokeDasharray="3 3"/>}
+                <circle cx={p.x} cy={p.y} r="20" fill={color} fillOpacity="0.12" stroke={color} strokeWidth={active?2.5:1.2}/>
+                <text x={p.x} y={p.y+3} textAnchor="middle" fill={color} fontSize="8" fontFamily="monospace">{node.nodeRef}</text>
+                <text x={p.x} y={p.y+34} textAnchor="middle" fill="rgba(230,238,245,0.88)" fontSize="9">{node.label.length>18?node.label.slice(0,17)+"…":node.label}</text>
+              </g>;
+            })}
+            <circle cx="360" cy="215" r="4" fill="#2ce8c8" opacity="0.8"/>
+          </svg>
+        </div>
+        {(graph?.nodes.length??0)>24&&<p className="mt-2 text-[10px] text-muted-foreground">Map shows the first 24 nodes; the searchable list below contains every node.</p>}
+      </>}
     </HudPanel>
 
     <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
