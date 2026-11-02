@@ -234,7 +234,7 @@ model UserStory {
   acceptance    String // one criterion per line
   investScore   Int? // 0..100
   investNote    String?
-  status        String      @default("draft") // draft | approved
+  status        String      @default("draft") // draft | revised | approved
   project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   syncMaps      SyncMap[]
 }
