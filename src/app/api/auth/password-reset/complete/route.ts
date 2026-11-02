@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
   const ip = req.headers.get("x-real-ip")?.trim() || req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "unknown";
   const ipLimit = await consumeRateLimit({ scope: "password-reset:complete:ip", identifier: ip, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (ipLimit.backend === "unavailable") return jsonError("Shared recovery protection is unavailable", 503);
   if (!ipLimit.allowed) return NextResponse.json({ error: "Too many reset attempts. Try again later." }, { status: 429, headers: { ...noStore, "Retry-After": String(ipLimit.retryAfterSeconds) } });
   if (!tokenHash) return jsonError("Password reset link is invalid or expired", 400);
   const password = typeof body.password === "string" ? body.password : "";
