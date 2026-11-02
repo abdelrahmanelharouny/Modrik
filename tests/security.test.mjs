@@ -130,7 +130,7 @@ test("scrypt password verification accepts valid bounded hashes and rejects malf
   const scrypt = promisify(scryptCallback);
   const salt = bytes(16);
   const derived = await scrypt("Identity-Password-42!", salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-  const hash = `$scrypt$16384$8$1${salt.toString("hex")}${Buffer.from(derived).toString("hex")}`;
+  const hash = "$scrypt$16384$8$1$" + salt.toString("hex") + "$" + Buffer.from(derived).toString("hex");
   assert.equal(await verifyPasswordHash("Identity-Password-42!", hash), true);
   assert.equal(await verifyPasswordHash("wrong", hash), false);
   assert.equal(await verifyPasswordHash("Identity-Password-42!", "$scrypt$1048576$8$1$" + "a".repeat(32) + "$" + "b".repeat(64)), false);
