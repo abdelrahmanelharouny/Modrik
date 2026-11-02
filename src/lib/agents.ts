@@ -13,7 +13,8 @@
 //   G4  structured state re-injection between stages
 //   G6  prompt version recorded on every run
 // ─────────────────────────────────────────────────────────────
-import ZAI from "z-ai-web-dev-sdk"; // retained for direct SDK consumers; agent calls flow through providers.ts
+import ZAI from "z-ai-web-dev-sdk";
+import { z } from "zod"; // retained for direct SDK consumers; agent calls flow through providers.ts
 import { db } from "@/lib/db";
 import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, hasHumanCandidateEdits, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
 import { logDecision } from "@/lib/journal";
@@ -40,6 +41,133 @@ interface UsageAcc {
 function newUsage(): UsageAcc {
   return { calls: 0, latencyMs: 0, estTokens: 0 };
 }
+
+const questionsOutputSchema = z.object({
+  questions: z.array(z.object({
+    text: z.string().trim().min(1).max(600),
+    rationale: z.string().max(600).catch(""),
+    priority: z.enum(["high", "medium", "low"]).catch("medium"),
+    askCost: z.number().int().min(1).max(5).catch(3),
+    fallbackAssumption: z.string().max(400).catch(""),
+  })).max(20),
+});
+
+const candidatesOutputSchema = z.object({
+  candidates: z.array(z.object({
+    title: z.string().trim().min(1).max(200),
+    description: z.string().max(1000).catch(""),
+    evidenceCodes: z.array(z.string().max(80)).max(30).catch([]),
+    suggestedImpact: z.number().min(1).max(5).catch(3),
+    suggestedEffort: z.number().min(1).max(5).catch(3),
+  })).max(12),
+});
+
+const requirementsOutputSchema = z.object({
+  requirements: z.array(z.object({
+    text: z.string().trim().min(1).max(800),
+    type: z.enum(["functional", "nonfunctional", "constraint"]).catch("functional"),
+    priority: z.enum(["Must", "Should", "Could", "Won't"]).catch("Should"),
+    evidenceCodes: z.array(z.string().max(80)).max(30).catch([]),
+    confidence: z.number().min(0).max(100).catch(60),
+    language: z.enum(["en", "ar-EG", "codeswitch"]).catch("en"),
+  })).max(30),
+});
+
+const verdictsOutputSchema = z.object({
+  verdicts: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    verdict: z.enum(["supported", "weak"]),
+    note: z.string().max(400).catch(""),
+  })).max(30),
+});
+
+const assessmentsOutputSchema = z.object({
+  assessments: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    score: z.number().min(0).max(100),
+    issues: z.string().max(500).catch(""),
+    suggestion: z.string().max(800).catch(""),
+  })).max(30),
+});
+
+const storiesOutputSchema = z.object({
+  stories: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    title: z.string().trim().min(1).max(200),
+    narrative: z.string().max(800).catch(""),
+    acceptance: z.array(z.string().min(1).max(800)).max(8).catch([]),
+    investScore: z.number().min(0).max(100).catch(0),
+    investNote: z.string().max(400).catch(""),
+  })).max(40),
+});
+
+const conflictsOutputSchema = z.object({
+  conflicts: z.array(z.object({
+    reqARef: z.string().trim().min(1).max(40),
+    reqBRef: z.string().trim().min(1).max(40),
+    kind: z.enum(["contradiction", "duplication", "overlap"]).catch("overlap"),
+    taxonomy: z.enum(["value", "terminology", "scale", "constraint", "precedence", "knowledge"]).catch("value"),
+    description: z.string().trim().min(1).max(800),
+    severity: z.enum(["high", "medium", "low"]).catch("medium"),
+    suggestion: z.string().max(800).catch(""),
+    implications: z.array(z.object({
+      option: z.string().min(1).max(200),
+      impact: z.string().max(300).catch(""),
+    })).max(4).catch([]),
+  })).max(20),
+});
+
+const windTunnelOutputSchema = z.object({
+  answers: z.array(z.object({
+    id: z.string().trim().min(1).max(100),
+    answer: z.string().trim().min(1).max(1500),
+  })).max(30),
+});
+
+const driftOutputSchema = z.object({
+  impacted: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    note: z.string().max(500),
+  })).max(100),
+  summary: z.string().trim().min(1).max(1200),
+});
+
+const complianceOutputSchema = z.object({
+  overall: z.enum(["pass", "partial", "fail"]),
+  gaps: z.array(z.object({
+    aspect: z.string().trim().min(1).max(200),
+    note: z.string().max(600),
+    suggestion: z.string().max(800),
+  })).max(50),
+  covered: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    aspect: z.string().trim().min(1).max(200),
+  })).max(100),
+});
+
+const healthOutputSchema = z.object({
+  summary: z.string().trim().min(1).max(1200),
+  strengths: z.array(z.string().max(400)).max(20),
+  risks: z.array(z.object({
+    title: z.string().trim().min(1).max(200),
+    note: z.string().max(600),
+  })).max(20),
+  recommendations: z.array(z.string().max(600)).max(20),
+  ambiguityDebt: z.string().max(600),
+  uncertaintyLedger: z.string().max(600),
+  conflictDigest: z.string().max(600),
+});
+
+const memoryOutputSchema = z.object({
+  glossary: z.array(z.object({
+    term: z.string().trim().min(1).max(120),
+    definition: z.string().max(400),
+  })).max(10),
+  lessons: z.array(z.object({
+    term: z.string().trim().min(1).max(120),
+    detail: z.string().max(400),
+  })).max(10),
+});
 
 async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
   // Dev item 12 — the FIXED STRATEGY (transport retry, usage accounting)
@@ -72,12 +200,13 @@ async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
 // Call + parse with one retry on unparseable output (audit finding: a single
 // malformed LLM response used to abort the whole stage run with a 500).
 // Usage accumulates across attempts so the cost observatory stays honest.
-async function callLLMJson<T>(userPrompt: string, usage: UsageAcc, attempts = 2): Promise<T> {
+async function callLLMJson<T>(userPrompt: string, usage: UsageAcc, schema: z.ZodType<T>, attempts = 2): Promise<T> {
   let lastErr: unknown = new Error("Agent returned unparseable output");
   for (let i = 0; i < attempts; i++) {
     const raw = await callLLM(userPrompt, usage);
     try {
-      return parseJson<T>(raw);
+      const parsed = parseJson<unknown>(raw);
+      return schema.parse(parsed);
     } catch (err) {
       lastErr = err;
     }
@@ -270,7 +399,7 @@ This platform implements an UNCERTAINTY-GATED ask-versus-proceed policy: for eve
 
 Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "if skipped, assume that ..."}]}`;
 
-  const out = await callLLMJson<{ questions: AgentQuestion[] }>(prompt, usage);
+  const out = await callLLMJson<{ questions: AgentQuestion[] }>(prompt, usage, questionsOutputSchema);
   const qs = (out.questions ?? []).slice(0, 7);
   if (!qs.length) throw new Error("Elicitation returned no usable questions; the previous question set was preserved.");
 
@@ -336,7 +465,7 @@ TASK: Propose 3-4 candidate problem statements worth solving in this project. Fo
 
 Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCodes": ["E-ABC12345"], "suggestedImpact": 4, "suggestedEffort": 3}]}`;
 
-  const out = await callLLMJson<{ candidates: AgentCandidate[] }>(prompt, usage);
+  const out = await callLLMJson<{ candidates: AgentCandidate[] }>(prompt, usage, candidatesOutputSchema);
   const cs = (out.candidates ?? []).slice(0, 4);
   if (!cs.length) throw new Error("Problem selection returned no usable candidates; the previous candidate set was preserved.");
 
@@ -422,7 +551,7 @@ TASK: Extract 8-12 atomic requirements for the selected problem. Each requiremen
 
 Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional|constraint", "priority": "Must|Should|Could|Won't", "evidenceCodes": ["E1"], "confidence": 82, "language": "en"}]}`;
 
-  const out = await callLLMJson<{ requirements: AgentRequirement[] }>(prompt, usage);
+  const out = await callLLMJson<{ requirements: AgentRequirement[] }>(prompt, usage, requirementsOutputSchema);
   const rs = (out.requirements ?? []).slice(0, 14);
 
   // Replace the generated requirements and their provenance in one transaction.
@@ -500,7 +629,7 @@ ${verifierCases.join("\n\n---\n\n")}
 
 Return JSON: {"verdicts": [{"refId": "REQ-01", "verdict": "supported|weak", "note": "one-line justification"}]}`;
 
-      const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage);
+      const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage, verdictsOutputSchema);
       for (const v of vOut.verdicts ?? []) {
         const target = refIndex.find((r) => r.refId === v.refId);
         if (!target || !target.evidenceCodes.length) continue;
@@ -549,7 +678,7 @@ TASK: Score each requirement for ambiguity from 0 (crisp, testable) to 100 (vagu
 
 Return JSON: {"assessments": [{"refId": "REQ-01", "score": 42, "issues": "vague term 'fast'", "suggestion": "rewritten requirement"}]}`;
 
-  const out = await callLLMJson<{ assessments: AgentAssessment[] }>(prompt, usage);
+  const out = await callLLMJson<{ assessments: AgentAssessment[] }>(prompt, usage, assessmentsOutputSchema);
   const map = new Map((out.assessments ?? []).map((a) => [a.refId, a]));
 
   for (const r of project.reqs) {
@@ -606,7 +735,7 @@ Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative
     throw new Error("Refusing to regenerate stories: reviewed or externally synchronized stories already exist.");
   }
 
-  const out = await callLLMJson<{ stories: AgentStory[] }>(prompt, usage);
+  const out = await callLLMJson<{ stories: AgentStory[] }>(prompt, usage, storiesOutputSchema);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
   const validStories = (out.stories ?? []).filter((story) => {
@@ -687,7 +816,7 @@ Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "
     throw new Error("Refusing to regenerate conflicts: at least one conflict has a human resolution.");
   }
 
-  const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage);
+  const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage, conflictsOutputSchema);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
   const TAXONOMIES = ["value", "terminology", "scale", "constraint", "precedence", "knowledge"];
@@ -751,7 +880,7 @@ TASK: Answer each question in character. If (and only if) a question directly pr
 
 Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
 
-  const out = await callLLMJson<{ answers: { id: string; answer: string }[] }>(prompt, usage);
+  const out = await callLLMJson<{ answers: { id: string; answer: string }[] }>(prompt, usage, windTunnelOutputSchema);
   let n = 0;
   for (const a of out.answers ?? []) {
     const q = pending.find((p) => p.id === a.id);
@@ -797,7 +926,7 @@ TASK: Determine which requirements are impacted by this change signal (contradic
 
 Return JSON: {"impacted": [{"refId": "REQ-03", "note": "why it is impacted"}], "summary": "..."}`;
 
-  const out = await callLLMJson<{ impacted: { refId: string; note: string }[]; summary: string }>(prompt, usage);
+  const out = await callLLMJson<{ impacted: { refId: string; note: string }[]; summary: string }>(prompt, usage, driftOutputSchema);
 
   await db.requirement.updateMany({ where: { projectId }, data: { driftStatus: "none" } });
   for (const imp of out.impacted ?? []) {
@@ -859,7 +988,7 @@ Return JSON: {"overall": "partial", "covered": [{"refId": "REQ-02", "aspect": "c
     overall: string;
     gaps: { aspect: string; note: string; suggestion: string }[];
     covered: { refId: string; aspect: string }[];
-  }>(prompt, usage);
+  }>(prompt, usage, complianceOutputSchema);
   await logDecision(projectId, "LIFECYCLE", "agent", "compliance_check", `${p.label}: ${out.overall}`);
   await saveArtifact(projectId, "COMPLIANCE", { pack, ...out });
   return out;
@@ -905,7 +1034,7 @@ TASK: Produce a requirements health report for handoff. Write it for a delivery 
 
 Return JSON: {"summary": "2-3 sentence overall health assessment", "strengths": ["..."], "risks": [{"title": "...", "note": "..."}], "recommendations": ["..."], "ambiguityDebt": "...", "uncertaintyLedger": "...", "conflictDigest": "..."}`;
 
-  const out = await callLLMJson<HealthReport>(prompt, usage);
+  const out = await callLLMJson<HealthReport>(prompt, usage, healthOutputSchema);
   await logDecision(projectId, "LIFECYCLE", "agent", "health_report", out.summary ?? "");
   await saveArtifact(projectId, "HEALTH", out);
   return out;
@@ -937,7 +1066,7 @@ Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"
     const out = await callLLMJson<{
       glossary: { term: string; definition: string }[];
       lessons: { term: string; detail: string }[];
-    }>(prompt, usage);
+    }>(prompt, usage, memoryOutputSchema);
 
     for (const g of (out.glossary ?? []).slice(0, 5)) {
       if (!g.term) continue;
