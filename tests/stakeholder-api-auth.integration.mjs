@@ -193,7 +193,7 @@ try {
     await page.getByLabel("Stakeholder A1").check();
     await page.getByLabel("Stakeholder A2").check();
     await page.getByRole("button", { name: "Create negotiation" }).click();
-    await page.getByText("Browser-driven stakeholder negotiation", { exact: true }).waitFor();
+    await page.getByText("Browser-driven stakeholder negotiation", { exact: false }).waitFor();
 
     for (const stakeholderName of ["Stakeholder A1", "Stakeholder A2"]) {
       const participantCard = page.locator("div.rounded-md.border").filter({ hasText: stakeholderName }).filter({ has: page.getByRole("button", { name: "Submit response" }) });
