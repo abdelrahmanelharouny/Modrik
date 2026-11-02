@@ -142,6 +142,11 @@ export function ExtractionStage({
                 {r.verificationSource === "human" && (
                   <Chip tone="verify" mono={false}>Human reviewed</Chip>
                 )}
+                {r.driftStatus !== "none" && (
+                  <Chip tone={r.driftStatus === "confirmed" ? "coral" : "signal"}>
+                    {r.driftStatus === "confirmed" ? "Drift confirmed" : "Drift suspected"}
+                  </Chip>
+                )}
               </div>
               {isCurrent && (
                 <div className="flex shrink-0 gap-1">
@@ -169,6 +174,30 @@ export function ExtractionStage({
               <p className="mt-2 rounded-md bg-secondary/50 px-3 py-1.5 text-xs italic text-muted-foreground" dir="auto">
                 Critic: {r.verifyNote}
               </p>
+            )}
+
+            {isCurrent && r.driftStatus === "suspected" && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-signal/30 bg-signal/5 p-2">
+                <span className="mr-auto text-xs text-muted-foreground">
+                  Review the recorded change signal. Confirm impact or dismiss it after inspection.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => patch(r.id, { driftDecision: "confirmed" })}
+                >
+                  Confirm drift
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => patch(r.id, { driftDecision: "dismissed" })}
+                >
+                  Dismiss
+                </Button>
+              </div>
             )}
 
             {isCurrent && project.evidences.length > 0 && (
