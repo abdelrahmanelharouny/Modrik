@@ -13,13 +13,13 @@ const manifestPath = path.join(root, "prisma", "schema-inventory.json");
 
 export function buildSchemaInventory(sqliteSchema, postgresSchema = renderPostgresSchema(sqliteSchema)) {
   if (typeof sqliteSchema !== "string" || !sqliteSchema.trim()) throw new TypeError("Canonical SQLite schema is required");
-  const datasource = /datasource\\s+db\\s*\\{[^}]*\\}/.exec(sqliteSchema)?.[0] ?? "";
-  if (!/provider\\s*=\\s*"sqlite"/.test(datasource)) throw new Error('Canonical schema provider must be "sqlite"');
-  const pgDatasource = /datasource\\s+db\\s*\\{[^}]*\\}/.exec(postgresSchema)?.[0] ?? "";
-  if (!/provider\\s*=\\s*"postgresql"/.test(pgDatasource)) throw new Error('PostgreSQL schema provider must be "postgresql"');
+  const datasource = /datasource\s+db\s*\{[^}]*\}/.exec(sqliteSchema)?.[0] ?? "";
+  if (!/provider\s*=\s*"sqlite"/.test(datasource)) throw new Error('Canonical schema provider must be "sqlite"');
+  const pgDatasource = /datasource\s+db\s*\{[^}]*\}/.exec(postgresSchema)?.[0] ?? "";
+  if (!/provider\s*=\s*"postgresql"/.test(pgDatasource)) throw new Error('PostgreSQL schema provider must be "postgresql"');
   if (postgresSchema !== renderPostgresSchema(sqliteSchema)) throw new Error("PostgreSQL schema is not a deterministic provider-only transform");
   const digest = (value) => createHash("sha256").update(value, "utf8").digest("hex");
-  const models = [...sqliteSchema.matchAll(/^model\\s+([A-Za-z_]\\w*)\\s*\\{/gm)].map((match) => match[1]);
+  const models = [...sqliteSchema.matchAll(/^model\s+([A-Za-z_]\w*)\s*\{/gm)].map((match) => match[1]);
   if (!models.length || new Set(models).size !== models.length) throw new Error("Schema model inventory is empty or contains duplicates");
   return {
     formatVersion: 1,
@@ -38,7 +38,7 @@ export function buildSchemaInventory(sqliteSchema, postgresSchema = renderPostgr
 function main() {
   const sqlite = fs.readFileSync(sqlitePath, "utf8");
   const postgres = fs.readFileSync(postgresPath, "utf8");
-  const expected = JSON.stringify(buildSchemaInventory(sqlite, postgres), null, 2) + "\\n";
+  const expected = JSON.stringify(buildSchemaInventory(sqlite, postgres), null, 2) + "\n";
   if (process.argv.includes("--write")) {
     fs.writeFileSync(manifestPath, expected, "utf8");
     console.log("[schema-inventory] Wrote deterministic repository inventory (not a deployed baseline).");
