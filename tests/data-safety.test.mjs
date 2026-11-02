@@ -11,6 +11,7 @@ import {
   selectByUtility,
   selectDistinctPoolIndices,
   clampSignalScore,
+  deduplicateQuestions,
 } from "../src/lib/planner/selection.mjs";
 
 test("only explicitly consented, non-synthetic evidence enters AI context", () => {
@@ -62,4 +63,17 @@ test("planner signal scores are finite and clamped to the defined 1..5 range", (
   assert.equal(clampSignalScore(99), 5);
   assert.equal(clampSignalScore(0), 1);
   assert.equal(clampSignalScore(Number.NaN), 3);
+});
+
+test("planner removes duplicate questions after whitespace and case normalization", () => {
+  const questions = [
+    { text: "  Who are the users? " },
+    { text: "who   are THE users?" },
+    { text: "Which systems must integrate?" },
+    { text: "   " },
+  ];
+  assert.deepEqual(deduplicateQuestions(questions).map((q) => q.text), [
+    "  Who are the users? ",
+    "Which systems must integrate?",
+  ]);
 });
