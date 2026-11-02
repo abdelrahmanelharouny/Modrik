@@ -12,7 +12,7 @@ unconstrained LLM chat.
   tokens; no participant names in the study database; recordings and transcripts
   deleted after analysis. The moderator creates sessions while authenticated;
   the raw per-session token is handed to the participant once and only its hash
-  is stored. Session write tokens expire after 24 hours and stop working when
+  is stored. Session write tokens expire after seven days and stop working when
   the session is finished. Export remains owner-authenticated at
   `GET /api/study?export=csv`. Legal compliance is not inferred by these
   technical controls and requires a separately approved consent/retention policy.
@@ -146,4 +146,4 @@ Groups: `A_traditional` · `B_unconstrained_llm` · `C_modrik`.
 
 ### 7.1 Participant credential lifecycle
 
-The moderator creates a session while signed in and receives a random `mps_` bearer token. The raw token must be delivered to that participant through a separate trusted channel and must not be placed in notes, URLs, exported CSV or screen recordings. The server stores only SHA-256(token), accepts writes at `POST /api/study/respond`, rate-limits each session token, validates metric ranges, and locks the session after `finished=true`. Token expiry is 24 hours from creation. A lost token is not recoverable from the database; the moderator should revoke/replace the session rather than attempting to reconstruct the secret.
+The moderator creates a session while signed in and receives a random `mps_` bearer token. The raw token must be delivered to that participant through a separate trusted channel and must not be placed in notes, URLs, exported CSV or screen recordings. The server stores only SHA-256(token), accepts writes at `POST /api/study/respond`, rate-limits each session token, validates metric ranges, and locks the session after `finished=true`. Token expiry is seven days from creation. After finish it permits withdrawal only; no further measurements or events can be added. A lost token is not recoverable from the database; the moderator should revoke/replace the session rather than attempting to reconstruct the secret.
