@@ -1,51 +1,140 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { randomUUID } from "node:crypto";
+import { PrismaClient } from "@prisma/client";
+import { createSessionToken, SESSION_COOKIE } from "../src/lib/security/session.mjs";
 
 const port = Number(process.env.MODRIK_E2E_PORT || 3187);
 const baseUrl = `http://127.0.0.1:${port}`;
 const childEnv = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1" };
-const child = spawn(process.execPath, [".next/standalone/server.js"], {
-  env: childEnv,
-  stdio: ["ignore", "pipe", "pipe"],
-});
+const child = spawn(process.execPath, [".next/standalone/server.js"], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
+const prisma = new PrismaClient();
 let logs = "";
 child.stdout.on("data", chunk => { logs += chunk.toString(); });
 child.stderr.on("data", chunk => { logs += chunk.toString(); });
+const projectIds = [randomUUID(), randomUUID()];
+const secret = process.env.MODRIK_AUTH_SECRET;
+const ownerCookie = `${SESSION_COOKIE}=${createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret)}`;
+const headers = { cookie: ownerCookie, "content-type": "application/json" };
 
 async function waitForServer() {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     if (child.exitCode !== null) throw new Error(`Next server exited early.\n${logs}`);
-    try {
-      const response = await fetch(baseUrl);
-      if (response.status < 500) return;
-    } catch {}
+    try { const response = await fetch(baseUrl); if (response.status < 500) return; } catch {}
     await delay(500);
   }
   throw new Error(`Next server did not become ready.\n${logs}`);
 }
+async function request(projectId, method, body) {
+  return fetch(`${baseUrl}/api/projects/${projectId}/stakeholders`, {
+    method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+async function json(response) { return response.json(); }
+async function createStakeholder(projectId, suffix, approvalRole = "consulted", engagementStatus = "active") {
+  const response = await request(projectId, "POST", {
+    action: "create_stakeholder", stakeholderRef: `ST-${suffix}`,
+    displayName: `Stakeholder ${suffix}`, role: "Reviewer", approvalRole, engagementStatus,
+  });
+  assert.equal(response.status, 201, await response.text());
+  return (await json(response)).stakeholder;
+}
 
 try {
   await waitForServer();
-  const endpoint = `${baseUrl}/api/projects/phase-4-auth-probe/stakeholders`;
-  const requests = [
-    ["GET", () => fetch(endpoint)],
-    ["POST", () => fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create_stakeholder" }) })],
-    ["PATCH", () => fetch(endpoint, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "update_stakeholder" }) })],
-    ["GET with forged cookie", () => fetch(endpoint, { headers: { cookie: "modrik_session=forged.payload" } })],
-  ];
-  for (const [label, send] of requests) {
+  const unauthorizedEndpoint = `${baseUrl}/api/projects/phase-4-auth-probe/stakeholders`;
+  for (const [label, send] of [
+    ["GET", () => fetch(unauthorizedEndpoint)],
+    ["POST", () => fetch(unauthorizedEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })],
+    ["PATCH", () => fetch(unauthorizedEndpoint, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" })],
+    ["forged cookie", () => fetch(unauthorizedEndpoint, { headers: { cookie: `${SESSION_COOKIE}=forged.payload` } })],
+  ]) {
     const response = await send();
     assert.equal(response.status, 401, `${label} must reject unauthenticated collaboration access`);
     assert.equal(response.headers.get("cache-control"), "no-store");
-    const body = await response.json();
-    assert.match(body.error, /owner session/i);
+    assert.match((await json(response)).error, /owner session/i);
   }
-  process.stdout.write("Stakeholder API auth integration: 4/4 unauthorized request cases passed.\n");
-} finally {
-  child.kill("SIGTERM");
-  await Promise.race([
-    new Promise(resolve => child.once("exit", resolve)),
-    delay(5000),
+
+  const [projectA, projectB] = projectIds;
+  await prisma.project.create({ data: { id: projectA, name: "Phase 4 integration A", brief: "Test project A" } });
+  await prisma.project.create({ data: { id: projectB, name: "Phase 4 integration B", brief: "Test project B" } });
+  const requirement = await prisma.requirement.create({ data: { projectId: projectA, refId: "REQ-INT-1", text: "A testable requirement." } });
+  const foreignRequirement = await prisma.requirement.create({ data: { projectId: projectB, refId: "REQ-INT-2", text: "A separate project requirement." } });
+
+  const approver = await createStakeholder(projectA, "A1", "decision_maker");
+  const second = await createStakeholder(projectA, "A2", "approver");
+  const pending = await createStakeholder(projectA, "A3", "consulted", "pending");
+  const foreign = await createStakeholder(projectB, "B1", "approver");
+
+  const foreignParticipantAttempt = await request(projectA, "POST", {
+    action: "create_negotiation", requirementId: requirement.id, title: "Cross-project isolation",
+    participants: [{ stakeholderId: approver.id }, { stakeholderId: foreign.id }],
+    options: [{ id: "a", label: "A", implications: "A impact" }, { id: "b", label: "B", implications: "B impact" }],
+  });
+  assert.equal(foreignParticipantAttempt.status, 404, "foreign project stakeholder must not join");
+  const pendingParticipantAttempt = await request(projectA, "POST", {
+    action: "create_negotiation", requirementId: requirement.id, title: "Inactive participant isolation",
+    participants: [{ stakeholderId: approver.id }, { stakeholderId: pending.id }],
+    options: [{ id: "a", label: "A", implications: "A impact" }, { id: "b", label: "B", implications: "B impact" }],
+  });
+  assert.equal(pendingParticipantAttempt.status, 404, "pending stakeholder must not join");
+  const foreignRequirementAttempt = await request(projectA, "POST", {
+    action: "create_negotiation", requirementId: foreignRequirement.id, title: "Foreign requirement",
+    participants: [{ stakeholderId: approver.id }, { stakeholderId: second.id }],
+    options: [{ id: "a", label: "A", implications: "A impact" }, { id: "b", label: "B", implications: "B impact" }],
+  });
+  assert.equal(foreignRequirementAttempt.status, 404, "foreign requirement must not be referenced");
+
+  const create = await request(projectA, "POST", {
+    action: "create_negotiation", requirementId: requirement.id, title: "Concurrent decision test",
+    participants: [{ stakeholderId: approver.id, role: "approver" }, { stakeholderId: second.id, role: "consulted" }],
+    options: [{ id: "a", label: "Option A", implications: "A implications" }, { id: "b", label: "Option B", implications: "B implications" }],
+  });
+  assert.equal(create.status, 201, await create.text());
+  const negotiation = (await json(create)).negotiation;
+  const participants = negotiation.participants;
+  assert.equal(participants.length, 2);
+
+  const firstResponse = await request(projectA, "PATCH", {
+    action: "respond_negotiation", negotiationId: negotiation.id, participantId: participants[0].id,
+    responseStatus: "supports", responseOptionId: "a", rationale: "Option A meets the stated need.",
+  });
+  assert.equal(firstResponse.status, 201, await firstResponse.text());
+
+  // Compete the final participant response against approval. If approval wins,
+  // the participant write must observe the closed parent and return 409.
+  const [lastResponse, approval] = await Promise.all([
+    request(projectA, "PATCH", {
+      action: "respond_negotiation", negotiationId: negotiation.id, participantId: participants[1].id,
+      responseStatus: "supports", responseOptionId: "a", rationale: "Option A is acceptable.",
+    }),
+    request(projectA, "PATCH", {
+      action: "decide_negotiation", negotiationId: negotiation.id, status: "approved",
+      chosenOption: "a", rationale: "The decision maker supports option A.",
+    }),
   ]);
+  assert.ok([201, 409].includes(lastResponse.status), `Unexpected concurrent response status: ${lastResponse.status}`);
+  assert.ok([200, 409].includes(approval.status), `Unexpected concurrent decision status: ${approval.status}`);
+  assert.ok(!(approval.status === 200 && lastResponse.status === 409), "approval cannot succeed while the final participant response was rejected");
+
+  const finalState = await prisma.negotiationDecision.findUnique({
+    where: { id: negotiation.id }, include: { participants: true },
+  });
+  if (finalState.status === "approved") {
+    assert.ok(finalState.participants.every(p => p.responseStatus !== "pending"), "approved negotiation must have no pending participants");
+  }
+  const isolatedRead = await request(projectB, "GET");
+  assert.equal(isolatedRead.status, 200);
+  const isolatedBody = await json(isolatedRead);
+  assert.equal(isolatedBody.stakeholders.length, 1);
+  assert.equal(isolatedBody.stakeholders[0].id, foreign.id);
+  process.stdout.write("Stakeholder API integration: auth 4/4; project isolation 3/3; negotiation race invariant passed.\n");
+} finally {
+  for (const id of projectIds) {
+    try { await prisma.project.delete({ where: { id } }); } catch {}
+  }
+  await prisma.$disconnect();
+  child.kill("SIGTERM");
+  await Promise.race([new Promise(resolve => child.once("exit", resolve)), delay(5000)]);
 }
