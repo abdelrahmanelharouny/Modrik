@@ -46,7 +46,11 @@ jobs:
           MODRIK_AUTH_SECRET: 0123456789abcdef0123456789abcdef
           MODRIK_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
         run: bun run build
-      - name: Stakeholder API authorization integration
+      - name: Install Playwright browser test runtime
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Stakeholder API and browser E2E integration
         env:
           DATABASE_URL: file:${{ github.workspace }}/ci.db
           MODRIK_ADMIN_EMAIL: ci@example.invalid
