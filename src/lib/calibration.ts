@@ -18,7 +18,7 @@ export interface CalibrationProfile {
   n: number;
   brier: number | null;
   ece: number | null;
-  verdict: "well-calibrated" | "overconfident" | "underconfident" | "insufficient-data";
+  verdict: "well-calibrated" | "overconfident" | "underconfident" | "mixed-calibration" | "insufficient-data";
   bins: CalibrationBin[];
   spread: { supportedAvg: number | null; weakAvg: number | null };
   labelSource: "human-reviewed";
@@ -30,6 +30,7 @@ export async function computeCalibration(projectId: string): Promise<Calibration
       projectId,
       confidence: { gte: 0, lte: 100 },
       verificationSource: "human",
+      verifiedAt: { not: null },
       verifyStatus: { in: ["supported", "weak"] },
     },
     select: {
