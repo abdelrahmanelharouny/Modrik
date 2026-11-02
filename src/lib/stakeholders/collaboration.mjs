@@ -175,6 +175,24 @@ export function assertNegotiationDecisionAuthority(participants, decision) {
   return true;
 }
 
+/**
+ * Approval authority is snapshotted operationally by keeping governance roles
+ * stable for the lifetime of an open negotiation. The owner must close/reject
+ * the negotiation before changing a participant's approval role.
+ */
+export function assertStakeholderApprovalRoleChangeAllowed(nextRole, currentRole, openParticipationCount) {
+  if (!STAKEHOLDER_APPROVAL_ROLES.includes(nextRole) || !STAKEHOLDER_APPROVAL_ROLES.includes(currentRole)) {
+    throw new Error("Unsupported approvalRole.");
+  }
+  if (!Number.isInteger(openParticipationCount) || openParticipationCount < 0) {
+    throw new Error("openParticipationCount must be a non-negative integer.");
+  }
+  if (nextRole !== currentRole && openParticipationCount > 0) {
+    throw new Error("Close or reject open negotiations before changing a stakeholder approval role.");
+  }
+  return true;
+}
+
 export function assertStakeholderCanLeaveEngagement(nextStatus, pendingParticipationCount) {
   if (!STAKEHOLDER_ENGAGEMENT.includes(nextStatus)) throw new Error("Unsupported engagementStatus.");
   if (!Number.isInteger(pendingParticipationCount) || pendingParticipationCount < 0) {
