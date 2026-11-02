@@ -40,7 +40,7 @@ jobs:
         run: bun run lint
       - name: Production build (SQLite schema)
         env:
-          DATABASE_URL: file:./db/ci.db
+          DATABASE_URL: file:./ci.db
           MODRIK_ADMIN_EMAIL: ci@example.invalid
           MODRIK_ADMIN_PASSWORD_HASH: '$scrypt$16384$8$1$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000'
           MODRIK_AUTH_SECRET: 0123456789abcdef0123456789abcdef
@@ -48,7 +48,7 @@ jobs:
         run: bun run build
       - name: Stakeholder API authorization integration
         env:
-          DATABASE_URL: file:./db/ci.db
+          DATABASE_URL: file:./ci.db
           MODRIK_ADMIN_EMAIL: ci@example.invalid
           MODRIK_ADMIN_PASSWORD_HASH: '$scrypt$16384$8$1$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000'
           MODRIK_AUTH_SECRET: 0123456789abcdef0123456789abcdef
