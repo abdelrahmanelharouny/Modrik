@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import type { EvidenceClaimDTO, ProjectDTO } from "@/lib/rp";
 import { useLang } from "@/lib/i18n";
-import { HudPanel, Chip, SectionHead, EmptyBay } from "@/components/rp/hud";
+import { HudPanel, SectionHead, EmptyBay } from "@/components/rp/hud";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ interface KGNode {
   id:string; nodeRef:string; kind:string; label:string; description:string; status:string;
   origin:string; confidence:number; owner?:string|null; attributes:Record<string,unknown>;
   claims:{id:string;relationship:string;claim:{id:string;claimRef:string;claimText:string;status:string;quote:string}}[];
+  outgoing?:unknown[];
   requirements:{id:string;role:string;requirement:{id:string;refId:string;text:string;status:string}}[];
 }
 interface KGEdge {
