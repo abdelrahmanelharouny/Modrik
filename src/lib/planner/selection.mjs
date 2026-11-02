@@ -58,3 +58,28 @@ export function deduplicateQuestions(questions) {
     return true;
   });
 }
+
+export function pickSeededIndices(poolLength, limit, seed) {
+  if (!Number.isInteger(poolLength) || poolLength < 0 ||
+      !Number.isFinite(limit) || limit < 0 || typeof seed !== "string" || !seed.length) {
+    return [];
+  }
+  let state = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    state ^= seed.charCodeAt(i);
+    state = Math.imul(state, 16777619);
+  }
+  if (state === 0) state = 0x6d2b79f5;
+  const next = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 4294967296;
+  };
+  const indices = Array.from({ length: poolLength }, (_, index) => index);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return indices.slice(0, Math.min(poolLength, Math.floor(limit)));
+}
