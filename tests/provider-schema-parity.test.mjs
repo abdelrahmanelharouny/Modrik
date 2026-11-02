@@ -11,7 +11,7 @@ const sqliteSchema = fs.readFileSync(path.join(root, "prisma", "schema.prisma"),
 
 test("PostgreSQL schema renderer changes only the datasource provider", () => {
   const postgres = renderPostgresSchema(sqliteSchema);
-  assert.match(postgres, /provider\\s*=\\s*"postgresql"/);
+  assert.ok(postgres.includes('provider = "postgresql"'));
   const generatedBody = postgres.slice(postgres.indexOf("generator client"));
   assert.equal(generatedBody.replace('provider = "postgresql"', 'provider = "sqlite"'), sqliteSchema);
 });
