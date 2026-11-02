@@ -136,9 +136,11 @@ model PlannerRun {
   projectId     String
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   arm           String   // single_shot | random | llm | impact_aware
-  experimentId  String?  // groups arms that share one immutable candidate pool
-  seed          String?  // reproducible random-arm seed
-  candidatePool String?  // exact common candidate pool JSON used by this arm
+  experimentId      String?  // groups arms that share one immutable candidate pool
+  seed              String?  // reproducible random-arm seed
+  candidatePool     String?  // exact common candidate pool JSON used by this arm
+  candidatePoolHash String?  // SHA-256 fingerprint shared by pool-based arms
+  candidatePoolUsed Boolean? // false for the direct single-shot baseline
   questions     String   // JSON array of selected questions with per-question utility
   metrics       String?  // JSON five-metric evaluation (same judge for every arm)
   candidates    Int      @default(0) // size of the candidate pool considered
