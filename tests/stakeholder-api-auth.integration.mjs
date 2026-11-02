@@ -17,6 +17,7 @@ let browserDiagnostics = { pageErrors: [], failedRequests: [], projectApi: [], p
 child.stdout.on("data", chunk => { logs += chunk.toString(); });
 child.stderr.on("data", chunk => { logs += chunk.toString(); });
 const projectIds = [randomUUID(), randomUUID()];
+const identityCleanup = { projects: [], users: [], organizations: [] };
 const secret = process.env.MODRIK_AUTH_SECRET;
 const ownerCookie = `${SESSION_COOKIE}=${createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret)}`;
 const headers = { cookie: ownerCookie, "content-type": "application/json" };
@@ -78,8 +79,11 @@ try {
   await expectStatus(publicStudy, 401, "public study endpoint must require its own bearer token");
   // Identity-backed session + tenant boundary integration.
   const tenantA = await prisma.organization.create({ data: { name: "Identity Tenant A", slug: `identity-a-${randomUUID()}` } });
+  identityCleanup.organizations.push(tenantA.id);
   const tenantB = await prisma.organization.create({ data: { name: "Identity Tenant B", slug: `identity-b-${randomUUID()}` } });
+  identityCleanup.organizations.push(tenantB.id);
   const identityUser = await prisma.user.create({ data: { email: `identity-owner-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(identityUser.id);
   const identityMembership = await prisma.membership.create({
     data: { userId: identityUser.id, organizationId: tenantA.id, role: "owner", status: "active", activatedAt: new Date() },
   });
@@ -92,7 +96,9 @@ try {
     membershipId: identityMembership.id, role: "owner", sessionId: identitySessionId,
   }, secret)}`;
   const tenantProjectA = await prisma.project.create({ data: { name: "Tenant A private", brief: "A", organizationId: tenantA.id, createdByUserId: identityUser.id } });
+  identityCleanup.projects.push(tenantProjectA.id);
   const tenantProjectB = await prisma.project.create({ data: { name: "Tenant B private", brief: "B", organizationId: tenantB.id } });
+  identityCleanup.projects.push(tenantProjectB.id);
   const tenantHeaders = { cookie: identityCookie, "content-type": "application/json" };
 
   const tenantIndex = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
@@ -108,10 +114,12 @@ try {
   });
   await expectStatus(tenantCreate, 201, "tenant-scoped project creation");
   const createdTenantProject = (await json(tenantCreate)).project;
+  identityCleanup.projects.push(createdTenantProject.id);
   assert.equal(createdTenantProject.organizationId, tenantA.id);
   assert.equal(createdTenantProject.createdByUserId, identityUser.id);
 
   const viewerUser = await prisma.user.create({ data: { email: `identity-viewer-${randomUUID()}@example.invalid`, status: "active" } });
+  identityCleanup.users.push(viewerUser.id);
   const viewerMembership = await prisma.membership.create({
     data: { userId: viewerUser.id, organizationId: tenantA.id, role: "viewer", status: "active", activatedAt: new Date() },
   });
@@ -306,9 +314,11 @@ try {
   await writeFile("/tmp/modrik-phase4-e2e-diagnostics.json", JSON.stringify({ error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error), browserDiagnostics, serverLogs: logs.slice(-30000) }, null, 2));
   throw error;
 } finally {
-  for (const id of projectIds) {
+  for (const id of [...projectIds, ...identityCleanup.projects]) {
     try { await prisma.project.delete({ where: { id } }); } catch {}
   }
+  for (const id of identityCleanup.organizations) { try { await prisma.organization.delete({ where: { id } }); } catch {} }
+  for (const id of identityCleanup.users) { try { await prisma.user.delete({ where: { id } }); } catch {} }
   await prisma.$disconnect();
   child.kill("SIGTERM");
   await Promise.race([new Promise(resolve => child.once("exit", resolve)), delay(5000)]);
