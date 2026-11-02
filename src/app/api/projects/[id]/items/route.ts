@@ -96,10 +96,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (data.selected === true) {
         // A Serializable transaction prevents two simultaneous requests from
         // leaving two selected candidates in the same project.
+        const projectVersion = await db.project.findUnique({
+          where: { id },
+          select: { updatedAt: true },
+        });
+        if (!projectVersion) return NextResponse.json({ error: "Project not found" }, { status: 404 });
         await db.$transaction(async (tx) => {
+          // Compare-and-swap on the owning Project row serializes competing
+          // selections without relying on a DB-specific isolation override.
+          const claimed = await tx.project.updateMany({
+            where: { id, updatedAt: projectVersion.updatedAt },
+            data: { updatedAt: new Date() },
+          });
+          if (claimed.count !== 1) {
+            throw new Error("Project changed during candidate selection. Refresh and retry.");
+          }
           await tx.problemCandidate.updateMany({ where: { projectId: id }, data: { selected: false } });
           await tx.problemCandidate.update({ where: { id: itemId, projectId: id }, data: { ...patch, selected: true } });
-        }, { isolationLevel: "Serializable" });
+        });
         await logDecision(
           id,
           "PROBLEM_SELECTION",
