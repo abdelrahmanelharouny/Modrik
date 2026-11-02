@@ -181,6 +181,10 @@ try {
   const resetRecord = await prisma.passwordResetToken.create({
     data: { userId: resetUser.id, tokenHash: resetTokenHash, expiresAt: new Date(Date.now() + 30 * 60 * 1000) },
   });
+  const otherResetToken = createPasswordResetToken();
+  const otherResetRecord = await prisma.passwordResetToken.create({
+    data: { userId: resetUser.id, tokenHash: hashPasswordResetToken(otherResetToken), expiresAt: new Date(Date.now() + 30 * 60 * 1000) },
+  });
   assert.notEqual(resetRecord.tokenHash, resetToken);
   const resetComplete = await fetch(`${baseUrl}/api/auth/password-reset/complete`, {
     method: "POST", headers: { "content-type": "application/json" },
@@ -191,6 +195,8 @@ try {
   assert.equal(await verifyPasswordHash("Recovered-Password-2026!", resetUserAfter.passwordHash), true);
   const usedReset = await prisma.passwordResetToken.findUnique({ where: { id: resetRecord.id } });
   assert.ok(usedReset.usedAt);
+  const otherResetAfter = await prisma.passwordResetToken.findUnique({ where: { id: otherResetRecord.id } });
+  assert.ok(otherResetAfter.revokedAt, "successful reset revokes every other outstanding reset token");
   const revokedResetSession = await fetch(`${baseUrl}/api/projects`, { headers: { cookie: resetCookie } });
   await expectStatus(revokedResetSession, 401, "password reset revokes previous sessions");
   const replayReset = await fetch(`${baseUrl}/api/auth/password-reset/complete`, {
