@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     data: {
       id: idempotentId,
       projectId: id,
-      code: \`E-\${idempotentId.slice(0, 8).toUpperCase()}\`,
+      code: `E-${idempotentId.slice(0, 8).toUpperCase()}`,
       title,
       content,
       sourceType: SOURCE_TYPES.includes(sourceType) ? sourceType : "interview",
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     "ELICITATION",
     "human",
     consent ? "consent_recorded" : "added_evidence",
-    \`Evidence \${evidence.code} "\${title.slice(0, 120)}" added (\${sourceType}, \${language}\${consent ? ", AI processing permission recorded" : ", excluded from AI processing"}).\`
+    `Evidence ${evidence.code} "${title.slice(0, 120)}" added (${sourceType}, ${language}${consent ? ", AI processing permission recorded" : ", excluded from AI processing"}).`
   );
 
   await db.project.update({ where: { id }, data: { updatedAt: new Date() } });
@@ -122,7 +122,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         where: { projectId: id, id: { in: affectedRequirementIds } },
         data: {
           verifyStatus: "unverified",
-          verifyNote: \`Evidence \${evidence.code} was removed. Verify the remaining sources and re-approve this requirement.\`,
+          verifyNote: `Evidence ${evidence.code} was removed. Verify the remaining sources and re-approve this requirement.`,
           status: "revised",
         },
       });
@@ -142,7 +142,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       "ELICITATION",
       "human",
       "removed_evidence",
-      \`Evidence \${removed.code} "\${removed.title.slice(0, 120)}" removed; \${removed.affectedRequirements} linked requirement(s) returned to unverified review.\`
+      `Evidence ${removed.code} "${removed.title.slice(0, 120)}" removed; ${removed.affectedRequirements} linked requirement(s) returned to unverified review.`
     );
   }
 
