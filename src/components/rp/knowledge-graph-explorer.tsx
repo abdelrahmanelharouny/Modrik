@@ -23,7 +23,7 @@ interface KGNode {
   id:string; nodeRef:string; kind:string; label:string; description:string; status:string;
   origin:string; confidence:number; owner?:string|null; attributes:Record<string,unknown>;
   claims:{id:string;relationship:string;claim:{id:string;claimRef:string;claimText:string;status:string;quote:string}}[];
-  outgoing?:unknown[];
+  _count?:{outgoing:number};
   requirements:{id:string;role:string;requirement:{id:string;refId:string;text:string;status:string}}[];
 }
 interface KGEdge {
@@ -130,7 +130,7 @@ export function KnowledgeGraphExplorer({project}:{project:ProjectDTO}) {
               <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[10px] text-aura">{n.nodeRef}</span><Badge variant="outline">{KIND_LABEL[n.kind]??n.kind}</Badge><Badge variant={n.status==="accepted"?"default":"secondary"}>{n.status}</Badge></div>
               <p className="mt-1 text-sm font-medium" dir="auto">{n.label}</p>
               {n.description&&<p className="mt-1 line-clamp-2 text-xs text-muted-foreground" dir="auto">{n.description}</p>}
-              <p className="mt-2 text-[10px] text-muted-foreground">{n.claims.length} claims · {n.requirements.length} requirements · {n.outgoing?.length??0} outgoing</p>
+              <p className="mt-2 text-[10px] text-muted-foreground">{n.claims.length} claims · {n.requirements.length} requirements · {n._count?.outgoing??0} outgoing</p>
             </button></li>)}
           </ul>}
       </HudPanel>
