@@ -204,6 +204,25 @@ export interface EvidenceDTO {
     createdBy: string;
     createdAt: string;
   }[];
+  claims?: EvidenceClaimDTO[];
+}
+export interface EvidenceClaimDTO {
+  id: string;
+  claimRef: string;
+  claimText: string;
+  quote: string;
+  quoteStart: number;
+  quoteEnd: number;
+  sourceRevisionVersion: number;
+  claimKind: string;
+  polarity: string;
+  modality: string;
+  extractionConfidence: number;
+  status: string;
+  reviewNote?: string | null;
+  evidence?: { id: string; code: string; title: string };
+  revision?: { id: string; version: number; contentHash: string };
+  requirementLinks?: { relationship: string; requirement: { id: string; refId: string; text: string } }[];
 }
 
 export interface QuestionDTO {

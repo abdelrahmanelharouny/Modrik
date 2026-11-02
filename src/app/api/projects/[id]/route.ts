@@ -8,7 +8,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const project = await db.project.findUnique({
     where: { id },
     include: {
-      evidences: { orderBy: { createdAt: "asc" }, include: { revisions: { orderBy: { version: "desc" }, take: 10 } } },
+      evidences: { orderBy: { createdAt: "asc" }, include: {
+        revisions: { orderBy: { version: "desc" }, take: 10 },
+        claims: { orderBy: { createdAt: "desc" }, include: {
+          revision: { select: { id: true, version: true, contentHash: true } },
+          requirementLinks: { include: { requirement: { select: { id: true, refId: true, text: true } } } },
+        } },
+      } },
       questions: { orderBy: { order: "asc" } },
       candidates: true,
       reqs: { orderBy: { order: "asc" }, include: { links: { select: { id: true, evidenceId: true, evidenceCode: true, note: true } } } },
