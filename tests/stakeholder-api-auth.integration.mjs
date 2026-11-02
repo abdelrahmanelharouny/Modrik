@@ -55,9 +55,14 @@ try {
     ["POST", () => fetch(unauthorizedEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })],
     ["PATCH", () => fetch(unauthorizedEndpoint, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" })],
     ["forged cookie", () => fetch(unauthorizedEndpoint, { headers: { cookie: `${SESSION_COOKIE}=forged.payload` } })],
+    ["cross-origin mutation", () => fetch(unauthorizedEndpoint, {
+      method: "POST",
+      headers: { ...headers, origin: "https://attacker.example" },
+      body: JSON.stringify({}),
+    })],
   ]) {
     const response = await send();
-    assert.equal(response.status, 401, `${label} must reject unauthenticated collaboration access`);
+    assert.equal(response.status, label === "cross-origin mutation" ? 403 : 401, `${label} must be rejected at the expected security boundary`);
     assert.equal(response.headers.get("cache-control"), "no-store, max-age=0");
     assert.match((await json(response)).error, /authentication required|owner session/i);
   }
