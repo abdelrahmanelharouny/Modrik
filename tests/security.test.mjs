@@ -12,6 +12,7 @@ import {
   verifySessionToken,
   verifyPasswordHash,
   verifyAdminCredentials,
+  isSessionSigningConfigured,
   verifyAdminRequest,
   SESSION_TTL_SECONDS,
 } from "../src/lib/security/session.mjs";
@@ -83,6 +84,12 @@ test("signed session token verifies and expires", () => {
   assert.equal(verifySessionToken(token, secret, now + (SESSION_TTL_SECONDS + 1) * 1000), null);
   assert.equal(verifySessionToken(token + "x", secret, now), null);
   assert.equal(verifySessionToken(token, randomBytes(32).toString("base64"), now), null);
+});
+
+test("session signing readiness is independent from one-time bootstrap credentials", () => {
+  assert.equal(isSessionSigningConfigured({ MODRIK_AUTH_SECRET: secret }), true);
+  assert.equal(isSessionSigningConfigured({ MODRIK_AUTH_SECRET: "short" }), false);
+  assert.equal(isSessionSigningConfigured({}), false);
 });
 
 test("admin credentials use bounded scrypt hashes and reject malformed hashes", async () => {
