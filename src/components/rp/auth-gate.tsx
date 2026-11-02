@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { HudPanel, Eyebrow, LiveDot } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,7 +125,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               <Input id="owner-password" type="password" autoComplete="current-password" required maxLength={1024} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your owner password" />
             </div>
             {error && <p role="alert" className="rounded-md border border-coral/30 bg-coral/5 px-3 py-2 text-xs text-coral">{error}</p>}
-            <Button block type="submit" disabled={busy || !email.trim() || !password}>{busy ? "Signing in…" : "Sign in securely"}</Button>
+            <Button type="submit" className="w-full" disabled={busy || !email.trim() || !password}>{busy ? "Signing in…" : "Sign in securely"}</Button>
             <p className="text-center text-[11px] leading-5 text-muted-foreground">Owner-only access · HttpOnly signed session · 8-hour expiry</p>
           </form>
         )}
