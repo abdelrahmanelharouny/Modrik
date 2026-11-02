@@ -5,7 +5,7 @@ import { isAuthConfigured, SESSION_COOKIE, verifyAdminRequest } from "@/lib/secu
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
-  POSITION_STATUSES, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority, assertStakeholderCanLeaveEngagement,
+  POSITION_STATUSES, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority, assertStakeholderCanLeaveEngagement, assertStakeholderApprovalRoleChangeAllowed,
 } from "@/lib/stakeholders/collaboration.mjs";
 
 type Params = { params: Promise<{ id: string }> };
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
       if (new Set(normalizedParticipants.map((p: any) => p.stakeholderId)).size !== normalizedParticipants.length) throw new Error("A stakeholder can only participate once per negotiation.");
       const stakeholderIds = normalizedParticipants.map((p: any) => p.stakeholderId);
-      const count = stakeholderIds.length ? await db.stakeholderProfile.count({ where: { id: { in: stakeholderIds }, projectId: id, engagementStatus: { not: "withdrawn" } } }) : 0;
+      const count = stakeholderIds.length ? await db.stakeholderProfile.count({ where: { id: { in: stakeholderIds }, projectId: id, engagementStatus: "active" } }) : 0;
       if (count !== stakeholderIds.length) return NextResponse.json({ error: "Every participant must be an active stakeholder in this project." }, { status: 404 });
       const negotiation = await db.negotiationDecision.create({
         data: { projectId: id, ...data, participants: { create: normalizedParticipants.map((p: any) => ({ projectId: id, ...p })) } },
@@ -144,6 +144,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let update;
     try { update = normalizeStakeholderUpdate(body, stakeholder); } catch (error) { return bad(error); }
     const { engagementStatus, approvalRole } = update;
+    if (approvalRole !== stakeholder.approvalRole) {
+      const openParticipation = await db.negotiationParticipant.count({
+        where: { projectId: id, stakeholderId: stakeholder.id, decision: { status: "proposed" } },
+      });
+      try { assertStakeholderApprovalRoleChangeAllowed(approvalRole, stakeholder.approvalRole, openParticipation); }
+      catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Open negotiation blocks this role change." }, { status: 409 }); }
+    }
     if (["withdrawn", "unavailable"].includes(engagementStatus) && engagementStatus !== stakeholder.engagementStatus) {
       const pendingParticipation = await db.negotiationParticipant.count({
         where: { projectId: id, stakeholderId: stakeholder.id, responseStatus: "pending", decision: { status: "proposed" } },
