@@ -16,6 +16,7 @@
 //   avgUtility, utilityPerCost, evidenceCoverage, redundancyRate,
 //   dialectFit (Arabic-native fit, N7)
 // ─────────────────────────────────────────────────────────────
+import { randomUUID, createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs";
@@ -23,7 +24,7 @@ import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
 import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
-import { selectByUtility, selectDistinctPoolIndices, clampSignalScore, deduplicateQuestions } from "@/lib/planner/selection.mjs";
+import { selectByUtility, selectDistinctPoolIndices, clampSignalScore, deduplicateQuestions, pickSeededIndices } from "@/lib/planner/selection.mjs";
 export { selectByUtility } from "@/lib/planner/selection.mjs";
 
 
@@ -479,4 +480,276 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
     }
   }
   return { arm, questions: selected, metrics, candidates };
+}
+
+
+export interface PlannerExperimentArmResult {
+  arm: PlannerArm;
+  questions: PlannedQuestion[];
+  metrics: ArmMetrics;
+  candidates: number;
+  estTokens: number;
+  latencyMs: number;
+}
+
+export interface PlannerExperimentResult {
+  experimentId: string;
+  seed: string;
+  materializedArm: PlannerArm;
+  candidatePoolHash: string;
+  candidateCount: number;
+  arms: PlannerExperimentArmResult[];
+}
+
+function usageTotal(...values: UsageAcc[]): UsageAcc {
+  return values.reduce(
+    (total, value) => ({
+      calls: total.calls + value.calls,
+      latencyMs: total.latencyMs + value.latencyMs,
+      estTokens: total.estTokens + value.estTokens,
+    }),
+    newUsage()
+  );
+}
+
+function makeDirectPrompt(context: string) {
+  return \`\${context}
+TASK: Identify the 5 most important clarifying questions to ask the stakeholders now. For each, estimate askCost (1-5) and a testable fallbackAssumption.
+Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}\`;
+}
+
+/**
+ * Runs a reproducible four-arm study.
+ * random / llm / impact_aware share one immutable candidate pool and one
+ * shared signal-scoring pass. single_shot is intentionally a direct-generation
+ * baseline and is explicitly not described as selecting from that pool.
+ */
+export async function runPlannerExperiment(
+  projectId: string,
+  options: { seed?: string; materializeArm?: PlannerArm; runId?: string } = {}
+): Promise<PlannerExperimentResult> {
+  const materializeArm = options.materializeArm ?? "impact_aware";
+  if (!ARMS.includes(materializeArm)) throw new Error("Unknown materialized planner arm.");
+  const seed = String(options.seed ?? randomUUID()).trim().slice(0, 120);
+  if (!seed) throw new Error("Planner experiment seed must not be empty.");
+
+  const existingQuestions = await db.question.findMany({
+    where: { projectId },
+    select: { answered: true, answer: true, answerSource: true, resolution: true },
+  });
+  if (hasHumanQuestionDecision(existingQuestions)) {
+    throw new Error("Refusing to overwrite elicitation questions: human answers or uncertainty decisions already exist.");
+  }
+
+  const project = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { id: true, currentStage: true, status: true },
+  });
+  if (project.status === "complete" || project.currentStage !== "ELICITATION") {
+    throw new Error("A planner experiment can only run during the ELICITATION stage.");
+  }
+
+  const experimentId = randomUUID();
+  const sharedUsage = newUsage();
+  const { pool, context } = await generatePool(projectId, sharedUsage, 12);
+  if (pool.length < 5) {
+    throw new Error("The common candidate pool contains fewer than five distinct questions. No experiment was recorded.");
+  }
+
+  // This scoring pass is shared by all three pool-based arms, so they receive
+  // exactly the same question text, ask-cost and signal values.
+  const scoredPool = await scoreSignals(context, pool, sharedUsage);
+  const commonPoolJson = JSON.stringify(scoredPool);
+  const candidatePoolHash = createHash("sha256").update(commonPoolJson).digest("hex");
+
+  const armUsages: Record<PlannerArm, UsageAcc> = {
+    single_shot: newUsage(),
+    random: newUsage(),
+    llm: newUsage(),
+    impact_aware: newUsage(),
+  };
+
+  const singleShotProject = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    include: { evidences: true, questions: true },
+  });
+  const answered = singleShotProject.questions
+    .filter(isHumanStakeholderAnswer)
+    .map((question) => \`Q: \${question.text}\\nA: \${question.answer}\`)
+    .join("\\n\\n");
+  const singleShotContext =
+    \`PROJECT BRIEF:\\n\${singleShotProject.brief?.trim() || "(empty brief)"}\\nEVIDENCE SOURCES:\\n\${evidenceBlock(singleShotProject.evidences)}\\n\\nSTAKEHOLDER ANSWERS:\\n\${answered || "(none yet)"}\\n\${uncertaintyLedger(singleShotProject.questions)}\`;
+  const directOut = await callLLMJson<PoolOut>(
+    SYSTEM,
+    makeDirectPrompt(singleShotContext),
+    armUsages.single_shot,
+    plannerPoolSchema
+  );
+  const singleShotQuestions = deduplicateQuestions((directOut.questions ?? []).map((question) => ({
+    text: question.text,
+    rationale: question.rationale ?? "",
+    priority: question.priority,
+    askCost: question.askCost,
+    fallbackAssumption: question.fallbackAssumption ?? "",
+    language: question.language ?? "en",
+  }))).slice(0, 5);
+  if (!singleShotQuestions.length) {
+    throw new Error("single_shot returned no valid questions. No experiment was recorded.");
+  }
+  const scoredSingleShot = await scoreSignals(singleShotContext, singleShotQuestions, armUsages.single_shot);
+
+  const randomIndices = pickSeededIndices(scoredPool.length, 5, seed);
+  const randomQuestions = randomIndices.map((index) => scoredPool[index]);
+
+  const llmPrompt = \`\${context}
+CANDIDATE POOL (these exact candidates are shared by the random and impact_aware arms):
+\${scoredPool.map((question, index) => \`\${index + 1}. \${question.text} (askCost \${question.askCost})\`).join("\\n")}
+
+TASK: Select the 5 BEST questions from this exact pool for the next interview round. Return only distinct indices. Do not invent or rewrite questions.
+Return JSON: {"selected": [3, 7, 1, 11, 5]}\`;
+  const llmOut = await callLLMJson<{ selected: number[] }>(
+    SYSTEM,
+    llmPrompt,
+    armUsages.llm,
+    plannerSelectionSchema
+  );
+  const llmIndices = selectDistinctPoolIndices(llmOut.selected, scoredPool.length, 5);
+  if (llmIndices.length < 1) {
+    throw new Error("The LLM arm returned no valid candidate indices. No experiment was recorded.");
+  }
+  const llmQuestions = llmIndices.map((index) => scoredPool[index]);
+
+  const impactQuestions = selectByUtility(scoredPool, 5, 15);
+  if (!impactQuestions.length) {
+    throw new Error("The impact_aware arm could not select within its cost budget. No experiment was recorded.");
+  }
+
+  const selectedByArm: Record<PlannerArm, PlannedQuestion[]> = {
+    single_shot: scoredSingleShot,
+    random: randomQuestions,
+    llm: llmQuestions,
+    impact_aware: impactQuestions,
+  };
+
+  const order: PlannerArm[] = ["single_shot", "random", "llm", "impact_aware"];
+  const results: PlannerExperimentArmResult[] = [];
+  const persistence = [];
+
+  for (const arm of order) {
+    const ownUsage = armUsages[arm];
+    const questions = selectedByArm[arm];
+    const metrics = await judgeArm(
+      arm === "single_shot" ? singleShotContext : context,
+      questions,
+      ownUsage
+    );
+    // Common-pool generation + signal scoring is charged equally across the
+    // three pool-based arms; the direct baseline does not inherit that cost.
+    const sharedAllocation = arm === "single_shot" ? 0 : Math.ceil(sharedUsage.estTokens / 3);
+    const estimatedTokens = ownUsage.estTokens + sharedAllocation;
+    const allocatedLatency = ownUsage.latencyMs +
+      (arm === "single_shot" ? 0 : Math.ceil(sharedUsage.latencyMs / 3));
+    results.push({
+      arm,
+      questions,
+      metrics,
+      candidates: pool.length,
+      estTokens: estimatedTokens,
+      latencyMs: allocatedLatency,
+    });
+    persistence.push({
+      projectId,
+      arm,
+      experimentId,
+      seed,
+      candidatePool: commonPoolJson.slice(0, 18000),
+      questions: JSON.stringify(questions).slice(0, 18000),
+      metrics: JSON.stringify(metrics),
+      candidates: pool.length,
+      latencyMs: allocatedLatency,
+      estTokens: estimatedTokens,
+      promptVersion: PROMPT_VERSION,
+    });
+  }
+
+  const materialized = results.find((result) => result.arm === materializeArm);
+  if (!materialized) throw new Error("The selected materialized arm is missing from the experiment.");
+
+  const totalUsage = usageTotal(sharedUsage, ...Object.values(armUsages));
+  await db.$transaction(async (tx) => {
+    for (const data of persistence) {
+      await tx.plannerRun.create({ data });
+    }
+    await tx.question.deleteMany({ where: { projectId } });
+    for (const [index, question] of materialized.questions.entries()) {
+      await tx.question.create({
+        data: {
+          projectId,
+          order: index,
+          text: question.text,
+          rationale: question.rationale,
+          priority: question.priority,
+          askCost: question.askCost,
+          fallbackAssumption: question.fallbackAssumption || null,
+          utility: question.utility ? JSON.stringify(question.utility) : null,
+        },
+      });
+    }
+    await tx.artifact.create({
+      data: {
+        projectId,
+        stage: "PLANNER",
+        kind: "json",
+        content: JSON.stringify({
+          experimentId,
+          seed,
+          materializedArm,
+          candidatePoolHash,
+          commonPool: scoredPool,
+          sharedUsage,
+          totalUsage,
+          arms: results,
+          design: {
+            poolBasedArms: ["random", "llm", "impact_aware"],
+            singleShotIsDirectBaseline: true,
+            sharedSignalScores: true,
+          },
+        }).slice(0, 60000),
+      },
+    });
+  });
+
+  await logDecision(
+    projectId,
+    "ELICITATION",
+    "agent",
+    "planner_experiment",
+    \`Experiment \${experimentId} seed=\${seed}; shared pool \${pool.length}; four arms; materialized \${materializeArm}; pool hash \${candidatePoolHash.slice(0, 12)}.\`
+  );
+
+  if (options.runId) {
+    try {
+      await db.pipelineRun.update({
+        where: { id: options.runId },
+        data: {
+          latencyMs: totalUsage.latencyMs,
+          estTokens: totalUsage.estTokens,
+          estCostUsd: +(totalUsage.estTokens * 0.0000006).toFixed(6),
+          promptVersion: PROMPT_VERSION,
+          log: \`planner-experiment:\${experimentId};seed:\${seed}\`,
+        },
+      });
+    } catch {
+      // Pipeline outcome remains authoritative even if observatory metadata fails.
+    }
+  }
+
+  return {
+    experimentId,
+    seed,
+    materializedArm,
+    candidatePoolHash,
+    candidateCount: pool.length,
+    arms: results,
+  };
 }
