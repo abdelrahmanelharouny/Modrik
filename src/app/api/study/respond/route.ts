@@ -61,12 +61,17 @@ export async function POST(req: NextRequest) {
       participantTokenHash: true,
       participantTokenExpiresAt: true,
       finishedAt: true,
+      withdrawnAt: true,
+      participantConsentAt: true,
       nasaTlx: true,
     },
   });
   if (!session || !session.participantTokenHash || !session.participantTokenExpiresAt ||
       !verifyParticipantToken(match[1], session.participantTokenHash, session.participantTokenExpiresAt, now)) {
     return response({ error: "Participant session token is invalid or expired." }, 401);
+  }
+  if (session.withdrawnAt) {
+    return response({ error: "This study session was withdrawn and its response data was scrubbed." }, 410);
   }
   if (session.finishedAt) {
     return response({ error: "This study session is finished and cannot be changed." }, 409);
@@ -77,7 +82,61 @@ export async function POST(req: NextRequest) {
     return response({ error: "Invalid participant response body." }, 400);
   }
 
+  if (body.consentAccepted !== undefined && typeof body.consentAccepted !== "boolean") {
+    return response({ error: "consentAccepted must be a boolean." }, 400);
+  }
+  if (!session.participantConsentAt && body.consentAccepted !== true) {
+    return response({ error: "Please review the study notice and confirm voluntary participation before submitting responses." }, 403);
+  }
+  if (body.withdraw !== undefined && typeof body.withdraw !== "boolean") {
+    return response({ error: "withdraw must be a boolean." }, 400);
+  }
+
+  if (body.withdraw === true) {
+    if (!session.participantConsentAt) {
+      return response({ error: "No consented study response exists to withdraw." }, 409);
+    }
+    const withdrawnAt = new Date(now);
+    const withdrawn = await db.$transaction(async (tx) => {
+      const update = await tx.studySession.updateMany({
+        where: {
+          id: session.id,
+          participantTokenHash: tokenHash,
+          finishedAt: null,
+          withdrawnAt: null,
+          participantTokenExpiresAt: { gt: withdrawnAt },
+        },
+        data: {
+          taskTimeSec: null,
+          nasaTlx: null,
+          susScore: null,
+          notes: null,
+          finishedAt: withdrawnAt,
+          withdrawnAt,
+          participantTokenHash: null,
+          participantTokenExpiresAt: null,
+        },
+      });
+      if (update.count !== 1) return false;
+      await tx.studyEvent.deleteMany({ where: { sessionId: session.id } });
+      await tx.studyEvent.create({
+        data: {
+          sessionId: session.id,
+          kind: "withdrawal",
+          detail: "Participant withdrew; submitted measurements and session events were scrubbed.",
+        },
+      });
+      return true;
+    });
+    if (!withdrawn) return response({ error: "Study session expired or was already closed." }, 409);
+    return response({ ok: true, withdrawn: true });
+  }
+
   const data: Record<string, unknown> = {};
+  if (!session.participantConsentAt) {
+    data.participantConsentAt = new Date(now);
+    data.participantConsentVersion = "study-notice-v1";
+  }
   if (body.taskTimeSec !== undefined) {
     const value = Number(body.taskTimeSec);
     if (!Number.isFinite(value) || value < 0 || value > 7 * 24 * 60 * 60) {
@@ -129,7 +188,11 @@ export async function POST(req: NextRequest) {
   if (body.finished !== undefined && typeof body.finished !== "boolean") {
     return response({ error: "finished must be a boolean." }, 400);
   }
-  if (body.finished === true) data.finishedAt = new Date();
+  if (body.finished === true) {
+    data.finishedAt = new Date(now);
+    data.participantTokenHash = null;
+    data.participantTokenExpiresAt = null;
+  }
   if (Object.keys(data).length === 0 && body.event === undefined) {
     return response({ error: "No supported study update was provided." }, 400);
   }
