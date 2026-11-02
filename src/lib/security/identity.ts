@@ -10,6 +10,7 @@ export type IdentityPrincipal = {
   role: string;
   email: string;
   sessionId: string;
+  expiresAt: string;
 };
 
 export async function createIdentitySession(input: {
@@ -66,6 +67,7 @@ export async function resolveIdentitySession(token: string | undefined | null): 
     role: membership.role,
     email: session.user.email,
     sessionId: session.id,
+    expiresAt: session.expiresAt.toISOString(),
   };
 }
 
