@@ -35,6 +35,13 @@ function quantile(sorted, probability) {
   return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
 }
 
+function parseMetrics(value) {
+  if (typeof value === "string") {
+    try { return JSON.parse(value); } catch { return null; }
+  }
+  return value;
+}
+
 function validMetrics(metrics) {
   return metrics && typeof metrics === "object" && Object.entries(METRICS).every(([key, rule]) =>
     Number.isFinite(metrics[key]) && metrics[key] >= rule.min && metrics[key] <= rule.max
@@ -55,12 +62,13 @@ export function analyzePlannerExperiments(rows, options = {}) {
   const groups = new Map();
 
   for (const row of Array.isArray(rows) ? rows : []) {
+    const metrics = parseMetrics(row?.metrics);
     if (!row || typeof row.experimentId !== "string" || !row.experimentId ||
-        !ARMS.includes(row.arm) || !validMetrics(row.metrics)) continue;
+        !ARMS.includes(row.arm) || !validMetrics(metrics)) continue;
     if (!groups.has(row.experimentId)) groups.set(row.experimentId, new Map());
     const group = groups.get(row.experimentId);
     if (group.has(row.arm)) group.set(row.arm, null); // duplicate arm invalidates the whole paired unit
-    else group.set(row.arm, row.metrics);
+    else group.set(row.arm, metrics);
   }
 
   const paired = [];
