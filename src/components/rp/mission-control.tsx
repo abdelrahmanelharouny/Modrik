@@ -253,6 +253,7 @@ export function MissionControl({
             <Link href="/settings/members" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-aura"><Users className="h-4 w-4" /> {ar ? "الأعضاء" : "Members"}</Link>
           </nav>
           <div className="flex items-center gap-2">
+            <Link href="/settings/members" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-2 text-xs text-muted-foreground hover:text-aura md:hidden"><Users className="h-4 w-4" /><span>Members</span></Link>
             <Chip tone="plasma" className="hidden sm:inline-flex">
               <LiveDot tone="plasma" /> {ar ? "بوابة بشرية في كل مرحلة" : "human-gated · evidence-driven"}
             </Chip>
