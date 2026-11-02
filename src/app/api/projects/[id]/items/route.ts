@@ -12,6 +12,14 @@ type Params = { params: Promise<{ id: string }> };
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
+  const projectState = await db.project.findUnique({
+    where: { id },
+    select: { stageStatus: true },
+  });
+  if (!projectState) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (["agent_running", "approving"].includes(projectState.stageStatus)) {
+    return NextResponse.json({ error: "Project stage is processing; retry the edit after the current operation completes." }, { status: 409 });
+  }
   const body = await req.json().catch(() => ({}));
   const kind = String(body.kind ?? "");
   const itemId = String(body.itemId ?? "");
@@ -217,6 +225,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 // Delete a requirement or story (human curation)
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
+  const projectState = await db.project.findUnique({
+    where: { id },
+    select: { stageStatus: true },
+  });
+  if (!projectState) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (["agent_running", "approving"].includes(projectState.stageStatus)) {
+    return NextResponse.json({ error: "Project stage is processing; retry the deletion after it completes." }, { status: 409 });
+  }
   const kind = new URL(req.url).searchParams.get("kind");
   const itemId = new URL(req.url).searchParams.get("itemId");
   if (!kind || !itemId) {
