@@ -34,7 +34,13 @@ export async function POST(req: NextRequest) {
   }
   if (previous && previous.resetAt <= now) attempts.delete(key);
 
+  if (!req.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+    return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
+  }
   const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const email = typeof body?.email === "string" ? body.email.slice(0, 254) : "";
   const password = typeof body?.password === "string" ? body.password.slice(0, 1024) : "";
   const valid = await verifyAdminCredentials(email, password);
