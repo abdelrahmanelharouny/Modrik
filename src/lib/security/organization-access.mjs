@@ -68,8 +68,8 @@ export function isMembershipStatus(status) {
 export function hasOrganizationPermission(membership, permission) {
   if (!membership || typeof membership !== "object") return false;
   if (membership.status !== "active") return false;
-  if (membership.userStatus !== undefined && membership.userStatus !== "active") return false;
-  if (membership.organizationStatus !== undefined && membership.organizationStatus !== "active") return false;
+  if (membership.userStatus !== "active") return false;
+  if (membership.organizationStatus !== "active") return false;
   if (!isOrganizationRole(membership.role)) return false;
   if (typeof permission !== "string" || !permission) return false;
   return ROLE_PERMISSIONS[membership.role].has(permission);
@@ -79,7 +79,8 @@ export function canAccessOrganization(membership, organizationId) {
   return Boolean(
     membership &&
     membership.status === "active" &&
-    membership.organizationStatus !== "suspended" &&
+    membership.userStatus === "active" &&
+    membership.organizationStatus === "active" &&
     typeof organizationId === "string" &&
     organizationId.length > 0 &&
     membership.organizationId === organizationId
