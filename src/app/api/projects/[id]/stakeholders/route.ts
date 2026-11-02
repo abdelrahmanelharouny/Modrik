@@ -5,7 +5,7 @@ import { isAuthConfigured, SESSION_COOKIE, verifyAdminRequest } from "@/lib/secu
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
-  POSITION_STATUSES, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority,
+  POSITION_STATUSES, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority, assertStakeholderCanLeaveEngagement,
 } from "@/lib/stakeholders/collaboration.mjs";
 
 type Params = { params: Promise<{ id: string }> };
@@ -148,9 +148,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const pendingParticipation = await db.negotiationParticipant.count({
         where: { projectId: id, stakeholderId: stakeholder.id, responseStatus: "pending", decision: { status: "proposed" } },
       });
-      if (pendingParticipation > 0) {
-        return NextResponse.json({ error: "Resolve or reject pending negotiations before withdrawing or making this stakeholder unavailable." }, { status: 409 });
-      }
+      try { assertStakeholderCanLeaveEngagement(engagementStatus, pendingParticipation); }
+      catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Pending negotiation blocks this transition." }, { status: 409 }); }
     }
     if (engagementStatus === stakeholder.engagementStatus && approvalRole === stakeholder.approvalRole) {
       return NextResponse.json({ stakeholder, unchanged: true });
