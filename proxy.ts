@@ -1,0 +1,69 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  isAuthConfigured,
+  SESSION_COOKIE,
+  verifySessionToken,
+} from "@/lib/security/session.mjs";
+
+const OPEN_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/logout"]);
+
+function isApiPath(pathname: string) {
+  return pathname === "/api" || pathname.startsWith("/api/");
+}
+
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    OPEN_PATHS.has(pathname)
+  ) {
+    return NextResponse.next();
+  }
+
+  if (!isAuthConfigured()) {
+    if (isApiPath(pathname)) {
+      return NextResponse.json(
+        { error: "Modrik authentication is not configured. See SECURITY.md." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.redirect(new URL("/login?setup=required", request.url));
+  }
+
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = verifySessionToken(token, process.env.MODRIK_AUTH_SECRET);
+  if (!session) {
+    if (isApiPath(pathname)) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Cookie sessions must not be usable cross-origin for state-changing calls.
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== request.nextUrl.origin) {
+      return NextResponse.json({ error: "Cross-origin state change rejected" }, { status: 403 });
+    }
+  }
+
+  const response = NextResponse.next();
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  return response;
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"],
+};
