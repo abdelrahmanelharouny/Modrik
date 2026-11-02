@@ -122,6 +122,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         where: { projectId: id, id: { in: affectedRequirementIds } },
         data: {
           verifyStatus: "unverified",
+          verificationSource: "unverified",
+          verifiedAt: null,
+          verifiedBy: null,
           verifyNote: `Evidence ${evidence.code} was removed. Verify the remaining sources and re-approve this requirement.`,
           status: "revised",
         },
