@@ -336,6 +336,6 @@ model SyncMap {
   externalUrl     String
   title           String
   syncedAt        DateTime @default(now())
-  idempotencyKey  String?  @unique // stable key for exactly-once tracker push recovery
+  idempotencyKey  String?  @unique // stable key for best-effort duplicate recovery on tracker retries
   leaseExpiresAt  DateTime? // temporary claim while an external issue is being created
 }
