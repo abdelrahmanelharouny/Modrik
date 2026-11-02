@@ -58,7 +58,7 @@ try {
   ]) {
     const response = await send();
     assert.equal(response.status, 401, `${label} must reject unauthenticated collaboration access`);
-    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("cache-control"), "no-store, max-age=0");
     assert.match((await json(response)).error, /owner session/i);
   }
 
