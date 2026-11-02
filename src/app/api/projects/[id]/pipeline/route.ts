@@ -52,7 +52,7 @@ async function validateApproval(projectId: string, stage: Stage): Promise<Valida
       return {
         ok: false,
         status: 422,
-        error: \`Requirements without evidence trace links must be grounded or removed: \${ungrounded.map((r) => r.refId).join(", ")}.\`,
+        error: `Requirements without evidence trace links must be grounded or removed: ${ungrounded.map((r) => r.refId).join(", ")}.`,
       };
     }
     const unverified = requirements.filter((requirement) => requirement.verifyStatus === "unverified");
@@ -60,7 +60,7 @@ async function validateApproval(projectId: string, stage: Stage): Promise<Valida
       return {
         ok: false,
         status: 422,
-        error: \`Requirements whose verifier did not complete must be reviewed and re-verified: \${unverified.map((r) => r.refId).join(", ")}.\`,
+        error: `Requirements whose verifier did not complete must be reviewed and re-verified: ${unverified.map((r) => r.refId).join(", ")}.`,
       };
     }
     // A weak verdict remains approvable only through this explicit human gate.
@@ -77,7 +77,7 @@ async function validateApproval(projectId: string, stage: Stage): Promise<Valida
   if (stage === "CONFLICTS") {
     const open = await db.conflict.count({ where: { projectId, status: "open" } });
     if (open > 0) {
-      return { ok: false, status: 422, error: \`\${open} conflict(s) remain open. Resolve each conflict before completing the baseline.\` };
+      return { ok: false, status: 422, error: `${open} conflict(s) remain open. Resolve each conflict before completing the baseline.` };
     }
   }
 
@@ -140,8 +140,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (project.stageStatus !== expectedStatus) {
     return NextResponse.json(
       { error: action === "run"
-        ? \`Cannot run agent while stage is \${project.stageStatus}\`
-        : \`Stage is not ready for approval (\${project.stageStatus})\` },
+        ? `Cannot run agent while stage is ${project.stageStatus}`
+        : `Stage is not ready for approval (${project.stageStatus})` },
       { status: 409 }
     );
   }
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (stage === "ELICITATION") {
         const armRaw = String(body.arm ?? process.env.RP_PLANNER_ARM ?? "impact_aware");
         if (!ARMS.includes(armRaw as PlannerArm)) {
-          throw new Error(\`Unknown planner arm "\${armRaw}". Expected one of \${ARMS.join(", ")}.\`);
+          throw new Error(`Unknown planner arm "${armRaw}". Expected one of ${ARMS.join(", ")}.`);
         }
         await runPlanner(id, armRaw as PlannerArm, run.id);
       } else {
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (completed.count !== 1) {
         throw new Error("Stage ownership changed before agent results were committed.");
       }
-      await logDecision(id, stage, "agent", "agent_run", \`\${stage} agent finished — output awaiting human review.\`);
+      await logDecision(id, stage, "agent", "agent_run", `${stage} agent finished — output awaiting human review.`);
       await db.pipelineRun.update({
         where: { id: run.id },
         data: { status: "done", completedAt: new Date(), log: "agent finished" },
@@ -254,10 +254,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       throw new Error("Stage state changed before approval could be committed.");
     }
 
-    await logDecision(id, stage, "human", "approved_stage", \`Human gate passed for \${stage}.\`);
+    await logDecision(id, stage, "human", "approved_stage", `Human gate passed for ${stage}.`);
     await db.pipelineRun.update({
       where: { id: run.id },
-      data: { status: "done", completedAt: new Date(), log: \`stage \${stage} approved\` },
+      data: { status: "done", completedAt: new Date(), log: `stage ${stage} approved` },
     });
 
     if (!next) await harvestMemory(id);
