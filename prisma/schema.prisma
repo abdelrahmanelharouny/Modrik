@@ -399,6 +399,7 @@ model NegotiationParticipant {
   role           String             @default("consulted") // proposer | approver | consulted | dissenting | informed
   note           String             @default("")
   responseStatus String             @default("pending") // pending | supports | opposes | conditional | abstains
+  responseOptionId String?
   responseRationale String          @default("")
   respondedAt    DateTime?
   createdAt      DateTime           @default(now())
