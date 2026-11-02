@@ -158,9 +158,59 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     case "requirement": {
       const r = await db.requirement.findFirst({
         where: { id: itemId, projectId: id },
-        include: { links: { select: { id: true } } },
+        include: { links: { select: { id: true, evidenceId: true } } },
       });
       if (!r) return NextResponse.json({ error: "Requirement not found" }, { status: 404 });
+
+      if (data.attachEvidenceId !== undefined) {
+        if (typeof data.attachEvidenceId !== "string" || !data.attachEvidenceId.trim()) {
+          return NextResponse.json({ error: "attachEvidenceId must be a non-empty evidence ID" }, { status: 400 });
+        }
+        const evidence = await db.evidence.findFirst({
+          where: { id: data.attachEvidenceId, projectId: id },
+          select: { id: true, code: true, title: true },
+        });
+        if (!evidence) {
+          return NextResponse.json({ error: "Evidence source not found in this project" }, { status: 404 });
+        }
+        const existingLink = await db.traceLink.findFirst({
+          where: { projectId: id, requirementId: r.id, evidenceId: evidence.id },
+          select: { id: true },
+        });
+        if (existingLink) {
+          return NextResponse.json({ ok: true, alreadyLinked: true });
+        }
+        await db.$transaction(async (tx) => {
+          await tx.traceLink.create({
+            data: {
+              projectId: id,
+              requirementId: r.id,
+              evidenceId: evidence.id,
+              evidenceCode: evidence.code,
+              note: "Manually linked by the project owner.",
+            },
+          });
+          await tx.requirement.update({
+            where: { id: r.id },
+            data: {
+              status: "revised",
+              verifyStatus: "unverified",
+              verificationSource: "unverified",
+              verifiedAt: null,
+              verifiedBy: null,
+              verifyNote: "Evidence was linked manually. Review the cited source before recording a verification decision.",
+            },
+          });
+        });
+        await logDecision(
+          id,
+          "EXTRACTION",
+          "human",
+          "attached_evidence",
+          `${r.refId} linked to ${evidence.code} "${evidence.title.slice(0, 120)}".`
+        );
+        break;
+      }
 
       if (data.verificationDecision !== undefined) {
         if (data.verificationDecision !== "supported" && data.verificationDecision !== "weak") {
