@@ -16,7 +16,7 @@ const DIMS=[
  ["testability","Testability","قابلية الاختبار"],["consistency","Consistency","الاتساق"],["traceability","Traceability","التتبّع"],
  ["feasibility","Feasibility","قابلية التنفيذ"],["verifiability","Verifiability","قابلية التحقق"],["nfrCoverage","NFR coverage","تغطية غير الوظيفي"],
 ] as const;
-type Key=typeof DIMS[number][0];type Scores=Record<Key,number>;
+type Key=typeof DIMS[number][0];
 const INITIAL:Record<Key,number|"">={atomicity:"",clarity:"",completeness:"",testability:"",consistency:"",traceability:"",feasibility:"",verifiability:"",nfrCoverage:""};
 interface Assessment extends Scores {
  id:string;requirementId:string;sourceText:string;sourceHash:string;overallScore:number;issues:string[];
