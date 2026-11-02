@@ -143,3 +143,22 @@ export function assertNegotiationQuorum(participants) {
   }
   return true;
 }
+
+/**
+ * Approval is permitted only when a designated decision maker or approver
+ * is a participant and has explicitly supported the negotiation.
+ * This is a governance gate, not identity authentication; API actions remain
+ * protected by the configured owner session until multi-user RBAC exists.
+ */
+export function assertNegotiationDecisionAuthority(participants, decision) {
+  if (!Array.isArray(participants)) throw new Error("Negotiation participants are required.");
+  if (decision?.status !== "approved") return true;
+  const authorizedSupport = participants.some(participant =>
+    ["decision_maker", "approver"].includes(participant?.stakeholder?.approvalRole) &&
+    participant?.responseStatus === "supports"
+  );
+  if (!authorizedSupport) {
+    throw new Error("Approval requires explicit support from at least one participating decision maker or approver.");
+  }
+  return true;
+}
