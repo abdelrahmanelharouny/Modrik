@@ -246,7 +246,7 @@ try {
   const approverDecision = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/stakeholders`, {
     method: "PATCH",
     headers: { cookie: approverCookie, "content-type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ action: "decide_negotiation" }),
   });
   await expectStatus(approverDecision, 400, "approver may enter stakeholder decision action");
 
