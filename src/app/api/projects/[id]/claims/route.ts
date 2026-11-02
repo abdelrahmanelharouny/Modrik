@@ -87,6 +87,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         where: { id: claim.id },
         data: { status: body.status, reviewedBy: "owner", reviewedAt: new Date(), reviewNote },
       });
+      if (body.status !== "accepted") {
+        // A claim that is no longer accepted must not remain in the requirement graph.
+        await tx.requirementClaim.deleteMany({ where: { claimId: claim.id, projectId: id } });
+      }
       if (body.requirementId) {
         await tx.requirementClaim.upsert({
           where: { requirementId_claimId: { requirementId: body.requirementId, claimId: claim.id } },
