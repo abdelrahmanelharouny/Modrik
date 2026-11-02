@@ -70,7 +70,7 @@ async function main() {
     })).filter((row) => row.changed);
 
     if (!apply) {
-      process.stdout.write(`Dry run: ${rows.length} integration records inspected; ${changes.length} require re-encryption. No database writes performed. Re-run with --apply after backup and maintenance window approval.\\n`);
+      process.stdout.write(`Dry run: ${rows.length} integration records inspected; ${changes.length} require re-encryption. No database writes performed. Re-run with --apply after backup and maintenance window approval.\n`);
       return;
     }
 
@@ -85,7 +85,7 @@ async function main() {
         }
       }
     });
-    process.stdout.write(`Rotation complete: ${changes.length} integration records re-encrypted. Keep the old key available for rollback until post-rotation verification is complete.\\n`);
+    process.stdout.write(`Rotation complete: ${changes.length} integration records re-encrypted. Keep the old key available for rollback until post-rotation verification is complete.\n`);
   } finally {
     await prisma.$disconnect();
   }
@@ -93,7 +93,7 @@ async function main() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   main().catch((error) => {
-    process.stderr.write(`Secret rotation failed: ${error instanceof Error ? error.message : "unknown error"}\\n`);
+    process.stderr.write(`Secret rotation failed: ${error instanceof Error ? error.message : "unknown error"}\n`);
     process.exitCode = 1;
   });
 }
