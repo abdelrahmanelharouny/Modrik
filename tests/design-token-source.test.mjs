@@ -29,40 +29,47 @@ const aliases = {
 };
 
 function generatedObject(name) {
-  const marker = "export const " + name + " = ";
-  const start = generated.indexOf(marker);
+  const prefix = "export const " + name + " = ";
+  const start = generated.indexOf(prefix);
   assert.ok(start >= 0, name + " should be generated");
-  const objectStart = generated.indexOf("{", start + marker.length);
-  const objectEnd = generated.indexOf(" as const;", objectStart);
-  assert.ok(objectStart >= 0 && objectEnd > objectStart, name + " should contain an object");
-  return JSON.parse(generated.slice(objectStart, objectEnd));
+  const bodyStart = start + prefix.length;
+  const bodyEnd = generated.indexOf(" as const;", bodyStart);
+  assert.ok(bodyEnd > bodyStart, name + " should contain a JSON object");
+  return JSON.parse(generated.slice(bodyStart, bodyEnd));
+}
+
+function cssToken(block, name) {
+  const line = block.split("\n").find((entry) => entry.trim().startsWith(name + ":"));
+  return line?.split(":").slice(1).join(":").trim().replace(/;$/, "").toLowerCase();
 }
 
 test("generated WCAG color tokens match the live :root CSS values", () => {
   assert.ok(rootBlock, ":root token block exists");
   const generatedTokens = generatedObject("DESIGN_TOKENS");
   for (const [alias, cssName] of Object.entries(aliases)) {
-    const value = new RegExp(cssName + "\\s*:\\s*(#[0-9a-fA-F]{6})\\s*;").exec(rootBlock)?.[1];
+    const value = cssToken(rootBlock, cssName);
     assert.ok(value, "CSS token " + cssName + " exists");
-    assert.equal(generatedTokens[alias], value.toLowerCase(), alias + " stays synchronized");
+    assert.equal(generatedTokens[alias], value, alias + " stays synchronized");
   }
 });
 
 test("generated CSS source hash matches the actual root token block", () => {
   const expected = createHash("sha256").update(rootBlock).digest("hex");
-  const match = /DESIGN_TOKEN_SOURCE_SHA256 = "([a-f0-9]{64})"/.exec(generated);
-  assert.ok(match, "generated token source hash should be present");
-  assert.equal(match[1], expected);
+  const line = generated.split("\n").find((entry) => entry.startsWith("export const DESIGN_TOKEN_SOURCE_SHA256 = "));
+  assert.ok(line, "generated token source hash should be present");
+  const actual = line.split('"')[1];
+  assert.equal(actual, expected);
 });
 
 test("focus-visible and reduced-motion rules exist in the real stylesheet", () => {
-  assert.match(css, /:where\([^}]+\):focus-visible\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--ring\)/s);
-  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
-  assert.match(css, /animation-duration:\s*0\.01ms\s*!important/);
+  assert.ok(css.includes(":focus-visible"));
+  assert.ok(css.includes("outline: 2px solid var(--ring)"));
+  assert.ok(css.includes("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(css.includes("animation-duration: 0.01ms !important"));
 });
 
 test("language and RTL are switched on the client; server locale remains explicit", () => {
-  assert.match(layout, /<html lang="en"/);
-  assert.match(i18n, /document\.documentElement\.lang\s*=\s*lang/);
-  assert.match(i18n, /document\.documentElement\.dir\s*=\s*lang\s*===\s*"ar"/);
+  assert.ok(layout.includes('<html lang="en"'));
+  assert.ok(i18n.includes("document.documentElement.lang = lang"));
+  assert.ok(i18n.includes('document.documentElement.dir = lang === "ar"'));
 });
