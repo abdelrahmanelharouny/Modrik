@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createIdentitySession } from "@/lib/security/identity";
+import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import {
   verifyPasswordHash,
   isAuthConfigured,
@@ -34,6 +35,11 @@ function pruneAttempts(now: number): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isSameOriginMutation(req.headers, req.nextUrl.protocol)) {
+    return NextResponse.json({ error: "Cross-origin login rejected", code: "CSRF_ORIGIN_REJECTED" }, {
+      status: 403, headers: { "Cache-Control": "no-store, max-age=0" },
+    });
+  }
   if (!isSessionSigningConfigured()) {
     return NextResponse.json(
       { error: "Authentication signing is not configured. Set a 32-byte MODRIK_AUTH_SECRET. Bootstrap administrator credentials are only required for first-time owner provisioning." },
