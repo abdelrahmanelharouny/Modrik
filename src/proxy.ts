@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import { resolveIdentitySession } from "@/lib/security/identity";
-import { isPublicApiPath } from "@/lib/security/api-access.mjs";
+import { isPublicApiRequest } from "@/lib/security/api-access.mjs";
 import { resolveOrganizationRoutePermission } from "@/lib/security/organization-route-access.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import {
@@ -67,7 +67,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isApiPath(pathname) && isPublicApiPath(pathname)) {
+  if (isApiPath(pathname) && isPublicApiRequest(pathname, request.method)) {
     return NextResponse.next();
   }
 
