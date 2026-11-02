@@ -3,7 +3,12 @@ import { db } from "@/lib/db";
 import { runStageAgent, harvestMemory } from "@/lib/agents";
 import { runPlanner, ARMS, type PlannerArm } from "@/lib/planner";
 import { logDecision } from "@/lib/journal";
-import { hasHumanQuestionDecision } from "@/lib/security/data-safety.mjs";
+import {
+  validateElicitationApproval,
+  validateRequirementApproval,
+  validateConflictApproval,
+  validateStoryApproval,
+} from "@/lib/pipeline/approval-rules.mjs";
 import { STAGES, type Stage } from "@/lib/rp";
 
 type Params = { params: Promise<{ id: string }> };
@@ -20,16 +25,8 @@ async function validateApproval(projectId: string, stage: Stage): Promise<Valida
       where: { projectId },
       select: { answered: true, answer: true, answerSource: true, resolution: true },
     });
-    if (questions.length === 0) {
-      return { ok: false, status: 422, error: "No questions to review — run the planner first." };
-    }
-    if (!hasHumanQuestionDecision(questions)) {
-      return {
-        ok: false,
-        status: 422,
-        error: "At least one real stakeholder answer or an explicitly recorded uncertainty decision is required. Synthetic Wind Tunnel answers do not count.",
-      };
-    }
+    const error = validateElicitationApproval(questions);
+    if (error) return { ok: false, status: 422, error };
   }
 
   if (stage === "PROBLEM_SELECTION") {
@@ -44,41 +41,23 @@ async function validateApproval(projectId: string, stage: Stage): Promise<Valida
       where: { projectId },
       select: { refId: true, verifyStatus: true, links: { select: { id: true } } },
     });
-    if (requirements.length === 0) {
-      return { ok: false, status: 422, error: "No requirements extracted — run the agent first." };
-    }
-    const ungrounded = requirements.filter((requirement) => requirement.links.length === 0);
-    if (ungrounded.length) {
-      return {
-        ok: false,
-        status: 422,
-        error: `Requirements without evidence trace links must be grounded or removed: ${ungrounded.map((r) => r.refId).join(", ")}.`,
-      };
-    }
-    const unverified = requirements.filter((requirement) => requirement.verifyStatus === "unverified");
-    if (unverified.length) {
-      return {
-        ok: false,
-        status: 422,
-        error: `Requirements whose verifier did not complete must be reviewed and re-verified: ${unverified.map((r) => r.refId).join(", ")}.`,
-      };
-    }
-    // A weak verdict remains approvable only through this explicit human gate.
-    // The verifier is advisory; it must not silently turn a weak result into support.
+    const error = validateRequirementApproval(requirements);
+    if (error) return { ok: false, status: 422, error };
   }
 
   if (stage === "STORIES") {
     const count = await db.userStory.count({ where: { projectId } });
-    if (count === 0) {
-      return { ok: false, status: 422, error: "No user stories exist — run the story generator or document why stories are not applicable." };
-    }
+    const error = validateStoryApproval(count);
+    if (error) return { ok: false, status: 422, error };
   }
 
   if (stage === "CONFLICTS") {
-    const open = await db.conflict.count({ where: { projectId, status: "open" } });
-    if (open > 0) {
-      return { ok: false, status: 422, error: `${open} conflict(s) remain open. Resolve each conflict before completing the baseline.` };
-    }
+    const conflicts = await db.conflict.findMany({
+      where: { projectId },
+      select: { status: true },
+    });
+    const error = validateConflictApproval(conflicts);
+    if (error) return { ok: false, status: 422, error };
   }
 
   return { ok: true };
