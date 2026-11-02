@@ -17,6 +17,7 @@
 //   dialectFit (Arabic-native fit, N7)
 // ─────────────────────────────────────────────────────────────
 import { randomUUID, createHash } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs";
@@ -633,7 +634,7 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
 
   const order: PlannerArm[] = ["single_shot", "random", "llm", "impact_aware"];
   const results: PlannerExperimentArmResult[] = [];
-  const persistence = [];
+  const persistence: Prisma.PlannerRunUncheckedCreateInput[] = [];
 
   for (const arm of order) {
     const ownUsage = armUsages[arm];
@@ -705,7 +706,7 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
         content: JSON.stringify({
           experimentId,
           seed,
-          materializedArm,
+          materializedArm: materializeArm,
           candidatePoolHash,
           commonPool: scoredPool,
           sharedUsage,
@@ -749,7 +750,7 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
   return {
     experimentId,
     seed,
-    materializedArm,
+    materializedArm: materializeArm,
     candidatePoolHash,
     candidateCount: pool.length,
     arms: results,
