@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  isAuthConfigured,
+  isSessionSigningConfigured,
   SESSION_COOKIE,
   verifySessionToken,
 } from "@/lib/security/session.mjs";
@@ -9,7 +9,7 @@ import { resolveIdentitySession } from "@/lib/security/identity";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  if (!isAuthConfigured()) {
+  if (!isSessionSigningConfigured()) {
     return NextResponse.json(
       { configured: false, authenticated: false },
       { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } }
