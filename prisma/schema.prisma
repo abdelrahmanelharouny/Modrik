@@ -38,6 +38,8 @@ model Project {
   syncMaps   SyncMap[]
   studySessions StudySession[]
   memories MemoryEntry[]
+  integrations Integration[]
+  traceLinks TraceLink[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -79,7 +81,7 @@ model DecisionEntry {
   createdAt DateTime @default(now())
 }
 
-// Cross-project learning memory (I4): glossary terms + lessons carried between projects
+// Project-scoped learning memory (I4): glossary terms + lessons never shared implicitly
 model MemoryEntry {
   id        String   @id @default(cuid())
   projectId String?
@@ -198,7 +200,7 @@ model Requirement {
   verifyNote    String?
   driftStatus   String  @default("none") // none | suspected | confirmed (I8 drift radar)
   language      String  @default("en") // en | ar-EG | codeswitch
-  status        String  @default("draft") // draft | approved
+  status        String  @default("draft") // draft | revised | approved
   order         Int     @default(0)
 
   stories   UserStory[]
@@ -215,6 +217,7 @@ model Requirement {
 model TraceLink {
   id            String      @id @default(cuid())
   projectId     String
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   requirementId String
   requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
   evidenceCode  String // stable code shown to people and in citations
@@ -297,6 +300,7 @@ model ExecScenario {
 model Integration {
   id        String   @id @default(cuid())
   projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   kind      String   // github | jira
   config    String   // JSON: github {token, owner, repo} · jira {baseUrl, email, token, projectKey}
   createdAt DateTime @default(now())
