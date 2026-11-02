@@ -28,6 +28,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
+  const project = await db.project.findUnique({
+    where: { id },
+    select: { id: true, stageStatus: true },
+  });
+  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (["agent_running", "approving"].includes(project.stageStatus)) {
+    return NextResponse.json({ error: "Project cannot be deleted while a pipeline operation is running." }, { status: 409 });
+  }
   await db.project.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
