@@ -1,6 +1,7 @@
 export interface RequirementApprovalCandidate {
   refId: string;
   verifyStatus: string;
+  verificationSource: string;
   links: { id: string }[];
 }
 export declare function validateElicitationApproval(questions: unknown[]): string | null;
