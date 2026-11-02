@@ -18,6 +18,8 @@
 // ─────────────────────────────────────────────────────────────
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
+import { decryptSecret, encryptSecret } from "@/lib/security/secret-box.mjs";
+import { buildJiraUrl, validateJiraBaseUrl } from "@/lib/security/jira-url.mjs";
 
 // ── Credential resolution ────────────────────────────────────
 
@@ -38,7 +40,10 @@ async function loadConfig(projectId: string, kind: "github" | "jira"): Promise<G
   const row = await db.integration.findFirst({ where: { projectId, kind }, orderBy: { createdAt: "desc" } });
   if (row) {
     try {
-      return JSON.parse(row.config);
+      const config = JSON.parse(row.config) as Record<string, unknown>;
+      if (typeof config.token === "string") config.token = decryptSecret(config.token);
+      if (kind === "jira" && typeof config.baseUrl === "string") validateJiraBaseUrl(config.baseUrl);
+      return config as unknown as GithubConfig | JiraConfig;
     } catch {
       /* fall through to env */
     }
@@ -239,7 +244,7 @@ export async function jiraPush(projectId: string): Promise<{ pushed: { label: st
       skipped += 1;
       continue;
     }
-    const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, "")}/rest/api/3/issue`, {
+    const res = await fetch(buildJiraUrl(cfg.baseUrl, "rest/api/3/issue"), {
       method: "POST",
       headers: {
         Authorization: `Basic ${jiraAuth(cfg)}`,
@@ -263,13 +268,14 @@ export async function jiraPush(projectId: string): Promise<{ pushed: { label: st
         },
       }),
       signal: AbortSignal.timeout(30_000),
+      redirect: "manual",
     });
     if (!res.ok) {
       const detail = await res.text();
       throw new Error(`Jira push failed for ${s.requirement.refId} (HTTP ${res.status}): ${detail.slice(0, 200)}`);
     }
     const issue = (await res.json()) as { key: string; self: string };
-    const url = `${cfg.baseUrl.replace(/\/+$/, "")}/browse/${issue.key}`;
+    const url = buildJiraUrl(cfg.baseUrl, `browse/${encodeURIComponent(issue.key)}`);
     await db.syncMap.create({
       data: {
         projectId,
@@ -293,7 +299,7 @@ export async function jiraPull(projectId: string, limit = 20): Promise<{ issues:
   const cfg = (await loadConfig(projectId, "jira")) as JiraConfig | null;
   if (!cfg) throw new Error("Jira not configured — save baseUrl, email, token and projectKey first");
   const jql = `project = ${cfg.projectKey} ORDER BY created DESC`;
-  const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, "")}/rest/api/3/search?maxResults=${limit}`, {
+  const res = await fetch(buildJiraUrl(cfg.baseUrl, `rest/api/3/search?maxResults=${encodeURIComponent(String(limit))}`), {
     method: "POST",
     headers: {
       Authorization: `Basic ${jiraAuth(cfg)}`,
@@ -302,6 +308,7 @@ export async function jiraPull(projectId: string, limit = 20): Promise<{ issues:
     },
     body: JSON.stringify({ jql, fields: ["summary", "status", "description"] }),
     signal: AbortSignal.timeout(30_000),
+    redirect: "manual",
   });
   if (!res.ok) {
     throw new Error(`Jira pull failed (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`);
@@ -313,7 +320,7 @@ export async function jiraPull(projectId: string, limit = 20): Promise<{ issues:
     key: i.key,
     title: i.fields.summary,
     state: i.fields.status?.name ?? "unknown",
-    url: `${cfg.baseUrl.replace(/\/+$/, "")}/browse/${i.key}`,
+    url: buildJiraUrl(cfg.baseUrl, `browse/${encodeURIComponent(i.key)}`),
     body: JSON.stringify(i.fields.description ?? {}).slice(0, 2000),
   }));
   await logDecision(projectId, "LIFECYCLE", "system", "jira_pull", `Pulled ${rows.length} issue(s) from Jira (${cfg.projectKey}) for human review.`);
@@ -334,9 +341,10 @@ export async function testConnection(projectId: string, kind: "github" | "jira")
         : { ok: false, detail: `HTTP ${res.status} — ${(await res.text()).slice(0, 160)}` };
     }
     const c = cfg as JiraConfig;
-    const res = await fetch(`${c.baseUrl.replace(/\/+$/, "")}/rest/api/3/myself`, {
+    const res = await fetch(buildJiraUrl(c.baseUrl, "rest/api/3/myself"), {
       headers: { Authorization: `Basic ${jiraAuth(c)}`, Accept: "application/json" },
       signal: AbortSignal.timeout(20_000),
+      redirect: "manual",
     });
     return res.ok
       ? { ok: true, detail: `${c.projectKey} at ${c.baseUrl} reachable` }
@@ -351,14 +359,30 @@ export async function testConnection(projectId: string, kind: "github" | "jira")
 export async function saveConfig(projectId: string, kind: "github" | "jira", config: Record<string, string>) {
   const clean =
     kind === "github"
-      ? { token: String(config.token ?? ""), owner: String(config.owner ?? "").trim(), repo: String(config.repo ?? "").trim() }
+      ? { token: String(config.token ?? "").trim(), owner: String(config.owner ?? "").trim(), repo: String(config.repo ?? "").trim() }
       : {
           baseUrl: String(config.baseUrl ?? "").trim(),
           email: String(config.email ?? "").trim(),
-          token: String(config.token ?? ""),
+          token: String(config.token ?? "").trim(),
           projectKey: String(config.projectKey ?? "").trim().toUpperCase(),
         };
-  await db.integration.create({ data: { projectId, kind, config: JSON.stringify(clean) } });
+
+  if (kind === "github") {
+    const github = clean as GithubConfig;
+    if (!github.token || !/^[A-Za-z0-9-]{1,39}$/.test(github.owner) ||
+        !/^[A-Za-z0-9_.-]{1,100}$/.test(github.repo) || github.repo === "." || github.repo === "..") {
+      throw new Error("GitHub configuration requires a token and valid owner/repository names");
+    }
+  } else {
+    const jira = clean as JiraConfig;
+    validateJiraBaseUrl(jira.baseUrl);
+    if (!jira.email || !jira.token || !/^[A-Z][A-Z0-9_]{0,9}$/.test(jira.projectKey)) {
+      throw new Error("Jira configuration requires an email, token and valid project key");
+    }
+  }
+
+  const encrypted = { ...clean, token: clean.token ? encryptSecret(clean.token) : "" };
+  await db.integration.create({ data: { projectId, kind, config: JSON.stringify(encrypted) } });
   await logDecision(projectId, "LIFECYCLE", "human", "integration_config", `${kind} credentials saved (masked: ${kind === "github" ? `${clean.owner && (clean as GithubConfig).owner}/${(clean as GithubConfig).repo}` : (clean as JiraConfig).projectKey}).`);
   return maskedStatus(projectId);
 }
