@@ -39,7 +39,12 @@ async function validateApproval(projectId: string, stage: Stage): Promise<Valida
   if (stage === "EXTRACTION") {
     const requirements = await db.requirement.findMany({
       where: { projectId },
-      select: { refId: true, verifyStatus: true, verificationSource: true, links: { select: { id: true } } },
+      select: {
+        refId: true,
+        verifyStatus: true,
+        verificationSource: true,
+        links: { select: { id: true, evidenceId: true } },
+      },
     });
     const error = validateRequirementApproval(requirements);
     if (error) return { ok: false, status: 422, error };
