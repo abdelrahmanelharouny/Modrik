@@ -234,6 +234,9 @@ export interface RequirementDTO {
   confidence: number;
   verifyStatus: string;
   verifyNote?: string | null;
+  verificationSource: string;
+  verifiedAt?: string | null;
+  verifiedBy?: string | null;
   driftStatus: string;
   language: string;
   status: string;
