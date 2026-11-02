@@ -162,7 +162,7 @@ try {
 
   // Password recovery: token is hashed, single-use, short-lived, and revokes sessions.
   const resetUser = await prisma.user.create({
-    data: { email: `password-reset-${randomUUID()}@example.invalid`, passwordHash: existingHash, status: "active" },
+    data: { email: `password-reset-${randomUUID()}@example.invalid`, passwordHash: process.env.MODRIK_ADMIN_PASSWORD_HASH, status: "active" },
   });
   identityCleanup.users.push(resetUser.id);
   const resetMembership = await prisma.membership.create({
