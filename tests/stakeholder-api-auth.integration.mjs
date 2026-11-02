@@ -99,6 +99,8 @@ try {
   identityCleanup.projects.push(tenantProjectA.id);
   const tenantProjectB = await prisma.project.create({ data: { name: "Tenant B private", brief: "B", organizationId: tenantB.id } });
   identityCleanup.projects.push(tenantProjectB.id);
+  const tenantDemoB = await prisma.project.create({ data: { name: "Tenant B demo", brief: "private demo", organizationId: tenantB.id, isDemo: true } });
+  identityCleanup.projects.push(tenantDemoB.id);
   const tenantHeaders = { cookie: identityCookie, "content-type": "application/json" };
 
   const tenantIndex = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
@@ -117,6 +119,12 @@ try {
   identityCleanup.projects.push(createdTenantProject.id);
   assert.equal(createdTenantProject.organizationId, tenantA.id);
   assert.equal(createdTenantProject.createdByUserId, identityUser.id);
+  const tenantDemoLookup = await fetch(`${baseUrl}/api/demo`, { headers: tenantHeaders });
+  await expectStatus(tenantDemoLookup, 200, "tenant demo lookup");
+  assert.equal((await json(tenantDemoLookup)).projectId, null, "demo lookup must not reveal another tenant's demo");
+  const tenantTelemetry = await fetch(`${baseUrl}/api/telemetry`, { headers: tenantHeaders });
+  await expectStatus(tenantTelemetry, 200, "tenant telemetry");
+  assert.equal((await json(tenantTelemetry)).fleet.missions, 2, "telemetry must count only this tenant's projects");
 
   const viewerUser = await prisma.user.create({ data: { email: `identity-viewer-${randomUUID()}@example.invalid`, status: "active" } });
   identityCleanup.users.push(viewerUser.id);
@@ -136,6 +144,11 @@ try {
     body: JSON.stringify({ name: "Forbidden viewer project", brief: "must not be created" }),
   });
   await expectStatus(viewerCreate, 403, "viewer cannot create projects");
+  const viewerTelemetry = await fetch(`${baseUrl}/api/telemetry`, { headers: { cookie: viewerCookie } });
+  await expectStatus(viewerTelemetry, 403, "viewer cannot read audit telemetry");
+  await prisma.user.update({ where: { id: viewerUser.id }, data: { status: "disabled" } });
+  const disabledViewer = await fetch(`${baseUrl}/api/projects`, { headers: { cookie: viewerCookie } });
+  await expectStatus(disabledViewer, 401, "disabled user session must be rejected");
   await prisma.authSession.update({ where: { id: identitySessionId }, data: { revokedAt: new Date() } });
   const revokedSessionRequest = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
   await expectStatus(revokedSessionRequest, 401, "revoked identity session must be rejected");
