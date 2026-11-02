@@ -563,7 +563,15 @@ export async function saveConfig(projectId: string, kind: "github" | "jira", con
   }
 
   const encrypted = { ...clean, token: clean.token ? encryptSecret(clean.token) : "" };
-  await db.integration.create({ data: { projectId, kind, config: JSON.stringify(encrypted) } });
+  // Replace all previous rows for this project/provider atomically. This both
+  // prevents unbounded duplicate configs and scrubs legacy plaintext tokens
+  // after an owner re-enters the credential with MODRIK_ENCRYPTION_KEY set.
+  await db.$transaction(async (tx) => {
+    await tx.integration.deleteMany({ where: { projectId, kind } });
+    await tx.integration.create({
+      data: { projectId, kind, config: JSON.stringify(encrypted) },
+    });
+  });
   await logDecision(projectId, "LIFECYCLE", "human", "integration_config", `${kind} credentials saved (masked: ${kind === "github" ? `${clean.owner && (clean as GithubConfig).owner}/${(clean as GithubConfig).repo}` : (clean as JiraConfig).projectKey}).`);
   return maskedStatus(projectId);
 }
