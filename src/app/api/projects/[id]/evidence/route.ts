@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { hashEvidenceRevision } from "@/lib/evidence/revision.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
@@ -68,9 +69,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     language: ["en", "ar-EG", "codeswitch"].includes(language) ? language : "en",
     consent,
   };
-  const contentHash = createHash("sha256")
-    .update(JSON.stringify(normalized))
-    .digest("hex");
+  const contentHash = hashEvidenceRevision(normalized);
   const evidence = await db.$transaction(async (tx) => {
     const created = await tx.evidence.create({
       data: {
@@ -145,7 +144,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Title/content are required; limits are 200 and 8,000 characters." }, { status: 400 });
   }
   const changeNote = typeof body.changeNote === "string" ? body.changeNote.trim().slice(0, 500) : "";
-  const contentHash = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+  const contentHash = hashEvidenceRevision(normalized);
 
   const result = await db.$transaction(async (tx) => {
     const latest = await tx.evidenceRevision.findFirst({
@@ -164,7 +163,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         language: existing.language,
         consent: existing.consent,
       };
-      previousHash = createHash("sha256").update(JSON.stringify(baseline)).digest("hex");
+      previousHash = hashEvidenceRevision(baseline);
       await tx.evidenceRevision.create({
         data: {
           evidenceId: existing.id,
