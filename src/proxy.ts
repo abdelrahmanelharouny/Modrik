@@ -79,7 +79,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isApiPath(pathname) && isPublicApiRequest(pathname, request.method)) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
   if (!isSessionSigningConfigured()) {
@@ -131,7 +131,7 @@ export async function proxy(request: NextRequest) {
         select: { id: true, organizationId: true },
       });
       if (!project || project.organizationId !== identity.organizationId) {
-        return NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } });
+        return applySecurityHeaders(NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } }));
       }
       const permissionBody = pathname.endsWith("/stakeholders") && request.method === "PATCH"
         ? await request.clone().json().catch(() => null)
@@ -171,7 +171,7 @@ export async function proxy(request: NextRequest) {
         userStatus: membership.user.status,
         organizationStatus: membership.organization.status,
       }, permission)) {
-        return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
+        return applySecurityHeaders(NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }));
       }
     } else {
       const guardedPermission = resolveOrganizationRoutePermission(pathname, request.method);
@@ -203,10 +203,10 @@ export async function proxy(request: NextRequest) {
   // Cookie sessions must not be usable cross-origin for state-changing calls.
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     if (!isSameOriginMutation(request.headers, request.nextUrl.protocol)) {
-      return NextResponse.json(
+      return applySecurityHeaders(NextResponse.json(
         { error: "Cross-origin state change rejected", code: "CSRF_ORIGIN_REJECTED" },
         { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
-      );
+      ));
     }
   }
 
