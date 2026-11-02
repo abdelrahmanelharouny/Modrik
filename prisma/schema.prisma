@@ -398,6 +398,9 @@ model NegotiationParticipant {
   stakeholder    StakeholderProfile @relation(fields: [stakeholderId, projectId], references: [id, projectId], onDelete: Cascade)
   role           String             @default("consulted") // proposer | approver | consulted | dissenting | informed
   note           String             @default("")
+  responseStatus String             @default("pending") // pending | supports | opposes | conditional | abstains
+  responseRationale String          @default("")
+  respondedAt    DateTime?
   createdAt      DateTime           @default(now())
 
   @@unique([decisionId, stakeholderId])
