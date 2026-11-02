@@ -930,18 +930,47 @@ Return JSON: {"impacted": [{"refId": "REQ-03", "note": "why it is impacted"}], "
 
   const out = await callLLMJson<{ impacted: { refId: string; note: string }[]; summary: string }>(prompt, usage, driftOutputSchema);
 
-  await db.requirement.updateMany({ where: { projectId }, data: { driftStatus: "none" } });
-  for (const imp of out.impacted ?? []) {
-    const r = project.reqs.find((x) => x.refId === imp.refId);
-    if (!r) continue;
-    await db.requirement.update({
-      where: { id: r.id },
-      data: { driftStatus: "suspected" },
+  const impactedById = new Map<string, { refId: string; note: string }>();
+  for (const impact of out.impacted ?? []) {
+    const requirement = project.reqs.find((item) => item.refId === impact.refId);
+    if (!requirement) continue;
+    impactedById.set(requirement.id, {
+      refId: requirement.refId,
+      note: String(impact.note ?? "").slice(0, 500),
     });
   }
-  await logDecision(projectId, "LIFECYCLE", "agent", "drift_check", out.summary ?? "");
-  await saveArtifact(projectId, "DRIFT", out);
-  return { impacted: (out.impacted ?? []).length, summary: String(out.summary ?? "") };
+  // A new scan is additive: it must never silently clear a previous drift
+  // signal. Only an explicit human triage decision may clear/confirm a flag.
+  await db.$transaction(async (tx) => {
+    for (const [requirementId] of impactedById) {
+      await tx.requirement.update({
+        where: { id: requirementId },
+        data: { driftStatus: "suspected" },
+      });
+    }
+    await tx.artifact.create({
+      data: {
+        projectId,
+        stage: "DRIFT",
+        kind: "json",
+        content: JSON.stringify({
+          ...out,
+          signal: signal.slice(0, 2000),
+          detectedAt: new Date().toISOString(),
+          impacted: [...impactedById.values()],
+        }).slice(0, 24000),
+      },
+    });
+  });
+  const impacted = [...impactedById.values()];
+  await logDecision(
+    projectId,
+    "LIFECYCLE",
+    "agent",
+    "drift_check",
+    `Change signal: ${signal.slice(0, 220)}; ${impacted.length} newly flagged requirement(s). ${String(out.summary ?? "").slice(0, 500)}`
+  );
+  return { impacted: impacted.length, summary: String(out.summary ?? ""), requirements: impacted };
 }
 
 // ---------- I11 compliance / NFR constraint packs ----------
