@@ -49,6 +49,9 @@ test("sensitive non-project routes require the intended least-privilege role per
   assert.equal(resolveOrganizationRoutePermission("/api/telemetry", "GET"), "audit:read");
   assert.equal(resolveOrganizationRoutePermission("/api/study", "POST"), "organization:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/providers", "GET"), "organization:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/invitations", "GET"), "members:manage");
+  assert.equal(resolveOrganizationRoutePermission("/api/invitations", "POST"), "members:manage");
+  assert.equal(resolveOrganizationRoutePermission("/api/invitations/revoke", "POST"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/transcribe", "GET"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/unclassified", "POST"), null);
 });
@@ -57,6 +60,8 @@ test("public API exemptions are restricted to the intended HTTP methods", async 
   const { isPublicApiRequest } = await import("../src/lib/security/api-access.mjs");
   assert.equal(isPublicApiRequest("/api/auth/login", "POST"), true);
   assert.equal(isPublicApiRequest("/api/auth/login", "GET"), false);
+  assert.equal(isPublicApiRequest("/api/auth/invitations/accept", "POST"), true);
+  assert.equal(isPublicApiRequest("/api/auth/invitations/accept", "GET"), false);
   assert.equal(isPublicApiRequest("/api/auth/session", "GET"), true);
   assert.equal(isPublicApiRequest("/api/auth/session", "POST"), false);
   assert.equal(isPublicApiRequest("/api/study/respond", "GET"), true);
