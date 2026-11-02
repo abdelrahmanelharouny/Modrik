@@ -78,7 +78,7 @@ async function main() {
       for (const row of changes) {
         const updated = await tx.integration.updateMany({
           where: { id: row.id, config: row.original },
-          data: { config: row.config, updatedAt: new Date() },
+          data: { config: row.config },
         });
         if (updated.count !== 1) {
           throw new Error(`Integration ${row.id} changed during rotation; transaction aborted`);
