@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   await db.project.update({ where: { id }, data: { updatedAt: new Date() } });
   return NextResponse.json({
     evidence,
-    aiEligible: consent && origin !== "synthetic",
+    aiEligible: consent,
   }, { status: 201 });
 }
 
