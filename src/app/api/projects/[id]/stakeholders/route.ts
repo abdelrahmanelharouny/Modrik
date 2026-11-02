@@ -1,16 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
+import { isAuthConfigured, SESSION_COOKIE, verifyAdminRequest } from "@/lib/security/session.mjs";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
-  POSITION_STATUSES, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum,
+  POSITION_STATUSES, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority,
 } from "@/lib/stakeholders/collaboration.mjs";
 
 type Params = { params: Promise<{ id: string }> };
 const locked = (status: string) => ["agent_running","approving"].includes(status);
 const bad = (error: unknown) => NextResponse.json({ error: error instanceof Error ? error.message : "Invalid payload." }, { status: 400 });
 const objectBody = (body: unknown): body is Record<string, any> => Boolean(body && typeof body === "object" && !Array.isArray(body));
+
+function requireOwner(req: NextRequest) {
+  if (!isAuthConfigured()) {
+    return NextResponse.json({ error: "Authentication is not configured." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
+  const session = verifyAdminRequest(req.cookies.get(SESSION_COOKIE)?.value);
+  if (!session) {
+    return NextResponse.json({ error: "A valid owner session is required." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  }
+  return null;
+}
+
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
@@ -157,7 +170,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (transition.count !== 1) return NextResponse.json({ error: "Participant response was submitted concurrently. Refresh before continuing." }, { status: 409 });
     const updated = await db.negotiationParticipant.findFirst({ where: { id: participant.id, projectId: id } });
     await logDecision(id, "CLEARANCE", "human", "recorded_stakeholder_negotiation_response",
-      `${participant.stakeholder.stakeholderRef} responded ${body.responseStatus} to ${negotiation.requirement.refId}: ${body.rationale.trim().slice(0, 300)}`);
+      `${participant.stakeholder.stakeholderRef} responded ${response.responseStatus} to ${negotiation.requirement.refId}: ${response.rationale.slice(0, 300)}`);
     return NextResponse.json({ participant: updated }, { status: 201 });
   }
   if (body.action === "review_position") {
@@ -176,7 +189,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (body.action === "decide_negotiation") {
     if (typeof body.negotiationId !== "string") return NextResponse.json({ error: "negotiationId is required." }, { status: 400 });
-    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true, participants: { select: { id: true, responseStatus: true } } } });
+    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true, participants: { select: { id: true, responseStatus: true, stakeholder: { select: { approvalRole: true, stakeholderRef: true } } } } } });
     if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
     if (negotiation.status !== "proposed") return NextResponse.json({ error: "A recorded negotiation decision is immutable. Create a follow-up negotiation to revisit it." }, { status: 409 });
     const pendingResponses = negotiation.participants.filter(p => p.responseStatus === "pending").length;
