@@ -37,6 +37,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             answer: q.fallbackAssumption
               ? `(proceeding with uncertainty — assume: ${q.fallbackAssumption})`
               : "(proceeding with uncertainty — no assumption recorded)",
+            answerSource: "assumption",
           },
         });
         await logDecision(
@@ -53,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (data.action === "reopen") {
         await db.question.update({
           where: { id: itemId },
-          data: { resolution: "pending", answered: false, answer: null },
+          data: { resolution: "pending", answered: false, answer: null, answerSource: "human" },
         });
         await logDecision(id, "ELICITATION", "human", "question_reopened", q.text.slice(0, 200));
         break;
@@ -62,7 +63,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const answer = String(data.answer ?? "").slice(0, 2000);
       await db.question.update({
         where: { id: itemId },
-        data: { answer, answered: answer.trim().length > 0, resolution: answer.trim() ? "answered" : "pending" },
+        data: {
+          answer,
+          answered: answer.trim().length > 0,
+          resolution: answer.trim() ? "answered" : "pending",
+          answerSource: "human",
+        },
       });
       if (answer.trim()) {
         await logDecision(id, "ELICITATION", "human", "answered_question", `Q: ${q.text.slice(0, 150)} → A: ${answer.slice(0, 200)}`);
@@ -74,13 +80,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const c = await db.problemCandidate.findFirst({ where: { id: itemId, projectId: id } });
       if (!c) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
       const patch: Record<string, unknown> = {};
-      if (data.impact !== undefined)
-        patch.impact = Math.min(5, Math.max(1, Math.round(Number(data.impact) || 3)));
-      if (data.effort !== undefined)
-        patch.effort = Math.min(5, Math.max(1, Math.round(Number(data.effort) || 3)));
+      for (const field of ["impact", "effort"] as const) {
+        const value = data[field];
+        if (value === undefined) continue;
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric < 1 || numeric > 5) {
+          return NextResponse.json({ error: `${field} must be a finite number from 1 to 5` }, { status: 400 });
+        }
+        patch[field] = Math.round(numeric);
+      }
+      if (data.selected !== undefined && typeof data.selected !== "boolean") {
+        return NextResponse.json({ error: "selected must be a boolean" }, { status: 400 });
+      }
+
       if (data.selected === true) {
-        await db.problemCandidate.updateMany({ where: { projectId: id }, data: { selected: false } });
-        patch.selected = true;
+        // A Serializable transaction prevents two simultaneous requests from
+        // leaving two selected candidates in the same project.
+        await db.$transaction(async (tx) => {
+          await tx.problemCandidate.updateMany({ where: { projectId: id }, data: { selected: false } });
+          await tx.problemCandidate.update({ where: { id: itemId, projectId: id }, data: { ...patch, selected: true } });
+        }, { isolationLevel: "Serializable" });
         await logDecision(
           id,
           "PROBLEM_SELECTION",
@@ -88,18 +107,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           "selected_problem",
           `"${c.title}" — impact ${patch.impact ?? c.impact}/5, effort ${patch.effort ?? c.effort}/5`
         );
-      } else if (data.selected === false) {
-        patch.selected = false;
-      } else if (patch.impact !== undefined || patch.effort !== undefined) {
-        await logDecision(
-          id,
-          "PROBLEM_SELECTION",
-          "human",
-          "candidate_tuned",
-          `"${c.title}" re-scored: impact ${patch.impact ?? c.impact}, effort ${patch.effort ?? c.effort}`
-        );
+      } else {
+        if (data.selected === false) patch.selected = false;
+        await db.problemCandidate.update({ where: { id: itemId, projectId: id }, data: patch });
+        if (patch.impact !== undefined || patch.effort !== undefined) {
+          await logDecision(
+            id,
+            "PROBLEM_SELECTION",
+            "human",
+            "candidate_tuned",
+            `"${c.title}" re-scored: impact ${patch.impact ?? c.impact}, effort ${patch.effort ?? c.effort}`
+          );
+        }
       }
-      await db.problemCandidate.update({ where: { id: itemId }, data: patch });
       break;
     }
 
@@ -127,7 +147,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         patch.type = data.type;
       if (typeof data.priority === "string" && ["Must", "Should", "Could", "Won't"].includes(data.priority))
         patch.priority = data.priority;
-      if (typeof data.status === "string") patch.status = data.status;
+      if (Object.keys(patch).length > 0) patch.status = "revised";
       await db.requirement.update({ where: { id: itemId }, data: patch });
       if (Object.keys(patch).length > 0) {
         await logDecision(id, "EXTRACTION", "human", "edited_requirement", `${r.refId} updated (${Object.keys(patch).join(", ")}).`);
@@ -142,7 +162,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (typeof data.title === "string" && data.title.trim()) patch.title = data.title.trim().slice(0, 200);
       if (typeof data.narrative === "string" && data.narrative.trim()) patch.narrative = data.narrative.trim().slice(0, 800);
       if (typeof data.acceptance === "string") patch.acceptance = data.acceptance.slice(0, 2000);
-      if (typeof data.status === "string") patch.status = data.status;
+      if (Object.keys(patch).length > 0) patch.status = "revised";
       await db.userStory.update({ where: { id: itemId }, data: patch });
       if (Object.keys(patch).length > 0) {
         await logDecision(id, "STORIES", "human", "edited_story", `${s.refId} updated (${Object.keys(patch).join(", ")}).`);
@@ -193,9 +213,24 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     await db.requirement.deleteMany({ where: { id: itemId, projectId: id } });
     if (r) await logDecision(id, "EXTRACTION", "human", "deleted_requirement", `${r.refId}: ${r.text.slice(0, 200)}`);
   } else if (kind === "story") {
+    const story = await db.userStory.findFirst({ where: { id: itemId, projectId: id } });
     await db.userStory.deleteMany({ where: { id: itemId, projectId: id } });
+    if (story) await logDecision(id, "STORIES", "human", "deleted_story", `${story.refId}: ${story.title.slice(0, 180)}`);
   } else if (kind === "conflict") {
+    const conflict = await db.conflict.findFirst({
+      where: { id: itemId, projectId: id },
+      include: { reqA: true, reqB: true },
+    });
     await db.conflict.deleteMany({ where: { id: itemId, projectId: id } });
+    if (conflict) {
+      await logDecision(
+        id,
+        "CONFLICTS",
+        "human",
+        "deleted_conflict",
+        `${conflict.reqA.refId} ↔ ${conflict.reqB.refId}: ${conflict.description.slice(0, 180)}`
+      );
+    }
   } else {
     return NextResponse.json({ error: "Unknown item kind" }, { status: 400 });
   }
