@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { csvCell } from "@/lib/security/csv.mjs";
+import { issueParticipantToken } from "@/lib/study/participant-token.mjs";
 
 // Dev item 14 — three-group between-subjects user study.
 //   A_traditional   — docs + spreadsheet RE toolkit
@@ -13,33 +14,64 @@ const GROUPS = ["A_traditional", "B_unconstrained_llm", "C_modrik"];
 
 // POST { groupId, participantCode, scenarioId, projectId? } → open a session
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const groupId = String(body.groupId ?? "");
-  const participantCode = String(body.participantCode ?? "").trim();
-  const scenarioId = String(body.scenarioId ?? "").trim();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Invalid study session payload" }, { status: 400 });
+  }
+  const groupId = typeof body.groupId === "string" ? body.groupId : "";
+  const participantCode = typeof body.participantCode === "string" ? body.participantCode.trim() : "";
+  const scenarioId = typeof body.scenarioId === "string" ? body.scenarioId.trim() : "";
+  const projectId = body.projectId === undefined || body.projectId === null || body.projectId === ""
+    ? null
+    : String(body.projectId);
+
   if (!GROUPS.includes(groupId)) {
     return NextResponse.json({ error: `groupId must be one of ${GROUPS.join(", ")}` }, { status: 400 });
   }
-  if (!participantCode || !scenarioId) {
-    return NextResponse.json({ error: "participantCode and scenarioId are required" }, { status: 400 });
+  if (!/^[A-Za-z0-9_-]{1,60}$/.test(participantCode) || !/^[A-Za-z0-9_.:-]{1,60}$/.test(scenarioId)) {
+    return NextResponse.json({ error: "participantCode and scenarioId must use approved anonymised identifiers" }, { status: 400 });
   }
+  if (groupId === "C_modrik" && !projectId) {
+    return NextResponse.json({ error: "C_modrik sessions must be linked to a project" }, { status: 400 });
+  }
+  if (groupId !== "C_modrik" && projectId) {
+    return NextResponse.json({ error: "Only C_modrik sessions may link to a Modrik project" }, { status: 400 });
+  }
+  if (projectId) {
+    const project = await db.project.findUnique({ where: { id: projectId }, select: { id: true } });
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  const issued = issueParticipantToken();
   const session = await db.studySession.create({
     data: {
       groupId,
-      participantCode: participantCode.slice(0, 60),
-      scenarioId: scenarioId.slice(0, 60),
-      projectId: body.projectId ? String(body.projectId) : null,
+      participantCode,
+      scenarioId,
+      projectId,
+      participantTokenHash: issued.hash,
+      participantTokenExpiresAt: issued.expiresAt,
     },
   });
-  return NextResponse.json({ ok: true, sessionId: session.id });
+  // The raw bearer token is returned once to the authenticated moderator.
+  // It is never stored or re-exposed by GET/export endpoints.
+  return NextResponse.json({
+    ok: true,
+    sessionId: session.id,
+    participantToken: issued.token,
+    participantTokenExpiresAt: issued.expiresAt,
+    participantEndpoint: "/api/study/respond",
+  }, { status: 201 });
 }
 
 // PATCH { sessionId, taskTimeSec?, nasaTlx?, susScore?, notes?, event? } → close/log
 export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const sessionId = String(body.sessionId ?? "");
+  if (!sessionId) return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
   const session = await db.studySession.findUnique({ where: { id: sessionId } });
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  if (session.finishedAt) return NextResponse.json({ error: "This study session is already finished and locked." }, { status: 409 });
 
   if (body.event && typeof body.event === "object" && !Array.isArray(body.event)) {
     await db.studyEvent.create({
@@ -71,7 +103,10 @@ export async function PATCH(req: NextRequest) {
     }
     data.nasaTlx = JSON.stringify(clean);
   }
-  if (body.finished) data.finishedAt = new Date();
+  if (body.finished !== undefined && typeof body.finished !== "boolean") {
+    return NextResponse.json({ error: "finished must be a boolean" }, { status: 400 });
+  }
+  if (body.finished === true) data.finishedAt = new Date();
   if (Object.keys(data).length) {
     await db.studySession.update({ where: { id: sessionId }, data });
   }
