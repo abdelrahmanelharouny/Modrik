@@ -4,7 +4,7 @@
 //   I1  ask-vs-proceed signals (askCost + fallbackAssumption)
 //   I2  confidence values per requirement (calibration input)
 //   I3  critic-verifier pass (Propose → Verify → Human arbitrates)
-//   I4  cross-project memory re-injection + harvest
+//   I4  project-scoped memory re-injection + harvest
 //   I7  synthetic stakeholder wind tunnel (persona + held-out secret)
 //   I8  drift radar over the requirement graph
 //   I11 compliance / NFR constraint pack checks
@@ -224,7 +224,7 @@ async function memoryBlock(projectId: string): Promise<string> {
     take: 6,
   });
   if (!lessons.length) return "";
-  return `\nCROSS-PROJECT LESSONS (learned from previous projects — apply where relevant):\n${lessons
+  return `\nPROJECT-SCOPED LESSONS (from this project's own evidence and decisions):\n${lessons
     .map((l) => `- ${l.term}: ${l.detail}`)
     .join("\n")}\n`;
 }
@@ -894,7 +894,7 @@ Return JSON: {"summary": "2-3 sentence overall health assessment", "strengths": 
   return out;
 }
 
-// ---------- I4 cross-project memory harvest ----------
+// ---------- I4 project-scoped memory harvest ----------
 
 export async function harvestMemory(projectId: string): Promise<void> {
   try {
@@ -904,7 +904,7 @@ export async function harvestMemory(projectId: string): Promise<void> {
     });
     const usage = newUsage();
 
-    const prompt = `A requirements project just completed. Harvest reusable knowledge for FUTURE projects on this platform.
+    const prompt = `A requirements project just completed. Harvest reusable knowledge for the next stages of THIS project only. Do not generalize stakeholder data for other projects.
 
 PROJECT: ${project.name}
 BRIEF: ${briefBlock(project.brief)}
@@ -913,7 +913,7 @@ SELECTED PROBLEM: ${project.candidates.find((c) => c.selected)?.title ?? "(none)
 Q&A OUTCOMES:
 ${project.questions.filter(isHumanStakeholderAnswer).map((q) => `- Q: ${q.text.slice(0, 100)} → A: ${(q.answer ?? "").slice(0, 100)}`).join("\n") || "(none)"}
 
-TASK: Extract (a) 3-5 domain GLOSSARY terms with crisp definitions, and (b) 2-4 reusable LESSONS — what a future analyst should do differently on a similar project (question-outcome lessons, elicitation tactics, domain pitfalls). Lessons must be general enough to carry across projects.
+TASK: Extract (a) 3-5 domain GLOSSARY terms with crisp definitions, and (b) 2-4 project-specific LESSONS — what this same project's team should do in its next stages (decision constraints, discovered domain terms, validated tactics). Do not include personal data or material that should not leave this project's boundary.
 
 Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"term": "short lesson title", "detail": "..."}]}`;
 
