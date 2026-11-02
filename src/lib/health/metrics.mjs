@@ -46,7 +46,10 @@ export function computeHealthScores({ requirements = [], questions = [], conflic
     ? (conflicts.length ? (conflictWeight / (conflicts.length * 3)) * 100 : 0)
     : null;
 
-  const untraced = requirements.filter((requirement) => !Array.isArray(requirement.links) || requirement.links.length === 0);
+  const untraced = requirements.filter((requirement) =>
+    !Array.isArray(requirement.links) ||
+    !requirement.links.some((link) => typeof link?.evidenceId === "string" && link.evidenceId.length > 0)
+  );
   const traceabilityScore = total ? (untraced.length / total) * 100 : null;
 
   const undefinedScenarios = scenarios.filter((scenario) => scenario.resolution === "undefined");
