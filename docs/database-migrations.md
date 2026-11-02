@@ -15,6 +15,13 @@ Modrik has one canonical Prisma data model at `prisma/schema.prisma` (SQLite). T
 - `bun run db:push` and `bun run db:push:pg` remain schema-prototyping/CI operations, not a production migration strategy.
 - Pull requests validate SQLite and PostgreSQL independently. CI database pushes target disposable databases only.
 
+## H1.8 password recovery
+
+- Password reset tokens are random 256-bit values; only SHA-256 hashes are stored. Tokens expire after 30 minutes, are single-use, and are revoked after successful reset.
+- Reset completion atomically changes the password, revokes all active sessions, and invalidates other outstanding reset tokens. Users must sign in again.
+- Recovery mail is sent through the Resend HTTP API only when `RESEND_API_KEY`, `PASSWORD_RESET_EMAIL_FROM`, and a trusted HTTPS `APP_URL` (or `NEXT_PUBLIC_APP_URL`) are configured. The application never returns reset links to unauthenticated callers.
+- If delivery fails, the token is revoked and the public request keeps an enumeration-resistant response. Configure and test email delivery before enabling the recovery UI in production.
+
 ## H1.7 organization invitation lifecycle
 
 - Organization invitations store only a SHA-256 hash of a 256-bit random bearer token; the raw token is returned once to the authorized inviter.

@@ -53,6 +53,7 @@
     "ExecScenario",
     "Integration",
     "SyncMap",
-    "OrganizationInvitation"
+    "OrganizationInvitation",
+    "PasswordResetToken"
   ]
 }
