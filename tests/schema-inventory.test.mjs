@@ -22,7 +22,7 @@ test("schema inventory is deterministic and explicitly not a deployed baseline",
 });
 
 test("inventory rejects provider drift and schema divergence", () => {
-  assert.throws(() => buildSchemaInventory(sqlite.replace('provider = "sqlite"', 'provider = "postgresql"')), /Canonical schema provider/);
+  assert.throws(() => buildSchemaInventory(sqlite.replace('provider = "sqlite"', 'provider = "postgresql"')), /datasource provider must be/);
   assert.throws(() => buildSchemaInventory(sqlite, renderPostgresSchema(sqlite).replace("model User {", "model Account {")), /deterministic provider-only transform/);
 });
 
