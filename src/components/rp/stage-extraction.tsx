@@ -131,6 +131,9 @@ export function ExtractionStage({
                     {r.verifyStatus}
                   </Chip>
                 )}
+                {r.verificationSource === "human" && (
+                  <Chip tone="verify" mono={false}>Human reviewed</Chip>
+                )}
               </div>
               {isCurrent && (
                 <div className="flex shrink-0 gap-1">
@@ -158,6 +161,34 @@ export function ExtractionStage({
               <p className="mt-2 rounded-md bg-secondary/50 px-3 py-1.5 text-xs italic text-muted-foreground" dir="auto">
                 Critic: {r.verifyNote}
               </p>
+            )}
+
+            {isCurrent && r.links.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-secondary/20 p-2">
+                <span className="mr-auto text-xs text-muted-foreground">
+                  Review the linked evidence independently:
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => patch(r.id, { verificationDecision: "supported" })}
+                  disabled={r.verificationSource === "human" && r.verifyStatus === "supported"}
+                >
+                  <BadgeCheck className="mr-1 h-3.5 w-3.5" />
+                  Human: supported
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => patch(r.id, { verificationDecision: "weak" })}
+                  disabled={r.verificationSource === "human" && r.verifyStatus === "weak"}
+                >
+                  <BadgeAlert className="mr-1 h-3.5 w-3.5" />
+                  Human: weak
+                </Button>
+              </div>
             )}
 
             {r.links.length > 0 && (
