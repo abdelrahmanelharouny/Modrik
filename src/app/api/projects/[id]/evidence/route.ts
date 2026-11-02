@@ -155,6 +155,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
     // Legacy rows predate revision history. Preserve their pre-edit state as v1
     // before writing a changed snapshot, otherwise the first edit would erase history.
+    let previousHash = latest?.contentHash ?? null;
     if (!latest) {
       const baseline = {
         title: existing.title,
@@ -163,24 +164,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         language: existing.language,
         consent: existing.consent,
       };
+      previousHash = createHash("sha256").update(JSON.stringify(baseline)).digest("hex");
       await tx.evidenceRevision.create({
         data: {
           evidenceId: existing.id,
           version: 1,
           ...baseline,
-          contentHash: createHash("sha256").update(JSON.stringify(baseline)).digest("hex"),
+          contentHash: previousHash,
           changeNote: "Baseline snapshot captured during first edit (legacy source)",
           createdBy: "system",
         },
       });
     }
     const currentVersion = latest?.version ?? 1;
-    const revision = currentVersion + 1;
+    const changed = previousHash !== contentHash;
+    const revision = changed ? currentVersion + 1 : currentVersion;
     const updated = await tx.evidence.update({
       where: { id: existing.id },
       data: normalized,
     });
-    if (latest?.contentHash !== contentHash) {
+    if (changed) {
       await tx.evidenceRevision.create({
         data: {
           evidenceId: existing.id,
@@ -192,10 +195,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       });
     }
-    return {
-      evidence: updated,
-      revision: latest?.contentHash === contentHash ? latest.version : revision,
-    };
+    return { evidence: updated, revision };
   });
 
   await logDecision(id, "ELICITATION", "human", "updated_evidence",
