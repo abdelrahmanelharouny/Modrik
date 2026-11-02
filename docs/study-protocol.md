@@ -12,8 +12,11 @@ unconstrained LLM chat.
   tokens; no participant names in the study database; recordings and transcripts
   deleted after analysis. The moderator creates sessions while authenticated;
   the raw per-session token is handed to the participant once and only its hash
-  is stored. Session write tokens expire after seven days and stop working when
-  the session is finished. Export remains owner-authenticated at
+  is stored. Participants open `/study/participant` and submit updates to
+  `POST /api/study/respond` with the token as a Bearer credential. Session write
+  tokens expire after seven days; after Finish, only withdrawal is accepted.
+  Withdrawal scrubs measurements/events but leaves a minimal withdrawal marker.
+  Export remains owner-authenticated at
   `GET /api/study?export=csv`. Legal compliance is not inferred by these
   technical controls and requires a separately approved consent/retention policy.
 
@@ -136,6 +139,7 @@ dimensions from `/api/projects/[id]/health`), calibration (Brier/ECE from
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /api/study` | moderator-only session creation; returns the raw participant bearer token once |
+| `/study/participant` | public participant portal; no account or session listing |
 | `POST /api/study/respond` | public token-scoped write for task time, NASA-TLX `{mental, physical, temporal, performance, effort, frustration}`, SUS, events and finish |
 | `PATCH /api/study` | owner-authenticated moderation updates and correction |
 | `GET /api/study` | owner-authenticated session listing (masked, for moderation dashboards) |
