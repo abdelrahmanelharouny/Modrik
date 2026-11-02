@@ -97,6 +97,9 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
 
   return (
     <div className="relative flex min-h-screen flex-col">
+      <a href="#workspace-content" className="sr-only z-[100] rounded-md bg-background px-4 py-3 text-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+        {ar ? "تخطي إلى محتوى المرحلة" : "Skip to phase content"}
+      </a>
       {/* command bar */}
       <header className="glass sticky top-0 z-40 border-b border-border/70">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 lg:px-8">
@@ -126,7 +129,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8">
+      <main id="workspace-content" tabIndex={-1} aria-busy={busy || running} className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8">
         {/* flight path rail */}
         <HudPanel className="mb-6 px-4 pb-3 pt-4 lg:px-6" as="div">
           <FlightPath
@@ -243,7 +246,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
         <p className="mt-8 pb-4 text-center font-mono text-[10px] text-muted-foreground/60">
           {ar ? "كل قرار مسجّل في سجل التدقيق" : "every decision journaled"}
         </p>
-      </div>
+      </main>
     </div>
   );
 }
