@@ -6,6 +6,7 @@ import {
   isHumanStakeholderAnswer,
   hasHumanQuestionDecision,
   hasHumanCandidateEdits,
+  evidenceContentBudget,
 } from "../src/lib/security/data-safety.mjs";
 import {
   selectByUtility,
@@ -76,4 +77,15 @@ test("planner removes duplicate questions after whitespace and case normalizatio
     "  Who are the users? ",
     "Which systems must integrate?",
   ]);
+});
+
+test("evidence prompt allocation never exceeds the aggregate character budget", () => {
+  for (const count of [1, 2, 4, 5, 13, 14, 20, 100]) {
+    const perSource = evidenceContentBudget(count, 16000, 4000);
+    assert.ok(perSource <= 4000);
+    assert.ok(perSource * count <= 16000);
+  }
+  assert.equal(evidenceContentBudget(0), 0);
+  assert.equal(evidenceContentBudget(5), 3200);
+  assert.equal(evidenceContentBudget(20), 800);
 });
