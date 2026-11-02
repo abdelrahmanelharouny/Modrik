@@ -90,6 +90,13 @@ export async function POST(req: NextRequest) {
     });
     if (existingMembership?.status === "active") throw new Error("ALREADY_MEMBER");
     if (existingMembership?.status === "suspended") throw new Error("MEMBERSHIP_SUSPENDED");
+    if (existingMembership && !["invited", "revoked"].includes(existingMembership.status)) throw new Error("MEMBERSHIP_UNAVAILABLE");
+    if (existingMembership?.status === "revoked") {
+      await tx.authSession.updateMany({
+        where: { membershipId: existingMembership.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+    }
 
     await tx.organizationInvitation.updateMany({
       where: { organizationId, email, acceptedAt: null, revokedAt: null },
@@ -118,6 +125,7 @@ export async function POST(req: NextRequest) {
       ACCOUNT_DISABLED: 409,
       ALREADY_MEMBER: 409,
       MEMBERSHIP_SUSPENDED: 409,
+      MEMBERSHIP_UNAVAILABLE: 409,
     };
     const status = statuses[error.message];
     if (!status) throw error;
@@ -130,6 +138,7 @@ export async function POST(req: NextRequest) {
       ACCOUNT_DISABLED: "The invited account is disabled",
       ALREADY_MEMBER: "This user is already an active organization member",
       MEMBERSHIP_SUSPENDED: "A suspended membership cannot be reactivated by invitation",
+      MEMBERSHIP_UNAVAILABLE: "This membership cannot be reactivated by invitation",
     };
     return jsonError(messages[result.error] ?? "Invitation could not be created", result.status);
   }
