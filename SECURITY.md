@@ -111,4 +111,4 @@ This is a technical access-control gate, not a completed enterprise security rev
 
 ## Benchmark integrity gate (H1.4)
 
-CI validates all 120 `arbench-v2` scenarios before a change can pass. Validation checks manifest count, unique stable IDs, the 8-category × 4-domain × 3-scenario coverage matrix, scenario-file presence and JSON validity, manifest/file metadata parity, gold payload presence, and evidence-code/consent integrity. This is a corpus-integrity check; it does not claim model-quality scores or execute paid/provider-backed inference.
+CI validates all 120 `arbench-v2` scenarios before a change can pass. Validation checks manifest count, unique stable IDs, the 8-category × 5-domain × 3-scenario coverage matrix, scenario-file presence and JSON validity, manifest/file metadata parity, gold payload presence, and evidence-code/consent integrity. This is a corpus-integrity check; it does not claim model-quality scores or execute paid/provider-backed inference.
