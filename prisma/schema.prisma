@@ -49,6 +49,8 @@ model StudySession {
   project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   groupId        String   // A_traditional | B_unconstrained_llm | C_modrik
   participantCode String  // anonymised participant code (PDPL: no names)
+  participantTokenHash String? @unique // one-session participant write credential; raw token is never stored
+  participantTokenExpiresAt DateTime?
   scenarioId     String   // bench scenario id used as the task
   taskTimeSec    Int?
   nasaTlx        String?  // JSON: {mental, physical, temporal, performance, effort, frustration} 0-100
