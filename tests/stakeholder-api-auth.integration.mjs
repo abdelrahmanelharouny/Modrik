@@ -167,7 +167,7 @@ try {
     await page.getByLabel("Negotiation title").fill("Browser-driven stakeholder negotiation");
     await page.getByRole("combobox", { name: "Negotiation requirement" }).click();
     await page.getByRole("option", { name: "REQ-INT-1" }).click();
-    await page.getByLabel("Option A").fill("Keep the audit trail");
+    await page.getByRole("textbox", { name: "Option A", exact: true }).fill("Keep the audit trail");
     await page.getByLabel("Implications of option A").fill("Higher retention cost; stronger traceability");
     await page.getByLabel("Option B").fill("Reduce retention");
     await page.getByLabel("Implications of option B").fill("Lower cost; weaker historical traceability");
