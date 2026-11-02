@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import { chromium } from "playwright";
 import { createSessionToken, SESSION_COOKIE } from "../src/lib/security/session.mjs";
 
 const port = Number(process.env.MODRIK_E2E_PORT || 3187);
@@ -60,7 +61,7 @@ try {
   }
 
   const [projectA, projectB] = projectIds;
-  await prisma.project.create({ data: { id: projectA, name: "Phase 4 integration A", brief: "Test project A" } });
+  await prisma.project.create({ data: { id: projectA, name: "Phase 4 integration A", brief: "Test project A", currentStage: "CONFLICTS" } });
   await prisma.project.create({ data: { id: projectB, name: "Phase 4 integration B", brief: "Test project B" } });
   const requirement = await prisma.requirement.create({ data: { projectId: projectA, refId: "REQ-INT-1", text: "A testable requirement." } });
   const foreignRequirement = await prisma.requirement.create({ data: { projectId: projectB, refId: "REQ-INT-2", text: "A separate project requirement." } });
@@ -132,7 +133,51 @@ try {
   const isolatedBody = await json(isolatedRead);
   assert.equal(isolatedBody.stakeholders.length, 1);
   assert.equal(isolatedBody.stakeholders[0].id, foreign.id);
-  process.stdout.write("Stakeholder API integration: auth 4/4; project isolation 3/3; negotiation race invariant passed.\n");
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.addCookies([{ name: SESSION_COOKIE, value: createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret), url: baseUrl }]);
+    const page = await context.newPage();
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Open mission Phase 4 integration A" }).click();
+    await page.getByText("Stakeholder collaboration", { exact: true }).waitFor();
+
+    await page.getByLabel("Negotiation title").fill("Browser-driven stakeholder negotiation");
+    await page.getByRole("combobox", { name: "Negotiation requirement" }).click();
+    await page.getByRole("option", { name: "REQ-INT-1" }).click();
+    await page.getByLabel("Option A").fill("Keep the audit trail");
+    await page.getByLabel("Implications of option A").fill("Higher retention cost; stronger traceability");
+    await page.getByLabel("Option B").fill("Reduce retention");
+    await page.getByLabel("Implications of option B").fill("Lower cost; weaker historical traceability");
+    await page.getByLabel("Stakeholder A1").check();
+    await page.getByLabel("Stakeholder A2").check();
+    await page.getByRole("button", { name: "Create negotiation" }).click();
+    await page.getByText("Browser-driven stakeholder negotiation", { exact: true }).waitFor();
+
+    for (const stakeholderName of ["Stakeholder A1", "Stakeholder A2"]) {
+      const participantCard = page.locator("div.rounded-md.border").filter({ hasText: stakeholderName }).filter({ has: page.getByRole("button", { name: "Submit response" }) });
+      await participantCard.getByLabel("Participant response rationale").fill("I support option A because it preserves auditability.");
+      await participantCard.getByRole("button", { name: "Submit response" }).click();
+      await participantCard.getByRole("button", { name: "Submit response" }).waitFor({ state: "detached" });
+    }
+
+    await page.getByLabel("Decision rationale").fill("The decision makers support the traceable retention option.");
+    const optionA = page.getByText("Keep the audit trail", { exact: true }).locator("..");
+    await optionA.getByRole("button", { name: "Select this option" }).click();
+    await page.getByText("approved", { exact: true }).last().waitFor();
+
+    const noHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+    assert.equal(noHorizontalOverflow, true, "390px mobile viewport must not introduce horizontal page overflow");
+
+    await page.getByRole("button", { name: "Toggle language" }).click();
+    const collaborationSection = page.locator('section[dir="rtl"]').filter({ hasText: "التعاون مع أصحاب المصلحة" });
+    await collaborationSection.waitFor();
+    await page.getByRole("textbox", { name: "الاسم المعروض" }).waitFor();
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+  process.stdout.write("Stakeholder API integration: auth 4/4; project isolation 3/3; negotiation race invariant passed; browser negotiation E2E + 390px RTL/mobile checks passed.\\n");
 } finally {
   for (const id of projectIds) {
     try { await prisma.project.delete({ where: { id } }); } catch {}
