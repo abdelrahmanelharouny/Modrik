@@ -102,6 +102,12 @@ try {
   const tenantDemoB = await prisma.project.create({ data: { name: "Tenant B demo", brief: "private demo", organizationId: tenantB.id, isDemo: true } });
   identityCleanup.projects.push(tenantDemoB.id);
   const tenantHeaders = { cookie: identityCookie, "content-type": "application/json" };
+  const identitySessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
+  await expectStatus(identitySessionStatus, 200, "identity session status");
+  const identityStatusBody = await json(identitySessionStatus);
+  assert.equal(identityStatusBody.authenticated, true);
+  assert.equal(identityStatusBody.organizationId, tenantA.id);
+  assert.equal(identityStatusBody.role, "owner");
 
   const tenantIndex = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
   await expectStatus(tenantIndex, 200, "identity tenant project index");
@@ -152,6 +158,9 @@ try {
   await prisma.authSession.update({ where: { id: identitySessionId }, data: { revokedAt: new Date() } });
   const revokedSessionRequest = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
   await expectStatus(revokedSessionRequest, 401, "revoked identity session must be rejected");
+  const revokedSessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
+  await expectStatus(revokedSessionStatus, 200, "revoked session status");
+  assert.equal((await json(revokedSessionStatus)).authenticated, false);
 
   const unauthorizedEndpoint = `${baseUrl}/api/projects/phase-4-auth-probe/stakeholders`;
   for (const [label, send] of [
