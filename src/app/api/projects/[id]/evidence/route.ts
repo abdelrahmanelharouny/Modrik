@@ -24,8 +24,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid evidence payload" }, { status: 400 });
   }
 
-  const project = await db.project.findUnique({ where: { id }, select: { id: true } });
+  const project = await db.project.findUnique({
+    where: { id },
+    select: { id: true, stageStatus: true },
+  });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (["agent_running", "approving"].includes(project.stageStatus)) {
+    return NextResponse.json({ error: "Evidence cannot change while the current stage is processing. Retry after it completes." }, { status: 409 });
+  }
 
   if (body.consent !== undefined && typeof body.consent !== "boolean") {
     return NextResponse.json({ error: "consent must be a boolean" }, { status: 400 });
@@ -88,6 +94,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 // that cited this source is invalidated and must be reviewed again.
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
+  const project = await db.project.findUnique({
+    where: { id },
+    select: { id: true, stageStatus: true },
+  });
+  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (["agent_running", "approving"].includes(project.stageStatus)) {
+    return NextResponse.json({ error: "Evidence cannot change while the current stage is processing. Retry after it completes." }, { status: 409 });
+  }
   const evidenceId = new URL(req.url).searchParams.get("evidenceId");
   if (!evidenceId) {
     return NextResponse.json({ error: "evidenceId is required" }, { status: 400 });
