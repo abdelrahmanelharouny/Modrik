@@ -92,3 +92,16 @@ export function verifySessionToken(token, secret, now = Date.now()) {
     return null;
   }
 }
+
+/**
+ * Verify the single configured owner session for server-side API authorization.
+ * This intentionally does not pretend stakeholder profile roles are user accounts;
+ * organization membership and per-user RBAC require the separate multi-user rollout.
+ */
+export function verifyAdminRequest(token, env = process.env, now = Date.now()) {
+  if (!isAuthConfigured(env)) return null;
+  const session = verifySessionToken(token, env.MODRIK_AUTH_SECRET, now);
+  const configuredEmail = env.MODRIK_ADMIN_EMAIL.trim().toLowerCase();
+  if (!session || session.role !== "owner" || session.email !== configuredEmail) return null;
+  return session;
+}
