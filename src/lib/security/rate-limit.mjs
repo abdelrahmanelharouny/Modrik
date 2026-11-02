@@ -40,7 +40,7 @@ export function isDistributedRateLimitConfigured(env = process.env) {
   if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) return false;
   try {
     const url = new URL(env.UPSTASH_REDIS_REST_URL);
-    return url.protocol === "https:" && !url.username && !url.password;
+    return url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash;
   } catch { return false; }
 }
 
