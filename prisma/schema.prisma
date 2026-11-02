@@ -306,6 +306,7 @@ model Requirement {
   edgeTo    ReqEdge[]    @relation("edgeTo")
   execScenarios ExecScenario[]
   syncMaps  SyncMap[]
+  claimLinks RequirementClaim[]
 }
 
 // Evidence traceability: which source grounds which requirement
