@@ -207,6 +207,7 @@ export function ParticipantForm() {
       setRunning(false);
       setWithdrawn(true);
       setFinished(true);
+      setToken("");
       setTlx({});
       setSusScore("");
       setNotes("");
