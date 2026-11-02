@@ -86,7 +86,9 @@ export async function computeDebtProfile(projectId: string): Promise<DebtProfile
   const unverified = reqs.filter((r) => r.verifyStatus === "unverified");
   const uncertain = project.questions.filter((q) => q.resolution === "proceed_with_uncertainty");
   const open = project.conflicts.filter((conflict) => conflict.status === "open");
-  const untraced = reqs.filter((requirement) => requirement.links.length === 0);
+  const untraced = reqs.filter((requirement) =>
+    !requirement.links.some((link) => typeof link.evidenceId === "string" && link.evidenceId.length > 0)
+  );
   const undef = project.execScenarios.filter((scenario) => scenario.resolution === "undefined");
   const definedCount = project.execScenarios.filter((scenario) => scenario.resolution === "defined").length;
 
@@ -171,13 +173,13 @@ export async function computeDebtProfile(projectId: string): Promise<DebtProfile
   const traceability = dimension(
     "traceability",
     "Traceability debt",
-    total ? `${untraced.length} of ${total} requirement(s) have no evidence link` : "No requirements yet",
+    total ? `${untraced.length} of ${total} requirement(s) have no active Evidence ID link` : "No requirements yet",
     scores.traceability,
     untraced.map((r) => ({
       refId: r.refId,
       text: r.text,
       amount: 100,
-      note: "No evidence citations — grounding unproven",
+      note: "No active Evidence ID trace — grounding unproven",
     }))
   );
 
