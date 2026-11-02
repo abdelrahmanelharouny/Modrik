@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function LoginForm() {
   const router = useRouter();
@@ -60,6 +61,9 @@ export function LoginForm() {
         />
       </label>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+      <div className="flex justify-end -mt-1">
+        <Link href="/reset-password" className="text-xs text-primary underline-offset-4 hover:underline">Forgot password?</Link>
+      </div>
       <button
         type="submit"
         disabled={busy}
