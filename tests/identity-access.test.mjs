@@ -62,6 +62,7 @@ test("inactive memberships and disabled principals fail closed", () => {
   assert.equal(hasOrganizationPermission(active("unknown"), "projects:read"), false);
   assert.equal(hasOrganizationPermission(null, "projects:read"), false);
   assert.equal(hasOrganizationPermission(active("owner"), "root:everything"), false);
+  assert.equal(hasOrganizationPermission({ role: "owner", status: "active" }, "projects:read"), false);
 });
 
 test("organization access is tenant-bound and rejects mismatched IDs", () => {
@@ -70,4 +71,5 @@ test("organization access is tenant-bound and rejects mismatched IDs", () => {
   assert.equal(canAccessOrganization(active("viewer", { status: "revoked" }), "org_1"), false);
   assert.equal(canAccessOrganization(active("viewer", { organizationStatus: "suspended" }), "org_1"), false);
   assert.equal(canAccessOrganization(active("viewer"), ""), false);
+  assert.equal(canAccessOrganization({ organizationId: "org_1", status: "active" }, "org_1"), false);
 });
