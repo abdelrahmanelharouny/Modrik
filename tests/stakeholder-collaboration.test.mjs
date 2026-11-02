@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
-  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority, assertStakeholderCanLeaveEngagement,
+  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum, assertNegotiationDecisionAuthority, assertStakeholderCanLeaveEngagement, assertStakeholderApprovalRoleChangeAllowed,
 } from "../src/lib/stakeholders/collaboration.mjs";
 
 const profile = { stakeholderRef:"ST-01",displayName:"Product owner",role:"Owner",approvalRole:"approver",goals:["Reduce onboarding time"] };
@@ -103,4 +103,13 @@ test("stakeholders cannot withdraw or become unavailable with pending negotiatio
   assert.throws(()=>assertStakeholderCanLeaveEngagement("withdrawn",1),/Resolve or reject/);
   assert.throws(()=>assertStakeholderCanLeaveEngagement("unavailable",2),/Resolve or reject/);
   assert.throws(()=>assertStakeholderCanLeaveEngagement("invalid",0),/engagementStatus/);
+});
+
+
+test("approval roles cannot change while the stakeholder participates in an open negotiation",()=>{
+  assert.equal(assertStakeholderApprovalRoleChangeAllowed("approver","approver",3),true);
+  assert.equal(assertStakeholderApprovalRoleChangeAllowed("decision_maker","approver",0),true);
+  assert.throws(()=>assertStakeholderApprovalRoleChangeAllowed("approver","consulted",1),/Close or reject open negotiations/);
+  assert.throws(()=>assertStakeholderApprovalRoleChangeAllowed("invalid","consulted",0),/approvalRole/);
+  assert.throws(()=>assertStakeholderApprovalRoleChangeAllowed("approver","consulted",-1),/openParticipationCount/);
 });
