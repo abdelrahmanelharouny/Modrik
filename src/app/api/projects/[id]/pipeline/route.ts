@@ -134,6 +134,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const stage = project.currentStage as Stage;
+  let plannerArm: PlannerArm | null = null;
+  if (action === "run" && stage === "ELICITATION") {
+    const armRaw = String(body.arm ?? process.env.RP_PLANNER_ARM ?? "impact_aware");
+    if (!ARMS.includes(armRaw as PlannerArm)) {
+      return NextResponse.json({ error: `Unknown planner arm "${armRaw}". Expected one of ${ARMS.join(", ")}.` }, { status: 400 });
+    }
+    plannerArm = armRaw as PlannerArm;
+  }
   const expectedStatus = action === "run" ? "awaiting_input" : "awaiting_review";
   const claimedStatus = action === "run" ? "agent_running" : "approving";
 
@@ -179,11 +187,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     if (action === "run") {
       if (stage === "ELICITATION") {
-        const armRaw = String(body.arm ?? process.env.RP_PLANNER_ARM ?? "impact_aware");
-        if (!ARMS.includes(armRaw as PlannerArm)) {
-          throw new Error(`Unknown planner arm "${armRaw}". Expected one of ${ARMS.join(", ")}.`);
-        }
-        await runPlanner(id, armRaw as PlannerArm, run.id);
+        await runPlanner(id, plannerArm!, run.id);
       } else {
         await runStageAgent(stage, id, run.id);
       }
