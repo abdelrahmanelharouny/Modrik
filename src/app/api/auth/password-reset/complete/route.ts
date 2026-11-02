@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { hashPassword, isSessionSigningConfigured } from "@/lib/security/session.mjs";
 import { getPasswordResetState, hashPasswordResetToken } from "@/lib/security/password-reset.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
+import { consumeRateLimit } from "@/lib/security/rate-limit.mjs";
 
 export const runtime = "nodejs";
 const noStore = { "Cache-Control": "no-store, max-age=0" };
@@ -19,6 +20,10 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return jsonError("Invalid request body", 400);
   const token = typeof body.token === "string" ? body.token : "";
   const tokenHash = hashPasswordResetToken(token);
+
+  const ip = req.headers.get("x-real-ip")?.trim() || req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "unknown";
+  const ipLimit = await consumeRateLimit({ scope: "password-reset:complete:ip", identifier: ip, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (!ipLimit.allowed) return NextResponse.json({ error: "Too many reset attempts. Try again later." }, { status: 429, headers: { ...noStore, "Retry-After": String(ipLimit.retryAfterSeconds) } });
   if (!tokenHash) return jsonError("Password reset link is invalid or expired", 400);
   const password = typeof body.password === "string" ? body.password : "";
   if (password.length < 12 || password.length > 1024) return jsonError("Password must contain between 12 and 1024 characters", 400);
