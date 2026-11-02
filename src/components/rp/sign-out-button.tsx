@@ -8,9 +8,11 @@ import { LogOut } from "lucide-react";
 export function SignOutButton() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   const signOut = async () => {
     setBusy(true);
+    setError("");
     try {
       const response = await fetch("/api/auth/logout", {
         method: "POST",
@@ -20,12 +22,15 @@ export function SignOutButton() {
       if (!response.ok) throw new Error("Could not end the owner session.");
       router.replace("/login");
       router.refresh();
+    } catch {
+      setError("Sign out failed. Check the connection and retry.");
     } finally {
       setBusy(false);
     }
   };
 
   return (
+    <div className="flex items-center gap-2">
     <Button
       variant="outline"
       size="sm"
@@ -37,5 +42,7 @@ export function SignOutButton() {
       <LogOut className="mr-1.5 h-3.5 w-3.5" />
       <span className="hidden sm:inline">{busy ? "Signing out…" : "Sign out"}</span>
     </Button>
+    {error && <span role="alert" className="text-[10px] text-destructive">{error}</span>}
+    </div>
   );
 }
