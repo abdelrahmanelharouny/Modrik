@@ -139,7 +139,13 @@ try {
     await context.addCookies([{ name: SESSION_COOKIE, value: createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret), url: baseUrl }]);
     const page = await context.newPage();
     await page.goto(baseUrl, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "Open mission Phase 4 integration A" }).click();
+    // The client project index can mount before the standalone server's first
+    // Prisma request settles. Refresh once after the server is warm, then assert
+    // the seeded project is actually present before attempting the workspace.
+    await page.reload({ waitUntil: "networkidle" });
+    const missionCard = page.getByRole("button", { name: "Open mission Phase 4 integration A" });
+    await missionCard.waitFor({ state: "visible", timeout: 15000 });
+    await missionCard.click();
     await page.getByText("Stakeholder collaboration", { exact: true }).waitFor();
 
     await page.getByLabel("Negotiation title").fill("Browser-driven stakeholder negotiation");
