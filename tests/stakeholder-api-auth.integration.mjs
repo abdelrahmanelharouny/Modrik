@@ -33,7 +33,7 @@ async function request(projectId, method, body) {
 }
 async function json(response) { return response.json(); }
 async function expectStatus(response, expected, label) {
-  if (response.status !== expected) throw new Error(`${label}: expected HTTP ${expected}, received ${response.status}: ${await response.text()}`);
+  if (response.status !== expected) throw new Error(`${label}: expected HTTP ${expected}, received ${response.status}: ${await response.text()}\n--- server logs ---\n${logs.slice(-12000)}`);
 }
 async function createStakeholder(projectId, suffix, approvalRole = "consulted", engagementStatus = "active") {
   const response = await request(projectId, "POST", {
