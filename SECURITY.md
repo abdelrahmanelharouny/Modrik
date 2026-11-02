@@ -30,7 +30,9 @@ For local development, add the generated values to the ignored `.env` file. The 
 - Public study routes are narrowly scoped: `/study/participant` is a generic form, while `/api/study/respond` accepts only a session-specific bearer token. Study dashboard, session creation, moderation, and CSV export stay owner-authenticated.
 - Study participant tokens are random 256-bit secrets. Only a SHA-256 hash is stored; the raw token is returned once at moderator session creation and should be handed to the participant over a separate trusted channel. Tokens expire after seven days. After a participant finishes, only withdrawal remains allowed until token expiry; withdrawal scrubs measurements and session events and revokes the token.
 - Eight-hour signed sessions, HttpOnly, SameSite=Strict cookies, Secure in production.
-- Login attempts are throttled in-process. This is a best-effort single-instance control, not distributed rate limiting; production deployments with multiple instances should add a shared Redis/Upstash limiter and edge/WAF rules.
+- Login, password recovery, invitation creation and invitation acceptance use an atomic Redis fixed-window limiter when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured. Identifiers are SHA-256 hashed before becoming Redis keys.
+- Production authentication and invitation flows fail closed when the shared limiter is missing or unavailable; configure Upstash before rollout. Development/test can use a bounded process-local fallback only.
+- Rate-limit ingress identity must come from trusted proxy headers. The ingress must overwrite `X-Real-IP` and `X-Forwarded-For`; never trust arbitrary client-supplied forwarding headers.
 - State-changing requests with an explicit cross-origin Origin are rejected. The origin check compares against the incoming request Host and the ingress-provided `X-Forwarded-Proto` (when present), rather than Next.js' internal URL origin; the reverse proxy must overwrite forwarded headers. Requests without Origin are rejected when Fetch Metadata marks them cross-site.
 - Security response headers include frame denial, MIME sniffing protection and a restrictive referrer policy.
 - The proxy is an early access boundary. Sensitive route handlers must still add resource-level authorization when multi-user roles are introduced.
@@ -75,6 +77,14 @@ Identity context headers (`x-modrik-user-id`, `x-modrik-organization-id`, `x-mod
 
 The current bootstrap flow provisions the configured administrator. Invited-user onboarding and password recovery are implemented in H1.7–H1.8. Organization switching, MFA/SSO and distributed session/rate-limit infrastructure remain follow-up work. Do not expose self-service registration or treat the current bootstrap path as a complete identity lifecycle.
 
+## Distributed rate limiting (H1.9)
+
+- Configure `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` with an HTTPS Upstash Redis REST endpoint.
+- The limiter uses a single atomic Lua fixed-window increment/expiry operation. It does not downgrade to process-local memory in production when Redis is missing or unavailable.
+- Login is limited by source IP and normalized account identifier. Password recovery is limited by source IP and account. Reset completion and invitation acceptance are limited by source IP; invitation creation is limited by organization and inviter.
+- Identifiers are hashed before storage in Redis. API responses include `Retry-After` for explicit 429 responses and never expose the identifier or Redis key.
+- The local memory fallback exists for development/test only and is bounded. It is not a production security boundary.
+
 ## Password recovery (H1.8)
 
 - Public recovery requests use a generic response for unknown, disabled, and eligible accounts to reduce account enumeration.
@@ -85,11 +95,11 @@ The current bootstrap flow provisions the configured administrator. Invited-user
 
 ## Current boundary and next security phase
 
-This phase does not claim full legal compliance or multi-tenant isolation. The following remain required before serving multiple organizations:
+This phase does not claim full legal compliance or a completed penetration test. Organization-scoped authorization and application-level distributed rate limits are implemented, but production rollout still requires provider configuration and operational verification. The following remain required before serving multiple organizations:
 - distributed rate limiting and abuse controls beyond the current per-process login/recovery throttles;
 - Owner / Admin / Engineer / Reviewer / Approver / Viewer roles;
 - per-resource authorization in every route and background job;
-- MFA/SSO and a shared distributed rate-limit store;
+- MFA/SSO and centralized security event monitoring;
 - auditable retention, erasure, consent purpose and processing-provider policies;
 - automated penetration testing and security review.
 
@@ -115,7 +125,7 @@ The unauthenticated API surface is method-specific: `POST /api/auth/login`, `POS
 
 All `/api/projects/*` handlers are separately checked for project existence, organization ownership and the route's project permission before the handler runs. The route inventory test scans every API `route.ts` file and fails when a newly added method is neither an exact public exemption, a project-scoped handler, nor explicitly classified.
 
-This is a technical access-control gate, not a completed enterprise security review. MFA/SSO, distributed rate limiting, route-level penetration testing and production migration rollout remain separate release gates.
+This is a technical access-control gate, not a completed enterprise security review. MFA/SSO, route-level penetration testing and production migration rollout remain separate release gates.
 
 ## Benchmark integrity gate (H1.4)
 

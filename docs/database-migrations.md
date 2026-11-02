@@ -15,6 +15,12 @@ Modrik has one canonical Prisma data model at `prisma/schema.prisma` (SQLite). T
 - `bun run db:push` and `bun run db:push:pg` remain schema-prototyping/CI operations, not a production migration strategy.
 - Pull requests validate SQLite and PostgreSQL independently. CI database pushes target disposable databases only.
 
+## H1.9 distributed rate limiting
+
+- Authentication, recovery, and invitation mutation paths use a shared Upstash Redis REST limiter with an atomic fixed-window Lua script.
+- Production fails closed if Redis credentials are missing or the shared limiter cannot be reached. Do not deploy this release without configuring the two `UPSTASH_REDIS_REST_*` variables and verifying the provider connection.
+- Development/test may use a bounded in-process fallback; it is not a multi-instance guarantee.
+
 ## H1.8 password recovery
 
 - Password reset tokens are random 256-bit values; only SHA-256 hashes are stored. Tokens expire after 30 minutes, are single-use, and are revoked after successful reset.
