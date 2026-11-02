@@ -100,27 +100,30 @@ export async function POST(req: NextRequest) {
             emailVerifiedAt: new Date(),
           },
         });
-    let organization = await tx.organization.findUnique({ where: { slug: "modrik-default" } });
-    if (!organization && configuredOwner) {
-      organization = await tx.organization.create({
-        data: { name: "Modrik Workspace", slug: "modrik-default", status: "active" },
-      });
-    }
+    const organization = configuredOwner
+      ? await tx.organization.upsert({
+          where: { slug: "modrik-default" },
+          create: { name: "Modrik Workspace", slug: "modrik-default", status: "active" },
+          update: {},
+        })
+      : await tx.organization.findUnique({ where: { slug: "modrik-default" } });
     if (!organization) throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
-    let membership = await tx.membership.findUnique({
-      where: { userId_organizationId: { userId: resolvedUser.id, organizationId: organization.id } },
-    });
-    if (!membership && configuredOwner && resolvedUser.email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase()) {
-      membership = await tx.membership.create({
-        data: {
-          userId: resolvedUser.id,
-          organizationId: organization.id,
-          role: "owner",
-          status: "active",
-          activatedAt: new Date(),
-        },
-      });
-    }
+    const membershipWhere = {
+      userId_organizationId: { userId: resolvedUser.id, organizationId: organization.id },
+    };
+    const membership = configuredOwner && resolvedUser.email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase()
+      ? await tx.membership.upsert({
+          where: membershipWhere,
+          create: {
+            userId: resolvedUser.id,
+            organizationId: organization.id,
+            role: "owner",
+            status: "active",
+            activatedAt: new Date(),
+          },
+          update: {},
+        })
+      : await tx.membership.findUnique({ where: membershipWhere });
     if (!membership || membership.status !== "active") {
       throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
     }
