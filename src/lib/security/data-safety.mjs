@@ -29,8 +29,9 @@ export function hasHumanCandidateEdits(candidates) {
 }
 
 export function evidenceContentBudget(sourceCount, totalBudget = 16000, perSourceMax = 4000) {
-  if (!Number.isFinite(sourceCount) || sourceCount <= 0 ||
+  const count = Math.floor(sourceCount);
+  if (!Number.isFinite(count) || count <= 0 ||
       !Number.isFinite(totalBudget) || totalBudget <= 0 ||
       !Number.isFinite(perSourceMax) || perSourceMax <= 0) return 0;
-  return Math.max(0, Math.min(Math.floor(perSourceMax), Math.floor(totalBudget / Math.floor(sourceCount))));
+  return Math.max(0, Math.min(Math.floor(perSourceMax), Math.floor(totalBudget / count)));
 }
