@@ -196,6 +196,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (pendingResponses > 0) return NextResponse.json({ error: `All stakeholder participants must submit a response before the decision. ${pendingResponses} response(s) pending.` }, { status: 409 });
     let decision;
     try { decision = normalizeNegotiationDecision(body, negotiation.options); } catch (error) { return bad(error); }
+    try { assertNegotiationDecisionAuthority(negotiation.participants, decision); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Approval authority requirement not met." }, { status: 403 }); }
     const transition = await db.negotiationDecision.updateMany({
       where: { id: negotiation.id, projectId: id, status: "proposed" },
       data: { ...decision, decidedBy: "owner", decidedAt: new Date() },
