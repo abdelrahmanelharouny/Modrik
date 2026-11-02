@@ -89,7 +89,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const requirement = await db.requirement.findFirst({ where: { id: data.requirementId, projectId: id }, select: { id: true, refId: true } });
       if (!requirement) return NextResponse.json({ error: "Requirement not found in this project." }, { status: 404 });
       const participants = body.participants ?? [];
-      if (!Array.isArray(participants) || participants.length > 30) throw new Error("participants must be an array of at most 30 entries.");
+      if (!Array.isArray(participants) || participants.length < 2 || participants.length > 30) throw new Error("A multi-stakeholder negotiation requires 2 to 30 participants.");
       const normalizedParticipants = participants.map((p: any) => {
         if (!p || typeof p.stakeholderId !== "string" || !p.stakeholderId.trim() || !NEGOTIATION_ROLES.includes(p.role ?? "consulted")) throw new Error("Invalid negotiation participant.");
         if (p.note !== undefined && (typeof p.note !== "string" || p.note.length > 500)) throw new Error("Participant note must be text up to 500 characters.");
@@ -179,9 +179,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (body.action === "decide_negotiation") {
     if (typeof body.negotiationId !== "string") return NextResponse.json({ error: "negotiationId is required." }, { status: 400 });
-    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true } });
+    const negotiation = await db.negotiationDecision.findFirst({ where: { id: body.negotiationId, projectId: id }, include: { requirement: true, participants: { select: { id: true, responseStatus: true } } } });
     if (!negotiation) return NextResponse.json({ error: "Negotiation not found in this project." }, { status: 404 });
     if (negotiation.status !== "proposed") return NextResponse.json({ error: "A recorded negotiation decision is immutable. Create a follow-up negotiation to revisit it." }, { status: 409 });
+    const pendingResponses = negotiation.participants.filter(p => p.responseStatus === "pending").length;
+    if (pendingResponses > 0) return NextResponse.json({ error: `All stakeholder participants must submit a response before the decision. ${pendingResponses} response(s) pending.` }, { status: 409 });
     let decision;
     try { decision = normalizeNegotiationDecision(body, negotiation.options); } catch (error) { return bad(error); }
     const transition = await db.negotiationDecision.updateMany({
