@@ -23,8 +23,11 @@ test("secret box encrypts at rest and decrypts authenticated ciphertext", () => 
 test("secret box rejects a wrong key and tampered ciphertext", () => {
   const encrypted = encryptSecret("jira-sensitive-token", key);
   assert.throws(() => decryptSecret(encrypted, randomBytes(32).toString("base64")));
-  const tampered = encrypted.slice(0, -1) + (encrypted.endsWith("A") ? "B" : "A");
-  assert.throws(() => decryptSecret(tampered, key));
+  const parts = encrypted.split(":");
+  const bytes = Buffer.from(parts[4], "base64url");
+  bytes[0] ^= 1;
+  parts[4] = bytes.toString("base64url");
+  assert.throws(() => decryptSecret(parts.join(":"), key));
 });
 
 test("secret box keeps legacy plaintext readable for controlled migration", () => {
