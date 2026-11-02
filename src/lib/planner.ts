@@ -513,9 +513,9 @@ function usageTotal(...values: UsageAcc[]): UsageAcc {
 }
 
 function makeDirectPrompt(context: string) {
-  return \`\${context}
+  return `${context}
 TASK: Identify the 5 most important clarifying questions to ask the stakeholders now. For each, estimate askCost (1-5) and a testable fallbackAssumption.
-Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}\`;
+Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
 }
 
 /**
@@ -575,10 +575,10 @@ export async function runPlannerExperiment(
   });
   const answered = singleShotProject.questions
     .filter(isHumanStakeholderAnswer)
-    .map((question) => \`Q: \${question.text}\\nA: \${question.answer}\`)
+    .map((question) => `Q: ${question.text}\\nA: ${question.answer}`)
     .join("\\n\\n");
   const singleShotContext =
-    \`PROJECT BRIEF:\\n\${singleShotProject.brief?.trim() || "(empty brief)"}\\nEVIDENCE SOURCES:\\n\${evidenceBlock(singleShotProject.evidences)}\\n\\nSTAKEHOLDER ANSWERS:\\n\${answered || "(none yet)"}\\n\${uncertaintyLedger(singleShotProject.questions)}\`;
+    `PROJECT BRIEF:\\n${singleShotProject.brief?.trim() || "(empty brief)"}\\nEVIDENCE SOURCES:\\n${evidenceBlock(singleShotProject.evidences)}\\n\\nSTAKEHOLDER ANSWERS:\\n${answered || "(none yet)"}\\n${uncertaintyLedger(singleShotProject.questions)}`;
   const directOut = await callLLMJson<PoolOut>(
     SYSTEM,
     makeDirectPrompt(singleShotContext),
@@ -601,12 +601,12 @@ export async function runPlannerExperiment(
   const randomIndices = pickSeededIndices(scoredPool.length, 5, seed);
   const randomQuestions = randomIndices.map((index) => scoredPool[index]);
 
-  const llmPrompt = \`\${context}
+  const llmPrompt = `${context}
 CANDIDATE POOL (these exact candidates are shared by the random and impact_aware arms):
-\${scoredPool.map((question, index) => \`\${index + 1}. \${question.text} (askCost \${question.askCost})\`).join("\\n")}
+${scoredPool.map((question, index) => `${index + 1}. ${question.text} (askCost ${question.askCost})`).join("\\n")}
 
 TASK: Select the 5 BEST questions from this exact pool for the next interview round. Return only distinct indices. Do not invent or rewrite questions.
-Return JSON: {"selected": [3, 7, 1, 11, 5]}\`;
+Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
   const llmOut = await callLLMJson<{ selected: number[] }>(
     SYSTEM,
     llmPrompt,
@@ -724,7 +724,7 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}\`;
     "ELICITATION",
     "agent",
     "planner_experiment",
-    \`Experiment \${experimentId} seed=\${seed}; shared pool \${pool.length}; four arms; materialized \${materializeArm}; pool hash \${candidatePoolHash.slice(0, 12)}.\`
+    `Experiment ${experimentId} seed=${seed}; shared pool ${pool.length}; four arms; materialized ${materializeArm}; pool hash ${candidatePoolHash.slice(0, 12)}.`
   );
 
   if (options.runId) {
@@ -736,7 +736,7 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}\`;
           estTokens: totalUsage.estTokens,
           estCostUsd: +(totalUsage.estTokens * 0.0000006).toFixed(6),
           promptVersion: PROMPT_VERSION,
-          log: \`planner-experiment:\${experimentId};seed:\${seed}\`,
+          log: `planner-experiment:${experimentId};seed:${seed}`,
         },
       });
     } catch {
