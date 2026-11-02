@@ -24,7 +24,7 @@ export function hasHumanQuestionDecision(questions) {
 
 export function hasHumanCandidateEdits(candidates) {
   return Array.isArray(candidates) && candidates.some((candidate) =>
-    candidate?.selected === true || Number(candidate?.impact) !== 3 || Number(candidate?.effort) !== 3
+    candidate?.selected === true || candidate?.humanEdited === true
   );
 }
 
