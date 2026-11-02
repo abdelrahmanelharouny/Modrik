@@ -279,11 +279,12 @@ Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "pr
 
   const out = await callLLMJson<{ questions: AgentQuestion[] }>(prompt, usage);
   const qs = (out.questions ?? []).slice(0, 7);
+  if (!qs.length) throw new Error("Elicitation returned no usable questions; the previous question set was preserved.");
 
-  await db.question.deleteMany({ where: { projectId } });
-  await db.$transaction(
-    qs.map((q, i) =>
-      db.question.create({
+  await db.$transaction(async (tx) => {
+    await tx.question.deleteMany({ where: { projectId } });
+    for (const [i, q] of qs.entries()) {
+      await tx.question.create({
         data: {
           projectId,
           order: i,
@@ -293,9 +294,9 @@ Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "pr
           askCost: Math.min(5, Math.max(1, Math.round(Number(q.askCost) || 3))),
           fallbackAssumption: String(q.fallbackAssumption ?? "").slice(0, 400) || null,
         },
-      })
-    )
-  );
+      });
+    }
+  });
   await saveArtifact(projectId, "ELICITATION", out);
   await recordUsage(runId, usage);
 }
@@ -344,23 +345,24 @@ Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCod
 
   const out = await callLLMJson<{ candidates: AgentCandidate[] }>(prompt, usage);
   const cs = (out.candidates ?? []).slice(0, 4);
+  if (!cs.length) throw new Error("Problem selection returned no usable candidates; the previous candidate set was preserved.");
 
-  await db.problemCandidate.deleteMany({ where: { projectId } });
   const clamp = (n: unknown) => Math.min(5, Math.max(1, Math.round(Number(n) || 3)));
-  await db.$transaction(
-    cs.map((c) =>
-      db.problemCandidate.create({
+  await db.$transaction(async (tx) => {
+    await tx.problemCandidate.deleteMany({ where: { projectId } });
+    for (const candidate of cs) {
+      await tx.problemCandidate.create({
         data: {
           projectId,
-          title: String(c.title ?? "Untitled").slice(0, 200),
-          description: String(c.description ?? "").slice(0, 1000),
-          impact: clamp(c.suggestedImpact),
-          effort: clamp(c.suggestedEffort),
-          evidenceIds: (c.evidenceCodes ?? []).join(","),
+          title: String(candidate.title ?? "Untitled").slice(0, 200),
+          description: String(candidate.description ?? "").slice(0, 1000),
+          impact: clamp(candidate.suggestedImpact),
+          effort: clamp(candidate.suggestedEffort),
+          evidenceIds: (candidate.evidenceCodes ?? []).join(","),
         },
-      })
-    )
-  );
+      });
+    }
+  });
   await saveArtifact(projectId, "PROBLEM_SELECTION", out);
   await recordUsage(runId, usage);
 }
@@ -429,53 +431,63 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
   const out = await callLLMJson<{ requirements: AgentRequirement[] }>(prompt, usage);
   const rs = (out.requirements ?? []).slice(0, 14);
 
-  // replace previous extraction
-  await db.requirement.deleteMany({ where: { projectId } });
-  let i = 0;
+  // Replace the generated requirements and their provenance in one transaction.
+  // If any record or TraceLink fails to persist, the old baseline stays intact.
+  if (!rs.length) throw new Error("Extraction returned no requirements; the previous requirement set was preserved.");
   const refIndex: { refId: string; id: string; text: string; evidenceCodes: string[] }[] = [];
-  for (const r of rs) {
-    i += 1;
-    const refId = `REQ-${String(i).padStart(2, "0")}`;
-    const type = ["functional", "nonfunctional", "constraint"].includes(r.type)
-      ? r.type
-      : "functional";
-    const priority = ["Must", "Should", "Could", "Won't"].includes(r.priority)
-      ? r.priority
-      : "Should";
-    const codes = (r.evidenceCodes ?? []).filter((c) => codeToId.has(c));
-    const created = await db.requirement.create({
-      data: {
-        projectId,
-        refId,
-        text: String(r.text ?? "").slice(0, 800),
-        type,
-        priority,
-        language: ["en", "ar-EG", "codeswitch"].includes(r.language) ? r.language : "en",
-        confidence: Number.isFinite(Number(r.confidence))
-          ? Math.min(100, Math.max(0, Math.round(Number(r.confidence))))
-          : 60,
-        ambiguity: -1,
-        order: i,
-      },
-    });
-    refIndex.push({ refId, id: created.id, text: created.text, evidenceCodes: codes });
-    if (codes.length === 0) {
-      // Audit fix: an ungrounded requirement used to slip through silently.
-      // Force it into the critic's "weak" lane so the human must ground or delete it.
-      await db.requirement.update({
-        where: { id: created.id },
+  await db.$transaction(async (tx) => {
+    await tx.requirement.deleteMany({ where: { projectId } });
+    let i = 0;
+    for (const r of rs) {
+      i += 1;
+      const refId = `REQ-${String(i).padStart(2, "0")}`;
+      const type = ["functional", "nonfunctional", "constraint"].includes(r.type)
+        ? r.type
+        : "functional";
+      const priority = ["Must", "Should", "Could", "Won't"].includes(r.priority)
+        ? r.priority
+        : "Should";
+      const codes = (r.evidenceCodes ?? []).filter((code) => codeToId.has(code));
+      const created = await tx.requirement.create({
         data: {
-          verifyStatus: "weak",
-          verifyNote: "No valid evidence citation provided by the extractor — human must ground or delete this requirement.",
+          projectId,
+          refId,
+          text: String(r.text ?? "").slice(0, 800),
+          type,
+          priority,
+          language: ["en", "ar-EG", "codeswitch"].includes(r.language) ? r.language : "en",
+          confidence: Number.isFinite(Number(r.confidence))
+            ? Math.min(100, Math.max(0, Math.round(Number(r.confidence))))
+            : 60,
+          ambiguity: -1,
+          order: i,
         },
       });
+      refIndex.push({ refId, id: created.id, text: created.text, evidenceCodes: codes });
+      if (codes.length === 0) {
+        await tx.requirement.update({
+          where: { id: created.id },
+          data: {
+            verifyStatus: "weak",
+            verifyNote: "No valid evidence citation provided by the extractor — human must ground or delete this requirement.",
+          },
+        });
+      }
+      for (const code of codes) {
+        const evidenceId = codeToId.get(code);
+        if (!evidenceId) continue;
+        await tx.traceLink.create({
+          data: {
+            projectId,
+            requirementId: created.id,
+            evidenceId,
+            evidenceCode: code,
+            note: "cited by extraction agent",
+          },
+        });
+      }
     }
-    for (const c of codes) {
-      await db.traceLink.create({
-        data: { projectId, requirementId: created.id, evidenceId: codeToId.get(c), evidenceCode: c, note: "cited by extraction agent" },
-      });
-    }
-  }
+  });
 
   // ── I3 critic-verifier pass: second model call checks each
   //    requirement against the evidence spans (Propose → Verify).
@@ -602,25 +614,33 @@ Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative
   const out = await callLLMJson<{ stories: AgentStory[] }>(prompt, usage);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
-  await db.userStory.deleteMany({ where: { projectId } });
-  let i = 0;
-  for (const s of out.stories ?? []) {
-    const req = byRef.get(s.refId);
-    if (!req || req.priority === "Won't") continue;
-    i += 1;
-    await db.userStory.create({
-      data: {
-        projectId,
-        requirementId: req.id,
-        refId: `US-${String(i).padStart(2, "0")}`,
-        title: String(s.title ?? req.refId).slice(0, 200),
-        narrative: String(s.narrative ?? "").slice(0, 800),
-        acceptance: (s.acceptance ?? []).map(String).join("\n").slice(0, 2000),
-        investScore: Math.min(100, Math.max(0, Math.round(Number(s.investScore) || 0))),
-        investNote: String(s.investNote ?? "").slice(0, 400),
-      },
-    });
+  const validStories = (out.stories ?? []).filter((story) => {
+    const requirement = byRef.get(story.refId);
+    return Boolean(requirement && requirement.priority !== "Won't" && String(story.title ?? "").trim());
+  });
+  if (!validStories.length && project.reqs.some((requirement) => requirement.priority !== "Won't")) {
+    throw new Error("Story generation returned no valid stories; the previous story set was preserved.");
   }
+  await db.$transaction(async (tx) => {
+    await tx.userStory.deleteMany({ where: { projectId } });
+    let i = 0;
+    for (const story of validStories) {
+      const requirement = byRef.get(story.refId)!;
+      i += 1;
+      await tx.userStory.create({
+        data: {
+          projectId,
+          requirementId: requirement.id,
+          refId: `US-${String(i).padStart(2, "0")}`,
+          title: String(story.title ?? requirement.refId).slice(0, 200),
+          narrative: String(story.narrative ?? "").slice(0, 800),
+          acceptance: (story.acceptance ?? []).map(String).join("\n").slice(0, 2000),
+          investScore: Math.min(100, Math.max(0, Math.round(Number(story.investScore) || 0))),
+          investNote: String(story.investNote ?? "").slice(0, 400),
+        },
+      });
+    }
+  });
   await saveArtifact(projectId, "STORIES", out);
   await recordUsage(runId, usage);
 }
@@ -675,32 +695,34 @@ Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "
   const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
-  await db.conflict.deleteMany({ where: { projectId } });
   const TAXONOMIES = ["value", "terminology", "scale", "constraint", "precedence", "knowledge"];
-  for (const c of (out.conflicts ?? []).slice(0, 6)) {
-    const a = byRef.get(c.reqARef);
-    const b = byRef.get(c.reqBRef);
-    if (!a || !b || a.id === b.id) continue;
-    const implications = Array.isArray(c.implications)
-      ? c.implications
-          .filter((i) => i && i.option)
-          .slice(0, 4)
-          .map((i) => ({ option: String(i.option).slice(0, 200), impact: String(i.impact ?? "").slice(0, 300) }))
-      : [];
-    await db.conflict.create({
-      data: {
-        projectId,
-        reqAId: a.id,
-        reqBId: b.id,
-        kind: ["contradiction", "duplication", "overlap"].includes(c.kind) ? c.kind : "overlap",
-        taxonomy: TAXONOMIES.includes(c.taxonomy) ? c.taxonomy : "value",
-        description: String(c.description ?? "").slice(0, 800),
-        severity: ["high", "medium", "low"].includes(c.severity) ? c.severity : "medium",
-        suggestion: String(c.suggestion ?? "").slice(0, 800),
-        implications: implications.length ? JSON.stringify(implications) : null,
-      },
-    });
-  }
+  await db.$transaction(async (tx) => {
+    await tx.conflict.deleteMany({ where: { projectId } });
+    for (const conflict of (out.conflicts ?? []).slice(0, 6)) {
+      const a = byRef.get(conflict.reqARef);
+      const b = byRef.get(conflict.reqBRef);
+      if (!a || !b || a.id === b.id) continue;
+      const implications = Array.isArray(conflict.implications)
+        ? conflict.implications
+            .filter((item) => item && item.option)
+            .slice(0, 4)
+            .map((item) => ({ option: String(item.option).slice(0, 200), impact: String(item.impact ?? "").slice(0, 300) }))
+        : [];
+      await tx.conflict.create({
+        data: {
+          projectId,
+          reqAId: a.id,
+          reqBId: b.id,
+          kind: ["contradiction", "duplication", "overlap"].includes(conflict.kind) ? conflict.kind : "overlap",
+          taxonomy: TAXONOMIES.includes(conflict.taxonomy) ? conflict.taxonomy : "value",
+          description: String(conflict.description ?? "").slice(0, 800),
+          severity: ["high", "medium", "low"].includes(conflict.severity) ? conflict.severity : "medium",
+          suggestion: String(conflict.suggestion ?? "").slice(0, 800),
+          implications: implications.length ? JSON.stringify(implications) : null,
+        },
+      });
+    }
+  });
   await saveArtifact(projectId, "CONFLICTS", out);
   await recordUsage(runId, usage);
 }
