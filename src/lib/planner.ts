@@ -20,6 +20,8 @@ import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
+import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision } from "@/lib/security/data-safety.mjs";
+import { selectByUtility, selectDistinctPoolIndices, clampSignalScore } from "@/lib/planner/selection.mjs";
 
 export type PlannerArm = "single_shot" | "random" | "llm" | "impact_aware";
 
@@ -120,13 +122,18 @@ const SYSTEM =
   "requirements engineering assistant. You are precise and ground every question in the provided " +
   "evidence. Reply with VALID JSON ONLY — no markdown fences, no commentary.";
 
-function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string }[]): string {
-  if (!evidences.length) return "(no evidence sources provided yet)";
+function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string; consent?: boolean; origin?: string }[]): string {
+  const eligible = filterEvidenceForAI(evidences);
+  if (!eligible.length) {
+    return evidences.length
+      ? "(evidence sources are stored, but none has explicit permission for AI processing; no source content is sent to the model)"
+      : "(no evidence sources provided yet)";
+  }
   const TOTAL_BUDGET = 16000;
   const PER_MAX = 4000;
-  const total = evidences.reduce((s, e) => s + e.content.length, 0);
-  const per = total > TOTAL_BUDGET ? Math.max(1200, Math.floor(TOTAL_BUDGET / evidences.length)) : PER_MAX;
-  return evidences
+  const total = eligible.reduce((s, e) => s + e.content.length, 0);
+  const per = total > TOTAL_BUDGET ? Math.max(1200, Math.floor(TOTAL_BUDGET / eligible.length)) : PER_MAX;
+  return eligible
     .map((e) => {
       const body =
         e.content.length > per
@@ -172,12 +179,12 @@ async function generatePool(
     where: { id: projectId },
     include: { evidences: true, questions: true },
   });
-  const memoryLessons = await db.memoryEntry.findMany({ where: { kind: "lesson" }, orderBy: { createdAt: "desc" }, take: 4 });
+  const memoryLessons = await db.memoryEntry.findMany({ where: { projectId, kind: "lesson" }, orderBy: { createdAt: "desc" }, take: 4 });
   const memory = memoryLessons.length
-    ? `\nCROSS-PROJECT LESSONS:\n${memoryLessons.map((l) => `- ${l.term}: ${l.detail}`).join("\n")}\n`
+    ? `\nPROJECT-SCOPED LESSONS:\n${memoryLessons.map((l) => `- ${l.term}: ${l.detail}`).join("\n")}\n`
     : "";
   const answered = project.questions
-    .filter((q) => q.answered && q.answer)
+    .filter(isHumanStakeholderAnswer)
     .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
     .join("\n\n");
   const context = `PROJECT BRIEF:\n${project.brief?.trim() || "(empty brief)"}\n${memory}\nEVIDENCE SOURCES:\n${evidenceBlock(project.evidences)}\n\nSTAKEHOLDER ANSWERS SO FAR:\n${answered || "(none yet)"}\n${uncertaintyLedger(project.questions)}`;
@@ -239,10 +246,10 @@ Return JSON: {"scores": [{"index": 1, "infoGain": 4, "impact": 3, "uncertainty":
       return { ...q, utility: { ...base, utility: computeUtility(base) } };
     }
     const base = {
-      infoGain: Math.round(Number(s.infoGain) || 3),
-      impact: Math.round(Number(s.impact) || 3),
-      uncertainty: Math.round(Number(s.uncertainty) || 3),
-      risk: Math.round(Number(s.risk) || 3),
+      infoGain: clampSignalScore(s.infoGain),
+      impact: clampSignalScore(s.impact),
+      uncertainty: clampSignalScore(s.uncertainty),
+      risk: clampSignalScore(s.risk),
       askCost: q.askCost,
     };
     return { ...q, utility: { ...base, utility: computeUtility(base) } };
@@ -259,27 +266,6 @@ function pickRandom<T>(arr: T[], k: number): T[] {
     out.push(copy.splice(idx, 1)[0]);
   }
   return out;
-}
-
-// Budget-constrained greedy selection on the utility formula (impact_aware arm)
-export function selectByUtility(pool: PlannedQuestion[], k = 5, costBudget = 15): PlannedQuestion[] {
-  const scored = pool
-    .filter((q) => q.utility)
-    .sort((a, b) => (b.utility!.utility ?? 0) - (a.utility!.utility ?? 0));
-  const picked: PlannedQuestion[] = [];
-  let cost = 0;
-  for (const q of scored) {
-    if (picked.length >= k) break;
-    if (cost + q.askCost > costBudget) continue;
-    picked.push(q);
-    cost += q.askCost;
-  }
-  // relax the budget if the tight constraint left us underfilled
-  for (const q of scored) {
-    if (picked.length >= k) break;
-    if (!picked.includes(q)) picked.push(q);
-  }
-  return picked.slice(0, k);
 }
 
 // ── Judge (identical for all arms) ───────────────────────────
@@ -322,6 +308,13 @@ export async function runPlanner(
   arm: PlannerArm,
   runId?: string
 ): Promise<{ arm: PlannerArm; questions: PlannedQuestion[]; metrics: ArmMetrics; candidates: number }> {
+  const existingQuestions = await db.question.findMany({
+    where: { projectId },
+    select: { answered: true, answer: true, answerSource: true, resolution: true },
+  });
+  if (hasHumanQuestionDecision(existingQuestions)) {
+    throw new Error("Refusing to overwrite elicitation questions: human answers or uncertainty decisions already exist.");
+  }
   const usage = newUsage();
   let selected: PlannedQuestion[] = [];
   let candidates = 0;
@@ -334,7 +327,7 @@ export async function runPlanner(
       include: { evidences: true, questions: true },
     });
     const answered = project.questions
-      .filter((q) => q.answered && q.answer)
+      .filter(isHumanStakeholderAnswer)
       .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
       .join("\n\n");
     context = `PROJECT BRIEF:\n${project.brief?.trim() || "(empty brief)"}\nEVIDENCE SOURCES:\n${evidenceBlock(project.evidences)}\n\nSTAKEHOLDER ANSWERS:\n${answered || "(none yet)"}\n${uncertaintyLedger(project.questions)}`;
@@ -364,8 +357,11 @@ ${pool.map((q, i) => `${i + 1}. ${q.text} (askCost ${q.askCost})`).join("\n")}
 TASK: Select the 5 BEST questions from this pool for the next interview round — the ones whose answers most change what the team builds. Return ONLY their indices.
 Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
       const out = await callLLMJson<{ selected: number[] }>(SYSTEM, prompt, usage);
-      const idxs = (out.selected ?? []).map((n) => Number(n) - 1).filter((n) => n >= 0 && n < pool.length);
-      selected = (idxs.length ? idxs : pool.map((_, i) => i)).slice(0, 5).map((i) => pool[i]);
+      const idxs = selectDistinctPoolIndices(out.selected ?? [], pool.length, 5);
+      if (!idxs.length) {
+        throw new Error("Planner returned no valid, distinct candidate indices; refusing to silently substitute the entire pool.");
+      }
+      selected = idxs.map((i) => pool[i]);
     } else {
       // impact_aware — signal-score the whole pool, then the formula decides.
       const scored = await scoreSignals(context, pool, usage);
