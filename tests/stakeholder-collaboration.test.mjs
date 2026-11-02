@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
-  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate,
+  normalizeNegotiation, normalizeNegotiationDecision, normalizeStakeholderUpdate, normalizeNegotiationResponse, assertNegotiationQuorum,
 } from "../src/lib/stakeholders/collaboration.mjs";
 
 const profile = { stakeholderRef:"ST-01",displayName:"Product owner",role:"Owner",approvalRole:"approver",goals:["Reduce onboarding time"] };
@@ -62,4 +62,16 @@ test("stakeholder lifecycle updates preserve omitted values and validate transit
   assert.deepEqual(normalizeStakeholderUpdate({engagementStatus:"withdrawn",approvalRole:"observer"},current),{engagementStatus:"withdrawn",approvalRole:"observer"});
   assert.throws(()=>normalizeStakeholderUpdate({engagementStatus:"deleted"},current),/engagementStatus/);
   assert.throws(()=>normalizeStakeholderUpdate({approvalRole:"superuser"},current),/approvalRole/);
+});
+
+test("multi-stakeholder quorum requires 2-30 unique participant identities",()=>{
+  assert.throws(()=>assertNegotiationQuorum([]),/2 to 30/);
+  assert.throws(()=>assertNegotiationQuorum([{stakeholderId:"a"}]),/2 to 30/);
+  assert.throws(()=>assertNegotiationQuorum([{stakeholderId:"a"},{stakeholderId:"a"}]),/unique/);
+  assert.equal(assertNegotiationQuorum([{stakeholderId:"a"},{stakeholderId:"b"}]),true);
+});
+test("participant response requires a supported stance and a rationale",()=>{
+  assert.deepEqual(normalizeNegotiationResponse({responseStatus:"conditional",rationale:"Only if audit logs remain exportable."}),{responseStatus:"conditional",rationale:"Only if audit logs remain exportable."});
+  assert.throws(()=>normalizeNegotiationResponse({responseStatus:"maybe",rationale:"x"}),/response/);
+  assert.throws(()=>normalizeNegotiationResponse({responseStatus:"supports",rationale:""}),/rationale/);
 });
