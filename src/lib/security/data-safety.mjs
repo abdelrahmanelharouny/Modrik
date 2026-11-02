@@ -23,9 +23,13 @@ export function hasHumanQuestionDecision(questions) {
 }
 
 export function hasHumanCandidateEdits(candidates) {
-  return Array.isArray(candidates) && candidates.some((candidate) =>
-    candidate?.selected === true || candidate?.humanEdited === true
-  );
+  return Array.isArray(candidates) && candidates.some((candidate) => {
+    if (candidate?.selected === true || candidate?.humanEdited === true) return true;
+    // null means the row predates provenance tracking; preserve non-default
+    // scores conservatively rather than assuming they were only model output.
+    return candidate?.humanEdited == null &&
+      (Number(candidate?.impact ?? 3) !== 3 || Number(candidate?.effort ?? 3) !== 3);
+  });
 }
 
 export function evidenceContentBudget(sourceCount, totalBudget = 16000, perSourceMax = 4000) {
