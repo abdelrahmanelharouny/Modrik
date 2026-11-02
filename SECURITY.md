@@ -111,11 +111,11 @@ Identity-backed requests to non-project API handlers require an explicit organiz
 | `/api/self-audit` | GET, HEAD | `organization:manage` |
 | `/api/providers` | GET, HEAD | `organization:read` |
 
-The unauthenticated API surface is method-specific: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session`, and participant-scoped `GET|POST /api/study/respond`. A path-only match is not sufficient to bypass authentication.
+The unauthenticated API surface is method-specific: `POST /api/auth/login`, `POST /api/auth/invitations/accept`, `POST /api/auth/password-reset/request`, `POST /api/auth/password-reset/complete`, `POST /api/auth/logout`, `GET /api/auth/session`, and participant-scoped `GET|POST /api/study/respond`. A path-only match is not sufficient to bypass authentication.
 
 All `/api/projects/*` handlers are separately checked for project existence, organization ownership and the route's project permission before the handler runs. The route inventory test scans every API `route.ts` file and fails when a newly added method is neither an exact public exemption, a project-scoped handler, nor explicitly classified.
 
-This is a technical access-control gate, not a completed enterprise security review. Organization onboarding, invitation acceptance, recovery, MFA/SSO, distributed rate limiting, route-level penetration testing and production migration rollout remain separate release gates.
+This is a technical access-control gate, not a completed enterprise security review. MFA/SSO, distributed rate limiting, route-level penetration testing and production migration rollout remain separate release gates.
 
 ## Benchmark integrity gate (H1.4)
 
