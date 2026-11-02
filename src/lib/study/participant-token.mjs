@@ -9,7 +9,7 @@ export function hashParticipantToken(token) {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-export function issueParticipantToken(now = Date.now(), ttlMs = 24 * 60 * 60 * 1000) {
+export function issueParticipantToken(now = Date.now(), ttlMs = 7 * 24 * 60 * 60 * 1000) {
   if (!Number.isFinite(now) || !Number.isFinite(ttlMs) || ttlMs <= 0) {
     throw new TypeError("Participant token expiry must be a positive finite duration");
   }
