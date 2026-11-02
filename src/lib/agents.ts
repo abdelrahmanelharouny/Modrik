@@ -347,6 +347,7 @@ Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCod
       await tx.problemCandidate.create({
         data: {
           projectId,
+          humanEdited: false,
           title: String(candidate.title ?? "Untitled").slice(0, 200),
           description: String(candidate.description ?? "").slice(0, 1000),
           impact: clamp(candidate.suggestedImpact),
