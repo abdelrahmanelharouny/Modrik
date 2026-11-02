@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { randomUUID } from "node:crypto";
+import { randomUUID, scryptSync } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
 import { createSessionToken, createIdentitySessionToken, SESSION_COOKIE, SESSION_TTL_SECONDS } from "../src/lib/security/session.mjs";
 
+const bootstrapSalt = Buffer.alloc(16, 7);
+process.env.MODRIK_ADMIN_PASSWORD_HASH = `$scrypt$16384$8$1${bootstrapSalt.toString("hex")}${scryptSync("Integration-Owner-Password-42!", bootstrapSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex")}`;
 const port = Number(process.env.MODRIK_E2E_PORT || 3187);
 const baseUrl = `http://127.0.0.1:${port}`;
 const childEnv = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1" };
@@ -77,6 +79,42 @@ try {
   await expectStatus(publicLogin, 401, "public login endpoint");
   const publicStudy = await fetch(`${baseUrl}/api/study/respond`);
   await expectStatus(publicStudy, 401, "public study endpoint must require its own bearer token");
+
+  const bootstrapLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: process.env.MODRIK_ADMIN_EMAIL, password: "Integration-Owner-Password-42!" }),
+  });
+  await expectStatus(bootstrapLogin, 200, "configured owner identity bootstrap login");
+  const loginCookie = bootstrapLogin.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
+  assert.ok(loginCookie, "successful login must issue an HttpOnly session cookie");
+  const bootstrapSessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: `modrik_session=${loginCookie}` } });
+  await expectStatus(bootstrapSessionStatus, 200, "bootstrapped identity session status");
+  const bootstrapStatus = await json(bootstrapSessionStatus);
+  assert.equal(bootstrapStatus.authenticated, true);
+  assert.equal(bootstrapStatus.role, "owner");
+  const bootstrapUser = await prisma.user.findUnique({ where: { email: process.env.MODRIK_ADMIN_EMAIL.toLowerCase() } });
+  assert.ok(bootstrapUser, "owner login must provision a database user");
+  identityCleanup.users.push(bootstrapUser.id);
+  const bootstrapOrganization = await prisma.organization.findUnique({ where: { slug: "modrik-default" } });
+  assert.ok(bootstrapOrganization, "owner login must provision the default organization");
+  identityCleanup.organizations.push(bootstrapOrganization.id);
+  const bootstrapProject = await fetch(`${baseUrl}/api/projects`, {
+    method: "POST",
+    headers: { cookie: `modrik_session=${loginCookie}`, "content-type": "application/json" },
+    body: JSON.stringify({ name: "Bootstrap-owned project", brief: "Identity context test" }),
+  });
+  await expectStatus(bootstrapProject, 201, "identity-backed project creation");
+  const bootstrapProjectBody = (await json(bootstrapProject)).project;
+  identityCleanup.projects.push(bootstrapProjectBody.id);
+  assert.equal(bootstrapProjectBody.organizationId, bootstrapOrganization.id);
+  assert.equal(bootstrapProjectBody.createdByUserId, bootstrapUser.id);
+  const bootstrapLogout = await fetch(`${baseUrl}/api/auth/logout`, {
+    method: "POST", headers: { cookie: `modrik_session=${loginCookie}`, origin: baseUrl },
+  });
+  await expectStatus(bootstrapLogout, 200, "bootstrap owner logout");
+  const bootstrapRevokedStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: `modrik_session=${loginCookie}` } });
+  assert.equal((await json(bootstrapRevokedStatus)).authenticated, false);
   // Identity-backed session + tenant boundary integration.
   const tenantA = await prisma.organization.create({ data: { name: "Identity Tenant A", slug: `identity-a-${randomUUID()}` } });
   identityCleanup.organizations.push(tenantA.id);
