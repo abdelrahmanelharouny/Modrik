@@ -1,0 +1,112 @@
+"use client";
+
+import { useState } from "react";
+import { api } from "@/lib/api";
+import type { EvidenceDTO } from "@/lib/rp";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { History, Pencil, X, Save, ShieldCheck, ShieldAlert } from "lucide-react";
+
+export function EvidenceRevisionPanel({
+  projectId,
+  evidence,
+  onSaved,
+}: {
+  projectId: string;
+  evidence: EvidenceDTO;
+  onSaved: () => Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [title, setTitle] = useState(evidence.title);
+  const [content, setContent] = useState(evidence.content);
+  const [language, setLanguage] = useState(evidence.language);
+  const [consent, setConsent] = useState(evidence.consent);
+  const [changeNote, setChangeNote] = useState("");
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const result = await api<{ revision: number }>(`/api/projects/${projectId}/evidence`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          evidenceId: evidence.id,
+          title,
+          content,
+          language,
+          consent,
+          changeNote,
+        }),
+      });
+      await onSaved();
+      setEditing(false);
+      setChangeNote("");
+      toast({
+        title: "Evidence revision saved",
+        description: `Version ${result.revision} is now current. Previous versions remain available below.`,
+      });
+    } catch (error) {
+      toast({ title: "Could not save evidence", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 border-t border-border/60 pt-3">
+      {editing ? (
+        <div className="space-y-3 rounded-md border border-aura/30 bg-aura/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold">Create a new evidence revision</p>
+            <span className="font-mono text-[10px] text-muted-foreground">current v{evidence.revisions?.[0]?.version ?? 1}</span>
+          </div>
+          <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} aria-label="Evidence title" />
+          <Textarea value={content} onChange={(event) => setContent(event.target.value)} rows={6} maxLength={8000} dir="auto" aria-label="Evidence content" />
+          <Input value={changeNote} onChange={(event) => setChangeNote(event.target.value)} maxLength={500} placeholder="Why is this source changing? (optional)" aria-label="Revision note" />
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
+            Permission is recorded to process this revision with the configured AI provider
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={busy}><X className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
+            <Button size="sm" onClick={save} disabled={busy || !title.trim() || !content.trim()}><Save className="mr-1 h-3.5 w-3.5" /> {busy ? "Saving…" : "Save revision"}</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <History className="h-3.5 w-3.5" />
+            <span>{evidence.revisions?.length ?? 0} revision snapshot(s)</span>
+            <span>·</span>
+            <span>SHA-256 provenance</span>
+            {evidence.consent ? <ShieldCheck className="h-3.5 w-3.5 text-verify" aria-label="AI processing permission recorded" /> : <ShieldAlert className="h-3.5 w-3.5 text-signal" aria-label="AI processing permission not recorded" />}
+          </div>
+          <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(true)}>
+            <Pencil className="mr-1 h-3.5 w-3.5" /> Edit source
+          </Button>
+        </div>
+      )}
+      {!!evidence.revisions?.length && (
+        <details className="mt-2 rounded-md bg-secondary/20 px-3 py-2">
+          <summary className="cursor-pointer text-[10px] font-mono text-muted-foreground">REVISION HISTORY · {evidence.revisions.length} MOST RECENT</summary>
+          <ol className="mt-2 space-y-2">
+            {evidence.revisions.map((revision) => (
+              <li key={revision.id} className="border-l-2 border-border pl-3">
+                <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                  <span className="font-mono font-semibold text-aura">v{revision.version}</span>
+                  <time dateTime={revision.createdAt} className="text-muted-foreground">{new Date(revision.createdAt).toLocaleString()}</time>
+                  <span className="text-muted-foreground">· {revision.createdBy}</span>
+                </div>
+                <p className="mt-0.5 text-xs text-foreground/80">{revision.changeNote || "No change note"}</p>
+                <p className="mt-0.5 break-all font-mono text-[9px] text-muted-foreground">SHA-256 {revision.contentHash.slice(0, 24)}…</p>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </div>
+  );
+}
