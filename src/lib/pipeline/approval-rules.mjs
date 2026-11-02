@@ -15,10 +15,11 @@ export function validateRequirementApproval(requirements) {
     return "No requirements extracted — run the agent first.";
   }
   const ungrounded = requirements.filter((requirement) =>
-    !Array.isArray(requirement?.links) || requirement.links.length === 0
+    !Array.isArray(requirement?.links) ||
+    !requirement.links.some((link) => typeof link?.evidenceId === "string" && link.evidenceId.length > 0)
   );
   if (ungrounded.length) {
-    return "Requirements without evidence trace links must be grounded or removed: " +
+    return "Requirements without an active Evidence ID trace link must be grounded or removed: " +
       ungrounded.map((r) => r.refId).join(", ") + ".";
   }
   const unverified = requirements.filter((requirement) =>
