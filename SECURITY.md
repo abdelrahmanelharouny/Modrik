@@ -63,7 +63,7 @@ Stakeholder profiles remain project-domain records. They are not users, cannot a
 
 Project `organizationId` and `createdByUserId` are intentionally nullable in this additive schema slice. Existing projects are not silently assigned to a guessed tenant or account. A later, explicit backfill must establish an owner organization before tenant-scoped access is enabled.
 
-The pure policy in `src/lib/security/organization-access.mjs` defines a fail-closed permission matrix and tenant-ID comparison. It is not yet wired into the session or route boundary. Until the next H1 authorization slice replaces the owner-only assumption with authenticated user identity and membership lookup, deployments remain single-owner only. Do not treat the presence of these tables as multi-tenant security.
+The pure policy in `src/lib/security/organization-access.mjs` defines a fail-closed permission matrix and tenant-ID comparison. Organization-level control is owner-only; admins can manage members and projects but cannot change organization ownership/settings. It is not yet wired into the session or route boundary. Until the next H1 authorization slice replaces the owner-only assumption with authenticated user identity and membership lookup, deployments remain single-owner only. Do not treat the presence of these tables as multi-tenant security.
 
 ## Current boundary and next security phase
 
