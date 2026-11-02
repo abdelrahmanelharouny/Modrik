@@ -197,6 +197,29 @@ try {
   const acceptedBody = await json(acceptedInvitation);
   assert.equal(acceptedBody.email, inviteEmail);
   assert.equal(acceptedBody.role, "viewer");
+
+  // Existing accounts keep their password when joining another organization.
+  const existingPassword = "Existing-Account-Password-2026!";
+  const existingSalt = Buffer.alloc(16, 9);
+  const existingHash = "$scrypt$16384$8$1$" + existingSalt.toString("hex") + "$" + scryptSync(existingPassword, existingSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex");
+  const existingInvitee = await prisma.user.create({
+    data: { email: `existing-invitee-${randomUUID()}@example.invalid`, passwordHash: existingHash, status: "active" },
+  });
+  identityCleanup.users.push(existingInvitee.id);
+  const existingInviteResponse = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ email: existingInvitee.email, role: "reviewer" }),
+  });
+  await expectStatus(existingInviteResponse, 201, "invite an existing account");
+  const existingInvite = await json(existingInviteResponse);
+  const existingToken = new URL(existingInvite.inviteUrl).searchParams.get("token");
+  const existingAccept = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: existingToken }),
+  });
+  await expectStatus(existingAccept, 200, "existing account accepts invitation without resetting password");
+  const unchangedInvitee = await prisma.user.findUnique({ where: { id: existingInvitee.id } });
+  assert.equal(unchangedInvitee.passwordHash, existingHash, "invitation acceptance must never overwrite an existing password");
   const activeInvitedMembership = await prisma.membership.findUnique({
     where: { userId_organizationId: { userId: invitedUser.id, organizationId: tenantA.id } },
   });
