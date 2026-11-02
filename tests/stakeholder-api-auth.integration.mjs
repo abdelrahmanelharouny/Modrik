@@ -195,7 +195,13 @@ try {
     membershipId: viewerMembership.id, role: "viewer", sessionId: viewerSessionId,
   }, secret)}`;
   const viewerCreate = await fetch(`${baseUrl}/api/projects`, {
-    method: "POST", headers: { cookie: viewerCookie, "content-type": "application/json" },
+    method: "POST", headers: {
+      cookie: viewerCookie,
+      "content-type": "application/json",
+      "x-modrik-role": "owner",
+      "x-modrik-organization-id": tenantB.id,
+      "x-modrik-user-id": identityUser.id,
+    },
     body: JSON.stringify({ name: "Forbidden viewer project", brief: "must not be created" }),
   });
   await expectStatus(viewerCreate, 403, "viewer cannot create projects");
