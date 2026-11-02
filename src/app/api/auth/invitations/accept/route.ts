@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
 
   const ip = req.headers.get("x-real-ip")?.trim() || req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "unknown";
   const rate = await consumeRateLimit({ scope: "invitation:accept:ip", identifier: ip, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (rate.backend === "unavailable") return jsonError("Shared invitation protection is unavailable", 503);
   if (!rate.allowed) return NextResponse.json({ error: "Too many invitation attempts. Try again later." }, { status: 429, headers: { ...noStore, "Retry-After": String(rate.retryAfterSeconds) } });
   if (!tokenHash) return jsonError("Invitation is invalid or no longer available", 400);
 
