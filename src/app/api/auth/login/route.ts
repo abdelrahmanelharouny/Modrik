@@ -20,10 +20,13 @@ function clientKey(req: NextRequest): string {
   return realIp || forwarded?.at(-1) || "unknown";
 }
 
-function rateLimited(retryAfterSeconds: number) {
+function rateLimited(result: { retryAfterSeconds: number; backend: string }) {
+  if (result.backend === "unavailable") {
+    return NextResponse.json({ error: "Shared authentication protection is unavailable" }, { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } });
+  }
   return NextResponse.json(
     { error: "Too many authentication attempts. Try again later." },
-    { status: 429, headers: { "Cache-Control": "no-store, max-age=0", "Retry-After": String(retryAfterSeconds) } },
+    { status: 429, headers: { "Cache-Control": "no-store, max-age=0", "Retry-After": String(result.retryAfterSeconds) } },
   );
 }
 
@@ -52,10 +55,10 @@ export async function POST(req: NextRequest) {
 
   const ip = clientKey(req);
   const ipLimit = await consumeRateLimit({ scope: "auth:login:ip", identifier: ip, limit: 5, windowMs: 15 * 60 * 1000 });
-  if (!ipLimit.allowed) return rateLimited(ipLimit.retryAfterSeconds);
+  if (!ipLimit.allowed) return rateLimited(ipLimit);
   if (email) {
     const accountLimit = await consumeRateLimit({ scope: "auth:login:account", identifier: email, limit: 10, windowMs: 15 * 60 * 1000 });
-    if (!accountLimit.allowed) return rateLimited(accountLimit.retryAfterSeconds);
+    if (!accountLimit.allowed) return rateLimited(accountLimit);
   }
   const configuredOwner = Boolean(process.env.MODRIK_ADMIN_EMAIL?.trim()) &&
     email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
