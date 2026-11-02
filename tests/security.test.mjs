@@ -5,6 +5,7 @@ import { isSameOriginMutation } from "../src/lib/security/request-origin.mjs";
 import { encryptSecret, decryptSecret, isEncryptedSecret } from "../src/lib/security/secret-box.mjs";
 import { csvCell } from "../src/lib/security/csv.mjs";
 import { validateJiraBaseUrl, buildJiraUrl, jiraFetchOptions } from "../src/lib/security/jira-url.mjs";
+import { isPublicApiPath } from "../src/lib/security/api-access.mjs";
 import {
   createSessionToken,
   verifySessionToken,
@@ -124,6 +125,36 @@ test("API owner authorization rejects missing, expired, misconfigured and non-ow
 });
 
 
+test("public API access is an exact, minimal allowlist", () => {
+  const publicPaths = [
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/session",
+    "/api/study/respond",
+  ];
+  for (const path of publicPaths) assert.equal(isPublicApiPath(path), true, path);
+
+  const protectedPaths = [
+    "/api/projects",
+    "/api/projects/project-1",
+    "/api/projects/project-1/evidence",
+    "/api/projects/project-1/stakeholders",
+    "/api/study",
+    "/api/telemetry",
+    "/api/missions",
+    "/api/providers",
+    "/api/auth/login/",
+    "/api/auth/login/extra",
+    "/api/study/respond/",
+    "/api/study/respond/extra",
+    "",
+    null,
+    undefined,
+  ];
+  for (const path of protectedPaths) assert.equal(isPublicApiPath(path), false, String(path));
+});
+
+
 test("state-changing request origin validation uses the actual request host", () => {
   const sameOrigin = new Headers({ host: "127.0.0.1:3187", origin: "http://127.0.0.1:3187", "sec-fetch-site": "same-origin" });
   assert.equal(isSameOriginMutation(sameOrigin, "http:"), true);
@@ -135,4 +166,10 @@ test("state-changing request origin validation uses the actual request host", ()
   assert.equal(isSameOriginMutation(trustedProxyHttps, "http:"), true);
   const malformedOrigin = new Headers({ host: "app.example.com", origin: "not a URL" });
   assert.equal(isSameOriginMutation(malformedOrigin, "https:"), false);
+  const protocolMismatch = new Headers({ host: "app.example.com", origin: "http://app.example.com", "x-forwarded-proto": "https" });
+  assert.equal(isSameOriginMutation(protocolMismatch, "http:"), false);
+  const hostMismatch = new Headers({ host: "internal.example", origin: "https://app.example.com", "x-forwarded-proto": "https" });
+  assert.equal(isSameOriginMutation(hostMismatch, "http:"), false);
+  const missingHost = new Headers({ origin: "https://app.example.com", "x-forwarded-proto": "https" });
+  assert.equal(isSameOriginMutation(missingHost, "http:"), false);
 });
