@@ -14,7 +14,8 @@
 //   G6  prompt version recorded on every run
 // ─────────────────────────────────────────────────────────────
 import ZAI from "z-ai-web-dev-sdk";
-import { z } from "zod"; // retained for direct SDK consumers; agent calls flow through providers.ts
+import { z } from "zod";
+import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs"; // retained for direct SDK consumers; agent calls flow through providers.ts
 import { db } from "@/lib/db";
 import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, hasHumanCandidateEdits, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
 import { logDecision } from "@/lib/journal";
@@ -182,9 +183,10 @@ async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
   try {
     content = await provider.complete(messages);
   } catch (err) {
-    // one transient-failure retry (network blips / 5xx) — the audit found a
-    // single unguarded failure aborts a whole stage run
-    await new Promise((r) => setTimeout(r, 1500));
+    // Retry only network/timeouts, rate limits and 5xx. A 401/403/400 or
+    // schema/configuration error is permanent and should surface immediately.
+    if (!retryableProviderFailure(err)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     content = await provider.complete(messages);
   }
   const latencyMs = Date.now() - t0;
