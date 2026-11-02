@@ -137,7 +137,7 @@ try {
   assert.equal(isolatedBody.stakeholders[0].id, foreign.id);
   // Verify the same HTTP project index used by the client before involving
   // React/Playwright. This separates persistence/API failures from UI rendering.
-  const projectIndexResponse = await fetch(`${baseUrl}/api/projects`);
+  const projectIndexResponse = await fetch(`${baseUrl}/api/projects`, { headers });
   await expectStatus(projectIndexResponse, 200, "project index API");
   const projectIndex = await json(projectIndexResponse);
   assert.ok(projectIndex.projects.some(project => project.id === projectA), "project index API must expose the seeded project");
