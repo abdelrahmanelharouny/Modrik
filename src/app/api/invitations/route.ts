@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { normalizeEmail } from "@/lib/security/organization-access.mjs";
 import { createInvitationToken, hashInvitationToken, isInvitableRole, INVITATION_TTL_MS } from "@/lib/security/invitations.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
+import { consumeRateLimit } from "@/lib/security/rate-limit.mjs";
 
 export const runtime = "nodejs";
 const noStore = { "Cache-Control": "no-store, max-age=0" };
@@ -45,6 +46,18 @@ export async function POST(req: NextRequest) {
   const organizationId = req.headers.get("x-modrik-organization-id");
   const invitedByUserId = req.headers.get("x-modrik-user-id");
   if (!organizationId || !invitedByUserId) return jsonError("Organization identity required", 403);
+
+  const invitationLimit = await consumeRateLimit({
+    scope: "invitation:create:member",
+    identifier: `${organizationId}:${invitedByUserId}`,
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!invitationLimit.allowed) {
+    return NextResponse.json({ error: "Invitation creation is temporarily rate-limited" }, {
+      status: 429, headers: { ...noStore, "Retry-After": String(invitationLimit.retryAfterSeconds) },
+    });
+  }
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) return jsonError("Invalid request body", 400);
