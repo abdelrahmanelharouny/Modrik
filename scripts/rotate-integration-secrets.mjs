@@ -23,7 +23,7 @@ export function rotateIntegrationConfig(rawConfig, oldKey, newKey) {
   }
 
   let plaintext;
-  if (isEncryptedSecret(config.token)) {
+  if (config.token.startsWith("enc:")) {
     try {
       plaintext = decryptSecret(config.token, oldKey);
     } catch (oldKeyError) {
