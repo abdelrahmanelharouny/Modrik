@@ -112,6 +112,7 @@ model Evidence {
   origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
   traceLinks TraceLink[]
+  revisions  EvidenceRevision[]
   @@unique([projectId, code])
 }
 
