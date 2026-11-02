@@ -39,6 +39,17 @@ test("wind-tunnel and assumption answers never count as real stakeholder answers
   assert.equal(hasHumanQuestionDecision([assumption]), true);
 });
 
+test("legacy skipped-by-analyst marker is not misclassified as a human answer", () => {
+  const legacySkipped = {
+    answered: true,
+    resolution: "answered",
+    answer: "(skipped by analyst)",
+    answerSource: "human",
+  };
+  assert.equal(isHumanStakeholderAnswer(legacySkipped), false);
+  assert.equal(hasHumanQuestionDecision([legacySkipped]), false);
+});
+
 test("candidate regeneration distinguishes AI scores from human and legacy edits", () => {
   assert.equal(hasHumanCandidateEdits([{ selected: false, impact: 4, effort: 3, humanEdited: false }]), false);
   assert.equal(hasHumanCandidateEdits([{ selected: true, impact: 3, effort: 3, humanEdited: false }]), true);
