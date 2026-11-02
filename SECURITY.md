@@ -77,7 +77,7 @@ Identity context headers (`x-modrik-user-id`, `x-modrik-organization-id`, `x-mod
 
 The current bootstrap flow provisions the configured administrator. Invited-user onboarding and password recovery are implemented in H1.7–H1.8. Organization switching, MFA/SSO and distributed session/rate-limit infrastructure remain follow-up work. Do not expose self-service registration or treat the current bootstrap path as a complete identity lifecycle.
 
-## Distributed rate limiting (H1.9)
+## H1 release validation and production configuration (H1.10)\n\nRun `bun run security:release-check` in the deployment environment before release. The check validates the presence and format of PostgreSQL, administrator bootstrap credentials, a 32-byte session signing secret, a 32-byte AES-256-GCM key, HTTPS Upstash Redis REST configuration, Resend sender configuration, and the canonical HTTPS application URL. It reports variable names and validation failures only; it never prints secret values. CI runs the same check against disposable placeholder values. A passing shape check does not prove provider credentials are active: verify Redis connectivity, Resend sender/domain verification, database backup/restore, and deployed health checks as an operational release step.\n\n## Distributed rate limiting (H1.9)
 
 - Configure `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` with an HTTPS Upstash Redis REST endpoint.
 - The limiter uses a single atomic Lua fixed-window increment/expiry operation. It does not downgrade to process-local memory in production when Redis is missing or unavailable.
