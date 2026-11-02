@@ -24,24 +24,16 @@ export function isAuthConfigured(env = process.env) {
   );
 }
 
-export async function verifyAdminCredentials(email, password, env = process.env) {
-  if (!isAuthConfigured(env)) return false;
-  const expectedEmail = env.MODRIK_ADMIN_EMAIL.trim().toLowerCase();
-  if (!safeEqual(String(email ?? "").trim().toLowerCase(), expectedEmail)) return false;
-
-  const match = /^\$scrypt\$(\d+)\$(\d+)\$(\d+)\$([a-f0-9]{32,128})\$([a-f0-9]{64,128})$/i.exec(
-    env.MODRIK_ADMIN_PASSWORD_HASH
+export async function verifyPasswordHash(password, passwordHash) {
+  const match = /^\\$scrypt\\$(\\d+)\\$(\\d+)\\$(\\d+)\\$([a-f0-9]{32,128})\\$([a-f0-9]{64,128})$/i.exec(
+    typeof passwordHash === "string" ? passwordHash : ""
   );
   if (!match) return false;
-
   const N = Number(match[1]);
   const r = Number(match[2]);
   const p = Number(match[3]);
-  // Bound parameters before invoking scrypt; environment mistakes must not
-  // become an attacker-controlled memory/CPU allocation.
   if (!Number.isInteger(N) || N < 16384 || N > 131072 || (N & (N - 1)) !== 0) return false;
   if (!Number.isInteger(r) || r < 8 || r > 16 || !Number.isInteger(p) || p < 1 || p > 4) return false;
-
   try {
     const salt = Buffer.from(match[4], "hex");
     const expected = Buffer.from(match[5], "hex");
@@ -52,6 +44,13 @@ export async function verifyAdminCredentials(email, password, env = process.env)
   } catch {
     return false;
   }
+}
+
+export async function verifyAdminCredentials(email, password, env = process.env) {
+  if (!isAuthConfigured(env)) return false;
+  const expectedEmail = env.MODRIK_ADMIN_EMAIL.trim().toLowerCase();
+  if (!safeEqual(String(email ?? "").trim().toLowerCase(), expectedEmail)) return false;
+  return verifyPasswordHash(password, env.MODRIK_ADMIN_PASSWORD_HASH);
 }
 
 export function createIdentitySessionToken({ email, userId, organizationId, membershipId, role, sessionId }, secret, now = Date.now()) {
