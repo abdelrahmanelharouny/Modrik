@@ -298,7 +298,7 @@ export async function githubPush(projectId: string): Promise<{ pushed: { refId: 
           headers: ghHeaders(cfg.token),
           body: JSON.stringify({
             title: `[${requirement.refId}] ${requirement.text.slice(0, 120)}`,
-            body: `${requirementBody(requirement)}\\n\\n<!-- ${marker} -->`,
+            body: `${requirementBody(requirement)}\n\nModrik sync reference: ${marker}`,
             labels: [
               `moscow:${requirement.priority.toLowerCase()}`,
               `verify:${requirement.verifyStatus}`,
