@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isPublicApiPath } from "@/lib/security/api-access.mjs";
+import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import {
   isAuthConfigured,
   SESSION_COOKIE,
@@ -56,11 +57,11 @@ export function proxy(request: NextRequest) {
 
   // Cookie sessions must not be usable cross-origin for state-changing calls.
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
-    const origin = request.headers.get("origin");
-    const fetchSite = request.headers.get("sec-fetch-site");
-    if ((origin && origin !== request.nextUrl.origin) ||
-        (!origin && fetchSite && fetchSite !== "same-origin" && fetchSite !== "none")) {
-      return NextResponse.json({ error: "Cross-origin state change rejected" }, { status: 403 });
+    if (!isSameOriginMutation(request.headers, request.nextUrl.protocol)) {
+      return NextResponse.json(
+        { error: "Cross-origin state change rejected", code: "CSRF_ORIGIN_REJECTED" },
+        { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
     }
   }
 

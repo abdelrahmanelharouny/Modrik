@@ -541,18 +541,21 @@ The reasoning behind every significant architectural choice, in one place. Each 
 
 The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./FEATURES_STATUS.md). Summary:
 
-- **Complete & live:** full 6-gate pipeline (12 agent roles), impact-aware planner + 4-arm ablation, typed-edge constellation + impact traversal, executability simulation with GAP discoveries, calibration panel (Brier/ECE), six-dimension health decomposer, conflict taxonomy + implications-only negotiation, decision journal, cost observatory, drift radar, deterministic constraint packs (WCAG 2.2 / perf / PDPL), GitHub + Jira sync, arbench-v2 (120 scenarios), study infrastructure, Mission Library (13 missions), Arabic-first elicitation + ASR guard, provider interface.
-- **In development:** full-bench ablation sweeps, tracker→drift webhook automation, OAuth for integrations.
-- **Not started:** field pilot recruitment, study analysis pipeline (protocol ready).
-- **Missing (named gaps):** multi-stakeholder sessions, RBAC/auth, offline mode, scripted E2E suite, set-level judge calibration.
+- **Complete & live:** the six-gate pipeline and 12 agent roles; impact-aware Question Planner + four-arm ablation; typed knowledge graph and impact traversal; executability simulation and GAP discoveries; calibration and six-dimension health instruments; evidence revisioning, claim provenance and requirement-quality assessments; decision journal; drift radar; deterministic WCAG/performance/PDPL checks; GitHub/Jira token integrations; 120-scenario arbench-v2; study infrastructure; Mission Library; Arabic-first elicitation and guarded voice intake.
+- **Implemented on an open draft PR (not merged):** stakeholder registry; requirement positions with human review; accepted-claim evidence links; multi-stakeholder negotiation with 2–30 participants, individual immutable responses, quorum before decision, human rationale, trade-offs and dissent. See [PR #5](https://github.com/abdelrahmanelharouny/Modrik/pull/5).
+- **In development:** full-bench ablation sweeps, tracker→drift webhook automation, OAuth for integrations, multi-user organization/project RBAC and scripted end-to-end coverage. A single-owner login/session boundary already exists; it is not organization-level authorization.
+- **Not started:** field-pilot recruitment and study analysis (protocol/infrastructure only).
+- **Still missing:** offline mode, set-level judge calibration suitable for publication claims, organization-scale access governance, and requirement-level cost-of-change modelling.
 
 ## 21. Roadmap
 
-Three horizons (details in [`PRODUCTION_PROPOSAL.md`](./PRODUCTION_PROPOSAL.md)):
+The roadmap is ordered by release risk. A feature is not considered complete until its implementation, tests, migrations, accessibility and operator documentation are verified.
 
-1. **H1 — harden the core:** CI regression suite over arbench-v2, set-level judge calibration, OAuth + RBAC, migration from `db push` to versioned migrations.
-2. **H2 — widen the research:** full-bench ablation publication, field pilot with partner teams, drift webhooks from trackers, multi-stakeholder negotiation sessions.
-3. **H3 — radical extensions:** reverse mode (implementation back-traced into living requirements), organization-scale memory, requirement-level cost-of-change modelling.
+1. **H1 — production foundation:** extend the existing single-owner login/session boundary to organization and project membership RBAC; verify tenant/project isolation; versioned Prisma migrations; API integration tests; scripted Playwright E2E; CI coverage of the 120-scenario benchmark; set-level judge calibration; OAuth and secret rotation for GitHub/Jira.
+2. **H2 — field research and collaboration:** complete stakeholder response/review workflows; run a 2–3-team pilot; recruit study participants and execute the analysis pipeline; publish reproducible four-arm ablation results; tracker webhooks feeding evidence-drift review.
+3. **H3 — scale and resilience:** offline-first capture and conflict-safe sync; organization-level governance and audit exports; reverse mode from implementation changes to living requirements; requirement-level cost-of-change modelling; organization-scale knowledge memory.
+
+**Release gates:** H1 is a hard prerequisite for a public multi-tenant launch. H2 is required before making field-effectiveness or publication-grade superiority claims. H3 is a scale roadmap, not an MVP launch blocker.
 
 ## 22. Repository layout
 

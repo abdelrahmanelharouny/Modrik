@@ -31,7 +31,7 @@ For local development, add the generated values to the ignored `.env` file. The 
 - Study participant tokens are random 256-bit secrets. Only a SHA-256 hash is stored; the raw token is returned once at moderator session creation and should be handed to the participant over a separate trusted channel. Tokens expire after seven days. After a participant finishes, only withdrawal remains allowed until token expiry; withdrawal scrubs measurements and session events and revokes the token.
 - Eight-hour signed sessions, HttpOnly, SameSite=Strict cookies, Secure in production.
 - Login attempts are throttled in-process. This is a best-effort single-instance control, not distributed rate limiting; production deployments with multiple instances should add a shared Redis/Upstash limiter and edge/WAF rules.
-- State-changing requests with an explicit cross-origin Origin are rejected.
+- State-changing requests with an explicit cross-origin Origin are rejected. The origin check compares against the incoming request Host and the ingress-provided `X-Forwarded-Proto` (when present), rather than Next.js' internal URL origin; the reverse proxy must overwrite forwarded headers. Requests without Origin are rejected when Fetch Metadata marks them cross-site.
 - Security response headers include frame denial, MIME sniffing protection and a restrictive referrer policy.
 - The proxy is an early access boundary. Sensitive route handlers must still add resource-level authorization when multi-user roles are introduced.
 
