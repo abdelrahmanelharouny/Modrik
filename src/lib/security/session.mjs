@@ -54,6 +54,30 @@ export async function verifyAdminCredentials(email, password, env = process.env)
   }
 }
 
+export function createIdentitySessionToken({ email, userId, organizationId, membershipId, role, sessionId }, secret, now = Date.now()) {
+  if (!secret || Buffer.byteLength(secret, "utf8") < 32) {
+    throw new Error("MODRIK_AUTH_SECRET must contain at least 32 bytes");
+  }
+  if (![email, userId, organizationId, membershipId, role, sessionId].every((value) => typeof value === "string" && value.length > 0)) {
+    throw new Error("Identity session claims are incomplete");
+  }
+  const issuedAt = Math.floor(now / 1000);
+  const payload = {
+    typ: "identity",
+    sub: String(email).trim().toLowerCase(),
+    userId,
+    organizationId,
+    membershipId,
+    role,
+    iat: issuedAt,
+    exp: issuedAt + SESSION_TTL_SECONDS,
+    jti: sessionId,
+  };
+  const encoded = b64url(JSON.stringify(payload));
+  const signature = createHmac("sha256", secret).update(encoded).digest("base64url");
+  return encoded + "." + signature;
+}
+
 export function createSessionToken(email, secret, now = Date.now()) {
   if (!secret || Buffer.byteLength(secret, "utf8") < 32) {
     throw new Error("MODRIK_AUTH_SECRET must contain at least 32 bytes");
@@ -83,11 +107,28 @@ export function verifySessionToken(token, secret, now = Date.now()) {
   try {
     const payload = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
     const nowSeconds = Math.floor(now / 1000);
-    if (!payload || typeof payload.sub !== "string" || payload.role !== "owner") return null;
+    if (!payload || typeof payload.sub !== "string") return null;
+    const legacyOwner = payload.role === "owner" && payload.typ === undefined;
+    const identitySession = payload.typ === "identity" &&
+      typeof payload.userId === "string" &&
+      typeof payload.organizationId === "string" &&
+      typeof payload.membershipId === "string" &&
+      typeof payload.jti === "string" &&
+      ["owner", "admin", "engineer", "reviewer", "approver", "viewer"].includes(payload.role);
+    if (!legacyOwner && !identitySession) return null;
     if (!Number.isInteger(payload.iat) || !Number.isInteger(payload.exp)) return null;
     if (payload.iat > nowSeconds + 60 || payload.exp <= nowSeconds) return null;
     if (payload.exp - payload.iat > SESSION_TTL_SECONDS) return null;
-    return { email: payload.sub, role: payload.role, expiresAt: payload.exp };
+    return {
+      email: payload.sub,
+      role: payload.role,
+      expiresAt: payload.exp,
+      sessionId: payload.jti ?? null,
+      userId: payload.userId ?? null,
+      organizationId: payload.organizationId ?? null,
+      membershipId: payload.membershipId ?? null,
+      type: identitySession ? "identity" : "legacy-owner",
+    };
   } catch {
     return null;
   }
