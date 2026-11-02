@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
@@ -109,8 +110,9 @@ async function callLLM(systemBase: string, userPrompt: string, usage: UsageAcc):
   let content: string;
   try {
     content = await provider.complete(messages);
-  } catch {
-    await new Promise((r) => setTimeout(r, 1500));
+  } catch (err) {
+    if (!retryableProviderFailure(err)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     content = await provider.complete(messages);
   }
   usage.calls += 1;
