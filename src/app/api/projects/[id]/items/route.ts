@@ -126,7 +126,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             throw new Error("Project changed during candidate selection. Refresh and retry.");
           }
           await tx.problemCandidate.updateMany({ where: { projectId: id }, data: { selected: false } });
-          await tx.problemCandidate.update({ where: { id: itemId, projectId: id }, data: { ...patch, selected: true } });
+          await tx.problemCandidate.update({ where: { id: itemId, projectId: id }, data: { ...patch, selected: true, humanEdited: true } });
         });
         await logDecision(
           id,
@@ -137,6 +137,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         );
       } else {
         if (data.selected === false) patch.selected = false;
+        if (Object.keys(patch).length > 0) patch.humanEdited = true;
         await db.problemCandidate.update({ where: { id: itemId, projectId: id }, data: patch });
         if (data.selected === false && c.selected) {
           await logDecision(id, "PROBLEM_SELECTION", "human", "deselected_problem", c.title.slice(0, 180));
