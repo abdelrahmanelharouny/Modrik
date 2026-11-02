@@ -44,6 +44,7 @@ export function ExtractionStage({
   const [draft, setDraft] = useState("");
   const [draftPriority, setDraftPriority] = useState("Should");
   const [draftType, setDraftType] = useState("functional");
+  const [evidenceSelections, setEvidenceSelections] = useState<Record<string, string>>({});
 
   const patch = async (itemId: string, data: Record<string, unknown>) => {
     try {
@@ -79,6 +80,13 @@ export function ExtractionStage({
     if (!editing) return;
     await patch(editing.id, { text: draft, priority: draftPriority, type: draftType });
     setEditing(null);
+  };
+
+  const attachEvidence = async (requirementId: string) => {
+    const evidenceId = evidenceSelections[requirementId];
+    if (!evidenceId) return;
+    await patch(requirementId, { attachEvidenceId: evidenceId });
+    setEvidenceSelections((current) => ({ ...current, [requirementId]: "" }));
   };
 
   const evidenceTitles = new Map(project.evidences.map((e) => [e.code, e.title]));
@@ -161,6 +169,41 @@ export function ExtractionStage({
               <p className="mt-2 rounded-md bg-secondary/50 px-3 py-1.5 text-xs italic text-muted-foreground" dir="auto">
                 Critic: {r.verifyNote}
               </p>
+            )}
+
+            {isCurrent && project.evidences.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-secondary/20 p-2">
+                <span className="w-full text-xs text-muted-foreground">
+                  Add a source if the extractor missed a citation. This is a manual trace link; unchecked-consent content remains excluded from AI prompts.
+                </span>
+                <Select
+                  value={evidenceSelections[r.id]}
+                  onValueChange={(value) => setEvidenceSelections((current) => ({ ...current, [r.id]: value }))}
+                >
+                  <SelectTrigger className="min-w-[220px] flex-1" aria-label={`Evidence source for ${r.refId}`}>
+                    <SelectValue placeholder="Choose an evidence source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {project.evidences
+                      .filter((evidence) => !r.links.some((link) => link.evidenceId === evidence.id))
+                      .map((evidence) => (
+                        <SelectItem key={evidence.id} value={evidence.id}>
+                          {evidence.code} · {evidence.title.slice(0, 70)}{evidence.consent ? "" : " (not AI-shared)"}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  disabled={!evidenceSelections[r.id]}
+                  onClick={() => attachEvidence(r.id)}
+                >
+                  <Link2 className="mr-1 h-3.5 w-3.5" />
+                  Attach source
+                </Button>
+              </div>
             )}
 
             {isCurrent && r.links.length > 0 && (
