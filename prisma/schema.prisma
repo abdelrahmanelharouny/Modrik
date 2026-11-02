@@ -312,34 +312,20 @@ model Integration {
 
 // One row per externally synced work item (bidirectional trace)
 model SyncMap {
-  id            String   @id @default(cuid())
-  projectId     String
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind          String   // github | jira
-  direction     String   // pushed | pulled
-  requirementId String?  // local requirement pushed out
-  requirement   Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
-  storyId       String?  // local story pushed out
-  story         UserStory?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  localLabel    String   // REQ-07 / US-03 (stable even if the local row is later deleted)
-  externalKey   String   // GitHub issue number / Jira issue key
-  externalUrl   String
-  title         String
-  syncedAt      DateTime @default(now())model SyncMap {
-  id            String   @id @default(cuid())
-  projectId     String
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind          String   // github | jira
-  direction     String   // pushed | pulled
-  requirementId String?  // local requirement pushed out
-  requirement   Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
-  storyId       String?  // local story pushed out
-  story         UserStory?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  localLabel    String   // REQ-07 / US-03 (stable even if the local row is later deleted)
-  externalKey   String   // GitHub issue number / Jira issue key
-  externalUrl   String
-  title         String
-  syncedAt      DateTime @default(now())
-  idempotencyKey String? @unique // stable key for exactly-once tracker push recovery
-  leaseExpiresAt DateTime? // temporary claim while an external issue is being created
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind            String   // github | jira
+  direction       String   // pushed | pulled | pending | creating | failed
+  requirementId   String?  // local requirement pushed out
+  requirement     Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  storyId         String?  // local story pushed out
+  story           UserStory? @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  localLabel      String   // REQ-07 / US-03 (stable even if the local row is later deleted)
+  externalKey     String   // GitHub issue number / Jira issue key
+  externalUrl     String
+  title           String
+  syncedAt        DateTime @default(now())
+  idempotencyKey  String?  @unique // stable key for exactly-once tracker push recovery
+  leaseExpiresAt  DateTime? // temporary claim while an external issue is being created
 }
