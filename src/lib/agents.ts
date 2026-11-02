@@ -191,10 +191,9 @@ function evidenceBlock(evidences: { code: string; title: string; sourceType: str
       ? "(evidence sources are stored, but none has explicit permission for AI processing; no source content is sent to the model)"
       : "(no evidence sources provided yet)";
   }
-  // Audit fix: a hard 1200-char per-evidence window was silently blinding
-  // every agent to everything beyond it (confirmed by the truncation probe).
-  // Budget: up to 4000 chars per evidence, 16000 chars total; when the total
-  // overflows, shrink the per-evidence window fairly but never below 1200.
+  // Hard cap: each eligible source receives an equal share of a 16,000
+  // character aggregate budget, up to 4,000 chars. The per-source floor is
+  // intentionally zero for large source counts; the overall cap must win.
   const per = evidenceContentBudget(eligible.length, 16000, 4000);
   return eligible
     .map((e) => {
@@ -335,7 +334,7 @@ ${answers || "(no answers yet)"}
 ${uncertaintyBlock(project.questions)}
 TASK: Propose 3-4 candidate problem statements worth solving in this project. For each: a short title, a 2-3 sentence description, the evidence codes that ground it, and suggested impact (1-5, value to users/business) and effort (1-5, 5 = hardest). Prefer problems strongly supported by the evidence. Treat ledger assumptions as provisional, not as facts.
 
-Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCodes": ["E1"], "suggestedImpact": 4, "suggestedEffort": 3}]}`;
+Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCodes": ["E-ABC12345"], "suggestedImpact": 4, "suggestedEffort": 3}]}`;
 
   const out = await callLLMJson<{ candidates: AgentCandidate[] }>(prompt, usage);
   const cs = (out.candidates ?? []).slice(0, 4);
