@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     });
     if (!currentUser || currentUser.status !== "active" || !currentOrganization || currentOrganization.status !== "active") return null;
     if (passwordHash && currentUser.passwordHash) return null;
+    if (!passwordHash && !currentUser.passwordHash) return null;
     const claim = await tx.organizationInvitation.updateMany({
       where: {
         id: invitation.id, tokenHash, acceptedAt: null, revokedAt: null,
