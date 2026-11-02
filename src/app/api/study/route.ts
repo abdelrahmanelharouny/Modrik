@@ -9,6 +9,12 @@ import { db } from "@/lib/db";
 
 const GROUPS = ["A_traditional", "B_unconstrained_llm", "C_modrik"];
 
+function csvCell(value: unknown): string {
+  let raw = value == null ? "" : String(value);
+  if (typeof value === "string" && /^[\\s]*[=+\\-@]/.test(raw)) raw = "'" + raw;
+  return `"${raw.replace(/"/g, '""')}"`;
+}
+
 // POST { groupId, participantCode, scenarioId, projectId? } → open a session
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -39,19 +45,25 @@ export async function PATCH(req: NextRequest) {
   const session = await db.studySession.findUnique({ where: { id: sessionId } });
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
 
-  if (body.event) {
+  if (body.event && typeof body.event === "object" && !Array.isArray(body.event)) {
     await db.studyEvent.create({
       data: {
         sessionId,
-        kind: String(body.event.kind ?? "note").slice(0, 40),
+        kind: /^[a-zA-Z0-9_.:-]{1,40}$/.test(String(body.event.kind ?? "note")) ? String(body.event.kind ?? "note") : "note",
         detail: String(body.event.detail ?? "").slice(0, 600),
       },
     });
   }
 
   const data: Record<string, unknown> = {};
-  if (body.taskTimeSec !== undefined) data.taskTimeSec = Math.max(0, Math.round(Number(body.taskTimeSec) || 0));
-  if (body.susScore !== undefined) data.susScore = Math.min(100, Math.max(0, Math.round(Number(body.susScore) || 0)));
+  if (body.taskTimeSec !== undefined) {
+    const value = Number(body.taskTimeSec);
+    if (Number.isFinite(value)) data.taskTimeSec = Math.min(7 * 24 * 60 * 60, Math.max(0, Math.round(value)));
+  }
+  if (body.susScore !== undefined) {
+    const value = Number(body.susScore);
+    if (Number.isFinite(value)) data.susScore = Math.min(100, Math.max(0, Math.round(value)));
+  }
   if (body.notes !== undefined) data.notes = String(body.notes).slice(0, 2000);
   if (body.nasaTlx && typeof body.nasaTlx === "object") {
     const tlx = body.nasaTlx as Record<string, unknown>;
@@ -59,7 +71,7 @@ export async function PATCH(req: NextRequest) {
     const clean: Record<string, number> = {};
     for (const d of dims) {
       const v = Number(tlx[d]);
-      if (!Number.isNaN(v)) clean[d] = Math.min(100, Math.max(0, Math.round(v)));
+      if (Number.isFinite(v)) clean[d] = Math.min(100, Math.max(0, Math.round(v)));
     }
     data.nasaTlx = JSON.stringify(clean);
   }
@@ -130,7 +142,7 @@ export async function GET(req: NextRequest) {
       s.susScore ?? "",
       s.startedAt.toISOString(),
       s.finishedAt?.toISOString() ?? "",
-    ].join(",");
+    ].map(csvCell).join(",");
   });
   const csv = [header, ...rows].join("\n");
   return new NextResponse(csv, {
