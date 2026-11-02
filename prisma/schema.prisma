@@ -383,7 +383,6 @@ model NegotiationDecision {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
-  @@index([projectId, requirementId, status])
   @@unique([id, projectId])
   @@index([projectId, requirementId, status])
 }
