@@ -663,6 +663,8 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
       experimentId,
       seed,
       candidatePool: commonPoolJson.slice(0, 18000),
+      candidatePoolHash,
+      candidatePoolUsed: arm !== "single_shot",
       questions: JSON.stringify(questions).slice(0, 18000),
       metrics: JSON.stringify(metrics),
       candidates: pool.length,
