@@ -180,6 +180,12 @@ try {
   const tenantQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, { headers: tenantHeaders });
   await expectStatus(tenantQualityRead, 200, "same-tenant requirement quality assessment read");
   assert.ok((await json(tenantQualityRead)).assessments.some(item => item.id === createdQualityAssessment.id));
+  const tenantQualityAccept = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    method: "PATCH", headers: tenantHeaders,
+    body: JSON.stringify({ assessmentId: createdQualityAssessment.id, status: "accepted" }),
+  });
+  await expectStatus(tenantQualityAccept, 200, "authorized reviewer may accept a current quality assessment");
+  assert.equal((await json(tenantQualityAccept)).assessment.status, "accepted");
   const foreignQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectB.id}/quality`, {
     headers: { ...tenantHeaders, "x-modrik-organization-id": tenantB.id, "x-modrik-role": "owner" },
   });
