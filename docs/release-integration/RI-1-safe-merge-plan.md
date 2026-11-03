@@ -404,3 +404,24 @@ Canonicalization decision:
 | Human recruitment / actual ratings | Not started |
 
 Neither PR #20 nor PR #21 is merged. H2.2 remains open until the canonical hybrid is implemented on a single branch, all integration and regression gates pass on its exact head, and the final workflow/documentation agree on the same schema and artifact contract.
+
+
+### RI.4.5 — Canonical H2.2 hybrid implementation opened (2026-11-03)
+
+Created draft PR #23: https://github.com/abdelrahmanelharouny/Modrik/pull/23
+
+- Head branch: `codex/modrik-h2-2-canonical-hybrid`
+- Base: `codex/modrik-h2-1-benchmark-ablation` at H2.1 head `2d7c2a2f4a9500062e8803fbce924e9ef95fba65`
+- Exact head: `7334ef739f62b03ef2e2def622d119766f512799`
+
+The branch ports PR #20's eight-field statistical engine, paired comparisons, inferential gate, allowlisted question payloads, consent filtering, and answer-key coverage checks. It adds a versioned canonical JSON packet, derived CSV rater exports, an integrity manifest with SHA-256 digests over exact UTF-8 bytes for the canonical packet and both rater CSVs plus answer key, mandatory manifest verification before analysis, and strict R1/R2 identity validation. The chosen rubric is `modrik-human-ratings-v1`; confidence is calibration-only. The alternate PR #21 rubric is not pooled.
+
+Initial CI run `41654180785` is in progress. At the latest poll, both `postgres-schema` and `quality` jobs were running; the quality job had reached TypeScript. No green result is claimed yet. PR #23 remains draft/open/unmerged. Local test execution remains unavailable; exact-head Actions is the acceptance gate.
+
+| Gate | State |
+|---|---|
+| Canonical hybrid branch created from H2.1 | Complete |
+| Core statistical and packet-integrity implementation ported | Committed |
+| Exact-byte manifest verification and rater identity tests | Committed |
+| Exact-head CI | In progress (run 41654180785) |
+| Human recruitment / actual ratings | Not started |
