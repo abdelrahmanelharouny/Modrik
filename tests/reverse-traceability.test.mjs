@@ -41,7 +41,7 @@ test("reverse trace summary preserves provenance and impact depth", () => {
     impacted: [{ id: "r2", refId: "REQ-02", depth: 1, via: [{ from: "REQ-01", kind: "depends_on" }] }],
   });
   assert.equal(summary.direct[0].evidenceCode, "E-123");
-  assert.equal(summary.supportingClaims[0].revisionVersion, 2);
+  assert.equal(summary.linkedClaims[0].revisionVersion, 2);
   assert.equal(summary.knowledge[0].role, "implements");
   assert.equal(summary.impacted[0].depth, 1);
 });
