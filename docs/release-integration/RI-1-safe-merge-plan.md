@@ -170,3 +170,87 @@ The available GitHub integration supports branch creation, file edits, compare, 
 - [ ] Reconstruct and test the reconciled stack in a Git-aware checkout.
 - [ ] Rerun full CI on each reconciled candidate SHA.
 - [ ] Obtain authorized branch-protection verification.
+
+
+## RI.3 — H2.2 canonicalization review (2026-11-03)
+
+### Fresh immutable-head verification
+
+| PR | Base SHA | Head SHA | Delta | Latest PR CI |
+|---|---|---|---:|---|
+| #20 | `2d7c2a2f4a9500062e8803fbce924e9ef95fba65` | `27e60abca8d40cf8754eddeeb43aac428a2464b0` | 1 commit / 6 files | run #314 — completed, success |
+| #21 | `2d7c2a2f9500062e8803fbce924e9ef95fba65` | `063485e07278fd94e7c0564e6619213bbb0da887` | 4 commits / 6 files | run #313 — completed, success |
+
+Both are direct children of the same H2.1 SHA and neither is a child of the other. Both remain open, Draft, and unmerged. Their green runs validate their own isolated heads only; they do not validate a hybrid candidate.
+
+### Line-level implementation review
+
+**Keep the reusable/statistical core from #20**
+- Preserve `src/lib/research/human-ratings.mjs` as the shared module boundary.
+- Keep quadratic weighted Cohen's kappa, exact and within-one agreement, paired arm comparisons, deterministic bootstrap intervals, sign-flip permutation, Holm correction, effect-size reporting, and adjudication queue.
+- Preserve the inferential minimum-scenario gate and do not treat confidence as a quality dimension.
+- Keep CSV parsing/serialization as an interchange adapter, not as a second domain model.
+
+**Port and harden the integrity model from #21**
+- Keep SHA-256 binding between the blinded packet and coordinator-only mapping.
+- Keep rejection of packet/key mismatch, unknown blind IDs, invalid arm mappings, duplicate rater identities, malformed ordinal values, and unknown rating IDs.
+- Keep no-overwrite semantics.
+- Use one canonical versioned JSON packet; derive rater CSV exports from it. This avoids two competing canonical schemas while retaining spreadsheet-friendly scoring.
+
+**Newly identified hardening details**
+1. #20 checks whether the output key exists, then writes without exclusive-create semantics. A check-then-write race can overwrite an artifact created between those operations. The canonical writer must use exclusive creation (`wx`) for every packet/key/manifest file and clean partial output on failure.
+2. #21 hashes `JSON.stringify(packet, null, 2) + "\\n"` after parsing the packet file. This checks canonical serialization of the parsed object, not original on-disk bytes. Either hash exact bytes read from disk or explicitly define and test canonical serialization; do not claim raw-file integrity while normalizing first.
+3. Preserve missing-pair reporting without imputation, but expose expected, submitted, matched, missing, duplicate, and unknown counts per rater/scenario.
+4. Write packet and key into a fresh output directory using exclusive creation; remove partial artifacts on failure and never silently replace a prior key or packet.
+5. Test blinding across the entire serialized packet and filenames: no arm IDs, gold labels, provider/model, prompt metadata, candidate-pool hashes, utility scores, or answer-key fields may leak.
+6. Consent is a strict boolean filter. Tests must prove false, missing, null, and non-boolean values are excluded; never coerce them to true.
+7. Keep this offline benchmark artifact separate from participant NASA-TLX/SUS records. Do not imply recruitment, ethics approval, or actual human ratings before they exist.
+
+### Canonical H2.2 contract
+
+- One versioned JSON packet containing scenario metadata, consent-filtered evidence, blinded arms, rubric version, seed fingerprint, and packet ID.
+- One coordinator-only mapping key cryptographically bound to the exact packet bytes; never included in rater exports.
+- Two independently randomized rater exports derived from the immutable packet. CSV is an exchange format; imported rows must map to immutable packet IDs.
+- One analysis module: #20 statistical functions plus #21 integrity/validation boundary.
+- One CLI surface with explicit export, validate, and analyze commands; avoid duplicate command aliases unless each is documented and tested.
+- Distinct rater identities; integer scores 1–5; duplicate keys and unknown scenario/arm pairs are hard errors.
+- Missing ratings are reported, never imputed. Inferential contrasts are withheld below 10 complete scenarios.
+- Report ordinal agreement separately from arm performance. Kappa is agreement, not validity; results remain exploratory until independent raters complete the protocol.
+
+### RI.3 acceptance-test matrix
+
+| Area | Required test | Pass condition |
+|---|---|---|
+| Export determinism | Same fixtures and seed | Same packet body, blind IDs, key mapping, and hash |
+| Consent | true / false / missing / null / string / number | Only strict boolean true evidence exported |
+| Blindness | Scan all packet/CSV fields and filenames | No arm, gold, model/provider, prompt, pool-hash, utility, or key leakage |
+| Key integrity | Change one packet byte | Exact-byte checksum mismatch rejected |
+| Key structure | Missing, duplicate, unknown, wrong-arm mapping | Hard failure before arm reveal |
+| Rater identity | Same ID for both raters | Hard failure |
+| Rater schema | Missing, noninteger, out-of-range, duplicate, unknown IDs | Invalid data rejected without coercion |
+| Pair completeness | Missing ratings | Counts reported; no fabricated score/agreement |
+| No overwrite | Existing output or concurrent creation | Exclusive create fails without replacing files |
+| Partial write | Simulated mid-export failure | Partial artifacts cleaned; no valid-looking manifest remains |
+| Agreement | Perfect / adjacent / reversed synthetic scores | Exact, within-one, MAE, weighted kappa match hand calculations |
+| Inference gate | 9 vs 10 complete scenarios | 9: no inferential claims; 10: deterministic CI/permutation/Holm |
+| Statistics | Fixed seeded synthetic differences | Reproducible bootstrap, permutation, Holm, effect sizes |
+| CLI | Missing args, invalid input, success | Stable errors and documented outputs |
+| Study separation | Participant-study fixtures/paths | No cross-ingestion or shared output namespace |
+| Regression | Full H2.1 + H2.2 suite | All benchmark/security tests remain green |
+
+### Build/verification status
+
+- [x] Both source PRs and exact heads re-fetched.
+- [x] Both PR-specific CI runs confirmed completed/success on the exact heads.
+- [x] Changed-file overlap and both patches reviewed.
+- [x] Concrete output race and checksum-byte-semantics gaps identified.
+- [ ] Canonical hybrid implementation created.
+- [ ] Focused tests run on the hybrid implementation.
+- [ ] Full repository CI run on the hybrid candidate SHA.
+- [ ] Canonical PR opened and reviewed before superseding either source PR.
+
+### Tooling / execution boundary
+
+The GitHub connection exposes Git object primitives (blob/tree/commit/ref) in addition to file and PR APIs. However, the current execution environment cannot resolve `github.com` for a local clone, and no local working tree is available to run Bun/Node/Prisma/Playwright tests. A tree/commit assembled from remote patches without executing the repository test suite would be an unverified source rewrite, not a validated canonical build. Therefore no product branch was fabricated and neither source PR was modified or closed in this pass.
+
+**RI.3 remains in implementation/verification, not complete.** The next safe step is a Git-aware build environment with the repository checkout, implementation of this contract, focused and full CI, and only then opening the canonical H2.2 PR.
