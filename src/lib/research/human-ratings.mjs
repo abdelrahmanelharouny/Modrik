@@ -67,8 +67,8 @@ export function buildBlindPackets(records,loadScenario,options={}){
 
 export function analyzeHumanRatings(rater1Rows,rater2Rows,answerKeyRows,options={}){
  const minScenarios=Number.isInteger(options.minScenarios)&&options.minScenarios>=2?options.minScenarios:10;
- const index=(rows,label)=>{const map=new Map();for(const row of rows){const key=keyOf(row);if(!row.scenario_id||!row.blind_output_id)throw new Error(label+" row is missing scenario_id or blind_output_id");if(map.has(key))throw new Error(label+" contains duplicate output "+key);map.set(key,row);}return map;};
- const left=index(rater1Rows,"Rater 1"),right=index(rater2Rows,"Rater 2"),keyMap=new Map();
+ const index=(rows,label,expectedRaterCode)=>{const map=new Map();for(const row of rows){const key=keyOf(row);if(!row.scenario_id||!row.blind_output_id)throw new Error(label+" row is missing scenario_id or blind_output_id");if(row.rater_code!==expectedRaterCode)throw new Error(label+" contains missing or mismatched rater_code; expected "+expectedRaterCode);if(map.has(key))throw new Error(label+" contains duplicate output "+key);map.set(key,row);}return map;};
+ const left=index(rater1Rows,"Rater 1","R1"),right=index(rater2Rows,"Rater 2","R2"),keyMap=new Map();
  for(const row of answerKeyRows){const key=keyOf(row);if(!row.scenario_id||!row.blind_output_id)throw new Error("Answer key row is missing scenario_id or blind_output_id");if(!PLANNER_ARMS.includes(row.arm))throw new Error("Answer key contains unknown arm for "+key);if(keyMap.has(key))throw new Error("Answer key contains duplicate output "+key);keyMap.set(key,row.arm);}
  for(const key of [...left.keys(),...right.keys()])if(!keyMap.has(key))throw new Error("Rater file contains an output absent from the answer key: "+key);
  const matched=[...left.keys()].filter(key=>right.has(key));
