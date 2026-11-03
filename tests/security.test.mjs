@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { isSameOriginMutation } from "../src/lib/security/request-origin.mjs";
 import { encryptSecret, decryptSecret, isEncryptedSecret } from "../src/lib/security/secret-box.mjs";
 import { csvCell } from "../src/lib/security/csv.mjs";
 import { validateJiraBaseUrl, buildJiraUrl, jiraFetchOptions } from "../src/lib/security/jira-url.mjs";
@@ -8,6 +9,7 @@ import {
   createSessionToken,
   verifySessionToken,
   verifyAdminCredentials,
+  verifyAdminRequest,
   SESSION_TTL_SECONDS,
 } from "../src/lib/security/session.mjs";
 
@@ -106,4 +108,41 @@ test("CSV cells quote delimiters and neutralize spreadsheet formulas", () => {
   assert.equal(csvCell("ordinary, text"), "\"ordinary, text\"");
   assert.equal(csvCell('say "hello"'), "\"say \"\"hello\"\"\"");
   assert.equal(csvCell(-10), "\"-10\"");
+});
+
+test("API owner authorization rejects missing, expired, misconfigured and non-owner sessions",()=>{
+  const now=Date.now();
+  const env={MODRIK_ADMIN_EMAIL:"owner@example.com",MODRIK_ADMIN_PASSWORD_HASH:"configured",MODRIK_AUTH_SECRET:secret};
+  const token=createSessionToken("owner@example.com",secret,now);
+  assert.equal(verifyAdminRequest(token,env,now)?.role,"owner");
+  assert.equal(verifyAdminRequest(undefined,env,now),null);
+  assert.equal(verifyAdminRequest(token,{...env,MODRIK_ADMIN_EMAIL:"other@example.com"},now),null);
+  assert.equal(verifyAdminRequest(token,{...env,MODRIK_AUTH_SECRET:"short"},now),null);
+  assert.equal(verifyAdminRequest(token,env,now+(SESSION_TTL_SECONDS+1)*1000),null);
+  const other=createSessionToken("other@example.com",secret,now);
+  assert.equal(verifyAdminRequest(other,env,now),null);
+});
+
+
+test("state-changing request origin validation uses the actual request host", () => {
+  const sameOrigin = new Headers({ host: "127.0.0.1:3187", origin: "http://127.0.0.1:3187", "sec-fetch-site": "same-origin" });
+  assert.equal(isSameOriginMutation(sameOrigin, "http:"), true);
+  const crossOrigin = new Headers({ host: "127.0.0.1:3187", origin: "https://attacker.example", "sec-fetch-site": "cross-site" });
+  assert.equal(isSameOriginMutation(crossOrigin, "http:"), false);
+  const crossSiteWithoutOrigin = new Headers({ host: "127.0.0.1:3187", "sec-fetch-site": "cross-site" });
+  assert.equal(isSameOriginMutation(crossSiteWithoutOrigin, "http:"), false);
+  const trustedProxyHttps = new Headers({ host: "app.example.com", origin: "https://app.example.com", "x-forwarded-proto": "https" });
+  assert.equal(isSameOriginMutation(trustedProxyHttps, "http:"), true);
+  const browserSameOriginBehindStandaloneRuntime = new Headers({
+    host: "127.0.0.1:3187", origin: "http://127.0.0.1:3187",
+    "sec-fetch-site": "same-origin", "x-forwarded-proto": "https",
+  });
+  assert.equal(isSameOriginMutation(browserSameOriginBehindStandaloneRuntime, "https:"), true);
+  const sameHostButCrossSite = new Headers({
+    host: "app.example.com", origin: "https://app.example.com",
+    "sec-fetch-site": "cross-site", "x-forwarded-proto": "http",
+  });
+  assert.equal(isSameOriginMutation(sameHostButCrossSite, "http:"), false);
+  const malformedOrigin = new Headers({ host: "app.example.com", origin: "not a URL" });
+  assert.equal(isSameOriginMutation(malformedOrigin, "https:"), false);
 });
