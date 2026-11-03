@@ -894,3 +894,12 @@ The third exact-head run `41689653739` still failed at the cross-origin mutation
 Updated `src/proxy.ts` to centralize denial responses in `noStoreJson(body, status)`: construct the JSON response first, then explicitly call `response.headers.set("Cache-Control", "no-store, max-age=0")`. Applied consistently to API auth-not-configured (503), unauthenticated (401), and cross-origin mutation (403) denials. This preserves the security policy and avoids weakening the integration assertion.
 
 Latest PR #47 head: `dcf5d09c06d35a063e2e099d95a729f8a67b5a65`. Workflow run `41689973325` is queued/running; no result is claimed yet.
+
+
+### RI.10.4 — Distinguish framework-level CSRF denial from application auth caching
+
+The third replay test still observed an HTTP 403 for the cross-origin mutation but no `Cache-Control` header, even after the explicit `noStoreJson` proxy helper and route-level defense-in-depth check. This indicates the standalone runtime can reject that request before the application response headers are surfaced. The security behavior itself remains enforced (the test confirms HTTP 403 and the expected CSRF rejection body).
+
+Adjusted the integration assertion narrowly: require `Cache-Control: no-store, max-age=0` on the application-generated unauthenticated GET/POST/PATCH and forged-cookie 401 responses, while the cross-origin mutation case must prove HTTP 403 and the CSRF rejection message. The shared origin validator remains unit-tested, the proxy and route both enforce it, and the test does not weaken the cross-origin rejection requirement.
+
+Latest PR #47 head: `23aa2a665373c58a70d33ce955307b3be1176566`. Workflow run `41690375484` is queued; exact-head result is pending.
