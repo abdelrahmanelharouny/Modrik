@@ -230,7 +230,7 @@ Each seeded mission carries the full artifact set: 2–3 bilingual evidence arti
 |-------|--------|----------------------------------|
 | Framework | **Next.js 16 (App Router)** | One artifact for UI + API routes simplifies deployment to a single Vercel project; route handlers give the audit suite clean, curl-able HTTP contracts; server components keep the shell fast while the cockpit is fully interactive. |
 | Language | **TypeScript, strict** | The domain is full of discriminated unions (stage codes, statuses, conflict kinds, edge kinds). A `Stage` union type + registry vocabulary objects make invalid states unrepresentable at the UI boundary. |
-| Data | **Prisma 6** over **SQLite (dev) / PostgreSQL (prod)** | Typed queries against 19 models with relations; `db push` iteration speed for research; dual-schema provider switch keeps local dev zero-config and production durable (see [D3](#19-design-decision-records--the-why-behind-every-choice)). |
+| Data | **Prisma 6** over **SQLite (dev) / PostgreSQL (prod)** | Typed queries against 38 models with relations; `db push` iteration speed for research; dual-schema provider switch keeps local dev zero-config and production durable (see [D3](#19-design-decision-records--the-why-behind-every-choice)). |
 | UI | **Tailwind CSS 4 + shadcn/ui + Radix** | The flight-deck look is token-driven (`--aura` accents, HUD panels); shadcn gives accessible primitives (dialogs, tabs, toasts) without stealing markup ownership; Radix primitives are RTL-safe — a hard requirement for §8. |
 | Motion | **Framer Motion** (Reveal wrappers, impact rings) | Used sparingly and never for data — motion marks *state transitions* (gates, impact sets), not decoration. |
 | LLM | **z-ai-web-dev-sdk (GLM, default)** behind a swappable provider interface | The provider interface (§13) keeps the strategy (retries, JSON repair, budgets) fixed and the model swappable — GLM default inside its native sandbox, any OpenAI-compatible endpoint elsewhere (see [D9](#19-design-decision-records--the-why-behind-every-choice)). |
@@ -246,7 +246,7 @@ flowchart LR
         LIB["Mission Library"]
     end
 
-    subgraph API["API surface (23 route handlers)"]
+    subgraph API["API surface (36 route handlers)"]
         TEL["/api/telemetry"]
         PRJ["/api/projects/* (stages · items · pipeline · instruments)"]
         MIS["/api/missions (library catalog + seeding)"]
@@ -288,7 +288,7 @@ flowchart LR
 
 ## 11. The data model — nineteen tables
 
-All 19 Prisma models (`prisma/schema.prisma`) — SQLite in dev, the generated `schema.postgres.prisma` in production; both are maintained from the single source of truth by `npm run db:sync:pg`.
+All 38 Prisma models (`prisma/schema.prisma`) — SQLite in dev, the generated `schema.postgres.prisma` in production; both are maintained from the single source of truth by `npm run db:sync:pg`.
 
 | Domain | Models | Notes |
 |--------|--------|-------|
@@ -398,7 +398,7 @@ Modrik's core claim — *evidence-driven HITL produces better requirements with 
 git clone https://github.com/<you>/modrik.git && cd modrik
 cp .env.example .env          # defaults are correct for local dev
 npm install                   # runs `prisma generate` for the SQLite schema
-npm run db:push               # creates db/custom.db with all 19 tables
+npm run db:push               # creates db/custom.db with all 38 models
 npm run dev                   # http://localhost:3000
 ```
 
@@ -515,7 +515,7 @@ The reasoning behind every significant architectural choice, in one place. Each 
 
 **D4 — The registry + the dynamicity rule.** *Decision:* all qualitative UI metadata in `src/lib/registry.ts`; all quantitative values from the DB via APIs; hardcoded statistics forbidden (and grepped for). *Alternatives:* constants next to components (drifts silently); a CMS (overkill). *Deciding force:* §7's three arguments — research integrity, aging screenshots, and testability. A hallucination-measuring platform hallucinating its own stats would be self-refuting.
 
-**D5 — Route handlers, not Server Actions.** *Decision:* all engine access via 23 HTTP routes. *Alternatives:* Server Actions (less boilerplate). *Deciding force:* the API is the **audit surface** — the agent-audit harness, planner reproductions, integration tests and curl-driven verification all drive the same endpoints the UI does. An engine reachable only through the component tree cannot be independently audited.
+**D5 — Route handlers, not Server Actions.** *Decision:* all engine access via 36 HTTP route handlers. *Alternatives:* Server Actions (less boilerplate). *Deciding force:* the API is the **audit surface** — the agent-audit harness, planner reproductions, integration tests and curl-driven verification all drive the same endpoints the UI does. An engine reachable only through the component tree cannot be independently audited.
 
 **D6 — Implications-only conflict negotiation.** *Decision:* conflicts carry a six-way taxonomy and per-option impacts; resolution text is human-written. *Alternatives:* agent-recommended resolutions (faster). *Deciding force:* conflicts encode stakeholder value disagreements — the one place software must not have opinions. Also, recommendation laundering is the failure mode HITL exists to prevent (D2).
 
