@@ -199,7 +199,7 @@ try {
     await page.getByRole("button", { name: "Create negotiation" }).click();
     const negotiationResponse = await negotiationResponsePromise;
     const negotiationResponseBody = await negotiationResponse.text();
-    assert.equal(negotiationResponse.status(), 201, `create negotiation API failed: HTTP ${negotiationResponse.status()} ${negotiationResponseBody}`);
+    assert.equal(negotiationResponse.status(), 201, `create negotiation API failed: HTTP ${negotiationResponse.status()} ${negotiationResponseBody}; request diagnostics: ${JSON.stringify(browserDiagnostics.projectApi.at(-1))}`);
     await page.getByText("Browser-driven stakeholder negotiation", { exact: false }).waitFor();
 
     for (const stakeholderName of ["Stakeholder A1", "Stakeholder A2"]) {
