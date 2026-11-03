@@ -858,3 +858,17 @@ Workflow run `41688684673` was triggered for PR #47's exact head. The PostgreSQL
 - The Phase 4 README and SECURITY updates were replayed as part of the original change set; verify the final README status claims against the downstream H1 state before any public release.
 - Phase 4 collaboration still uses the owner-session boundary described in its design. It does not itself supply organization-level RBAC; that remains downstream H1 scope.
 - Keep PR #47 Draft and unmerged until exact-head CI and later H1 authorization integration gates pass.
+
+
+### RI.10.1 — Phase 4 auth cache-header integration regression
+
+The first PR #47 exact-head run `41688684673` passed regression tests, TypeScript, lint, SQLite production build, and PostgreSQL schema validation, but failed the stakeholder API/browser E2E at the unauthenticated response cache-header assertion. The route-level `requireOwner` responses used `Cache-Control: no-store`, while the integration contract expects the normalized `no-store, max-age=0` value (the proxy already uses this normalized value for its API denials).
+
+Applied a narrow fix on `codex/modrik-phase-4-reconciled`:
+- Updated both stakeholder route-level auth denial responses (503 unconfigured and 401 invalid owner session) to `Cache-Control: no-store, max-age=0`.
+- Improved the integration assertion message to identify which request (`GET`, `POST`, `PATCH`, forged cookie, or cross-origin mutation) violates the cache policy.
+
+Latest exact PR #47 head after these changes: `598ab4620f3af36fbab816390c6b5c80177f7b09`.
+- Workflow run `41689075323` is in progress at the Playwright browser-runtime installation step; PostgreSQL schema job passed.
+- The preceding intermediate run `41689037955` was cancelled by GitHub after the newer commit arrived and is not a verification result.
+- Do not close this gate until run `41689075323` completes and its quality job (including stakeholder API/browser E2E) passes.
