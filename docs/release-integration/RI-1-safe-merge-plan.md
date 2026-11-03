@@ -304,3 +304,28 @@ A targeted reread of PR #4 (Requirement Quality Intelligence), #18 (H2.1 benchma
 | Benchmark provenance | Synthetic fixture run vs participant data | Rater packet provenance is synthetic/offline; no participant records |
 | Benchmark scope | 30 planner subset vs 120 total corpus | Reports state exact denominator and completed run count |
 | Secret rotation | Old/new/wrong key, corrupt v1, unsupported v2 | Deterministic safe behavior; no unsupported-version fallback |
+
+
+### RI.3.3 — Requirement Quality API authorization regression coverage (2026-11-03)
+
+A focused E2E regression suite was added to the H1.4 release-gates branch (codex/modrik-h1-4-release-gates) in commit 8b28570f0eb192da7ca75b05802428c74ed2df1c, modifying only tests/stakeholder-api-auth.integration.mjs.
+
+Coverage added:
+- same-tenant member can create and read a Requirement Quality assessment;
+- cross-tenant GET and POST are hidden with HTTP 404;
+- forged x-modrik-organization-id and x-modrik-role headers do not change the identity session's tenant boundary;
+- an authenticated tenant-A user cannot submit a tenant-B requirement ID against a tenant-A project;
+- viewer can read assessments but cannot create or accept them (HTTP 403).
+
+The existing H1.4 proxy maps project quality routes to projects:read, requirements:write, and requirements:review by HTTP method, and checks the project organization against the authenticated identity session. This addition exercises that behavior over HTTP rather than relying only on static route-policy inspection.
+
+Verification is pending: the exact commit currently has no associated PR workflow runs and no combined status checks. The CI workflow defines the stakeholder API/browser E2E integration job, but no test pass is claimed. The new test cases must execute on the exact candidate SHA before this gate can close.
+
+| Gate | State |
+|---|---|
+| E2E test code committed | Complete |
+| Exact-head CI execution | Pending (no run returned) |
+| Test assertions pass | Not verified |
+| H1.4 integration gate | Open |
+
+This is a test-only change on the H1.4 branch; it does not merge PR #9 or resolve the broader stacked-branch reconciliation.
