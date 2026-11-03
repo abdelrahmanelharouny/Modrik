@@ -316,7 +316,7 @@ Every route is a Next.js route handler (`src/app/api/**`), all dynamic (`ƒ`), a
 | `/api/telemetry` | GET | 15 live platform figures (fleet, totals, per-mechanism counters) |
 | `/api/projects` | GET, POST | Fleet list + create mission |
 | `/api/projects/[id]` | GET, PATCH, DELETE | Mission DTO (full state), stage transitions, edits |
-| `/api/projects/[id]/evidence` | GET, POST | Evidence intake (+ voice-transcript save path) |
+| `/api/projects/[id]/evidence` | GET, POST, PATCH, DELETE | Evidence intake, versioned edits and source removal with traceability invalidation |
 | `/api/projects/[id]/items` | GET, PATCH | Requirements / stories / candidates / conflicts CRUD surface for gate reviews |
 | `/api/projects/[id]/pipeline` | POST | Run a stage agent / advance the state machine |
 | `/api/projects/[id]/planner` | GET, POST | PlannerRun history; run a specific arm |
@@ -546,7 +546,7 @@ The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./
 - **Implemented but not externally verified:** organization/project membership RBAC and tenant-scoped authorization; invitation and password-recovery flows; shared Upstash rate limiting; browser/API integration coverage in CI; encrypted static-token GitHub/Jira integrations and a guarded credential-rotation utility. Provider connectivity, deployment migrations and production restore remain operator release gates.
 - **Implemented but awaiting live delivery verification:** signed GitHub Issues/Push webhooks feed bounded change signals into drift review, with HMAC verification, per-project encrypted secrets, repository binding and delivery deduplication. Project audit exports are available as JSON/CSV with explicit audit:read role enforcement and CSV formula-injection protection. Jira event webhooks, GitHub/Jira OAuth, publication-grade set-level judge calibration, and a larger full-bench ablation sweep remain incomplete. Existing benchmark runner and analysis scripts support reproducible runs but do not constitute published empirical results.
 - **Not started:** field-pilot recruitment and study analysis (protocol/infrastructure only).
-- **Not implemented yet:** offline-first capture and conflict-safe sync; reverse traceability from implementation changes to requirements; organization-scale knowledge memory and advanced audit governance. The first transparent change-effort proxy is implemented in the requirement impact view, but still needs calibration against observed engineering work before it can be treated as a forecast.
+- **Still open:** organization-scale knowledge memory, richer governance lifecycle controls, and full offline conflict resolution (offline edits/deletes and file/audio capture are not supported yet). Reverse traceability and offline text-source capture are implemented within their documented scopes. The first transparent change-effort proxy is implemented in the requirement impact view, but still needs calibration against observed engineering work before it can be treated as a forecast.
 
 ## 21. Roadmap
 
