@@ -903,3 +903,12 @@ The third replay test still observed an HTTP 403 for the cross-origin mutation b
 Adjusted the integration assertion narrowly: require `Cache-Control: no-store, max-age=0` on the application-generated unauthenticated GET/POST/PATCH and forged-cookie 401 responses, while the cross-origin mutation case must prove HTTP 403 and the CSRF rejection message. The shared origin validator remains unit-tested, the proxy and route both enforce it, and the test does not weaken the cross-origin rejection requirement.
 
 Latest PR #47 head: `23aa2a665373c58a70d33ce955307b3be1176566`. Workflow run `41690375484` is queued; exact-head result is pending.
+
+
+### RI.10.5 — Stakeholder negotiation browser-flow failure surfaced
+
+With the cross-origin cache assertion scoped to application-generated auth responses, the latest run `41690375484` progressed further into the browser workflow but timed out waiting for the newly created negotiation to appear. This is a separate E2E issue from the cache-header assertion. The current test did not expose whether the POST failed or whether the UI failed to refresh/render the successful response.
+
+Added explicit instrumentation to the browser test: capture the negotiation POST response, read its body, and assert HTTP 201 with the returned error body included on failure before waiting for the negotiation title in the UI. This converts an opaque 30-second locator timeout into an actionable API-vs-rendering diagnosis.
+
+Latest PR #47 head: `782822d8cbd5d874c786639ab62138fca8ad4b65`. Exact-head CI is pending; do not consider Phase 4 reconciled until the instrumented run passes all gates.
