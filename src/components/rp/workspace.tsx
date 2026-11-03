@@ -26,6 +26,7 @@ import { ExtractionStage } from "@/components/rp/stage-extraction";
 import { AmbiguityStage } from "@/components/rp/stage-ambiguity";
 import { StoriesStage } from "@/components/rp/stage-stories";
 import { ConflictsStage } from "@/components/rp/stage-conflicts";
+import { StakeholderCollaboration } from "@/components/rp/stakeholder-collaboration";
 import { DebriefBay } from "@/components/rp/stage-complete";
 
 interface WorkspaceProps {
@@ -237,7 +238,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
                 {viewing === "EXTRACTION" && <ExtractionStage project={project} isCurrent={isCurrent} refresh={refresh} />}
                 {viewing === "AMBIGUITY" && <AmbiguityStage project={project} isCurrent={isCurrent} refresh={refresh} />}
                 {viewing === "STORIES" && <StoriesStage project={project} isCurrent={isCurrent} refresh={refresh} />}
-                {viewing === "CONFLICTS" && <ConflictsStage project={project} isCurrent={isCurrent} refresh={refresh} />}
+                {viewing === "CONFLICTS" && <><ConflictsStage project={project} isCurrent={isCurrent} refresh={refresh} /><StakeholderCollaboration projectId={project.id} requirements={project.requirements.map(r=>({id:r.id,refId:r.refId,text:r.text}))} refresh={refresh} /></>}
               </>
             )}
           </motion.div>
