@@ -532,6 +532,7 @@ interface TrackerStatus {
   baseUrl?: string;
   projectKey?: string;
   email?: string;
+  webhookConfigured?: boolean;
 }
 interface IntegrationStatus {
   github: TrackerStatus;
@@ -589,7 +590,13 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const saveCfg = async () => {
     if (!cfgKind) return;
     const d = await act(cfgKind, "save-config", { config: cfg }, "Credentials saved (server-side, masked)");
-    if (d) setCfgKind(null);
+    if (!d) return;
+    if (cfgKind === "github" && cfg.webhookSecret?.trim()) {
+      const webhook = await act("github", "save-webhook-secret", { secret: cfg.webhookSecret }, "GitHub webhook secret saved");
+      if (!webhook) return;
+    }
+    setCfgKind(null);
+    setCfg({});
   };
 
   return (
@@ -607,7 +614,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
               <p className="mb-3 flex-1 text-xs leading-relaxed text-muted-foreground">
                 {configured
                   ? kind === "github"
-                    ? `${st?.owner}/${st?.repo} · token ${st?.token}`
+                    ? `${st?.owner}/${st?.repo} · token ${st?.token} · webhook ${st?.webhookConfigured ? "configured" : "not configured"}`
                     : `${st?.baseUrl} · project ${st?.projectKey} · email ${st?.email} · token ${st?.token}`
                   : kind === "github"
                     ? "Provide a personal access token (repo scope), owner and repository. Stored server-side; responses always mask secrets."
@@ -698,6 +705,11 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                     <Label htmlFor="gh-repo" className="text-xs text-muted-foreground">Repository</Label>
                     <Input id="gh-repo" value={cfg.repo ?? ""} onChange={(e) => setCfg((c) => ({ ...c, repo: e.target.value }))} />
                   </div>
+                </div>
+                <div>
+                  <Label htmlFor="gh-webhook-secret" className="text-xs text-muted-foreground">Webhook secret (min. 32 characters)</Label>
+                  <Input id="gh-webhook-secret" type="password" autoComplete="new-password" value={cfg.webhookSecret ?? ""} onChange={(e) => setCfg((c) => ({ ...c, webhookSecret: e.target.value }))} placeholder="Set or rotate the GitHub webhook secret" />
+                  <p className="mt-1 text-[10px] text-muted-foreground">Optional. Stored encrypted; never returned. Configure GitHub to send Issues and Push events to /api/webhooks/github/{projectId}.</p>
                 </div>
               </>
             ) : (
