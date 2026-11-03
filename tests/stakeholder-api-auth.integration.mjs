@@ -156,7 +156,8 @@ try {
 
   const browser = await chromium.launch({ headless: true });
   try {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    // Simulate the trusted ingress contract: production proxies must overwrite X-Forwarded-Proto.
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, extraHTTPHeaders: { "x-forwarded-proto": "http" } });
     await context.addCookies([{ name: SESSION_COOKIE, value: createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret), url: baseUrl }]);
     const page = await context.newPage();
 
