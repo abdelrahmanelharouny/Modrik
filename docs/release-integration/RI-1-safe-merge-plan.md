@@ -685,3 +685,61 @@ The corrected PR #25 head is `2879f049b88fed2c15b626bf53a216562b0339fa`. Exact-h
 - `postgres-schema`: passed, including schema synchronization, parity validator, PostgreSQL validation/client generation, and PostgreSQL 16 push.
 
 The initial failure remains documented as a valuable integration catch; it is superseded by the corrected exact-head green run. PR #25 is now a verified reconciliation candidate, still draft/open/unmerged.
+
+
+## RI.9 — Exact-head verification and dependency drift after reconciliation (2026-11-03)
+
+### Exact-head results refreshed
+
+The following current PR heads were re-fetched from GitHub. Their associated workflow runs completed successfully on those exact SHAs:
+
+| PR | Current head | Workflow run | Quality | PostgreSQL schema |
+|---|---|---:|---|---|
+| #23 canonical H2.2 | bdc01b164fd805e817fbe8b76634deea2a4bbb3c | 41663042327 | Passed | Passed |
+| #24 Phase 3 reconciliation | 494cc46623a06582d00feffc3d519ea56f3936df | 41671237145 | Passed | Passed |
+| #25 H1.5 reconciliation | 2879f049b88fed2c15b626bf53a216562b0339fa | 41671913673 | Passed | Passed |
+| #26 H1.12 reconciliation | eb81b757853c39a9838c391d4fb29a9b760392e3 | 41672295795 | Passed | Passed |
+
+PR #23 now includes a real CLI integration test that executes packet generation from ten checked-in, explicitly consented planner fixtures, writes private blinded artifacts, fills synthetic R1/R2 submissions, invokes the analysis CLI, checks the report, and rejects an immutable-payload tamper. The test also verifies 40 outputs per rater, exact manifest integrity, no sensitive metadata leakage, owner-only file/directory modes, and no-overwrite behavior. These are synthetic fixture ratings, not human-subject results.
+
+### Reconciliation branches are local fixes, not yet a reconciled end-to-end chain
+
+A fresh PR metadata snapshot shows all PRs #1–#26 remain open Draft PRs and none is merged. The new reconciliation candidates have the following exact parent relationships:
+
+- #24 is a child of the current Phase 2 branch head (9a030f8...) and is 5 commits ahead with no behind commits.
+- #25 is a child of the current H1.4 branch head (9d59754...) and is 9 commits ahead with no behind commits.
+- #26 is a child of the current H1.11 branch head (1a13291...) and is 3 commits ahead with no behind commits.
+- #23 is a child of the current H2.1 branch head (2d7c2a2...) and is 26 commits ahead with no behind commits.
+
+However, the downstream original branches have not yet been replayed onto these reconciliation candidates:
+
+1. PR #5 Phase 4 still targets the original Phase 3 branch, not reconciled Phase 3 PR #24. Therefore #6–#9 and the H1 stack cannot yet be treated as descendants of #24.
+2. PR #11 H1.6 still targets the original H1.5 branch (codex/modrik-h1-5-database-safety, head 5390736...), not reconciled H1.5 PR #25 (2879f04...). Consequently PRs #11–#17 need sequential replay/verification on top of #25 before #26 can be considered part of one coherent H1 chain.
+3. PR #18 H2.1 still targets the original H1.12 branch (codex/modrik-h1-12-planner-sensitivity, head 85b92a4...), not reconciled H1.12 PR #26. H2.1 must be replayed on #26, then canonical H2.2 PR #23 must be retargeted/replayed onto the new H2.1 head and re-tested.
+4. PR #1 still has a stale base relationship with current main; the Phase 0/current-main divergence recorded in RI.1 must be resolved before a true end-to-end merge rehearsal.
+
+GitHub mergeable=true metadata on an individual PR does not resolve these dependency drifts and does not prove combined-tree correctness. The reconciled candidates are valuable verified patches, but they are not a complete merge-ready release stack.
+
+### Next integration sequence
+
+Continue in dependency order and create new reconciled child branches rather than retargeting or force-pushing the original PR branches:
+
+- Reconcile Phase 0 against current main, then validate #2 and #3 descendants.
+- Use #24 as the Phase 3 replay parent, replay Phase 4 (#5), then rebuild the H1 foundation chain through H1.4.
+- Use #25 as the H1.5 parent; replay H1.6–H1.11 one stage at a time, with exact-head CI after every stage; retain #26's H1.12 safeguards on the resulting current H1.11 parent.
+- Replay H2.1 onto the resulting H1.12 head, then replay canonical H2.2 behavior from #23 onto that new H2.1 head.
+- Run a single combined-tree CI and focused cross-stack tests before any product PR is marked ready or merged.
+
+| Gate | State |
+|---|---|
+| Exact-head CI for #23, #24, #25, #26 | Passed |
+| H2.2 packet generation + analysis CLI round trip | Passed with synthetic checked-in fixtures |
+| Phase 4 onward replayed onto #24 | Not started |
+| H1.6–H1.11 replayed onto #25 | Not started |
+| H2.1 replayed onto #26 | Not started |
+| Canonical H2.2 replayed onto new H2.1 | Not started |
+| Phase 0 reconciled against current main | Not started |
+| Unified integration-tree CI | Not run |
+| Product PR merges | None |
+
+**Decision:** keep every PR Draft. Do not merge or close source branches yet. Proceed with the remaining sequential reconciliations and preserve the verified candidates as reference implementations.
