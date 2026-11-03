@@ -12,6 +12,7 @@
 - Stakeholder registry, requirement positions, evidence links and multi-stakeholder negotiation with quorum and immutable participant responses.
 - Organization/project membership authorization, tenant isolation checks, signed sessions, invitations, password recovery and shared Upstash rate limiting.
 - GitHub/Jira static-token integrations, encrypted credential storage, guarded credential re-encryption, and signed GitHub Issues/Push webhook ingestion into drift review with delivery deduplication.
+- Deterministic reverse traceability from tracker records to requirements, accepted evidence claims/revisions, knowledge nodes, user stories and upstream impact paths; tracker-to-requirement links require an explicit human-reviewed mapping or exact stable reference.
 - Study participant-token infrastructure, consent-aware data handling, blinded human-rating packet creation and analysis utilities.
 - Project-scoped decision-journal export as JSON/CSV with date/actor/stage/action filters, a 10,000-row cap, CSV formula-injection protection and explicit audit:read role enforcement.
 - CI checks for regression tests, benchmark corpus, production configuration shape, schema parity, PostgreSQL schema validation, TypeScript, lint, production build and a focused Playwright stakeholder flow.
@@ -23,7 +24,6 @@
 - Larger full-bench ablation sweeps and publication-grade set-level judge sensitivity/calibration.
 - Broader Playwright coverage for the complete six-stage product, cross-browser behavior, mobile workflows and accessibility regression.
 - Offline-first evidence capture, conflict-safe synchronization and background retry.
-- Reverse traceability from code/tracker changes back to affected requirements.
 - Calibration and validation of the initial requirement-level change-effort proxy against observed engineering work; organization-scale knowledge memory.
 - Advanced organization governance and audit-export workflows beyond current RBAC and audit primitives.
 - Egyptian Arabic ASR quality remains provider-dependent; script checks and human review are guardrails, not a full upstream accuracy solution.
