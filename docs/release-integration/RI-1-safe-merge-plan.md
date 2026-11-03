@@ -447,3 +447,22 @@ Latest PR #23 head is `54999de8ea3bf715797726e3522d801f76dc859e`. GitHub Actions
 | Human recruitment / actual ratings | Not started |
 
 PR #23 remains draft, open, and unmerged. The previous green run does not validate the two later commits. Do not close H2.2 until the latest exact head passes CI and the packet-generation CLI is exercised end-to-end with a real planner benchmark artifact.
+
+
+### RI.4.7 — Exact-head CI passed; manifest path correction (2026-11-03)
+
+The follow-up run `41655770533` (run #327) completed successfully on PR #23 head `54999de8ea3bf715797726e3522d801f76dc859e`. Both jobs passed:
+- `quality`: regression tests, benchmark validation, production configuration validation, SQLite schema, TypeScript, lint, production build, Playwright runtime setup, stakeholder API/browser E2E.
+- `postgres-schema`: schema generation, SQLite/PostgreSQL parity, inventory, PostgreSQL validation/client generation, and PostgreSQL 16 schema push.
+
+A further manifest review found `raterFiles` values were written relative to the output root, even though the manifest itself is inside `coordinator-only/`. Corrected them to `../rater-1/packet.csv` and `../rater-2/packet.csv` in commit `4da4edce2eea0cb738565e8f5bf4686e95552772` so resolving these paths from the manifest directory points to the actual exports.
+
+New exact-head CI run `41659177473` (run #328) is now in progress for `4da4edc`. No result is claimed for this latest head yet. PR #23 remains draft/open/unmerged. The successful #327 run validates the previous head, not this path correction.
+
+| Gate | State |
+|---|---|
+| Runtime import and private-directory fixes | Passed CI on `54999de` (run #327) |
+| Manifest relative paths | Corrected in `4da4edc` |
+| Exact-head CI for manifest path correction | In progress (run #328) |
+| End-to-end packet CLI with a real benchmark artifact | Not yet executed |
+| Human recruitment / actual ratings | Not started |
