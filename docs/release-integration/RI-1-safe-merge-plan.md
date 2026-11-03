@@ -466,3 +466,32 @@ New exact-head CI run `41659177473` (run #328) is now in progress for `4da4edc`.
 | Exact-head CI for manifest path correction | In progress (run #328) |
 | End-to-end packet CLI with a real benchmark artifact | Not yet executed |
 | Human recruitment / actual ratings | Not started |
+
+
+### RI.4.8 — H2.2 packet CLI end-to-end verification (2026-11-03)
+
+PR #23's first CLI integration-test attempt exposed a fixture-selection assumption in the test: the first ten planner fixtures in manifest order did not all contain explicitly consented evidence. The production exporter correctly requires consented evidence and was not changed to weaken that contract. The test was corrected to select ten real planner fixtures that each contain at least one evidence item with `consent === true`.
+
+The corrected exact-head workflow run `41660064140` completed successfully on PR #23 head `1909cf811e800ede43a149ca27dbb7cb6823a068`. Both jobs passed:
+- `quality`: regression suite (including the new CLI integration test), benchmark validation, production configuration validation, SQLite schema, TypeScript, lint, production build, Playwright setup, and stakeholder API/browser E2E.
+- `postgres-schema`: PostgreSQL schema generation, parity/inventory checks, validation/client generation, and PostgreSQL 16 schema push.
+
+The new integration test invokes `scripts/create-human-rating-packets.mjs` as a child process against ten checked-in planner fixtures and verifies:
+- 40 blind outputs per rater and a 40-row coordinator answer key.
+- Exact-byte SHA-256 verification for the canonical packet, R1 CSV, R2 CSV, and answer key.
+- No arm labels in rater exports and no rationale, priority, ask-cost, fallback-assumption, or utility metadata in rater-visible artifacts.
+- Explicit-consent fixture preconditions.
+- Private directory/file modes (`0700` / `0600`).
+- A repeated invocation does not overwrite existing artifacts.
+
+| Gate | State |
+|---|---|
+| Exact-head CI for `4da4edc` (run 41659177473) | Passed |
+| CLI E2E first attempt | Failed because the test selected fixtures without consented evidence |
+| Fixture selection correction | Committed in `1909cf8` |
+| Exact-head CI for `1909cf8` (run 41660064140) | Passed |
+| Packet CLI runtime path | Exercised end-to-end with ten real checked-in fixtures |
+| H2.2 human recruitment / actual ratings | Not started |
+| PR #23 merge / stack integration | Not performed |
+
+This closes the packet-export CLI verification gap for the synthetic benchmark fixture path. It does not establish that actual raters have been recruited, that human ratings exist, that the rubric has been calibrated with participants, or that the full PR stack is merge-ready. PR #23 remains draft/open/unmerged pending broader stack reconciliation and release-integration gates.
