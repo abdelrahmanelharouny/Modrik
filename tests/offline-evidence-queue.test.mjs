@@ -48,3 +48,42 @@ test("offline operation rejects oversized identifiers and malformed retry metada
   assert.equal(sanitized.payload.sourceType, "interview");
   assert.equal(sanitized.payload.language, "en");
 });
+
+
+test("offline evidence sync lock serializes work for the same project", async () => {
+  const { withOfflineEvidenceSyncLock } = await import("../src/lib/evidence/offline-queue.mjs");
+  const events = [];
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => { releaseFirst = resolve; });
+  const first = withOfflineEvidenceSyncLock("project-lock", async () => {
+    events.push("first-start");
+    await firstGate;
+    events.push("first-end");
+  });
+  const second = withOfflineEvidenceSyncLock("project-lock", async () => {
+    events.push("second-start");
+    events.push("second-end");
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(events, ["first-start"]);
+  releaseFirst();
+  await Promise.all([first, second]);
+  assert.deepEqual(events, ["first-start", "first-end", "second-start", "second-end"]);
+});
+
+test("offline evidence sync locks do not block independent projects", async () => {
+  const { withOfflineEvidenceSyncLock } = await import("../src/lib/evidence/offline-queue.mjs");
+  const events = [];
+  await Promise.all([
+    withOfflineEvidenceSyncLock("project-a", async () => { events.push("a"); }),
+    withOfflineEvidenceSyncLock("project-b", async () => { events.push("b"); }),
+  ]);
+  assert.deepEqual(events.sort(), ["a", "b"]);
+});
+
+test("offline evidence sync lock validates its project and task", async () => {
+  const { withOfflineEvidenceSyncLock } = await import("../src/lib/evidence/offline-queue.mjs");
+  await assert.rejects(() => withOfflineEvidenceSyncLock("", async () => {}), /projectId/);
+  await assert.rejects(() => withOfflineEvidenceSyncLock("project-a", null), /task/);
+});
