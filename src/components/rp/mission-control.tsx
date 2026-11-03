@@ -51,6 +51,7 @@ import {
   Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SignOutButton } from "@/components/rp/sign-out-button";
 import { ICONS } from "@/components/rp/icons";
 import type { ProjectSummary } from "@/lib/rp";
 
@@ -252,6 +253,7 @@ export function MissionControl({
               <Languages className="h-4 w-4" />
               <span className="font-mono text-xs">{ar ? "EN" : "ع"}</span>
             </Button>
+            <SignOutButton />
           </div>
         </div>
       </header>

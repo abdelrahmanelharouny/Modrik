@@ -18,7 +18,7 @@ model Project {
   brief        String
   status       String   @default("active") // active | complete | archived
   currentStage String   @default("ELICITATION")
-  stageStatus  String   @default("awaiting_input") // awaiting_input | agent_running | awaiting_review | approved
+  stageStatus  String   @default("awaiting_input") // awaiting_input | agent_running | awaiting_review | approving | approved
   isDemo       Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -37,6 +37,9 @@ model Project {
   execScenarios ExecScenario[]
   syncMaps   SyncMap[]
   studySessions StudySession[]
+  memories MemoryEntry[]
+  integrations Integration[]
+  traceLinks TraceLink[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -46,6 +49,11 @@ model StudySession {
   project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   groupId        String   // A_traditional | B_unconstrained_llm | C_modrik
   participantCode String  // anonymised participant code (PDPL: no names)
+  participantTokenHash String? @unique // one-session participant write credential; raw token is never stored
+  participantTokenExpiresAt DateTime?
+  participantConsentAt DateTime? // participant acknowledged the study notice
+  participantConsentVersion String?
+  withdrawnAt DateTime? // withdrawn sessions are scrubbed and locked
   scenarioId     String   // bench scenario id used as the task
   taskTimeSec    Int?
   nasaTlx        String?  // JSON: {mental, physical, temporal, performance, effort, frustration} 0-100
@@ -78,11 +86,12 @@ model DecisionEntry {
   createdAt DateTime @default(now())
 }
 
-// Cross-project learning memory (I4): glossary terms + lessons carried between projects
+// Project-scoped learning memory (I4): glossary terms + lessons never shared implicitly
 model MemoryEntry {
   id        String   @id @default(cuid())
   projectId String?
-  kind      String   @default("lesson") // glossary | lesson
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind      String   @default("lesson") // glossary | lesson; scoped to one project
   term      String
   detail    String   @default("")
   createdAt DateTime @default(now())
@@ -94,7 +103,7 @@ model Evidence {
   id         String   @id @default(cuid())
   projectId  String
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  code       String // E1, E2, …
+  code       String // Stable project-scoped source id, e.g. E-AB12CD34
   title      String
   sourceType String // interview | document | meeting | survey | observation | transcript | whiteboard_ocr
   language   String   @default("en") // en | ar-EG | codeswitch
@@ -102,6 +111,8 @@ model Evidence {
   consent    Boolean  @default(false) // stakeholder consent recorded (G13 governance)
   origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
+  traceLinks TraceLink[]
+  @@unique([projectId, code])
 }
 
 // Agent-generated clarifying questions, answered by the human (HITL gate 1)
@@ -118,7 +129,8 @@ model Question {
   utility   String? // JSON: impact-aware planner breakdown {infoGain, impact, uncertainty, risk, askCost, utility} (dev item 7)
   answer    String?
   answered  Boolean @default(false)
-  resolution String @default("pending") // pending | answered | proceed_with_uncertainty
+  resolution String @default("pending") // pending | answered | proceed_with_uncertainty | skipped
+  answerSource String @default("human") // human | synthetic | assumption | skipped
 }
 
 // Impact-aware Question Planner ablation runs (dev item 7 — the research heart)
@@ -129,6 +141,11 @@ model PlannerRun {
   projectId     String
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   arm           String   // single_shot | random | llm | impact_aware
+  experimentId      String?  // groups arms that share one immutable candidate pool
+  seed              String?  // reproducible random-arm seed
+  candidatePool     String?  // exact common candidate pool JSON used by this arm
+  candidatePoolHash String?  // SHA-256 fingerprint shared by pool-based arms
+  candidatePoolUsed Boolean? // false for the direct single-shot baseline
   questions     String   // JSON array of selected questions with per-question utility
   metrics       String?  // JSON five-metric evaluation (same judge for every arm)
   candidates    Int      @default(0) // size of the candidate pool considered
@@ -149,6 +166,7 @@ model ProblemCandidate {
   effort      Int     @default(3) // 1..5, human-tuned
   evidenceIds String  @default("") // comma-separated Evidence ids (grounding)
   selected    Boolean @default(false)
+  humanEdited Boolean? // true only after an explicit human curation action
 }
 
 // Snapshot of an agent stage output (for audit / traceability)
@@ -190,10 +208,13 @@ model Requirement {
   suggestion    String? // proposed rewrite from ambiguity agent
   confidence    Int     @default(-1) // -1 = not assessed; 0..100 agent confidence (I2 calibration)
   verifyStatus  String  @default("unverified") // supported | weak | unverified (I3 critic-verifier)
+  verificationSource String @default("agent") // agent | human | unverified
+  verifiedAt DateTime?
+  verifiedBy String?
   verifyNote    String?
   driftStatus   String  @default("none") // none | suspected | confirmed (I8 drift radar)
   language      String  @default("en") // en | ar-EG | codeswitch
-  status        String  @default("draft") // draft | approved
+  status        String  @default("draft") // draft | revised | approved
   order         Int     @default(0)
 
   stories   UserStory[]
@@ -210,9 +231,12 @@ model Requirement {
 model TraceLink {
   id            String      @id @default(cuid())
   projectId     String
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   requirementId String
   requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  evidenceCode  String // E1, E2 …
+  evidenceCode  String // stable code shown to people and in citations
+  evidenceId    String?
+  evidence      Evidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
   note          String?
 }
 
@@ -227,7 +251,7 @@ model UserStory {
   acceptance    String // one criterion per line
   investScore   Int? // 0..100
   investNote    String?
-  status        String      @default("draft") // draft | approved
+  status        String      @default("draft") // draft | revised | approved
   project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   syncMaps      SyncMap[]
 }
@@ -290,6 +314,7 @@ model ExecScenario {
 model Integration {
   id        String   @id @default(cuid())
   projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   kind      String   // github | jira
   config    String   // JSON: github {token, owner, repo} · jira {baseUrl, email, token, projectKey}
   createdAt DateTime @default(now())
@@ -297,18 +322,20 @@ model Integration {
 
 // One row per externally synced work item (bidirectional trace)
 model SyncMap {
-  id            String   @id @default(cuid())
-  projectId     String
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind          String   // github | jira
-  direction     String   // pushed | pulled
-  requirementId String?  // local requirement pushed out
-  requirement   Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
-  storyId       String?  // local story pushed out
-  story         UserStory?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  localLabel    String   // REQ-07 / US-03 (stable even if the local row is later deleted)
-  externalKey   String   // GitHub issue number / Jira issue key
-  externalUrl   String
-  title         String
-  syncedAt      DateTime @default(now())
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind            String   // github | jira
+  direction       String   // pushed | pulled | pending | creating | failed
+  requirementId   String?  // local requirement pushed out
+  requirement     Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  storyId         String?  // local story pushed out
+  story           UserStory? @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  localLabel      String   // REQ-07 / US-03 (stable even if the local row is later deleted)
+  externalKey     String   // GitHub issue number / Jira issue key
+  externalUrl     String
+  title           String
+  syncedAt        DateTime @default(now())
+  idempotencyKey  String?  @unique // stable key for best-effort duplicate recovery on tracker retries
+  leaseExpiresAt  DateTime? // temporary claim while an external issue is being created
 }
