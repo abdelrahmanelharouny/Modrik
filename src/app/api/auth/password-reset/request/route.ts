@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createPasswordResetToken, hashPasswordResetToken, PASSWORD_RESET_TTL_MS } from "@/lib/security/password-reset.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
+import { consumeRateLimit } from "@/lib/security/rate-limit.mjs";
 
 export const runtime = "nodejs";
 const noStore = { "Cache-Control": "no-store, max-age=0" };
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 3;
 
 function genericResponse() {
   return NextResponse.json({ ok: true, message: "If an active account matches that address, recovery instructions will be sent." }, { status: 202, headers: noStore });
@@ -21,19 +19,6 @@ function configuredBaseUrl() {
     if (url.username || url.password || (process.env.NODE_ENV === "production" && url.protocol !== "https:")) return null;
     return url;
   } catch { return null; }
-}
-
-function allowRequest(key: string, now: number) {
-  if (attempts.size > 4000) {
-    for (const [entry, value] of attempts) if (value.resetAt <= now) attempts.delete(entry);
-  }
-  if (attempts.size >= 5000) return false;
-  const previous = attempts.get(key);
-  if (previous && previous.resetAt > now && previous.count >= MAX_ATTEMPTS) return false;
-  const state = previous && previous.resetAt > now ? previous : { count: 0, resetAt: now + WINDOW_MS };
-  state.count += 1;
-  attempts.set(key, state);
-  return true;
 }
 
 async function sendRecoveryEmail(email: string, resetUrl: string) {
@@ -67,10 +52,15 @@ export async function POST(req: NextRequest) {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 254) : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid email address" }, { status: 400, headers: noStore });
 
-  const now = Date.now();
   const ip = req.headers.get("x-real-ip")?.trim() || req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "unknown";
-  if (!allowRequest(`${ip}:${email}`, now)) return genericResponse();
+  const ipLimit = await consumeRateLimit({ scope: "password-reset:request:ip", identifier: ip, limit: 10, windowMs: 15 * 60 * 1000 });
+  const accountLimit = await consumeRateLimit({ scope: "password-reset:request:account", identifier: email, limit: 3, windowMs: 60 * 60 * 1000 });
+  if (ipLimit.backend === "unavailable" || accountLimit.backend === "unavailable") {
+    return NextResponse.json({ error: "Shared recovery protection is unavailable" }, { status: 503, headers: noStore });
+  }
+  if (!ipLimit.allowed || !accountLimit.allowed) return genericResponse();
 
+  const now = Date.now();
   const user = await db.user.findUnique({ where: { email }, select: { id: true, email: true, status: true } });
   if (!user || user.status !== "active") return genericResponse();
 

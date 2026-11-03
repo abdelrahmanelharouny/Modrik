@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createIdentitySession } from "@/lib/security/identity";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
+import { consumeRateLimit } from "@/lib/security/rate-limit.mjs";
 import {
   verifyPasswordHash,
   isAuthConfigured,
@@ -13,25 +14,20 @@ import {
 
 export const runtime = "nodejs";
 
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 5;
-
 function clientKey(req: NextRequest): string {
-  // Prefer the ingress-provided real IP; if unavailable, use the last
-  // forwarded hop (normally appended by the trusted reverse proxy).
   const realIp = req.headers.get("x-real-ip")?.trim();
   const forwarded = req.headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean);
   return realIp || forwarded?.at(-1) || "unknown";
 }
 
-function pruneAttempts(now: number): boolean {
-  if (attempts.size < 4_000) return true;
-  for (const [key, value] of attempts) {
-    if (value.resetAt <= now) attempts.delete(key);
+function rateLimited(result: { retryAfterSeconds: number; backend: string }) {
+  if (result.backend === "unavailable") {
+    return NextResponse.json({ error: "Shared authentication protection is unavailable" }, { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
-  // Bound memory even if a hostile client rotates source headers.
-  return attempts.size < 5_000;
+  return NextResponse.json(
+    { error: "Too many authentication attempts. Try again later." },
+    { status: 429, headers: { "Cache-Control": "no-store, max-age=0", "Retry-After": String(result.retryAfterSeconds) } },
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -47,17 +43,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const now = Date.now();
-  if (!pruneAttempts(now)) {
-    return NextResponse.json({ error: "Login service is temporarily rate-limited. Try again later." }, { status: 429 });
-  }
-  const key = clientKey(req);
-  const previous = attempts.get(key);
-  if (previous && previous.resetAt > now && previous.count >= MAX_ATTEMPTS) {
-    return NextResponse.json({ error: "Too many login attempts. Try again later." }, { status: 429 });
-  }
-  if (previous && previous.resetAt <= now) attempts.delete(key);
-
   if (!req.headers.get("content-type")?.toLowerCase().includes("application/json")) {
     return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
   }
@@ -67,16 +52,21 @@ export async function POST(req: NextRequest) {
   }
   const email = typeof body?.email === "string" ? body.email.slice(0, 254).trim().toLowerCase() : "";
   const password = typeof body?.password === "string" ? body.password.slice(0, 1024) : "";
+
+  const ip = clientKey(req);
+  const ipLimit = await consumeRateLimit({ scope: "auth:login:ip", identifier: ip, limit: 5, windowMs: 15 * 60 * 1000 });
+  if (!ipLimit.allowed) return rateLimited(ipLimit);
+  if (email) {
+    const accountLimit = await consumeRateLimit({ scope: "auth:login:account", identifier: email, limit: 10, windowMs: 15 * 60 * 1000 });
+    if (!accountLimit.allowed) return rateLimited(accountLimit);
+  }
   const configuredOwner = Boolean(process.env.MODRIK_ADMIN_EMAIL?.trim()) &&
     email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
   const bootstrapPasswordValid = configuredOwner && isAuthConfigured() && await verifyAdminCredentials(email, password);
   let user = await db.user.findUnique({ where: { email } });
 
   if (!user && !bootstrapPasswordValid) {
-    const state = attempts.get(key) ?? { count: 0, resetAt: now + WINDOW_MS };
-    state.count += 1;
-    attempts.set(key, state);
-    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
   if (user && user.status !== "active") {
     return NextResponse.json({ error: "This account is disabled" }, { status: 403 });
@@ -85,10 +75,7 @@ export async function POST(req: NextRequest) {
     ? await verifyPasswordHash(password, user.passwordHash)
     : bootstrapPasswordValid;
   if (!passwordValid) {
-    const state = attempts.get(key) ?? { count: 0, resetAt: now + WINDOW_MS };
-    state.count += 1;
-    attempts.set(key, state);
-    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
 
   const identity = await db.$transaction(async (tx) => {
@@ -157,7 +144,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Organization membership is inactive" }, { status: 403 });
   }
   const session = await createIdentitySession(identity);
-  attempts.delete(key);
   const response = NextResponse.json({ ok: true });
   response.cookies.set({
     name: SESSION_COOKIE,
