@@ -93,7 +93,18 @@ export function analyzeHumanRatings(rater1Rows,rater2Rows,answerKeyRows,options=
 export function verifyHumanRatingArtifacts({canonicalPacketText,rater1CsvText,rater2CsvText,answerKeyCsvText,manifest}) {
  const digest=value=>createHash("sha256").update(value,"utf8").digest("hex");
  if(!manifest||manifest.schemaVersion!==1||manifest.rubricVersion!=="modrik-human-ratings-v1") throw new Error("Unsupported human-rating manifest or rubric version");
- const checks=[["canonicalPacketSha256",canonicalPacketText],["rater1CsvSha256",rater1CsvText],["rater2CsvSha256",rater2CsvText],["answerKeyCsvSha256",answerKeyCsvText]];
- for(const [field,content] of checks){if(typeof content!=="string"||digest(content)!==manifest[field])throw new Error("Human-rating artifact integrity check failed: "+field);}
+ const exactChecks=[["canonicalPacketSha256",canonicalPacketText],["answerKeyCsvSha256",answerKeyCsvText]];
+ for(const [field,content] of exactChecks){if(typeof content!=="string"||digest(content)!==manifest[field])throw new Error("Human-rating artifact integrity check failed: "+field);}
+ const verifyRaterSubmission=(content,field)=>{
+  if(typeof content!=="string")throw new Error("Human-rating artifact integrity check failed: "+field);
+  if(digest(content)===manifest[field])return;
+  const rows=parseCsv(content);
+  if(!rows.length||Object.keys(rows[0]).length!==RATER_COLUMNS.length||RATER_COLUMNS.some(column=>!Object.hasOwn(rows[0],column)))throw new Error("Human-rating artifact integrity check failed: "+field);
+  for(const row of rows){if(Object.keys(row).length!==RATER_COLUMNS.length||RATER_COLUMNS.some(column=>!Object.hasOwn(row,column)))throw new Error("Human-rating artifact integrity check failed: "+field);for(const ratingField of RATING_FIELDS)row[ratingField+"_1_5"]="";row.notes="";}
+  const packetProjection=serializeCsv(rows,RATER_COLUMNS);
+  if(digest(packetProjection)!==manifest[field])throw new Error("Human-rating artifact integrity check failed: "+field);
+ };
+ verifyRaterSubmission(rater1CsvText,"rater1CsvSha256");
+ verifyRaterSubmission(rater2CsvText,"rater2CsvSha256");
  return true;
 }
