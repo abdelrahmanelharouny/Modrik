@@ -153,6 +153,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (typeof body.evidenceId !== "string" || !body.evidenceId) {
     return NextResponse.json({ error: "evidenceId is required" }, { status: 400 });
   }
+  if (!Number.isInteger(body.expectedRevisionVersion) || body.expectedRevisionVersion < 0) {
+    return NextResponse.json({ error: "expectedRevisionVersion must be a non-negative integer" }, { status: 400 });
+  }
   if (body.consent !== undefined && typeof body.consent !== "boolean") {
     return NextResponse.json({ error: "consent must be a boolean" }, { status: 400 });
   }
@@ -178,6 +181,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       orderBy: { version: "desc" },
       select: { version: true, contentHash: true },
     });
+    const actualVersion = latest?.version ?? 0;
+    if (actualVersion !== body.expectedRevisionVersion) {
+      return { conflict: true as const, currentRevisionVersion: actualVersion };
+    }
     // Legacy rows predate revision history. Preserve their pre-edit state as v1
     // before writing a changed snapshot, otherwise the first edit would erase history.
     let previousHash = latest?.contentHash ?? null;
@@ -220,8 +227,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       });
     }
-    return { evidence: updated, revision };
+    return { conflict: false as const, evidence: updated, revision };
   });
+
+  if (result.conflict) {
+    return NextResponse.json({
+      error: "This evidence changed in another session. Your edits were not applied; review the latest version before saving again.",
+      code: "EVIDENCE_REVISION_CONFLICT",
+      currentRevisionVersion: result.currentRevisionVersion,
+    }, { status: 409 });
+  }
 
   await logDecision(id, "ELICITATION", "human", "updated_evidence",
     `Evidence ${existing.code} updated; current revision ${result.revision}. ${changeNote}`);
