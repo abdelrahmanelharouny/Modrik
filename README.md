@@ -643,3 +643,10 @@ A platform whose brand is honesty owes you this list:
 | Drift | الانحراف | Post-approval divergence between evidence and the approved baseline |
 | Impact-aware planner | المُخطّط الواعي بالأثر | The utility-formula question-selection engine and its ablation |
 | Modrik / مدرك | مُدرك | "The one that perceives" — the platform's name and its contract |
+
+
+## Reverse traceability — tracker change to requirement impact
+
+The project reverse-traceability endpoint resolves a GitHub/Jira tracker record only through an explicit requirement link, a linked user story, or an exact stable requirement reference. It does not treat text similarity, commit messages, or changed file paths as proof of a requirement relationship. Unmapped tracker records are returned as unmapped and can be linked only through the human-reviewed mapping action.
+
+For a resolved requirement, the endpoint returns its direct evidence trace links, linked claims with their accepted/review status and evidence revision provenance, related knowledge-graph nodes, user stories, and upstream impacted requirements with graph hop paths. Mapping decisions are written to the immutable decision journal. Endpoint: `GET /api/projects/{projectId}/traceability/reverse?syncMapId={syncMapId}`; human mapping: `POST /api/projects/{projectId}/traceability/reverse` with `{ action: "link_tracker_requirement", syncMapId, requirementId }`.
