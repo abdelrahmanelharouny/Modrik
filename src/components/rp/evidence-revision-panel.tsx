@@ -50,7 +50,18 @@ export function EvidenceRevisionPanel({
         description: `Version ${result.revision} is now current. Previous versions remain available below.`,
       });
     } catch (error) {
-      toast({ title: "Could not save evidence", description: (error as Error).message, variant: "destructive" });
+      const message = (error as Error).message;
+      if (message.includes("changed in another session")) {
+        // Refresh the server snapshot/version but keep the unsaved local form values.
+        await onSaved();
+        toast({
+          title: "Newer evidence version found",
+          description: "Your draft is still here. Compare it with the refreshed history, then save again to create the next revision.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Could not save evidence", description: message, variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
