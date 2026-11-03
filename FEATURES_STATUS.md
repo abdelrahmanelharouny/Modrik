@@ -13,6 +13,7 @@
 - Organization/project membership authorization, tenant isolation checks, signed sessions, invitations, password recovery and shared Upstash rate limiting.
 - GitHub/Jira static-token integrations, encrypted credential storage, guarded credential re-encryption, and signed GitHub Issues/Push webhook ingestion into drift review with delivery deduplication.
 - Study participant-token infrastructure, consent-aware data handling, blinded human-rating packet creation and analysis utilities.
+- Project-scoped decision-journal export as JSON/CSV with date/actor/stage/action filters, a 10,000-row cap, CSV formula-injection protection and explicit audit:read role enforcement.
 - CI checks for regression tests, benchmark corpus, production configuration shape, schema parity, PostgreSQL schema validation, TypeScript, lint, production build and a focused Playwright stakeholder flow.
 
 ## Incomplete implementation / research work
