@@ -90,3 +90,8 @@ test("human-rating manifest accepts filled score columns but rejects changes to 
  assert.equal(verifyHumanRatingArtifacts({...artifacts,rater1CsvText:serializeCsv([rated1],RATER_COLUMNS),rater2CsvText:serializeCsv([rated2],RATER_COLUMNS),manifest}),true);
  assert.throws(()=>verifyHumanRatingArtifacts({...artifacts,rater1CsvText:serializeCsv([{...rated1,brief:"tampered brief"}],RATER_COLUMNS),manifest}),/integrity check failed/);
 });
+
+test("human-rating analysis rejects nonblank ordinal values outside the 1-5 rubric",()=>{
+ const data=ratingRows();data.r1[0].overall_1_5="6";
+ assert.throws(()=>analyzeHumanRatings(data.r1,data.r2,data.key),/invalid overall_1_5.*integer from 1 to 5/);
+});
