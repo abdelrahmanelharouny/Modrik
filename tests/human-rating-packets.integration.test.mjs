@@ -5,10 +5,11 @@ import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promise
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseCsv, verifyHumanRatingArtifacts } from "../src/lib/research/human-ratings.mjs";
+import { parseCsv, verifyHumanRatingArtifacts, RATING_FIELDS, RATER_COLUMNS, serializeCsv } from "../src/lib/research/human-ratings.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "create-human-rating-packets.mjs");
+const ANALYZE_SCRIPT = path.join(ROOT, "scripts", "analyze-human-ratings.mjs");
 const mode = async (file) => (await stat(file)).mode & 0o777;
 
 test("human-rating packet CLI generates private, blinded, hash-bound artifacts from real planner fixtures", async (t) => {
@@ -106,4 +107,45 @@ test("human-rating packet CLI generates private, blinded, hash-bound artifacts f
   const after = await Promise.all([r1Path, r2Path, path.join(coordinator, "manifest.json")].map((file) => readFile(file, "utf8")));
   assert.deepEqual(after, before, "a second run must not overwrite previously generated artifacts");
   assert.deepEqual((await readdir(coordinator)).sort(), ["answer-key.csv", "canonical-packet.json", "manifest.json"]);
+
+  const armByBlindId = new Map(keyRows.map((row) => [row.blind_output_id, row.arm]));
+  const submitRatings = (rows) => rows.map((row) => {
+    const score = armByBlindId.get(row.blind_output_id) === "impact_aware" ? "5" : "3";
+    return {
+      ...row,
+      ...Object.fromEntries(RATING_FIELDS.map((field) => [field + "_1_5", field === "confidence" ? "4" : score])),
+      notes: "Synthetic CLI integration rating",
+    };
+  });
+  const ratedR1Path = path.join(temp, "rater-1-submission.csv");
+  const ratedR2Path = path.join(temp, "rater-2-submission.csv");
+  await writeFile(ratedR1Path, serializeCsv(submitRatings(r1Rows), RATER_COLUMNS), "utf8");
+  await writeFile(ratedR2Path, serializeCsv(submitRatings(r2Rows), RATER_COLUMNS), "utf8");
+  const manifestPath = path.join(coordinator, "manifest.json");
+  const analysisOut = path.join(temp, "analysis");
+  const analyze = (rater1 = ratedR1Path) => execFileSync(process.execPath, [
+    ANALYZE_SCRIPT,
+    "--rater1", rater1,
+    "--rater2", ratedR2Path,
+    "--key", path.join(coordinator, "answer-key.csv"),
+    "--manifest", manifestPath,
+    "--out", analysisOut,
+    "--seed", "cli-analysis-smoke-seed",
+  ], { cwd: ROOT, encoding: "utf8" });
+  const analysisStdout = analyze();
+  assert.match(analysisStdout, /Human-rating analysis complete for 10 complete scenarios/);
+  const report = JSON.parse(await readFile(path.join(analysisOut, "report.json"), "utf8"));
+  assert.equal(report.scenarioCount, 10);
+  assert.equal(report.matchedOutputCount, 40);
+  assert.equal(report.coverage.expectedOutputs, 40);
+  assert.equal(report.interRater.overall.kappa, 1);
+  assert.equal(report.comparisons.find((row) => row.metric === "overall" && row.comparator === "single_shot").verdict, "evidence-of-improvement");
+  await readFile(path.join(analysisOut, "report.md"), "utf8");
+  await readFile(path.join(analysisOut, "adjudication.csv"), "utf8");
+
+  const tamperedR1Path = path.join(temp, "tampered-rater-1.csv");
+  const tamperedRows = submitRatings(r1Rows);
+  tamperedRows[0].brief = "tampered after packet export";
+  await writeFile(tamperedR1Path, serializeCsv(tamperedRows, RATER_COLUMNS), "utf8");
+  assert.throws(() => analyze(tamperedR1Path), /integrity check failed: rater1CsvSha256/);
 });
