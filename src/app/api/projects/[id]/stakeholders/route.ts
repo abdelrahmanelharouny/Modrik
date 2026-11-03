@@ -15,11 +15,11 @@ const objectBody = (body: unknown): body is Record<string, any> => Boolean(body 
 
 function requireOwner(req: NextRequest) {
   if (!isAuthConfigured()) {
-    return NextResponse.json({ error: "Authentication is not configured." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ error: "Authentication is not configured." }, { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
   const session = verifyAdminRequest(req.cookies.get(SESSION_COOKIE)?.value);
   if (!session) {
-    return NextResponse.json({ error: "A valid owner session is required." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ error: "A valid owner session is required." }, { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
   return null;
 }
