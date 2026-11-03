@@ -20,4 +20,6 @@ test("offline operation validation rejects missing project, oversized content an
   assert.throws(() => createOfflineEvidenceOperation("p", { title: "a", content: "b", consent: false }, "not-a-uuid"));
   assert.throws(() => createOfflineEvidenceOperation("p", { title: "a", content: "b", consent: false, sourceType: "unknown" }, "123e4567-e89b-42d3-a456-426614174000"));
   assert.throws(() => createOfflineEvidenceOperation("p", { title: "a", content: "b", consent: false, language: "xx" }, "123e4567-e89b-42d3-a456-426614174000"));
+  assert.throws(() => createOfflineEvidenceOperation("p", { title: "  ", content: "b", consent: false }, "123e4567-e89b-42d3-a456-426614174000"));
+  assert.throws(() => createOfflineEvidenceOperation("p", { title: "a", content: "  ", consent: false }, "123e4567-e89b-42d3-a456-426614174000"));
 });
