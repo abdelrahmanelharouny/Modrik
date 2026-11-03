@@ -31,13 +31,13 @@ export function renderPostgresSchema(sqliteSchema) {
     throw new TypeError("SQLite schema must be a non-empty string");
   }
 
-  const datasource = /datasource\\s+db\\s*\\{[^}]*\\}/.exec(sqliteSchema);
+  const datasource = /datasource\s+db\s*\\{[^}]*\\}/.exec(sqliteSchema);
   if (!datasource) {
     throw new Error("could not locate the datasource block in schema.prisma");
   }
 
   const postgresBlock = datasource[0].replace(
-    /provider\\s*=\\s*"sqlite"/,
+    /provider\s*=\s*"sqlite"/,
     'provider = "postgresql"'
   );
   if (postgresBlock === datasource[0]) {
