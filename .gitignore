@@ -66,3 +66,6 @@ server.log
 # platform build output snapshots
 server.log
 Caddyfile
+
+# generated benchmark result artifacts
+/bench/results/

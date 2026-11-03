@@ -27,7 +27,10 @@
     "db:migrate:deploy": "node scripts/guarded-migrate-deploy.mjs",
     "security:release-check": "node scripts/validate-production-env.mjs --production",
     "secrets:rotate": "node scripts/rotate-integration-secrets.mjs",
-    "secrets:rotate:apply": "node scripts/rotate-integration-secrets.mjs --apply"
+    "secrets:rotate:apply": "node scripts/rotate-integration-secrets.mjs --apply",
+    "bench:planner:run": "bun scripts/run-planner-benchmark.ts",
+    "bench:planner:analyze": "bun scripts/analyze-planner-benchmark.ts",
+    "bench:planner:validate": "node scripts/validate-planner-benchmark.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
