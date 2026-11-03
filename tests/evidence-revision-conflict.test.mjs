@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isEvidenceRevisionVersionConflict } from "../src/lib/evidence/revision-conflict.mjs";
+import { isEvidenceRevisionVersionConflict, parseExpectedRevisionVersion } from "../src/lib/evidence/revision-conflict.mjs";
 
 test("recognizes the evidence revision composite unique constraint", () => {
   assert.equal(isEvidenceRevisionVersionConflict({
@@ -27,7 +27,6 @@ test("does not misclassify unrelated unique constraints as revision conflicts", 
   assert.equal(isEvidenceRevisionVersionConflict({ code: "P2002" }), false);
 });
 
-import { parseExpectedRevisionVersion } from "../src/lib/evidence/revision-conflict.mjs";
 
 test("parses only safe non-negative revision versions", () => {
   assert.equal(parseExpectedRevisionVersion("0"), 0);
