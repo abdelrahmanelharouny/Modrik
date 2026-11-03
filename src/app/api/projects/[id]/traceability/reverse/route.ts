@@ -1,0 +1,92 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { logDecision } from "@/lib/journal";
+import { traverseImpact } from "@/lib/graph";
+import { resolveTrackerRequirement, summarizeReverseTrace } from "@/lib/traceability/reverse.mjs";
+
+type Params = { params: Promise<{ id: string }> };
+
+// Resolve a tracker change to evidence-backed requirements. Resolution is
+// limited to persisted links and exact stable references; no semantic guesses.
+export async function GET(request: NextRequest, { params }: Params) {
+  const { id: projectId } = await params;
+  const syncMapId = request.nextUrl.searchParams.get("syncMapId");
+  if (!syncMapId) return NextResponse.json({ error: "syncMapId is required." }, { status: 400 });
+
+  const [project, syncMap, requirements, stories] = await Promise.all([
+    db.project.findUnique({ where: { id: projectId }, select: { id: true } }),
+    db.syncMap.findFirst({ where: { id: syncMapId, projectId } }),
+    db.requirement.findMany({ where: { projectId }, orderBy: { order: "asc" } }),
+    db.userStory.findMany({ where: { projectId }, select: { id: true, requirementId: true, refId: true, title: true, status: true } }),
+  ]);
+  if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  if (!syncMap) return NextResponse.json({ error: "Tracker record not found in this project." }, { status: 404 });
+
+  const resolved = resolveTrackerRequirement(syncMap, requirements, stories);
+  if (!resolved.requirement) {
+    return NextResponse.json({
+      ok: true, tracker: { id: syncMap.id, kind: syncMap.kind, externalKey: syncMap.externalKey, externalUrl: syncMap.externalUrl, title: syncMap.title },
+      resolution: resolved.resolution,
+      guidance: "Create an explicit tracker-to-requirement link after human review. Similarity is not accepted as traceability.",
+      trace: summarizeReverseTrace({ requirement: null }),
+    });
+  }
+
+  const requirement = resolved.requirement;
+  const [traceLinks, claimLinks, knowledgeLinks, linkedStories, impact] = await Promise.all([
+    db.traceLink.findMany({ where: { projectId, requirementId: requirement.id }, orderBy: { evidenceCode: "asc" } }),
+    db.requirementClaim.findMany({
+      where: { projectId, requirementId: requirement.id },
+      include: { claim: { include: { evidence: { select: { code: true } }, revision: { select: { version: true } } } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.knowledgeRequirement.findMany({
+      where: { projectId, requirementId: requirement.id },
+      include: { node: { select: { id: true, nodeRef: true, kind: true, label: true, status: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.userStory.findMany({ where: { projectId, requirementId: requirement.id }, select: { id: true, refId: true, title: true, status: true } }),
+    traverseImpact(projectId, [requirement.id]),
+  ]);
+
+  return NextResponse.json({
+    ok: true,
+    tracker: { id: syncMap.id, kind: syncMap.kind, externalKey: syncMap.externalKey, externalUrl: syncMap.externalUrl, title: syncMap.title, syncedAt: syncMap.syncedAt },
+    resolution: resolved.resolution,
+    requirement: { id: requirement.id, refId: requirement.refId, text: requirement.text, status: requirement.status, priority: requirement.priority },
+    trace: summarizeReverseTrace({ requirement, traceLinks, claimLinks, knowledgeLinks, stories: linkedStories, impacted: impact.impacted }),
+  });
+}
+
+// Human-reviewed mapping: tracker events never attach themselves to a
+// requirement based on text similarity or changed file paths.
+export async function POST(request: NextRequest, { params }: Params) {
+  const { id: projectId } = await params;
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body) || body.action !== "link_tracker_requirement") {
+    return NextResponse.json({ error: "Unsupported traceability action." }, { status: 400 });
+  }
+  if (typeof body.syncMapId !== "string" || typeof body.requirementId !== "string") {
+    return NextResponse.json({ error: "syncMapId and requirementId are required." }, { status: 400 });
+  }
+  const [project, syncMap, requirement] = await Promise.all([
+    db.project.findUnique({ where: { id: projectId }, select: { id: true, stageStatus: true } }),
+    db.syncMap.findFirst({ where: { id: body.syncMapId, projectId }, select: { id: true, kind: true, externalKey: true, localLabel: true } }),
+    db.requirement.findFirst({ where: { id: body.requirementId, projectId }, select: { id: true, refId: true, text: true } }),
+  ]);
+  if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  if (!syncMap) return NextResponse.json({ error: "Tracker record not found in this project." }, { status: 404 });
+  if (!requirement) return NextResponse.json({ error: "Requirement not found in this project." }, { status: 404 });
+  if (["agent_running", "approving"].includes(project.stageStatus)) {
+    return NextResponse.json({ error: "Traceability links are locked while the pipeline is processing." }, { status: 409 });
+  }
+  const updated = await db.syncMap.update({
+    where: { id: syncMap.id },
+    data: { requirementId: requirement.id, localLabel: requirement.refId },
+    select: { id: true, kind: true, externalKey: true, localLabel: true, requirementId: true },
+  });
+  await logDecision(projectId, "GRAPH", "human", "linked_tracker_change_to_requirement",
+    `${syncMap.kind} ${syncMap.externalKey} → ${requirement.refId}; explicit human-reviewed reverse traceability link.`);
+  await db.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+  return NextResponse.json({ ok: true, mapping: updated });
+}
