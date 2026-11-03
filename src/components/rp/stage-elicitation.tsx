@@ -7,8 +7,9 @@
 // (answer / proceed with recorded assumption / reopen).
 // ─────────────────────────────────────────────────────────────
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { createOfflineEvidenceOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
@@ -231,13 +232,71 @@ export function ElicitationStage({
   const [experimentResult, setExperimentResult] = useState<PlannerExperimentView | null>(null);
   const [evidenceQuery, setEvidenceQuery] = useState("");
   const [evidenceTypeFilter, setEvidenceTypeFilter] = useState("all");
+  const [pendingOffline, setPendingOffline] = useState<OfflineEvidenceOperation[]>([]);
+  const [syncingOffline, setSyncingOffline] = useState(false);
+
+  const loadOfflineQueue = useCallback(async () => {
+    try { setPendingOffline(await listOfflineEvidenceOperations(project.id)); }
+    catch (error) { toast({ title: "Offline queue unavailable", description: (error as Error).message, variant: "destructive" }); }
+  }, [project.id, toast]);
+
+  const syncOfflineEvidence = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    setSyncingOffline(true);
+    let changed = false;
+    try {
+      const operations = await listOfflineEvidenceOperations(project.id);
+      for (const operation of operations) {
+        try {
+          await api(`/api/projects/${project.id}/evidence`, {
+            method: "POST",
+            body: JSON.stringify({ ...operation.payload, clientOperationId: operation.operationId }),
+          });
+          await removeOfflineEvidenceOperation(operation.operationId);
+          changed = true;
+        } catch (error) {
+          await updateOfflineEvidenceOperation({
+            ...operation,
+            attempts: operation.attempts + 1,
+            lastError: (error as Error).message.slice(0, 240),
+          });
+          // Preserve order: a conflict or server error must not silently skip
+          // earlier evidence and make later operations appear fully synchronized.
+          break;
+        }
+      }
+      await loadOfflineQueue();
+      if (changed) await refresh();
+    } catch (error) {
+      toast({ title: "Could not sync offline evidence", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setSyncingOffline(false);
+    }
+  }, [project.id, loadOfflineQueue, refresh, toast]);
+
+  useEffect(() => {
+    void loadOfflineQueue();
+    const onOnline = () => { void syncOfflineEvidence(); };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [loadOfflineQueue, syncOfflineEvidence]);
 
   const addEvidence = async () => {
     if (!title.trim() || !content.trim()) return;
+    const payload = { title: title.trim(), sourceType, language, content: content.trim(), consent };
+    const operationId = crypto.randomUUID();
     try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const operation = createOfflineEvidenceOperation(project.id, payload, operationId);
+        await putOfflineEvidenceOperation(operation);
+        await loadOfflineQueue();
+        setTitle(""); setContent(""); setConsent(false); setOpen(false);
+        toast({ title: "Evidence saved on this device", description: "It is queued privately in this browser and will sync when you reconnect. Keep this browser profile available until sync completes." });
+        return;
+      }
       await api(`/api/projects/${project.id}/evidence`, {
         method: "POST",
-        body: JSON.stringify({ title, sourceType, language, content, consent }),
+        body: JSON.stringify({ ...payload, clientOperationId: operationId }),
       });
       setTitle("");
       setContent("");
@@ -251,7 +310,20 @@ export function ElicitationStage({
           : "Stored in the project library, but its content is excluded from AI analysis until permission is recorded.",
       });
     } catch (e) {
-      toast({ title: "Could not add evidence", description: (e as Error).message, variant: "destructive" });
+      const error = e as Error;
+      if (error instanceof TypeError) {
+        try {
+          await putOfflineEvidenceOperation(createOfflineEvidenceOperation(project.id, payload, operationId));
+          await loadOfflineQueue();
+          setTitle(""); setContent(""); setConsent(false); setOpen(false);
+          toast({ title: "Connection interrupted — evidence queued", description: "The same operation ID will be reused on retry to prevent duplicate sources." });
+          return;
+        } catch (queueError) {
+          toast({ title: "Could not preserve evidence offline", description: (queueError as Error).message, variant: "destructive" });
+          return;
+        }
+      }
+      toast({ title: "Could not add evidence", description: error.message, variant: "destructive" });
     }
   };
 
@@ -427,6 +499,21 @@ export function ElicitationStage({
           }
         />
 
+        {pendingOffline.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-aura/30 bg-aura/5 p-3" role="status" aria-live="polite">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold">{pendingOffline.length} evidence source(s) waiting to sync</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Saved in this browser only · {pendingOffline.reduce((sum, item) => sum + item.attempts, 0)} retry attempt(s)
+                {pendingOffline[0]?.lastError ? ` · Last issue: ${pendingOffline[0].lastError}` : ""}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={syncOfflineEvidence} disabled={syncingOffline || (typeof navigator !== "undefined" && !navigator.onLine)}>
+              {syncingOffline ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Undo2 className="mr-1.5 h-3.5 w-3.5" />}
+              {syncingOffline ? "Syncing…" : "Sync pending"}
+            </Button>
+          </div>
+        )}
         {project.evidences.length > 0 && (
           <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_190px]">
             <div className="relative">
