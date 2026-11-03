@@ -61,7 +61,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // Codes are immutable identifiers, not positions in a list. This removes
   // the count+1 race and prevents unrelated citations from being rebound after deletion.
-  const idempotentId = randomUUID();
+  const requestedOperationId = typeof body.clientOperationId === "string" ? body.clientOperationId : null;
+  if (requestedOperationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedOperationId)) {
+    return NextResponse.json({ error: "clientOperationId must be a UUID" }, { status: 400 });
+  }
+  const idempotentId = requestedOperationId ?? randomUUID();
   const normalized = {
     title,
     content,
@@ -70,7 +74,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     consent,
   };
   const contentHash = hashEvidenceRevision(normalized);
-  const evidence = await db.$transaction(async (tx) => {
+  // The browser operation UUID becomes the evidence primary key. A retry after
+  // a lost response therefore resolves to the same row instead of duplicating it.
+  if (requestedOperationId) {
+    const prior = await db.evidence.findUnique({ where: { id: idempotentId } });
+    if (prior) {
+      if (prior.projectId !== id || hashEvidenceRevision(prior) !== contentHash) {
+        return NextResponse.json({ error: "Idempotency key was already used for a different evidence payload", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
+      }
+      return NextResponse.json({ evidence: prior, aiEligible: prior.consent, idempotentReplay: true }, { status: 200 });
+    }
+  }
+  let evidence;
+  try {
+    evidence = await db.$transaction(async (tx) => {
     const created = await tx.evidence.create({
       data: {
         id: idempotentId,
@@ -91,7 +108,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
     return created;
-  });
+    });
+  } catch (error) {
+    if (requestedOperationId) {
+      const raced = await db.evidence.findUnique({ where: { id: idempotentId } });
+      if (raced?.projectId === id && hashEvidenceRevision(raced) === contentHash) {
+        return NextResponse.json({ evidence: raced, aiEligible: raced.consent, idempotentReplay: true }, { status: 200 });
+      }
+    }
+    throw error;
+  }
 
   await logDecision(
     id,
