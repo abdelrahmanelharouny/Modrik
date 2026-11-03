@@ -179,7 +179,7 @@ The available GitHub integration supports branch creation, file edits, compare, 
 | PR | Base SHA | Head SHA | Delta | Latest PR CI |
 |---|---|---|---:|---|
 | #20 | `2d7c2a2f4a9500062e8803fbce924e9ef95fba65` | `27e60abca8d40cf8754eddeeb43aac428a2464b0` | 1 commit / 6 files | run #314 — completed, success |
-| #21 | `2d7c2a2f9500062e8803fbce924e9ef95fba65` | `063485e07278fd94e7c0564e6619213bbb0da887` | 4 commits / 6 files | run #313 — completed, success |
+| #21 | `2d7c2a2f4a9500062e8803fbce924e9ef95fba65` | `063485e07278fd94e7c0564e6619213bbb0da887` | 4 commits / 6 files | run #313 — completed, success |
 
 Both are direct children of the same H2.1 SHA and neither is a child of the other. Both remain open, Draft, and unmerged. Their green runs validate their own isolated heads only; they do not validate a hybrid candidate.
 
