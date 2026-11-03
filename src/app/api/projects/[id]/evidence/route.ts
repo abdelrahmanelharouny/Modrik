@@ -277,16 +277,34 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (["agent_running", "approving"].includes(project.stageStatus)) {
     return NextResponse.json({ error: "Evidence cannot change while the current stage is processing. Retry after it completes." }, { status: 409 });
   }
-  const evidenceId = new URL(req.url).searchParams.get("evidenceId");
+  const searchParams = new URL(req.url).searchParams;
+  const evidenceId = searchParams.get("evidenceId");
+  const expectedRevisionVersionRaw = searchParams.get("expectedRevisionVersion");
   if (!evidenceId) {
     return NextResponse.json({ error: "evidenceId is required" }, { status: 400 });
+  }
+  if (expectedRevisionVersionRaw === null || !/^(0|[1-9]\\d*)$/.test(expectedRevisionVersionRaw)) {
+    return NextResponse.json({ error: "expectedRevisionVersion must be a non-negative integer" }, { status: 400 });
+  }
+  const expectedRevisionVersion = Number(expectedRevisionVersionRaw);
+  if (!Number.isSafeInteger(expectedRevisionVersion)) {
+    return NextResponse.json({ error: "expectedRevisionVersion is outside the supported range" }, { status: 400 });
   }
 
   const removed = await db.$transaction(async (tx) => {
     const evidence = await tx.evidence.findFirst({
       where: { id: evidenceId, projectId: id },
     });
-    if (!evidence) return null;
+    if (!evidence) return { kind: "missing" as const };
+    const latestRevision = await tx.evidenceRevision.findFirst({
+      where: { evidenceId: evidence.id },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+    const currentRevisionVersion = latestRevision?.version ?? 0;
+    if (currentRevisionVersion !== expectedRevisionVersion) {
+      return { kind: "conflict" as const, currentRevisionVersion };
+    }
 
     // evidenceId is authoritative; evidenceCode catches legacy trace links
     // created before the stable foreign-key column existed.
@@ -322,13 +340,25 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     await tx.evidence.delete({ where: { id: evidence.id } });
     return {
+      kind: "removed" as const,
       code: evidence.code,
       title: evidence.title,
       affectedRequirements: affectedRequirementIds.length,
     };
   });
 
-  if (removed) {
+  if (removed.kind === "missing") {
+    return NextResponse.json({ error: "Evidence not found" }, { status: 404 });
+  }
+  if (removed.kind === "conflict") {
+    return NextResponse.json({
+      error: "This evidence changed in another session. It was not deleted; refresh the source and review its latest revision.",
+      code: "EVIDENCE_REVISION_CONFLICT",
+      currentRevisionVersion: removed.currentRevisionVersion,
+    }, { status: 409 });
+  }
+
+  if (removed.kind === "removed") {
     await logDecision(
       id,
       "ELICITATION",
@@ -339,5 +369,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   await db.project.update({ where: { id }, data: { updatedAt: new Date() } });
-  return NextResponse.json({ ok: true, removed });
+  return NextResponse.json({ ok: true, removed: removed.kind === "removed" ? removed : null });
 }
