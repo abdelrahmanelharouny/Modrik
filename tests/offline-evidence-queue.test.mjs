@@ -41,7 +41,10 @@ test("offline operation rejects oversized identifiers and malformed retry metada
     title: "Interview", content: "Notes", consent: false,
   }, "123e4567-e89b-42d3-a456-426614174000");
   assert.throws(() => createOfflineEvidenceOperation("p".repeat(129), valid.payload, valid.operationId));
-  assert.throws(() => createOfflineEvidenceOperation("project-1", {
+  const sanitized = createOfflineEvidenceOperation("project-1", {
     ...valid.payload, unexpected: "sensitive-extra-field",
-  }, valid.operationId));
+  }, "123e4567-e89b-42d3-a456-426614174001");
+  assert.equal("unexpected" in sanitized.payload, false);
+  assert.equal(sanitized.payload.sourceType, "interview");
+  assert.equal(sanitized.payload.language, "en");
 });
