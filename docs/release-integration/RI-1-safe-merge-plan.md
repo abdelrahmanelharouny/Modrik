@@ -872,3 +872,16 @@ Latest exact PR #47 head after these changes: `598ab4620f3af36fbab816390c6b5c801
 - Workflow run `41689075323` is in progress at the Playwright browser-runtime installation step; PostgreSQL schema job passed.
 - The preceding intermediate run `41689037955` was cancelled by GitHub after the newer commit arrived and is not a verification result.
 - Do not close this gate until run `41689075323` completes and its quality job (including stakeholder API/browser E2E) passes.
+
+
+### RI.10.2 — Defense-in-depth CSRF enforcement in the stakeholder route
+
+The second exact-head run `41689075323` confirmed the failing request was specifically the authenticated cross-origin mutation: the route received the request and returned 403, but the expected non-cacheable header was absent. This showed that relying only on the upstream proxy for this route's CSRF rejection was insufficient in the standalone E2E runtime.
+
+Added route-level defense in depth to `src/app/api/projects/[id]/stakeholders/route.ts`:
+- Reuses the shared `isSameOriginMutation` validator.
+- Rejects cross-origin POST/PATCH (and any other state-changing method) before authorization or database work.
+- Returns explicit `403`, `CSRF_ORIGIN_REJECTED`, and `Cache-Control: no-store, max-age=0`.
+- Safe methods remain unaffected; same-origin browser mutations are accepted by the same host/protocol comparison.
+
+Latest PR #47 head is now `c0858c14a97c814740284d3ff3f190800c793ec1`. Workflow run `41689653739` is running; PostgreSQL schema has passed and the quality job is at the SQLite production build. The stakeholder E2E has not yet been re-run on this head, so this change remains unverified until the run finishes.
