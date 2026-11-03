@@ -24,7 +24,7 @@ export function summarizeReverseTrace({ requirement, traceLinks = [], claimLinks
   return {
     status: "mapped",
     direct: traceLinks.map((link) => ({ evidenceCode: link.evidenceCode, evidenceId: link.evidenceId, note: link.note ?? null })),
-    supportingClaims: claimLinks.map((link) => ({
+    linkedClaims: claimLinks.map((link) => ({
       claimId: link.claim.id, claimRef: link.claim.claimRef, status: link.claim.status,
       relationship: link.relationship, quote: link.claim.quote,
       evidenceCode: link.claim.evidence?.code ?? null,
