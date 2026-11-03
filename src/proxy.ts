@@ -45,6 +45,9 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
   if (route === "audit/export") {
     return method === "GET" || method === "HEAD" ? "audit:read" : "organization:manage";
   }
+  if (route === "traceability/reverse") {
+    return method === "GET" || method === "HEAD" ? "projects:read" : "requirements:review";
+  }
   if (route === "stakeholders") {
     if (method === "GET" || method === "HEAD") return "projects:read";
     if (method === "PATCH") {
