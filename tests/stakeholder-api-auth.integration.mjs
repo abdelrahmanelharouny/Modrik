@@ -195,7 +195,11 @@ try {
     await page.getByLabel("Implications of option B").fill("Lower cost; weaker historical traceability");
     await page.getByLabel("Stakeholder A1").check();
     await page.getByLabel("Stakeholder A2").check();
+    const negotiationResponsePromise = page.waitForResponse(response => response.url().includes("/api/projects/") && response.request().method() === "POST");
     await page.getByRole("button", { name: "Create negotiation" }).click();
+    const negotiationResponse = await negotiationResponsePromise;
+    const negotiationResponseBody = await negotiationResponse.text();
+    assert.equal(negotiationResponse.status(), 201, `create negotiation API failed: HTTP ${negotiationResponse.status()} ${negotiationResponseBody}`);
     await page.getByText("Browser-driven stakeholder negotiation", { exact: false }).waitFor();
 
     for (const stakeholderName of ["Stakeholder A1", "Stakeholder A2"]) {
