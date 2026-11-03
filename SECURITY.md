@@ -47,6 +47,10 @@ Jira URLs are restricted to official Atlassian Cloud tenant hosts or exact HTTPS
 
 Tracker push retries use a local per-item reservation plus a stable marker on the remote GitHub Issue/Jira issue, and search for that marker before creating a replacement. This provides best-effort duplicate recovery after common timeout or local-persistence failures; it is not a distributed exactly-once guarantee because external search indexing and issue creation are controlled by the tracker provider. Reconcile ambiguous failed pushes against the remote tracker before manually retrying them.
 
+## Project audit export
+
+The project decision journal can be exported as JSON or CSV through `GET /api/projects/{projectId}/audit/export`. The route requires the explicit `audit:read` permission, is project-scoped, returns no-store responses and caps each export at 10,000 records. CSV cells are quoted and spreadsheet formula prefixes are neutralized. Engineer and Viewer roles do not receive audit export access.
+
 ## GitHub webhook ingress
 
 Project-scoped GitHub webhook ingress is exposed only at `POST /api/webhooks/github/{projectId}`. Configure Issues and Push events and store a random secret (minimum 32 characters) in the GitHub integration settings. The secret is encrypted at rest; the endpoint verifies `X-Hub-Signature-256` over the exact raw body, binds the event repository to the saved owner/repository, bounds payload size and deduplicates delivery IDs. It accepts no browser session; the HMAC signature is its authentication boundary. Never expose the endpoint without a configured secret or weaken the exact route/method exemption in `api-access.mjs`.
