@@ -23,3 +23,25 @@ test("offline operation validation rejects missing project, oversized content an
   assert.throws(() => createOfflineEvidenceOperation("p", { title: "  ", content: "b", consent: false }, "123e4567-e89b-42d3-a456-426614174000"));
   assert.throws(() => createOfflineEvidenceOperation("p", { title: "a", content: "  ", consent: false }, "123e4567-e89b-42d3-a456-426614174000"));
 });
+
+
+test("offline persistence shape is allow-listed and does not retain arbitrary payload metadata", () => {
+  const operation = createOfflineEvidenceOperation("project-1", {
+    title: "Meeting", content: "Discussed launch", consent: true,
+    sourceType: "meeting", language: "en", accessToken: "must-not-persist",
+    participantEmail: "private@example.test",
+  }, "123e4567-e89b-42d3-a456-426614174000");
+  assert.deepEqual(Object.keys(operation.payload).sort(), ["consent", "content", "language", "sourceType", "title"]);
+  assert.equal("accessToken" in operation.payload, false);
+  assert.equal("participantEmail" in operation.payload, false);
+});
+
+test("offline operation rejects oversized identifiers and malformed retry metadata", () => {
+  const valid = createOfflineEvidenceOperation("project-1", {
+    title: "Interview", content: "Notes", consent: false,
+  }, "123e4567-e89b-42d3-a456-426614174000");
+  assert.throws(() => createOfflineEvidenceOperation("p".repeat(129), valid.payload, valid.operationId));
+  assert.throws(() => createOfflineEvidenceOperation("project-1", {
+    ...valid.payload, unexpected: "sensitive-extra-field",
+  }, valid.operationId));
+});
