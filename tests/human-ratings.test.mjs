@@ -8,6 +8,7 @@ test("CSV round-trip preserves Arabic, commas, quotes and embedded newlines",()=
 });
 test("quadratic weighted kappa is one for perfect agreement and lower for disagreement",()=>{
  assert.equal(weightedQuadraticKappa([1,2,3,4,5],[1,2,3,4,5]).kappa,1);
+ assert.equal(weightedQuadraticKappa([3,3,3],[3,3,3]).kappa,null);
  assert.ok(weightedQuadraticKappa([1,1,5,5],[5,5,1,1]).kappa<0);
 });
 test("blind packets preserve consent, hide arm labels and use one stable key across raters",()=>{
@@ -17,6 +18,10 @@ test("blind packets preserve consent, hide arm labels and use one stable key acr
  assert.equal(packets.rowsPerRater,4);assert.equal(packets.answerKey.length,4);
  assert.equal(packets.raters.R1[0].evidence_json.includes("excluded"),false);
  assert.equal(packets.raters.R1[0].questions_json.includes("utility"),false);
+ assert.equal(packets.raters.R1[0].questions_json.includes("rationale"),false);
+ assert.equal(packets.raters.R1[0].questions_json.includes("priority"),false);
+ assert.equal(packets.raters.R1[0].questions_json.includes("askCost"),false);
+ assert.equal(packets.raters.R1[0].questions_json.includes("fallbackAssumption"),false);
  assert.equal(packets.raters.R1[0].arm,undefined);
  assert.deepEqual(packets.raters.R1.map(x=>x.blind_output_id).sort(),packets.raters.R2.map(x=>x.blind_output_id).sort());
  assert.ok(RATER_COLUMNS.includes("overall_1_5"));
