@@ -363,7 +363,7 @@ Modrik treats requirements evidence as what it is — **sensitive stakeholder da
 - **Anonymisation.** Study participants are code-named (no names in the DB); CSV exports carry only anonymised codes and event-level provenance.
 - **Server-side LLM boundary.** Evidence and requirements never transit to the browser beyond what the mission DTO needs; agent calls happen exclusively in route handlers.
 - **Air-gapped path.** The `local` provider keeps cognition on-premises for PDPL-resident deployments (§13).
-- **Known gap, stated plainly:** there is no auth/RBAC yet. Deploy Modrik behind your own gateway/SSO for team use; RBAC is a named roadmap item ([§21](#21-roadmap), [D12](#19-design-decision-records--the-why-behind-every-choice)).
+- **Current boundary:** signed identity sessions, organization/project membership RBAC, tenant-scoped route authorization, invitations, password recovery and shared rate limiting are implemented. Production use is still gated on provider verification, a reconciled database migration baseline and restore rehearsal; enterprise SSO/MFA are not implemented. See [`SECURITY.md`](./SECURITY.md) and [`FEATURES_STATUS.md`](./FEATURES_STATUS.md).
 
 ## 15. The benchmark — arbench-v2
 
@@ -624,7 +624,7 @@ A platform whose brand is honesty owes you this list:
 4. **E2E coverage is focused, not exhaustive** — CI includes a Playwright stakeholder flow and API integration coverage; the full application still needs broader scripted journeys and cross-browser/device coverage.
 5. **Pilot recruitment not started** — study infrastructure is implemented, but participant recruitment, consent operations, data collection and analysis require real people and approved sites.
 6. **Tracker automation and OAuth are incomplete** — GitHub/Jira static-token sync exists; event-driven drift webhooks and OAuth authorization flows are not implemented.
-9. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
+7. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
 
 ## 25. Glossary
 
