@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -54,6 +54,6 @@ function main() {
   console.log("✓ generated prisma/schema.postgres.prisma (provider: postgresql)");
 }
 
-if (process.argv[1] && join(process.cwd(), process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main();
 }
