@@ -133,6 +133,16 @@ test("state-changing request origin validation uses the actual request host", ()
   assert.equal(isSameOriginMutation(crossSiteWithoutOrigin, "http:"), false);
   const trustedProxyHttps = new Headers({ host: "app.example.com", origin: "https://app.example.com", "x-forwarded-proto": "https" });
   assert.equal(isSameOriginMutation(trustedProxyHttps, "http:"), true);
+  const browserSameOriginBehindStandaloneRuntime = new Headers({
+    host: "127.0.0.1:3187", origin: "http://127.0.0.1:3187",
+    "sec-fetch-site": "same-origin", "x-forwarded-proto": "https",
+  });
+  assert.equal(isSameOriginMutation(browserSameOriginBehindStandaloneRuntime, "https:"), true);
+  const sameHostButCrossSite = new Headers({
+    host: "app.example.com", origin: "https://app.example.com",
+    "sec-fetch-site": "cross-site", "x-forwarded-proto": "http",
+  });
+  assert.equal(isSameOriginMutation(sameHostButCrossSite, "http:"), false);
   const malformedOrigin = new Headers({ host: "app.example.com", origin: "not a URL" });
   assert.equal(isSameOriginMutation(malformedOrigin, "https:"), false);
 });
