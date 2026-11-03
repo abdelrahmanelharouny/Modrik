@@ -175,7 +175,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const changeNote = typeof body.changeNote === "string" ? body.changeNote.trim().slice(0, 500) : "";
   const contentHash = hashEvidenceRevision(normalized);
 
-  const result = await db.$transaction(async (tx) => {
+  let result;
+  try {
+    result = await db.$transaction(async (tx) => {
     const latest = await tx.evidenceRevision.findFirst({
       where: { evidenceId: existing.id },
       orderBy: { version: "desc" },
@@ -228,7 +230,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       });
     }
     return { conflict: false as const, evidence: updated, revision };
-  });
+    });
+  } catch (error) {
+    // Concurrent writers can both read the same latest version under the
+    // database default isolation. The unique (evidenceId, version) constraint
+    // is the final arbiter; translate its loser into a recoverable 409.
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+      const latest = await db.evidenceRevision.findFirst({
+        where: { evidenceId: existing.id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      return NextResponse.json({
+        error: "This evidence changed in another session. Your edits were not applied; review the latest version before saving again.",
+        code: "EVIDENCE_REVISION_CONFLICT",
+        currentRevisionVersion: latest?.version ?? 0,
+      }, { status: 409 });
+    }
+    throw error;
+  }
 
   if (result.conflict) {
     return NextResponse.json({
