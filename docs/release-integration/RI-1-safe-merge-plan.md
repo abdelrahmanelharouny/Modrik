@@ -654,12 +654,12 @@ Created draft PR #25: https://github.com/abdelrahmanelharouny/Modrik/pull/25
 - Preserved H1.4's CI workflow and added the PostgreSQL parity gate after schema generation.
 - The PostgreSQL synchronization script was already present on H1.4, so it did not need to be copied.
 
-PR #25 exact-head workflow run `41671593546` is currently in progress. Do not consider H1.5 reconciled until both `quality` and `postgres-schema` complete successfully, and confirm that H1.4 tenant authorization tests remain in the combined quality suite.
+PR #25's initial exact-head workflow run `41671593546` exposed the missing pure PostgreSQL schema renderer. The corrected head and successful exact-head run are recorded in RI.7.1.
 
 | Reconciliation | State |
 |---|---|
 | Phase 3 onto latest Phase 2 (#24) | Exact-head CI passed |
-| H1.5 onto latest H1.4 (#25) | CI in progress |
+| H1.5 onto latest H1.4 (#25) | Exact-head CI passed (RI.7.1) |
 | Original PR #4 / #10 supersession | Not performed |
 | Product merges | None |
 
@@ -673,7 +673,7 @@ Created draft PR #26: https://github.com/abdelrahmanelharouny/Modrik/pull/26
 - Verified the H1.11 secret rotation regression test file is identical on both original branches (same blob SHA), so it was retained without duplicate replay.
 - The H1.12 study protocol document was already present in the current H1.11 tree; the reconciled PR diff therefore focuses on the secret-rotation guard and planner analysis module/tests.
 
-Exact-head workflow run `41672295795` is in progress. H1.12 is not yet considered reconciled until both quality and PostgreSQL schema jobs pass.
+Exact-head workflow run `41672295795` completed successfully on head `eb81b757853c39a9838c391d4fb29a9b760392e3`; both quality and PostgreSQL schema jobs passed. The remaining issue is downstream H2.1 replay onto this reconciled parent, not H1.12's isolated CI.
 
 
 ### RI.7.1 — H1.5 parity renderer fix and exact-head CI passed (2026-11-03)
