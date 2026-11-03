@@ -5,30 +5,46 @@ const MAX_PENDING = 100;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function validateOfflineEvidenceOperation(operation) {
-  if (!operation || typeof operation !== "object") throw new TypeError("Offline evidence operation is required");
-  if (typeof operation.projectId !== "string" || !operation.projectId.trim()) throw new TypeError("projectId is required");
+  if (!operation || typeof operation !== "object" || Array.isArray(operation)) throw new TypeError("Offline evidence operation is required");
+  const allowedOperationKeys = new Set(["operationId", "projectId", "payload", "createdAt", "attempts", "lastError"]);
+  if (Object.keys(operation).some((key) => !allowedOperationKeys.has(key))) throw new TypeError("Offline operation contains unsupported metadata");
+  if (typeof operation.projectId !== "string" || !operation.projectId.trim() || operation.projectId.length > 128) throw new TypeError("projectId must contain 1–128 characters");
   if (typeof operation.operationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operation.operationId)) throw new TypeError("operationId must be a UUID");
   const payload = operation.payload;
-  if (!payload || typeof payload.title !== "string" || typeof payload.content !== "string") throw new TypeError("Evidence title and content are required");
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TypeError("Evidence payload is required");
+  const allowedPayloadKeys = new Set(["title", "sourceType", "language", "content", "consent"]);
+  if (Object.keys(payload).some((key) => !allowedPayloadKeys.has(key))) throw new TypeError("Offline evidence payload contains unsupported fields");
+  if (typeof payload.title !== "string" || typeof payload.content !== "string") throw new TypeError("Evidence title and content are required");
   if (!payload.title.trim() || !payload.content.trim() || payload.title.length > 200 || payload.content.length > 8000) throw new RangeError("Evidence title/content are empty or exceed supported limits");
   if (typeof payload.consent !== "boolean") throw new TypeError("Consent must be explicit");
-  if (!["interview", "document", "meeting", "survey", "observation", "transcript", "whiteboard_ocr"].includes(payload.sourceType ?? "interview")) throw new TypeError("Unsupported evidence source type");
-  if (!["en", "ar-EG", "codeswitch"].includes(payload.language ?? "en")) throw new TypeError("Unsupported evidence language");
-  if (!Number.isFinite(Date.parse(operation.createdAt)) || !Number.isInteger(operation.attempts) || operation.attempts < 0) throw new TypeError("Offline operation metadata is invalid");
+  if (!["interview", "document", "meeting", "survey", "observation", "transcript", "whiteboard_ocr"].includes(payload.sourceType)) throw new TypeError("Unsupported evidence source type");
+  if (!["en", "ar-EG", "codeswitch"].includes(payload.language)) throw new TypeError("Unsupported evidence language");
+  const createdAt = Date.parse(operation.createdAt);
+  if (!Number.isFinite(createdAt) || createdAt > Date.now() + 5 * 60 * 1000) throw new TypeError("Offline operation timestamp is invalid");
+  if (!Number.isSafeInteger(operation.attempts) || operation.attempts < 0 || operation.attempts > 1_000_000) throw new TypeError("Offline operation retry count is invalid");
+  if (operation.lastError !== undefined && (typeof operation.lastError !== "string" || operation.lastError.length > 240)) throw new TypeError("Offline operation error metadata is invalid");
   return operation;
 }
 
 export function createOfflineEvidenceOperation(projectId, payload, operationId = globalThis.crypto.randomUUID()) {
-  if (typeof projectId !== "string" || !projectId.trim()) throw new TypeError("projectId is required");
+  if (typeof projectId !== "string" || !projectId.trim() || projectId.length > 128) throw new TypeError("projectId must contain 1–128 characters");
   if (typeof operationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)) {
     throw new TypeError("operationId must be a UUID so the server can safely deduplicate retries");
   }
-  if (!payload || typeof payload.title !== "string" || typeof payload.content !== "string") throw new TypeError("Evidence title and content are required");
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TypeError("Evidence payload is required");
+  if (typeof payload.title !== "string" || typeof payload.content !== "string") throw new TypeError("Evidence title and content are required");
   if (payload.title.length > 200 || payload.content.length > 8000) throw new RangeError("Evidence exceeds the supported offline size");
   if (typeof payload.consent !== "boolean") throw new TypeError("Consent must be explicit");
-  if (!["interview", "document", "meeting", "survey", "observation", "transcript", "whiteboard_ocr"].includes(payload.sourceType ?? "interview")) throw new TypeError("Unsupported evidence source type");
-  if (!["en", "ar-EG", "codeswitch"].includes(payload.language ?? "en")) throw new TypeError("Unsupported evidence language");
-  return validateOfflineEvidenceOperation({ operationId, projectId, payload: { ...payload }, createdAt: new Date().toISOString(), attempts: 0 });
+  const normalized = {
+    title: payload.title,
+    sourceType: payload.sourceType ?? "interview",
+    language: payload.language ?? "en",
+    content: payload.content,
+    consent: payload.consent,
+  };
+  if (!["interview", "document", "meeting", "survey", "observation", "transcript", "whiteboard_ocr"].includes(normalized.sourceType)) throw new TypeError("Unsupported evidence source type");
+  if (!["en", "ar-EG", "codeswitch"].includes(normalized.language)) throw new TypeError("Unsupported evidence language");
+  return validateOfflineEvidenceOperation({ operationId, projectId, payload: normalized, createdAt: new Date().toISOString(), attempts: 0 });
 }
 
 function openDb() {
