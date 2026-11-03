@@ -33,6 +33,7 @@ model User {
   projectsCreated Project[]    @relation("ProjectCreator")
   invitationsSent OrganizationInvitation[] @relation("InvitationSender")
   invitationsReceived OrganizationInvitation[] @relation("InvitationRecipient")
+  passwordResetTokens PasswordResetToken[]
 
   @@index([status, createdAt])
 }
@@ -779,4 +780,20 @@ model OrganizationInvitation {
   @@index([organizationId, email, acceptedAt, revokedAt])
   @@index([userId, organizationId])
   @@index([expiresAt, acceptedAt, revokedAt])
+}
+
+
+// Password recovery uses short-lived, single-use hashed bearer tokens.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, usedAt, revokedAt])
+  @@index([expiresAt, usedAt, revokedAt])
 }
