@@ -32,6 +32,19 @@ jobs:
         run: bun run test
       - name: Validate arbench-v2 benchmark corpus
         run: bun run bench:validate
+      - name: Validate production release configuration shape
+        env:
+          DATABASE_URL: postgresql://modrik:ci-placeholder@localhost:5432/modrik
+          MODRIK_ADMIN_EMAIL: ci@example.invalid
+          MODRIK_ADMIN_PASSWORD_HASH: '$scrypt$16384$8$1$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          MODRIK_AUTH_SECRET: 0123456789abcdef0123456789abcdef
+          MODRIK_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+          UPSTASH_REDIS_REST_URL: https://redis.example.invalid
+          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-token
+          RESEND_API_KEY: re_ci-placeholder
+          PASSWORD_RESET_EMAIL_FROM: Modrik CI <security@example.invalid>
+          APP_URL: https://app.example.invalid
+        run: bun run security:release-check
       - name: Validate and push SQLite schema
         env:
           DATABASE_URL: file:${{ github.workspace }}/ci.db

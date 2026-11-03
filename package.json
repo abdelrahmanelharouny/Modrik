@@ -24,7 +24,8 @@
     "db:validate:parity": "node scripts/validate-provider-schema-parity.mjs",
     "db:inventory:write": "node scripts/schema-inventory.mjs --write",
     "db:inventory:check": "node scripts/schema-inventory.mjs",
-    "db:migrate:deploy": "node scripts/guarded-migrate-deploy.mjs"
+    "db:migrate:deploy": "node scripts/guarded-migrate-deploy.mjs",
+    "security:release-check": "node scripts/validate-production-env.mjs --production"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
