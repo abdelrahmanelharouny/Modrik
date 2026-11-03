@@ -743,3 +743,53 @@ Continue in dependency order and create new reconciled child branches rather tha
 | Product PR merges | None |
 
 **Decision:** keep every PR Draft. Do not merge or close source branches yet. Proceed with the remaining sequential reconciliations and preserve the verified candidates as reference implementations.
+
+
+## RI.10 — Sequential full-stack replay and proxy integration fixes (2026-11-03)
+
+### New sequential reconciliation chain
+
+The release stack has now been replayed in dependency order as a new chain of Draft PRs:
+
+| Stage | PR | Current head | Exact-head CI |
+|---|---:|---|---|
+| Phase 0 on current main | #27 | 626b4ccb0dca21469e2407f53e220ce6096f18ea | Passed |
+| Phase 1 on reconciled Phase 0 | #28 | 0d91effdbcdbc561407433adfce5125d1e98ac73 | Passed |
+| Phase 2 on reconciled Phase 1 | #29 | ec8a6fbd698f48a24883de018bfca61a1c729dd2 | Passed |
+| Phase 3 on reconciled Phase 2 | #30 | a2dc8b1f99ebe949401c50ac6a71c3d64af31619 | Passed |
+| Phase 4 on reconciled Phase 3 | #31 | 1c9e90a4e0ae557683e6f219a86c3cc612bac479 | Passed |
+| H1.1 API boundary | #32 | 23c25e6eb8a755c570994933597e7f3725b408fa | Passed |
+| H1.2 identity foundation | #33 | 56e2e8c3b50f763856fb803b25c994edf4850b0e | Passed |
+| H1.3 identity sessions/RBAC | #34 | b85c75f7f3cf792ceb09d7eb1897536dc8acdf53 | Passed |
+| H1.4 API authorization/gates | #35 | 98f60715b0203649c9bd0cf1057f47ea13e68ff4 | Passed |
+| H1.5 provider parity | #36 | 383d0a7db52a0723fad456ca6f49e31c0f9dfb2a | Passed |
+| H1.6 migration lifecycle | #37 | f56a0d0a2ad3de7758395dd7fd530574e317005a | Passed |
+| H1.7 invitations | #38 | a20527633cde6c2e33457448a9730fa11a1e5cc3 | Passed |
+| H1.8 password recovery | #39 | db79c0b789035ceec1c56448fb567bd350c2ec33 | Passed |
+| H1.9 distributed rate limits | #40 | c5c76573803567bfdbe1f07604fff1c03e064068 | Passed |
+| H1.10 production configuration | #41 | 14434304aef77c0fad1d06a1a2b9d4aace3227ff | Passed |
+| H1 docs | #42 | c233f082235fa217bc767fd5f4c7695eeda9dfe4 | Passed |
+| H1.11 credential rotation | #43 | 6450b057281c300f7b21f785740d98e19f5187bd | Passed |
+| H1.12 planner sensitivity | #44 | 369d2cdff01e58d2f70ce097251648aa17240a76 | In progress at last poll |
+| H2.1 four-arm benchmark | #45 | d870b92d9f1f05458984c3f677292c6b57880360 | In progress at last poll |
+| H2.2 canonical human evaluation | #46 | 42abdadb50ac4b9158242629c825a1df7ccd15a4 | In progress at last poll |
+
+All PRs remain Draft and unmerged. The chain is sequential: #27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46.
+
+### Combined-tree defects found and corrected
+
+1. **Active proxy duplication:** the repository had both root `proxy.ts` and `src/proxy.ts`. The CI browser runtime executed the root proxy, while later stages updated `src/proxy.ts`. This caused the root proxy to lag the intended security policy.
+2. **CSRF/cache header mismatch:** the root proxy's cross-origin rejection did not set `Cache-Control: no-store, max-age=0`. The Phase 4 combined E2E caught it. The active root proxy was synchronized with the hardened origin-check implementation.
+3. **Identity context propagation:** after H1.3, `src/proxy.ts` propagated verified identity and tenant context headers, but root `proxy.ts` still contained the earlier single-owner implementation. This caused owner-created projects to lack `createdByUserId`. The root proxy was synchronized with the identity-aware implementation.
+4. **Invitation authorization drift:** H1.7 extended organization-route permission classification in `src/proxy.ts`, but the root proxy remained stale, allowing a viewer to list invitations. The root proxy was synchronized with the H1.7 route-policy implementation.
+5. **Distributed rate-limit proxy drift:** H1.9's latest proxy implementation was synchronized into root `proxy.ts` so the active entrypoint carries the final H1 proxy policy.
+
+After each proxy synchronization, the dependent child branches were replayed forward. The exact-head CI reruns for PRs #31–#43 listed above passed both `quality` and `postgres-schema`. This is evidence that the proxy fixes resolved the repeated stakeholder API/browser E2E failures across the full H1 chain.
+
+### Current release decision
+
+- Phase 0 through H1.11 exact-head CI: passed on the listed commits.
+- H1.12 and H2.1/H2.2: final exact-head CI was still running at the time this section was written; do not mark them green until both jobs complete.
+- No PR has been merged; all source PRs remain available.
+- No production provider credentials, real Redis service, email delivery, external OAuth, human recruitment, or live participant ratings were exercised by these CI workflows.
+- The next gate is exact-head CI completion for #44–#46, followed by a combined full-stack review and one full integration CI run. Only then should any PR be marked ready for merge.
