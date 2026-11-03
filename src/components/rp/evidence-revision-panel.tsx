@@ -34,6 +34,7 @@ export function EvidenceRevisionPanel({
         method: "PATCH",
         body: JSON.stringify({
           evidenceId: evidence.id,
+          expectedRevisionVersion: evidence.revisions?.[0]?.version ?? 0,
           title,
           content,
           language,
