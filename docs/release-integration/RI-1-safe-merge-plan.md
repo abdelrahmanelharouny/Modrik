@@ -43,11 +43,15 @@ Current `main` is `7ce3ea6d15e9ccbf468b985a0bbcb4547177a453`. Comparing current 
 
 Therefore, even the first PR must be reconciled with the two current-main commits before integration. Do not force-push or rewrite the existing stack blindly.
 
-### 2. H1.12 parent drift
+### 2. Phase 3 parent drift
+
+PR #4 compares as diverged from its declared Phase 2 base: its head is 14 commits ahead and 1 commit behind. This is a smaller but real stack drift. Inspect the unique base-side commit and reconcile it into the Phase 3 integration candidate before treating #4 as a clean child of #3.
+
+### 3. H1.12 parent drift
 
 PR #19 records base SHA `f6ec45060b8c0cb9e11829f6834da90f160be304`. The current H1.11 branch head is `1a13291f838e5f4c30859c660d602ba05da1e539`. A compare of the current H1.11 branch with H1.12 reports divergence (H1.12 is 9 commits ahead and 3 behind), so the intended parent relationship needs reconciliation before #19 is considered stack-safe.
 
-### 3. Duplicate H2.2 implementations
+### 4. Duplicate H2.2 implementations
 
 - PR #20 (`codex/modrik-h2-2-human-evaluation-calibration`) is one commit ahead of H2.1 and adds six files, including `src/lib/research/human-ratings.mjs`, CSV-oriented packet/rating workflows, analysis and tests.
 - PR #21 (`codex/modrik-h2-2-human-evaluation`) is four commits ahead of H2.1 and also changes six files, with a separate JSON-oriented workflow and its own docs/scripts/tests.
@@ -62,6 +66,7 @@ They are distinct implementations of the same H2.2 scope, not two sequential sta
 - Preserve all existing branches until final verification.
 
 ### Gate B — reconcile the stack
+- Reconcile the Phase 3 base-side commit in #4.
 - Create a new integration branch from current `main`.
 - Rebase/cherry-pick or reconstruct Phase 0 onto that branch without dropping the two current-main commits.
 - For each subsequent PR, verify its diff against the newly integrated parent, not merely its historical PR base.
@@ -99,6 +104,7 @@ After each logical boundary:
 
 - [ ] A reconciled integration branch exists from current `main`.
 - [ ] Every stacked PR is mapped to a verified parent SHA.
+- [ ] Phase 3 (#4) is reconciled with Phase 2.
 - [ ] H1.12 is reconciled with current H1.11.
 - [ ] H2.2 is consolidated into one tested implementation.
 - [ ] Main protection and required checks are confirmed by an authorized admin.
