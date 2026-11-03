@@ -81,7 +81,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           projectId,
           kind: "github-webhook",
           direction: "pending",
-          localLabel: eventName + (action ? ":" + action : ""),
+          localLabel: eventName + (payloadAction ? ":" + payloadAction : ""),
           externalKey: deliveryId,
           externalUrl: event.url,
           title: event.title.slice(0, 200),
