@@ -17,8 +17,8 @@ function validateOfflineEvidenceOperation(operation) {
   if (typeof payload.title !== "string" || typeof payload.content !== "string") throw new TypeError("Evidence title and content are required");
   if (!payload.title.trim() || !payload.content.trim() || payload.title.length > 200 || payload.content.length > 8000) throw new RangeError("Evidence title/content are empty or exceed supported limits");
   if (typeof payload.consent !== "boolean") throw new TypeError("Consent must be explicit");
-  if (!["interview", "document", "meeting", "survey", "observation", "transcript", "whiteboard_ocr"].includes(payload.sourceType)) throw new TypeError("Unsupported evidence source type");
-  if (!["en", "ar-EG", "codeswitch"].includes(payload.language)) throw new TypeError("Unsupported evidence language");
+  if (payload.sourceType !== undefined && !["interview", "document", "meeting", "survey", "observation", "transcript", "whiteboard_ocr"].includes(payload.sourceType)) throw new TypeError("Unsupported evidence source type");
+  if (payload.language !== undefined && !["en", "ar-EG", "codeswitch"].includes(payload.language)) throw new TypeError("Unsupported evidence language");
   const createdAt = Date.parse(operation.createdAt);
   if (!Number.isFinite(createdAt) || createdAt > Date.now() + 5 * 60 * 1000) throw new TypeError("Offline operation timestamp is invalid");
   if (!Number.isSafeInteger(operation.attempts) || operation.attempts < 0 || operation.attempts > 1_000_000) throw new TypeError("Offline operation retry count is invalid");
