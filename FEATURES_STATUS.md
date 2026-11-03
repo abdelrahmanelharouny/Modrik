@@ -6,7 +6,7 @@
 
 - Six-gate human-in-the-loop requirements workflow and twelve agent roles.
 - Impact-aware question planner, four-arm experiment support, deterministic 120-scenario `arbench-v2` corpus, benchmark runner and analysis utilities.
-- Evidence revisioning, exact-quote claim provenance, requirement-quality assessment, decision journal and typed knowledge graph with impact traversal.
+- Evidence revisioning, exact-quote claim provenance, requirement-quality assessment, decision journal and typed knowledge graph with impact traversal. An initial explainable change-effort proxy is surfaced from the requirement impact graph; it is experimental and not a validated time/cost forecast.
 - Executability simulation and GAP findings; ambiguity, conflict, health, calibration, drift, compliance and wind-tunnel instruments.
 - Arabic-first elicitation, bilingual UI metadata, RTL switching and guarded voice intake/transcription.
 - Stakeholder registry, requirement positions, evidence links and multi-stakeholder negotiation with quorum and immutable participant responses.
@@ -23,7 +23,7 @@
 - Broader Playwright coverage for the complete six-stage product, cross-browser behavior, mobile workflows and accessibility regression.
 - Offline-first evidence capture, conflict-safe synchronization and background retry.
 - Reverse traceability from code/tracker changes back to affected requirements.
-- Requirement-level cost-of-change modelling and organization-scale knowledge memory.
+- Calibration and validation of the initial requirement-level change-effort proxy against observed engineering work; organization-scale knowledge memory.
 - Advanced organization governance and audit-export workflows beyond current RBAC and audit primitives.
 - Egyptian Arabic ASR quality remains provider-dependent; script checks and human review are guardrails, not a full upstream accuracy solution.
 
