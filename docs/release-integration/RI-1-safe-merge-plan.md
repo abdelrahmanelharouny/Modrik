@@ -551,3 +551,25 @@ Exact-head GitHub Actions run `41661557363` completed successfully on PR #23 hea
 | Full PR stack merge / production verification | Not performed |
 
 This is the current verified implementation head for PR #23. It does not authorize merging the full stack or claiming human-subject results.
+
+
+### RI.4.11 — Spreadsheet-safe rater exports and current H2.2 code verification (2026-11-03)
+
+The rater CSV serializer now neutralizes formula-leading cells (including values beginning with `=`, `+`, `-`, or `@` after leading whitespace) by prefixing a text marker before CSV quoting. This protects spreadsheet users when evidence, generated questions, or rater notes contain untrusted formula-like text. The regression suite verifies that formula-leading values are exported as text. The packet-projection verifier remains compatible with spreadsheet round trips because it reserializes submitted values using the same safe CSV serializer before comparing the immutable payload digest.
+
+Exact-head GitHub Actions run `41662483430` completed successfully on PR #23 implementation head `dce2de3ae422d8bbbec6cb6f477a41ea483bc5e4`. Both jobs passed:
+- `quality`: regression tests (including packet generation, filled-rating analysis CLI round trip, malformed ordinal rejection, and formula-injection CSV regression), benchmark validation, production configuration validation, SQLite schema, TypeScript, lint, production build, Playwright setup, and stakeholder API/browser E2E.
+- `postgres-schema`: PostgreSQL schema generation, parity/inventory checks, validation/client generation, and PostgreSQL 16 schema push.
+
+A subsequent documentation-only commit `bdc01b1` records the spreadsheet-safety behavior. No product code changed after the verified implementation head.
+
+| Gate | State |
+|---|---|
+| Formula-leading CSV cell neutralization | Implemented and regression-tested |
+| Rating sheet round-trip integrity | Verified with projection digest |
+| Exact-head CI for implementation head `dce2de3` (run 41662483430) | Passed |
+| Current human-evaluation software workflow | Packet + analysis CLI E2E verified |
+| Real rater calibration / recruitment / human ratings | Not started |
+| Full stack merge / production deployment | Not performed |
+
+PR #23 remains draft/open/unmerged. The H2.2 software workflow is verified on the implementation head, but empirical human evaluation and full-stack release integration remain separate gates.
