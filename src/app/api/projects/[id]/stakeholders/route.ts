@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 import { isAuthConfigured, SESSION_COOKIE, verifyAdminRequest } from "@/lib/security/session.mjs";
+import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import {
   normalizeStakeholder, normalizeStakeholderPosition, normalizePositionEvidence,
   normalizeNegotiation, normalizeNegotiationDecision, NEGOTIATION_ROLES,
@@ -14,6 +15,13 @@ const bad = (error: unknown) => NextResponse.json({ error: error instanceof Erro
 const objectBody = (body: unknown): body is Record<string, any> => Boolean(body && typeof body === "object" && !Array.isArray(body));
 
 function requireOwner(req: NextRequest) {
+  // Keep the route safe even when an upstream proxy is bypassed by a runtime or test harness.
+  if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !isSameOriginMutation(req.headers, req.nextUrl.protocol)) {
+    return NextResponse.json(
+      { error: "Cross-origin state change rejected", code: "CSRF_ORIGIN_REJECTED" },
+      { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
+  }
   if (!isAuthConfigured()) {
     return NextResponse.json({ error: "Authentication is not configured." }, { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
