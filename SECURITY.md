@@ -144,3 +144,12 @@ This is a technical access-control gate, not a completed enterprise security rev
 ## Benchmark integrity gate (H1.4)
 
 CI validates all 120 `arbench-v2` scenarios before a change can pass. Validation checks manifest count, unique stable IDs, the 8-category × 5-domain × 3-scenario coverage matrix, scenario-file presence and JSON validity, manifest/file metadata parity, gold payload presence, and evidence-code/consent integrity. This is a corpus-integrity check; it does not claim model-quality scores or execute paid/provider-backed inference.
+
+
+## Jira webhook ingress
+
+- Endpoint: `POST /api/webhooks/jira/{projectId}` (HTTPS only in production).
+- Configure the Jira Cloud project integration and set a high-entropy webhook secret (at least 32 characters) in the project integration console. The secret is encrypted at rest and is never returned to the browser.
+- In Jira Cloud, create an admin webhook for `jira:issue_created`, `jira:issue_updated`, and `jira:issue_deleted`, using the same secret. Jira signs the raw request body in `X-Hub-Signature` using the declared HMAC method; Modrik currently accepts SHA-256 and rejects malformed or mismatched signatures.
+- Modrik requires `X-Atlassian-Webhook-Identifier` for retry deduplication, checks the event's project key against the configured project, enforces a 1 MB payload cap, and returns a retryable 5xx only when drift processing fails.
+- Test a real delivery after deployment. Automated tests cover signature verification, ADF description normalization, project isolation and unsupported events, but do not prove external delivery or Jira-side configuration.
