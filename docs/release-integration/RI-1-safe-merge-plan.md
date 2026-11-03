@@ -373,3 +373,34 @@ PR #21's first run (#323) failed two assertions because the tests retained pre-h
 PR #20 run #321 completed successfully. Both jobs passed: PostgreSQL schema and the quality job, including regression tests, TypeScript, lint, SQLite production build, and stakeholder API/browser E2E. Verified head: d7f8659000f5617a7fd578419e6ed757e2189b1e.
 
 PR #21's corrected head (21b073f4416f02a1ec31174d5fe129eb7c380225) has a fresh run #324 in progress. PR #20's green run does not imply the final hybrid is complete or verified.
+
+
+### RI.4.4 — H2.2 exact-head CI refresh and canonicalization decision (2026-11-03)
+
+PR #21's corrected head `21b073f4416f02a1ec31174d5fe129eb7c380225` completed GitHub Actions run `41647062103` with conclusion `success`. This verifies that branch's current implementation and tests only; it does not verify a combined H2.2 implementation.
+
+A direct source review confirms that PR #20 and PR #21 are not safe to combine by simply merging both branches:
+
+- They define different rating schemas and rubrics. PR #20 has eight fields (seven quality dimensions plus confidence); PR #21 has six differently named dimensions and an inverse-polarity redundancy score. These scores are not poolable. The canonical rubric must be versioned and one schema selected explicitly before any ratings are collected.
+- PR #20 uses CSV rater packets and a reusable statistical module with paired four-arm comparisons, bootstrap intervals, sign-flip permutation, Holm correction, effect sizes, and adjudication output.
+- PR #21 uses a JSON packet/key workflow and checks the SHA-256 digest against the exact packet bytes supplied by the CLI. It also validates distinct rater identities and the complete four-arm mapping per scenario.
+- PR #20's packet exporter already has strict question-field allowlisting, exclusive file creation, partial-write cleanup, and answer-key coverage accounting. These protections must not be lost in consolidation.
+
+Canonicalization decision:
+1. Keep PR #20's reusable statistical engine and its scenario-level paired inferential safeguards.
+2. Adopt PR #21's exact-byte packet/key binding and strict packet/rater/key validation.
+3. Select and freeze one explicit rubric version before packet export. Do not translate or pool scores from the competing rubric after collection. The initial canonical rubric should use the eight-field PR #20 schema unless a documented product/research decision changes it before any ratings exist; confidence remains a separately reported calibration field, not a quality score.
+4. Use a single versioned JSON canonical packet and protected answer-key/manifest as the source of truth; provide CSV rater exports only as derived views if retaining spreadsheet-based rating is desired. Hash the exact canonical packet bytes and bind both rater export artifacts plus rubric/schema versions in the coordinator-only manifest.
+5. Preserve allowlisted rater-visible fields, consent=true-only evidence, no-overwrite/exclusive creation, atomic cleanup, expected/submitted/matched/missing/duplicate/unknown coverage accounting, and no leakage of arm/provider/model/prompt/metrics/gold labels.
+6. Keep synthetic fixture tests separate from actual human-subject recruitment and do not claim ethics approval, participant consent, or empirical human ratings until those activities occur.
+
+| Gate | State |
+|---|---|
+| PR #20 exact-head CI | Passed (run #321) |
+| PR #21 corrected exact-head CI | Passed (run #324 / run id 41647062103) |
+| Canonical rubric/schema decision | Defined above; must be encoded in implementation |
+| Single hybrid H2.2 branch | Not implemented |
+| Hybrid integration CI | Not run |
+| Human recruitment / actual ratings | Not started |
+
+Neither PR #20 nor PR #21 is merged. H2.2 remains open until the canonical hybrid is implemented on a single branch, all integration and regression gates pass on its exact head, and the final workflow/documentation agree on the same schema and artifact contract.
