@@ -61,6 +61,10 @@ Saved GitHub/Jira credentials are encrypted at rest using AES-256-GCM. Legacy pl
 
 The Jira connector validates allowed HTTPS origins and does not follow redirects. Private Jira Data Center deployments must additionally assess DNS/IP egress controls; hostname allowlisting alone is not a complete network-layer SSRF defense.
 
+## Project audit exports
+
+Authenticated project audit export is available at `GET /api/projects/{projectId}/audit/export`. It exports the complete project-scoped decision journal as JSON or CSV (`?format=json|csv`), with bounded date, actor, stage and action filters and a maximum of 10,000 rows per request. Access is gated by the explicit `audit:read` permission (Owner, Admin, Reviewer and Approver); Engineer and Viewer roles are denied. Responses are marked `no-store`. CSV output quotes all cells and neutralizes spreadsheet formula prefixes. Use date filters for larger histories; export does not include credentials, sessions or other projects' records.
+
 ## GitHub webhook drift ingestion
 
 A project can receive signed GitHub `issues` (opened, edited, reopened, closed) and `push` events at:
