@@ -35,7 +35,7 @@ export function weightedQuadraticKappa(left,right,maxScore=5){
  let observedDisagreement=0,expectedDisagreement=0,exact=0,within=0;
  for(let i=0;i<maxScore;i++)for(let j=0;j<maxScore;j++){const weight=((i-j)/(maxScore-1))**2;observedDisagreement+=(observed[i][j]/n)*weight;expectedDisagreement+=(row[i]/n)*(col[j]/n)*weight;}
  for(const [a,b] of pairs){if(a===b)exact++;if(Math.abs(a-b)<=1)within++;}
- return{n,kappa:expectedDisagreement===0?(observedDisagreement===0?1:null):1-observedDisagreement/expectedDisagreement,exactAgreement:exact/n,withinOneAgreement:within/n};
+ return{n,kappa:expectedDisagreement===0?null:1-observedDisagreement/expectedDisagreement,exactAgreement:exact/n,withinOneAgreement:within/n};
 }
 
 export function buildBlindPackets(records,loadScenario,options={}){
@@ -53,7 +53,7 @@ export function buildBlindPackets(records,loadScenario,options={}){
    const arm=map.get(armName);if(!Array.isArray(arm.questions)||!arm.questions.length){errors.push(record.scenarioId+": arm "+armName+" has no questions");continue;}
    const blindId="BR-"+createHash("sha256").update(seed+"|"+record.scenarioId+"|"+armName).digest("hex").slice(0,12).toUpperCase();
    keyRows.push({scenario_id:record.scenarioId,blind_output_id:blindId,arm:armName});
-   const questions=arm.questions.map(question=>({text:question.text,rationale:question.rationale,priority:question.priority,askCost:question.askCost,fallbackAssumption:question.fallbackAssumption,language:question.language})).filter(question=>typeof question.text==="string"&&question.text.trim());
+   const questions=arm.questions.map(question=>({text:question.text,language:question.language||"unspecified"})).filter(question=>typeof question.text==="string"&&question.text.trim());
    if(!questions.length){errors.push(record.scenarioId+": arm "+armName+" has no renderable question text");continue;}
    rows.push({scenario_id:record.scenarioId,blind_output_id:blindId,category:scenario.category,domain:scenario.domain,difficulty:scenario.difficulty,brief:scenario.brief,evidence_json:JSON.stringify(evidence),questions_json:JSON.stringify(questions)});
   }
