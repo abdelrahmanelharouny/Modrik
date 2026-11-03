@@ -832,3 +832,29 @@ The latest verification pass completed successfully for every PR in the new sequ
 ### Next release gate
 
 Run a final source-level review of the cumulative #46 tree, inspect the generated migration plan and production configuration, verify the branch protection / required status-check policy through repository settings (prior read returned 403), and only then prepare a deliberate merge plan. Do not merge a chain of 20 Draft PRs automatically. Prefer a reviewed release branch or controlled sequential merge with rollback checkpoints and an exact post-merge main verification run.
+
+
+## RI.10 — Phase 4 replayed onto reconciled Phase 3 (2026-11-03)
+
+### Reconciled Phase 4 candidate
+
+Created branch `codex/modrik-phase-4-reconciled` from the exact Phase 3 reconciliation head `494cc46623a06582d00feffc3d519ea56f3936df` and replayed the complete 15-file Phase 4 change set from the original Phase 4 branch. The replay is a single tree commit (`14266cdeec0eeb0e8ee0cb007e71e2fbf845cfc6`) with one parent: the reconciled Phase 3 head. The original PR #5 and branch remain untouched.
+
+New Draft PR: https://github.com/abdelrahmanelharouny/Modrik/pull/47
+- Base: `codex/modrik-phase-3-reconciled`
+- Head: `codex/modrik-phase-4-reconciled`
+- Exact head SHA: `14266cdeec0eeb0e8ee0cb007e71e2fbf845cfc6`
+- Compare: 1 commit ahead, 0 behind; 15 changed files.
+- Reconciled schema contains both `RequirementQualityAssessment` and all Phase 4 stakeholder models.
+- Phase 3 quality API, quality tests, and `knowledge-graph/validation.d.mts` are present on the new branch.
+
+### CI status at the time of this update
+
+Workflow run `41688684673` was triggered for PR #47's exact head. The PostgreSQL schema job completed successfully. The quality job had progressed through regression tests, TypeScript, lint, and SQLite production build and was installing the Playwright browser runtime; it had not yet completed the stakeholder API/browser E2E step. Do not call PR #47 green until the quality job completes successfully on this exact head.
+
+### Replay review notes
+
+- The replay used the full 15 changed files from the Phase 4 source branch and preserved the reconciled Phase 3 parent tree as the base.
+- The Phase 4 README and SECURITY updates were replayed as part of the original change set; verify the final README status claims against the downstream H1 state before any public release.
+- Phase 4 collaboration still uses the owner-session boundary described in its design. It does not itself supply organization-level RBAC; that remains downstream H1 scope.
+- Keep PR #47 Draft and unmerged until exact-head CI and later H1 authorization integration gates pass.
