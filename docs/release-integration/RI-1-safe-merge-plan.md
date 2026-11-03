@@ -366,3 +366,10 @@ CI status for the latest head is still unavailable (no workflow run or combined 
 PR #20's latest reviewed run (#321) has passed regression tests, TypeScript, lint, SQLite production build, and PostgreSQL schema validation; its stakeholder API/browser E2E job was still in progress at the latest poll.
 
 PR #21's first run (#323) failed two assertions because the tests retained pre-hardening expectations: a degenerate constant-score kappa expected 1 rather than null, and a tamper test matched the previous error wording. Both assertions were corrected in commit 21b073f4416f02a1ec31174d5fe129eb7c380225. A fresh exact-head CI result is pending; do not mark PR #21 green.
+
+
+### RI.4.3 — H2.2 CI result refresh
+
+PR #20 run #321 completed successfully. Both jobs passed: PostgreSQL schema and the quality job, including regression tests, TypeScript, lint, SQLite production build, and stakeholder API/browser E2E. Verified head: d7f8659000f5617a7fd578419e6ed757e2189b1e.
+
+PR #21's corrected head (21b073f4416f02a1ec31174d5fe129eb7c380225) has a fresh run #324 in progress. PR #20's green run does not imply the final hybrid is complete or verified.
