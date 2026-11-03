@@ -4,11 +4,11 @@ import { normalizeNodeInput, normalizeEdgeInput, parseNodeAttributes, validateNo
 
 test("node validation enforces supported kinds and bounded fields", () => {
   assert.throws(() => normalizeNodeInput({kind:"unknown",label:"A"}), /kind/);
-  assert.throws(() => normalizeNodeInput({kind:"goal",label:"   "}), /label/);
+  assert.throws(() => normalizeNodeInput({kind:"goal",label:" ".repeat(3)}), /label/);
   assert.throws(() => normalizeNodeInput({kind:"goal",label:"Goal",confidence:1.2}), /Confidence/);
   assert.throws(() => normalizeNodeInput({kind:"goal",label:"Goal",attributes:[]}), /attributes/);
 });
-test("node normalization serializes bounded extensible attributes", () => {
+test("node normalization serializes safe extensible attributes", () => {
   const node = normalizeNodeInput({kind:"stakeholder",label:"Finance lead",description:"Owns budget approval",confidence:0.8,attributes:{department:"Finance"}});
   assert.equal(node.kind,"stakeholder");
   assert.deepEqual(JSON.parse(node.attributes),{department:"Finance"});
