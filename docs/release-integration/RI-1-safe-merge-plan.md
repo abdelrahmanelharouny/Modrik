@@ -912,3 +912,12 @@ With the cross-origin cache assertion scoped to application-generated auth respo
 Added explicit instrumentation to the browser test: capture the negotiation POST response, read its body, and assert HTTP 201 with the returned error body included on failure before waiting for the negotiation title in the UI. This converts an opaque 30-second locator timeout into an actionable API-vs-rendering diagnosis.
 
 Latest PR #47 head: `782822d8cbd5d874c786639ab62138fca8ad4b65`. Exact-head CI is pending; do not consider Phase 4 reconciled until the instrumented run passes all gates.
+
+
+### RI.10.6 — Browser same-origin metadata fallback
+
+The instrumented run `41691280017` exposed the exact browser POST request headers: `Origin: http://127.0.0.1:3187`, `Host: 127.0.0.1:3187`, `Sec-Fetch-Site: same-origin`. The request was still rejected as cross-origin by the standalone runtime's origin check, despite matching browser origin and host. The next replay run `41692050770` reproduced the rejection with an explicitly supplied `X-Forwarded-Proto: http`, showing that the browser-facing origin and host were consistent while the runtime's effective protocol comparison remained incompatible.
+
+Hardened the shared validator in `src/lib/security/request-origin.mjs`: exact scheme+host origin match remains the primary acceptance rule; as a fallback for runtimes that expose an internal URL scheme, accept only when the parsed Origin host exactly matches Host and Fetch Metadata explicitly says `same-origin`. A same-host request marked `cross-site` remains rejected. Added regression tests for both cases. This does not allow a different Origin host, and the ingress must continue to overwrite forwarded headers.
+
+Latest PR #47 head: `efc83c251f7735713759613d4e4f8524758125cb`. Its exact-head run `41692546928` is queued. An earlier run on intermediate head `2834b179a3e06b3aedfb4f8cbb7e65156b4ca279` is still winding down and is not a final verification result. The E2E test now captures the exact browser POST headers and response body for any remaining failure.
