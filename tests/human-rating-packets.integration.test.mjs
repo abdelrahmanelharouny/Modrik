@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -10,7 +9,6 @@ import { parseCsv, verifyHumanRatingArtifacts } from "../src/lib/research/human-
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "create-human-rating-packets.mjs");
-const digest = (value) => createHash("sha256").update(value, "utf8").digest("hex");
 const mode = async (file) => (await stat(file)).mode & 0o777;
 
 test("human-rating packet CLI generates private, blinded, hash-bound artifacts from real planner fixtures", async (t) => {
