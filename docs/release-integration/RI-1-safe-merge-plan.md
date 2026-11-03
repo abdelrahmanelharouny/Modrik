@@ -621,3 +621,10 @@ Do not merge the stack wholesale yet. Before any product merge:
 | Production provider / Redis / email / OAuth verification | Not performed |
 
 The canonical H2.2 implementation is ready for the next integration rehearsal, not for an unreviewed wholesale merge. PR #23 remains draft/open/unmerged.
+
+
+### RI.4.12 — Latest PR #23 head CI refresh (2026-11-03)
+
+The latest PR #23 head is `bdc01b164fd805e817fbe8b76634deea2a4bbb3c`, which adds only the documentation note describing spreadsheet-formula neutralization. Its exact-head workflow run `41663042327` completed successfully; both `quality` and `postgres-schema` passed. The code implementation immediately preceding that documentation-only commit was already verified by run `41662483430`.
+
+PR #23 current head therefore has a green exact-head CI result. This does not change the release boundary: it remains draft/open/unmerged and the full stack still needs safe topological integration.
