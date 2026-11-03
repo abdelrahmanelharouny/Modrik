@@ -1,22 +1,8 @@
 #!/usr/bin/env node
-// ─────────────────────────────────────────────────────────────
-// Modrik (مدرك) — Postgres schema sync
-//
-// WHY THIS EXISTS
-//   Local development runs on SQLite (zero-config, file-based,
-//   perfect for research sandboxes). Production — including
-//   Vercel — runs on PostgreSQL (durable, serverless-friendly).
-//   Prisma pins the provider inside the schema file, so we keep
-//   ONE source of truth (prisma/schema.prisma, SQLite) and
-//   GENERATE prisma/schema.postgres.prisma from it. This script
-//   is deterministic: it rewrites the datasource block only.
-//
-//   Run `npm run db:sync:pg` after ANY change to schema.prisma —
-//   the build guard (scripts/prisma-setup.mjs) re-syncs anyway.
-// ─────────────────────────────────────────────────────────────
+// Modrik — deterministic PostgreSQL schema generation from the canonical SQLite schema.
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -33,20 +19,23 @@ const HEADER = `// ────────────────────�
 
 `;
 
-let schema = readFileSync(src, "utf8");
-
-// Rewrite the datasource block (provider only; url stays env-driven).
-const dsBlock = /datasource\s+db\s*\{[^}]*\}/.exec(schema);
-if (!dsBlock) {
-  console.error("✗ could not locate the datasource block in schema.prisma");
-  process.exit(1);
+export function renderPostgresSchema(sourceSchema) {
+  if (typeof sourceSchema !== "string" || !sourceSchema.trim()) {
+    throw new TypeError("SQLite Prisma schema must be a non-empty string");
+  }
+  const dsBlock = /datasource\s+db\s*\{[^}]*\}/.exec(sourceSchema);
+  if (!dsBlock) throw new Error("could not locate datasource db block in schema.prisma");
+  if (!/provider\s*=\s*"sqlite"/.test(dsBlock[0])) {
+    throw new Error('datasource provider must be "sqlite" in the canonical schema');
+  }
+  const pgBlock = dsBlock[0].replace(/provider\s*=\s*"sqlite"/, 'provider = "postgresql"');
+  return HEADER + sourceSchema.replace(dsBlock[0], pgBlock);
 }
-const pgBlock = dsBlock[0].replace(/provider\s*=\s*"sqlite"/, 'provider = "postgresql"');
-if (pgBlock === dsBlock[0]) {
-  console.error("✗ datasource provider is not \"sqlite\" — schema.prisma changed shape?");
-  process.exit(1);
-}
-schema = schema.replace(dsBlock[0], pgBlock);
 
-writeFileSync(dst, HEADER + schema, "utf8");
-console.log("✓ generated prisma/schema.postgres.prisma (provider: postgresql)");
+function main() {
+  const schema = readFileSync(src, "utf8");
+  writeFileSync(dst, renderPostgresSchema(schema), "utf8");
+  console.log("✓ generated prisma/schema.postgres.prisma (provider: postgresql)");
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
