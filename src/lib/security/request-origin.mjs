@@ -8,7 +8,12 @@ export function isSameOriginMutation(headers, fallbackProtocol = "http:") {
   if (origin) {
     if (!host || !["http", "https"].includes(protocol)) return false;
     try {
-      return new URL(origin).origin === `${protocol}://${host}`;
+      const parsedOrigin = new URL(origin);
+      if (parsedOrigin.origin === `${protocol}://${host}`) return true;
+      // Some standalone runtimes expose an internal URL scheme that differs
+      // from the browser-facing scheme. Trust Fetch Metadata only when the
+      // browser reports same-origin and the Origin host still matches Host.
+      return parsedOrigin.host.toLowerCase() === host.toLowerCase() && fetchSite === "same-origin";
     } catch {
       return false;
     }
