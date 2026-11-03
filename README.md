@@ -623,7 +623,7 @@ A platform whose brand is honesty owes you this list:
 3. **Production rollout is not cleared** — RBAC and tenant isolation are implemented, but database migration baselines, live provider checks, backup/restore rehearsal and OAuth remain release gates.
 4. **E2E coverage is focused, not exhaustive** — CI includes a Playwright stakeholder flow and API integration coverage; the full application still needs broader scripted journeys and cross-browser/device coverage.
 5. **Pilot recruitment not started** — study infrastructure is implemented, but participant recruitment, consent operations, data collection and analysis require real people and approved sites.
-6. **Tracker automation and OAuth are incomplete** — GitHub/Jira static-token sync exists; event-driven drift webhooks and OAuth authorization flows are not implemented.
+6. **OAuth remains incomplete** — GitHub/Jira static-token sync and signed issue webhooks are implemented in the repository; OAuth authorization and provider-side token lifecycle remain open.
 7. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
 
 ## 25. Glossary
@@ -655,3 +655,10 @@ For a resolved requirement, the endpoint returns its direct evidence trace links
 ## Jira Cloud webhooks
 
 Jira Cloud issue-created, issue-updated and issue-deleted events can be delivered to `POST /api/webhooks/jira/{projectId}`. Configure the Jira integration first, then set a per-project webhook secret in the integration console. Modrik stores the secret encrypted, preserves it when Jira credentials are updated, and verifies Jira's `X-Hub-Signature` HMAC over the exact raw UTF-8 request body. Delivery deduplication uses Jira's `X-Atlassian-Webhook-Identifier`; event normalization requires the configured project key and treats issue content as untrusted data. Payloads are capped at 1 MB. Configure an admin webhook in Jira Cloud with the same secret and the three supported issue events. Live delivery still requires a deployed HTTPS endpoint and a real Jira configuration; CI only verifies the local signature and normalization code paths.
+
+
+## Offline evidence capture
+
+New text evidence can be captured while disconnected. Modrik writes a bounded queue (up to 100 pending sources, 30-day retention) to browser IndexedDB, keeps the original operation UUID across retries, and syncs in creation order after connectivity returns or when the user requests a manual sync. The server uses that UUID as the evidence identity and returns the existing row for an exact replay; reuse of the same UUID with a different project or content hash is rejected as an idempotency conflict. Consent remains an explicit boolean and is never inferred.
+
+This is not a complete offline application: edits/deletes, file or audio blobs, voice transcription, cross-device queue replication, service-worker background sync and a dedicated conflict-resolution screen are not supported. IndexedDB is browser-local storage and is not separately encrypted by Modrik; do not queue highly sensitive evidence on shared devices. Keep the same browser profile available until queued items synchronize.
