@@ -106,6 +106,8 @@ jobs:
         run: bun run db:sync:pg
       - name: Validate PostgreSQL Prisma schema
         run: bunx prisma validate --schema prisma/schema.postgres.prisma
+      - name: Enforce SQLite/PostgreSQL schema parity
+        run: bun run db:validate:parity
       - name: Generate PostgreSQL Prisma client
         run: bunx prisma generate --schema prisma/schema.postgres.prisma
       - name: Push schema to PostgreSQL 16
