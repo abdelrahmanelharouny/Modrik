@@ -38,7 +38,7 @@ openssl rand -hex 32
 openssl rand -hex 32
 ```
 
-Use one value for `MODRIK_AUTH_SECRET` and the other for `MODRIK_ENCRYPTION_KEY`. Back up the encryption key securely: losing it makes encrypted integration credentials unrecoverable. Automated key rotation is still a release gap; do not replace the key until a reviewed re-encryption/rollback procedure exists.
+Use one value for `MODRIK_AUTH_SECRET` and the other for `MODRIK_ENCRYPTION_KEY`. Back up the encryption key securely: losing it makes encrypted integration credentials unrecoverable. Use the guarded rotation tool for planned changes: set distinct `MODRIK_ENCRYPTION_KEY_OLD` and `MODRIK_ENCRYPTION_KEY_NEW` values, run `bun run secrets:rotate` for a read-only dry run, take and verify a database backup, then run `bun run secrets:rotate:apply` in a maintenance window. The operation uses compare-and-swap updates inside a transaction, preserves unrelated config fields, supports legacy plaintext rows, and is idempotent for records already encrypted with the new key. Retain the old key until a restore/rollback rehearsal and post-rotation credential checks pass. This rotates stored integration tokens; it does not rotate provider-side GitHub/Jira credentials or implement OAuth.
 
 ## Invitations and password recovery
 
