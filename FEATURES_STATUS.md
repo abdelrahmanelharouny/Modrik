@@ -11,7 +11,7 @@
 - Arabic-first elicitation, bilingual UI metadata, RTL switching and guarded voice intake/transcription.
 - Stakeholder registry, requirement positions, evidence links and multi-stakeholder negotiation with quorum and immutable participant responses.
 - Organization/project membership authorization, tenant isolation checks, signed sessions, invitations, password recovery and shared Upstash rate limiting.
-- GitHub/Jira static-token integrations, encrypted credential storage, guarded credential re-encryption, and signed GitHub Issues/Push webhook ingestion into drift review with delivery deduplication.
+- GitHub/Jira static-token integrations, encrypted credential storage, guarded credential re-encryption, and signed GitHub Issues/Push and Jira Cloud issue-created/updated/deleted webhook ingestion into drift review with encrypted per-project secrets, delivery deduplication and bounded payload normalization.
 - Deterministic reverse traceability from tracker records to requirements, accepted evidence claims/revisions, knowledge nodes, user stories and upstream impact paths; tracker-to-requirement links require an explicit human-reviewed mapping or exact stable reference.
 - Study participant-token infrastructure, consent-aware data handling, blinded human-rating packet creation and analysis utilities.
 - Project-scoped decision-journal export as JSON/CSV with date/actor/stage/action filters, a 10,000-row cap, CSV formula-injection protection and explicit audit:read role enforcement.
@@ -20,7 +20,6 @@
 ## Incomplete implementation / research work
 
 - GitHub/Jira OAuth authorization and provider-side token lifecycle management.
-- Jira event webhooks, broader tracker event coverage and operational webhook delivery monitoring.
 - Larger full-bench ablation sweeps and publication-grade set-level judge sensitivity/calibration.
 - Broader Playwright coverage for the complete six-stage product, cross-browser behavior, mobile workflows and accessibility regression.
 - Offline-first evidence capture, conflict-safe synchronization and background retry.
