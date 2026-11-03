@@ -151,6 +151,51 @@ try {
   const tenantDemoB = await prisma.project.create({ data: { name: "Tenant B demo", brief: "private demo", organizationId: tenantB.id, isDemo: true } });
   identityCleanup.projects.push(tenantDemoB.id);
   const tenantHeaders = { cookie: identityCookie, "content-type": "application/json" };
+
+  // Requirement Quality endpoints must inherit the same project/tenant boundary.
+  const tenantQualityRequirement = await prisma.requirement.create({
+    data: { projectId: tenantProjectA.id, refId: "REQ-QA-TENANT-A", text: "The system shall expose tenant-scoped quality assessments." },
+  });
+  const foreignQualityRequirement = await prisma.requirement.create({
+    data: { projectId: tenantProjectB.id, refId: "REQ-QA-TENANT-B", text: "A foreign tenant requirement." },
+  });
+  const qualityPayload = {
+    requirementId: tenantQualityRequirement.id,
+    atomicity: 90, clarity: 90, completeness: 90, testability: 90,
+    consistency: 90, traceability: 90, feasibility: 90, verifiability: 90, nfrCoverage: 90,
+    issues: ["Add a measurable response-time threshold."],
+  };
+  const tenantQualityCreate = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    method: "POST", headers: tenantHeaders, body: JSON.stringify(qualityPayload),
+  });
+  await expectStatus(tenantQualityCreate, 201, "same-tenant requirement quality assessment creation");
+  const createdQualityAssessment = (await json(tenantQualityCreate)).assessment;
+  assert.equal(createdQualityAssessment.requirementId, tenantQualityRequirement.id);
+  assert.equal(createdQualityAssessment.overallScore, 90);
+  const forgedRequirementQualityCreate = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ ...qualityPayload, requirementId: foreignQualityRequirement.id }),
+  });
+  await expectStatus(forgedRequirementQualityCreate, 404, "foreign requirement cannot be assessed through an authorized project");
+  const tenantQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, { headers: tenantHeaders });
+  await expectStatus(tenantQualityRead, 200, "same-tenant requirement quality assessment read");
+  assert.ok((await json(tenantQualityRead)).assessments.some(item => item.id === createdQualityAssessment.id));
+  const tenantQualityAccept = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    method: "PATCH", headers: tenantHeaders,
+    body: JSON.stringify({ assessmentId: createdQualityAssessment.id, status: "accepted" }),
+  });
+  await expectStatus(tenantQualityAccept, 200, "authorized reviewer may accept a current quality assessment");
+  assert.equal((await json(tenantQualityAccept)).assessment.status, "accepted");
+  const foreignQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectB.id}/quality`, {
+    headers: { ...tenantHeaders, "x-modrik-organization-id": tenantB.id, "x-modrik-role": "owner" },
+  });
+  await expectStatus(foreignQualityRead, 404, "cross-tenant requirement quality read must be hidden");
+  const foreignQualityCreate = await fetch(`${baseUrl}/api/projects/${tenantProjectB.id}/quality`, {
+    method: "POST",
+    headers: { ...tenantHeaders, "x-modrik-organization-id": tenantB.id, "x-modrik-role": "owner" },
+    body: JSON.stringify({ ...qualityPayload, requirementId: tenantQualityRequirement.id }),
+  });
+  await expectStatus(foreignQualityCreate, 404, "cross-tenant requirement quality write must be hidden");
   const identitySessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
   await expectStatus(identitySessionStatus, 200, "identity session status");
   const identityStatusBody = await json(identitySessionStatus);
@@ -194,6 +239,21 @@ try {
     email: viewerUser.email, userId: viewerUser.id, organizationId: tenantA.id,
     membershipId: viewerMembership.id, role: "viewer", sessionId: viewerSessionId,
   }, secret)}`;
+
+  const viewerQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    headers: { cookie: viewerCookie },
+  });
+  await expectStatus(viewerQualityRead, 200, "viewer may read requirement quality assessments");
+  const viewerQualityWrite = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    method: "POST", headers: { cookie: viewerCookie, "content-type": "application/json" },
+    body: JSON.stringify(qualityPayload),
+  });
+  await expectStatus(viewerQualityWrite, 403, "viewer cannot create requirement quality assessments");
+  const viewerQualityReview = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    method: "PATCH", headers: { cookie: viewerCookie, "content-type": "application/json" },
+    body: JSON.stringify({ assessmentId: createdQualityAssessment.id, status: "accepted" }),
+  });
+  await expectStatus(viewerQualityReview, 403, "viewer cannot accept requirement quality assessments");
   const viewerCreate = await fetch(`${baseUrl}/api/projects`, {
     method: "POST", headers: {
       cookie: viewerCookie,
