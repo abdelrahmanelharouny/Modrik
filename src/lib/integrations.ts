@@ -195,8 +195,9 @@ export async function maskedStatus(projectId: string) {
           projectKey: (jr as JiraConfig).projectKey,
           email: mask((jr as JiraConfig).email),
           token: mask((jr as JiraConfig).token),
+          webhookConfigured: Boolean(await getJiraWebhookConfig(projectId)),
         }
-      : { configured: false },
+      : { configured: false, webhookConfigured: false },
   };
 }
 
@@ -576,7 +577,7 @@ export async function saveConfig(projectId: string, kind: "github" | "jira", con
   const encrypted = {
     ...clean,
     token: clean.token ? encryptSecret(clean.token) : "",
-    ...(kind === "github" && preservedWebhookSecret ? { webhookSecret: preservedWebhookSecret } : {}),
+    ...(preservedWebhookSecret ? { webhookSecret: preservedWebhookSecret } : {}),
   };
   // Preserve the separately encrypted webhook secret when tracker credentials change.
   await db.$transaction(async (tx) => {
@@ -612,6 +613,35 @@ export async function getGitHubWebhookConfig(projectId: string): Promise<{ owner
   if (!secret || !/^[A-Za-z0-9-]{1,39}$/.test(owner) || !/^[A-Za-z0-9_.-]{1,100}$/.test(repo)) throw new Error("Saved GitHub webhook configuration is invalid");
   return { owner, repo, secret };
 }
+
+/** Save a per-project Jira Cloud webhook secret encrypted at rest. */
+export async function saveJiraWebhookSecret(projectId: string, secret: string) {
+  const clean = secret.trim();
+  if (clean.length < 32 || clean.length > 400) throw new Error("Jira webhook secret must contain between 32 and 400 characters");
+  const row = await db.integration.findFirst({ where: { projectId, kind: "jira" }, orderBy: { createdAt: "desc" } });
+  if (!row) throw new Error("Configure Jira credentials and project key before adding a webhook secret");
+  let config: Record<string, unknown>;
+  try { config = JSON.parse(row.config) as Record<string, unknown>; } catch { throw new Error("Saved Jira configuration is corrupt"); }
+  config.webhookSecret = encryptSecret(clean);
+  await db.integration.update({ where: { id: row.id }, data: { config: JSON.stringify(config) } });
+  return { configured: true };
+}
+
+/** Internal Jira webhook verifier config; the secret is never serialized. */
+export async function getJiraWebhookConfig(projectId: string): Promise<{ baseUrl: string; projectKey: string; secret: string } | null> {
+  const row = await db.integration.findFirst({ where: { projectId, kind: "jira" }, orderBy: { createdAt: "desc" } });
+  if (!row) return null;
+  let config: Record<string, unknown>;
+  try { config = JSON.parse(row.config) as Record<string, unknown>; } catch { throw new Error("Saved Jira configuration is corrupt"); }
+  if (typeof config.webhookSecret !== "string" || !config.webhookSecret) return null;
+  const secret = decryptSecret(config.webhookSecret);
+  const baseUrl = String(config.baseUrl ?? "");
+  const projectKey = String(config.projectKey ?? "");
+  validateJiraBaseUrl(baseUrl);
+  if (!secret || !/^[A-Z][A-Z0-9_]{0,9}$/.test(projectKey)) throw new Error("Saved Jira webhook configuration is invalid");
+  return { baseUrl, projectKey, secret };
+}
+
 export async function listSyncMaps(projectId: string) {
   const rows = await db.syncMap.findMany({ where: { projectId }, orderBy: { syncedAt: "desc" }, take: 50 });
   return rows.map((r) => ({
