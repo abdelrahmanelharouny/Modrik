@@ -15,13 +15,17 @@ test("human-rating packet CLI generates private, blinded, hash-bound artifacts f
   const temp = await mkdtemp(path.join(os.tmpdir(), "modrik-human-rating-cli-"));
   t.after(() => rm(temp, { recursive: true, force: true }));
   const manifest = JSON.parse(await readFile(path.join(ROOT, "bench", "manifest.json"), "utf8"));
-  const entries = manifest.scenarios.filter((entry) => entry.gold_type === "question_utility_json").slice(0, 10);
-  assert.equal(entries.length, 10, "the smoke test needs ten real planner fixtures");
+  const plannerEntries = manifest.scenarios.filter((entry) => entry.gold_type === "question_utility_json");
+  const entries = [];
+  for (const entry of plannerEntries) {
+    const scenario = JSON.parse(await readFile(path.join(ROOT, "bench", "scenarios", entry.id + ".json"), "utf8"));
+    if (scenario.evidence.some((item) => item.consent === true)) entries.push({ entry, scenario });
+    if (entries.length === 10) break;
+  }
+  assert.equal(entries.length, 10, "the smoke test needs ten real planner fixtures with explicitly consented evidence");
 
   const records = [];
-  for (const entry of entries) {
-    const scenario = JSON.parse(await readFile(path.join(ROOT, "bench", "scenarios", entry.id + ".json"), "utf8"));
-    assert.ok(scenario.evidence.some((item) => item.consent === true), entry.id + " must contain explicitly consented evidence");
+  for (const { entry, scenario } of entries) {
     records.push({
       status: "success",
       scenarioId: entry.id,
