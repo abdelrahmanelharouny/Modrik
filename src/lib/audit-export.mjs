@@ -1,7 +1,7 @@
 const COLUMNS = Object.freeze(["id", "createdAt", "stage", "actor", "action", "detail"]);
 function cell(value) {
   let text = value instanceof Date ? value.toISOString() : String(value ?? "");
-  if (/^[=+@\-\t\r]/.test(text)) text = "'" + text;
+  if (/^[\u0000-\u0020]*[=+@\-]/.test(text)) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 }
 export function auditRowsToCsv(rows) {
