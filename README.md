@@ -539,19 +539,20 @@ The reasoning behind every significant architectural choice, in one place. Each 
 
 ## 20. Feature status
 
-The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./FEATURES_STATUS.md). Summary:
+The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./FEATURES_STATUS.md). Summary (verified against this repository snapshot):
 
 - **Complete & live:** the six-gate pipeline and 12 agent roles; impact-aware Question Planner + four-arm ablation; typed knowledge graph and impact traversal; executability simulation and GAP discoveries; calibration and six-dimension health instruments; evidence revisioning, claim provenance and requirement-quality assessments; decision journal; drift radar; deterministic WCAG/performance/PDPL checks; GitHub/Jira token integrations; 120-scenario arbench-v2; study infrastructure; Mission Library; Arabic-first elicitation and guarded voice intake.
-- **Implemented on an open draft PR (not merged):** stakeholder registry; requirement positions with human review; accepted-claim evidence links; multi-stakeholder negotiation with 2–30 participants, individual immutable responses, quorum before decision, human rationale, trade-offs and dissent. See [PR #5](https://github.com/abdelrahmanelharouny/Modrik/pull/5).
-- **In development:** full-bench ablation sweeps, tracker→drift webhook automation, OAuth for integrations, multi-user organization/project RBAC and scripted end-to-end coverage. A single-owner login/session boundary already exists; it is not organization-level authorization.
+- **Implemented in this branch:** stakeholder registry; requirement positions with human review; accepted-claim evidence links; multi-stakeholder negotiation with 2–30 participants, immutable participant responses, quorum checks, human rationale, trade-offs and dissent. API/UI and policy tests are present; a real field pilot is still outstanding.
+- **Implemented but not externally verified:** organization/project membership RBAC and tenant-scoped authorization; invitation and password-recovery flows; shared Upstash rate limiting; browser/API integration coverage in CI; encrypted static-token GitHub/Jira integrations and a guarded credential-rotation utility. Provider connectivity, deployment migrations and production restore remain operator release gates.
+- **Still in development / not complete:** tracker→drift webhook automation, GitHub/Jira OAuth, publication-grade set-level judge calibration, and a larger full-bench ablation sweep. Existing benchmark runner and analysis scripts support reproducible runs but do not constitute published empirical results.
 - **Not started:** field-pilot recruitment and study analysis (protocol/infrastructure only).
-- **Still missing:** offline mode, set-level judge calibration suitable for publication claims, organization-scale access governance, and requirement-level cost-of-change modelling.
+- **Not implemented yet:** offline-first capture and conflict-safe sync; reverse traceability from implementation changes to requirements; requirement-level cost-of-change modelling; organization-scale knowledge memory and advanced audit governance.
 
 ## 21. Roadmap
 
 The roadmap is ordered by release risk. A feature is not considered complete until its implementation, tests, migrations, accessibility and operator documentation are verified.
 
-1. **H1 — production foundation (implementation substantially advanced; release not yet cleared):** organization and project membership RBAC, tenant-isolation checks, invitation/recovery lifecycle, shared rate limiting, API integration tests, scripted Playwright E2E, CI benchmark validation, and production configuration validation are implemented on the H1 branch stack. Remaining release gates: reconcile and commit a provider-specific Prisma baseline against each real deployed database; verify live Redis/email/database credentials and restore procedures; implement and test GitHub/Jira OAuth plus integration-secret rotation; complete set-level judge sensitivity/calibration. Do not treat repository schema inventory as a deployed-database baseline.
+1. **H1 — production foundation (implementation substantially advanced; release not yet cleared):** organization and project membership RBAC, tenant-isolation checks, invitation/recovery lifecycle, shared rate limiting, API integration tests, a Playwright stakeholder browser flow in CI, benchmark validation, and production configuration validation are implemented. Remaining release gates: reconcile and commit a provider-specific Prisma baseline against each real deployed database; verify live Redis/email/database credentials and restore procedures; implement GitHub/Jira OAuth; and complete set-level judge sensitivity/calibration. Static-token encryption and guarded credential rotation exist, but do not replace OAuth or provider-side token rotation. Do not treat repository schema inventory as a deployed-database baseline.
 2. **H2 — field research and collaboration:** complete stakeholder response/review workflows; run a 2–3-team pilot; recruit study participants and execute the analysis pipeline; publish reproducible four-arm ablation results; tracker webhooks feeding evidence-drift review.
 3. **H3 — scale and resilience:** offline-first capture and conflict-safe sync; organization-level governance and audit exports; reverse mode from implementation changes to living requirements; requirement-level cost-of-change modelling; organization-scale knowledge memory.
 
@@ -562,12 +563,12 @@ The roadmap is ordered by release risk. A feature is not considered complete unt
 ```
 modrik/
 ├── prisma/
-│   ├── schema.prisma              # single source of truth (19 models, SQLite for dev)
+│   ├── schema.prisma              # canonical data model (38 models, SQLite for dev)
 │   └── schema.postgres.prisma     # AUTO-GENERATED postgres variant (db:sync:pg)
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx               # Mission Control (single route)
-│   │   └── api/                   # 23 route handlers (§12)
+│   │   └── api/                   # 36 route handlers
 │   ├── components/rp/
 │   │   └── mission-control.tsx    # the flight deck (fleet · cockpit · debrief · library)
 │   ├── hooks/                     # i18n (AR/EN), toasts, reveal motion
@@ -619,10 +620,10 @@ A platform whose brand is honesty owes you this list:
 
 1. **Arabic ASR upstream gap** — the speech service occasionally returns wrong-script output for Egyptian Arabic. Guarded (script check, retry, human warning) but not solved; the decision to keep or replace the ASR provider is a documented P0.
 2. **Set-level ablation sensitivity** — the seeded planner comparison differentiates arms clearly on per-question utility, but set-level metrics are close; judge design needs a sensitivity upgrade before publication-grade claims.
-3. **No auth/RBAC** — deploy behind your own gateway; RBAC is roadmap H1.
-4. **No automated E2E suite** — verification is audit-harness + live browser sweeps; a scripted E2E suite is a named gap.
-7. **Pilot recruitment not started** — study infrastructure is complete and verified; participants haven't been recruited.
-8. **Single-stakeholder sessions** — negotiation is one human against implications, not multi-stakeholder deliberation (roadmap H2).
+3. **Production rollout is not cleared** — RBAC and tenant isolation are implemented, but database migration baselines, live provider checks, backup/restore rehearsal and OAuth remain release gates.
+4. **E2E coverage is focused, not exhaustive** — CI includes a Playwright stakeholder flow and API integration coverage; the full application still needs broader scripted journeys and cross-browser/device coverage.
+5. **Pilot recruitment not started** — study infrastructure is implemented, but participant recruitment, consent operations, data collection and analysis require real people and approved sites.
+6. **Tracker automation and OAuth are incomplete** — GitHub/Jira static-token sync exists; event-driven drift webhooks and OAuth authorization flows are not implemented.
 9. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
 
 ## 25. Glossary
