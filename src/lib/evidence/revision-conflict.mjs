@@ -14,7 +14,7 @@ export function isEvidenceRevisionVersionConflict(error) {
 }
 
 export function parseExpectedRevisionVersion(value) {
-  if (typeof value !== "string" || !/^(0|[1-9]\\d*)$/.test(value)) return null;
+  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value)) return null;
   const version = Number(value);
   return Number.isSafeInteger(version) ? version : null;
 }
