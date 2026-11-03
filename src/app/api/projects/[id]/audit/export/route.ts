@@ -17,12 +17,14 @@ export async function GET(request: NextRequest, { params }: Params) {
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
   const query = request.nextUrl.searchParams;
-  const format = query.get("format") === "csv" ? "csv" : "json";
+  const requestedFormat = query.get("format") ?? "json";
+  if (requestedFormat !== "json" && requestedFormat !== "csv") return NextResponse.json({ error: "format must be json or csv" }, { status: 400 });
+  const format = requestedFormat;
   const parsedLimit = Number(query.get("limit") ?? "5000");
-  if (!Number.isInteger(parsedLimit) || parsedLimit < 1) {
+  if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 10_000) {
     return NextResponse.json({ error: "limit must be an integer between 1 and 10000" }, { status: 400 });
   }
-  const limit = Math.min(parsedLimit, 10_000);
+  const limit = parsedLimit;
   const actor = query.get("actor");
   if (actor && !["human", "agent", "system"].includes(actor)) {
     return NextResponse.json({ error: "actor must be human, agent or system" }, { status: 400 });
