@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { createOfflineEvidenceOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
+import { createOfflineEvidenceOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, withOfflineEvidenceSyncLock, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
@@ -250,27 +250,29 @@ export function ElicitationStage({
     setSyncingOffline(true);
     let changed = false;
     try {
-      const operations = await listOfflineEvidenceOperations(project.id);
-      for (const operation of operations) {
-        try {
-          await api(`/api/projects/${project.id}/evidence`, {
-            method: "POST",
-            body: JSON.stringify({ ...operation.payload, clientOperationId: operation.operationId }),
-          });
-          await removeOfflineEvidenceOperation(operation.operationId);
-          changed = true;
-        } catch (error) {
-          await updateOfflineEvidenceOperation({
-            ...operation,
-            attempts: operation.attempts + 1,
-            lastError: (error as Error).message.slice(0, 240),
-          });
-          // Preserve order: a conflict or server error must not silently skip
-          // earlier evidence and make later operations appear fully synchronized.
-          break;
+      await withOfflineEvidenceSyncLock(project.id, async () => {
+        const operations = await listOfflineEvidenceOperations(project.id);
+        for (const operation of operations) {
+          try {
+            await api(`/api/projects/${project.id}/evidence`, {
+              method: "POST",
+              body: JSON.stringify({ ...operation.payload, clientOperationId: operation.operationId }),
+            });
+            await removeOfflineEvidenceOperation(operation.operationId);
+            changed = true;
+          } catch (error) {
+            await updateOfflineEvidenceOperation({
+              ...operation,
+              attempts: operation.attempts + 1,
+              lastError: (error as Error).message.slice(0, 240),
+            });
+            // Preserve order: a conflict or server error must not silently skip
+            // earlier evidence and make later operations appear fully synchronized.
+            break;
+          }
         }
-      }
-      await loadOfflineQueue();
+        await loadOfflineQueue();
+      });
       if (changed) await refresh();
     } catch (error) {
       toast({ title: "Could not sync offline evidence", description: (error as Error).message, variant: "destructive" });
