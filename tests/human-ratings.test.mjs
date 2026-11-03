@@ -31,8 +31,8 @@ function ratingRows(){
  const arms=["single_shot","random","llm","impact_aware"],r1=[],r2=[],key=[];
  for(let s=0;s<10;s++)for(const [i,arm] of arms.entries()){
   const blind="B"+s+"-"+i,score=arm==="impact_aware"?5:3;
-  const row={scenario_id:"S"+s,blind_output_id:blind};
-  const other={...row};
+  const row={rater_code:"R1",scenario_id:"S"+s,blind_output_id:blind};
+  const other={...row,rater_code:"R2"};
   for(const field of ["coverage","grounding","relevance","specificity","dialect_fit","non_redundancy","overall","confidence"]){row[field+"_1_5"]=String(score);other[field+"_1_5"]=String(score);}
   r1.push(row);r2.push(other);key.push({scenario_id:"S"+s,blind_output_id:blind,arm});
  }
@@ -69,4 +69,9 @@ test("human-rating manifest binds exact canonical packet, both rater exports and
  assert.equal(verifyHumanRatingArtifacts({...artifacts,manifest}),true);
  assert.throws(()=>verifyHumanRatingArtifacts({...artifacts,rater2CsvText:artifacts.rater2CsvText+"tamper",manifest}),/integrity check failed/);
  assert.throws(()=>verifyHumanRatingArtifacts({...artifacts,manifest:{...manifest,rubricVersion:"unknown"} }),/Unsupported/);
+});
+
+test("human-rating analysis rejects swapped or forged rater identities",()=>{
+ const data=ratingRows();data.r1[0].rater_code="R2";
+ assert.throws(()=>analyzeHumanRatings(data.r1,data.r2,data.key),/mismatched rater_code/);
 });
