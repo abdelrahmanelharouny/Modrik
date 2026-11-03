@@ -674,3 +674,14 @@ Created draft PR #26: https://github.com/abdelrahmanelharouny/Modrik/pull/26
 - The H1.12 study protocol document was already present in the current H1.11 tree; the reconciled PR diff therefore focuses on the secret-rotation guard and planner analysis module/tests.
 
 Exact-head workflow run `41672295795` is in progress. H1.12 is not yet considered reconciled until both quality and PostgreSQL schema jobs pass.
+
+
+### RI.7.1 — H1.5 parity renderer fix and exact-head CI passed (2026-11-03)
+
+The first H1.5 combined-tree run `41671593546` correctly exposed a design mismatch: the parity validator expected a pure `renderPostgresSchema()` export, while the older H1.4 generator only performed CLI file I/O. The generator was refactored to expose a pure renderer and retain a guarded CLI entrypoint. Its datasource parser validates the SQLite provider and transforms only that provider; the existing generated-header and output behavior are preserved.
+
+The corrected PR #25 head is `2879f049b88fed2c15b626bf53a216562b0339fa`. Exact-head run `41671913673` completed successfully:
+- `quality`: passed, including all regression tests (now 104 total), TypeScript, lint, SQLite production build, and stakeholder API/browser E2E.
+- `postgres-schema`: passed, including schema synchronization, parity validator, PostgreSQL validation/client generation, and PostgreSQL 16 push.
+
+The initial failure remains documented as a valuable integration catch; it is superseded by the corrected exact-head green run. PR #25 is now a verified reconciliation candidate, still draft/open/unmerged.
