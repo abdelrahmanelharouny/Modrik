@@ -34,10 +34,25 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
   if (!integration) return NextResponse.json({ error: "GitHub webhook is not configured" }, { status: 404 });
 
-  const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody, "utf8") > 1_000_000) {
-    return NextResponse.json({ error: "Webhook payload exceeds 1 MB" }, { status: 413 });
+  const reader = request.body?.getReader();
+  if (!reader) return NextResponse.json({ error: "Webhook body is required" }, { status: 400 });
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > 1_000_000) {
+        await reader.cancel();
+        return NextResponse.json({ error: "Webhook payload exceeds 1 MB" }, { status: 413 });
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
   }
+  const rawBody = Buffer.concat(chunks).toString("utf8");
   if (!verifyGitHubWebhookSignature(rawBody, request.headers.get("x-hub-signature-256"), integration.secret)) {
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
@@ -45,7 +60,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   let payload: unknown;
   try { payload = JSON.parse(rawBody); }
   catch { return NextResponse.json({ error: "Webhook body must be valid JSON" }, { status: 400 }); }
-  const event = normalizeGitHubWebhook(eventName, action, payload);
+  const payloadAction = payload && typeof payload === "object" && !Array.isArray(payload) &&
+    typeof (payload as Record<string, unknown>).action === "string"
+      ? String((payload as Record<string, unknown>).action)
+      : action;
+  const event = normalizeGitHubWebhook(eventName, payloadAction, payload);
   if (!event) return NextResponse.json({ ok: true, ignored: true, reason: "Unsupported event or action" }, { status: 202 });
 
   const expectedRepository = integration.owner.toLowerCase() + "/" + integration.repo.toLowerCase();
@@ -61,13 +80,13 @@ export async function POST(request: NextRequest, { params }: Params) {
         data: {
           projectId,
           kind: "github-webhook",
-          direction: "creating",
+          direction: "pending",
           localLabel: eventName + (action ? ":" + action : ""),
           externalKey: deliveryId,
           externalUrl: event.url,
           title: event.title.slice(0, 200),
           idempotencyKey,
-          leaseExpiresAt: new Date(Date.now() + 2 * 60 * 1000),
+          leaseExpiresAt: null,
         },
         select: { id: true, direction: true },
       });
@@ -96,7 +115,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       data: { direction: "pulled", externalKey: event.key, externalUrl: event.url, title: event.title.slice(0, 200), leaseExpiresAt: null, syncedAt: new Date() },
     });
     return NextResponse.json({ ok: true, deliveryId, drift: result }, { status: 202 });
-  } catch (error) {
+  } catch {
     await db.syncMap.updateMany({
       where: { id: reservation.id, direction: "creating" },
       data: { direction: "failed", leaseExpiresAt: null },
