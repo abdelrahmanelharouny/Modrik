@@ -17,7 +17,7 @@ function rankBiserial(values){const rows=values.map(value=>({value,abs:Math.abs(
 function holm(rows){const valid=rows.filter(row=>Number.isFinite(row.pValue)).sort((a,b)=>a.pValue-b.pValue);let prior=0;for(let i=0;i<valid.length;i++){prior=Math.max(prior,Math.min(1,(valid.length-i)*valid[i].pValue));valid[i].pAdjustedHolm=prior;}}
 
 export function serializeCsv(rows,columns){
- const escape=(value)=>{const text=value===null||value===undefined?"":String(value);return /[",\r\n]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;};
+ const escape=(value)=>{const text=value===null||value===undefined?"":String(value);const safe=/^[\t\r\n ]*[=+@-]/.test(text)?"'"+text:text;return /[",\r\n]/.test(safe)?'"'+safe.replace(/"/g,'""')+'"':safe;};
  return [columns.map(escape).join(","),...rows.map(row=>columns.map(column=>escape(row[column])).join(","))].join("\r\n")+"\r\n";
 }
 export function parseCsv(input){
