@@ -1,7 +1,7 @@
 import test from "node:test";
 import {createHash} from "node:crypto";
 import assert from "node:assert/strict";
-import { analyzeHumanRatings, buildBlindPackets, parseCsv, serializeCsv, weightedQuadraticKappa, RATER_COLUMNS, verifyHumanRatingArtifacts } from "../src/lib/research/human-ratings.mjs";
+import { analyzeHumanRatings, buildBlindPackets, parseCsv, serializeCsv, weightedQuadraticKappa, RATER_COLUMNS, verifyHumanRatingArtifacts, RATING_FIELDS } from "../src/lib/research/human-ratings.mjs";
 
 test("CSV round-trip preserves Arabic, commas, quotes and embedded newlines",()=>{
  const rows=[{value:'مرحبا, "مدرك"\nسطر تاني',empty:"",number:4}],columns=["value","empty","number"];
@@ -74,4 +74,19 @@ test("human-rating manifest binds exact canonical packet, both rater exports and
 test("human-rating analysis rejects swapped or forged rater identities",()=>{
  const data=ratingRows();data.r1[0].rater_code="R2";
  assert.throws(()=>analyzeHumanRatings(data.r1,data.r2,data.key),/mismatched rater_code/);
+});
+
+test("human-rating manifest accepts filled score columns but rejects changes to the blinded packet payload",()=>{
+ const digest=value=>createHash("sha256").update(value,"utf8").digest("hex");
+ const base={rater_code:"R1",scenario_id:"S1",blind_output_id:"B1",category:"elicitation",domain:"clinic",difficulty:"medium",brief:"brief",evidence_json:"[]",questions_json:"[]",notes:""};
+ for(const field of RATING_FIELDS)base[field+"_1_5"]="";
+ const r1=serializeCsv([base],RATER_COLUMNS);
+ const other={...base,rater_code:"R2"};
+ const r2=serializeCsv([other],RATER_COLUMNS);
+ const artifacts={canonicalPacketText:"{}",rater1CsvText:r1,rater2CsvText:r2,answerKeyCsvText:"scenario_id,blind_output_id,arm\\r\\nS1,B1,single_shot\\r\\n"};
+ const manifest={schemaVersion:1,rubricVersion:"modrik-human-ratings-v1",canonicalPacketSha256:digest(artifacts.canonicalPacketText),rater1CsvSha256:digest(r1),rater2CsvSha256:digest(r2),answerKeyCsvSha256:digest(artifacts.answerKeyCsvText)};
+ const rated1={...base,overall_1_5:"5",confidence_1_5:"4",notes:"rater comment"};
+ const rated2={...other,overall_1_5:"4",confidence_1_5:"4",notes:"second rater comment"};
+ assert.equal(verifyHumanRatingArtifacts({...artifacts,rater1CsvText:serializeCsv([rated1],RATER_COLUMNS),rater2CsvText:serializeCsv([rated2],RATER_COLUMNS),manifest}),true);
+ assert.throws(()=>verifyHumanRatingArtifacts({...artifacts,rater1CsvText:serializeCsv([{...rated1,brief:"tampered brief"}],RATER_COLUMNS),manifest}),/integrity check failed/);
 });
