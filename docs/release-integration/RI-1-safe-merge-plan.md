@@ -329,3 +329,24 @@ Verification is pending: the exact commit currently has no associated PR workflo
 | H1.4 integration gate | Open |
 
 This is a test-only change on the H1.4 branch; it does not merge PR #9 or resolve the broader stacked-branch reconciliation.
+
+
+### RI.4 — H2.2 statistical branch hardening (2026-11-03)
+
+Concrete code changes were committed to PR #20's statistical implementation branch (codex/modrik-h2-2-human-evaluation-calibration):
+- blind question exports now use a strict allowlist of question text and language; rationale, priority, askCost, and fallbackAssumption are excluded from rater-visible payloads;
+- quadratic weighted kappa returns null when expected disagreement is zero, avoiding a misleading perfect-agreement result in a degenerate distribution; exact and within-one agreement remain separately reported;
+- packet files are written exclusively with wx semantics, and partial artifacts from a failed multi-file creation are cleaned up without overwriting pre-existing files;
+- regression assertions cover all four removed fields and the degenerate kappa case.
+
+Commits: 90736cfcc428e8f1d7d50c6d6d7f81b6b2639c70, 70f2f21716fbd7d2c9d1d515b8da8d92799a0aa4, c51b9cf9ffd57203b2f8588744bc4ddff28644b5.
+
+| Gate | State |
+|---|---|
+| Source/test changes committed | Complete |
+| Latest-head Actions run | Not returned yet |
+| H2.2 statistical tests verified | Pending CI |
+| H2.2 canonical hybrid with packet integrity from PR #21 | Not implemented |
+| Human recruitment / actual ratings | Not started / no claims |
+
+The change set remains on PR #20's branch. PR #20 and PR #21 are still competing implementations on the same H2.1 base; neither is merged. The intended final implementation remains a single canonical H2.2 workflow combining PR #20's statistical engine with PR #21's packet/key integrity and strict validation. No participant data or real human evaluation is implied by synthetic unit tests.
