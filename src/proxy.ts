@@ -9,6 +9,12 @@ import {
 
 const OPEN_PATHS = new Set(["/login", "/study/participant"]);
 
+function noStoreJson(body: Record<string, string>, status: number) {
+  const response = NextResponse.json(body, { status });
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  return response;
+}
+
 function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
 }
@@ -32,9 +38,9 @@ export function proxy(request: NextRequest) {
 
   if (!isAuthConfigured()) {
     if (isApiPath(pathname)) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Modrik authentication is not configured. See SECURITY.md.", code: "AUTH_NOT_CONFIGURED" },
-        { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } }
+        503
       );
     }
     return NextResponse.redirect(new URL("/login?setup=required", request.url));
@@ -45,9 +51,9 @@ export function proxy(request: NextRequest) {
   const configuredEmail = process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
   if (!session || !configuredEmail || session.email !== configuredEmail) {
     if (isApiPath(pathname)) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Authentication required", code: "AUTH_REQUIRED" },
-        { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } }
+        401
       );
     }
     const loginUrl = new URL("/login", request.url);
@@ -58,9 +64,9 @@ export function proxy(request: NextRequest) {
   // Cookie sessions must not be usable cross-origin for state-changing calls.
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     if (!isSameOriginMutation(request.headers, request.nextUrl.protocol)) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Cross-origin state change rejected", code: "CSRF_ORIGIN_REJECTED" },
-        { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
+        403
       );
     }
   }
