@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hashEvidenceRevision } from "@/lib/evidence/revision.mjs";
+import { isEvidenceRevisionVersionConflict } from "@/lib/evidence/revision-conflict.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
@@ -235,7 +236,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Concurrent writers can both read the same latest version under the
     // database default isolation. The unique (evidenceId, version) constraint
     // is the final arbiter; translate its loser into a recoverable 409.
-    if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+    if (isEvidenceRevisionVersionConflict(error)) {
       const latest = await db.evidenceRevision.findFirst({
         where: { evidenceId: existing.id },
         orderBy: { version: "desc" },
