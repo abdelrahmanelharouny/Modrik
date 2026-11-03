@@ -546,7 +546,7 @@ The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./
 - **Implemented but not externally verified:** organization/project membership RBAC and tenant-scoped authorization; invitation and password-recovery flows; shared Upstash rate limiting; browser/API integration coverage in CI; encrypted static-token GitHub/Jira integrations and a guarded credential-rotation utility. Provider connectivity, deployment migrations and production restore remain operator release gates.
 - **Still in development / not complete:** tracker→drift webhook automation, GitHub/Jira OAuth, publication-grade set-level judge calibration, and a larger full-bench ablation sweep. Existing benchmark runner and analysis scripts support reproducible runs but do not constitute published empirical results.
 - **Not started:** field-pilot recruitment and study analysis (protocol/infrastructure only).
-- **Not implemented yet:** offline-first capture and conflict-safe sync; reverse traceability from implementation changes to requirements; requirement-level cost-of-change modelling; organization-scale knowledge memory and advanced audit governance.
+- **Not implemented yet:** offline-first capture and conflict-safe sync; reverse traceability from implementation changes to requirements; organization-scale knowledge memory and advanced audit governance. The first transparent change-effort proxy is implemented in the requirement impact view, but still needs calibration against observed engineering work before it can be treated as a forecast.
 
 ## 21. Roadmap
 
