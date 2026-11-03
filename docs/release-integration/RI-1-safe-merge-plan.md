@@ -573,3 +573,51 @@ A subsequent documentation-only commit `bdc01b1` records the spreadsheet-safety 
 | Full stack merge / production deployment | Not performed |
 
 PR #23 remains draft/open/unmerged. The H2.2 software workflow is verified on the implementation head, but empirical human evaluation and full-stack release integration remain separate gates.
+
+
+## RI.5 — Full-stack topology re-audit (2026-11-03)
+
+A fresh GitHub audit was run after the H2.2 canonical hybrid became green. PRs #1–#23 are still open Draft PRs; none of the product stack PRs has been merged. The topological dependencies remain:
+
+`#1 → #2 → #3 → #4 → #5 → #6 → #7 → #8 → #9 → #10 → #11 → #12 → #13 → #14 → #15 → #16 → #17 → #19 → #18 → #23`
+
+PRs #20 and #21 are competing H2.2 alternatives on the same H2.1 base; PR #23 is the canonical hybrid and is the only H2.2 branch intended to continue.
+
+### Current base/head relationships
+
+- PR #4 base SHA is one commit behind PR #3's current head. Comparing PR #3 head to PR #4 head shows divergence: PR #4 has 14 commits ahead and is one commit behind. The changed files include Prisma schema and requirement-quality routes/components/tests. Preserve the Phase 2 declaration file `src/lib/knowledge-graph/validation.d.mts` or a verified equivalent when reconciling.
+- PR #10 base SHA is three commits behind PR #9's current head. Comparing PR #9 head to PR #10 head shows divergence: PR #10 has 14 commits ahead and is three commits behind. The changed files include CI, database migration docs, PostgreSQL schema synchronization/parity scripts, package scripts, and tests. The current GitHub PR snapshot reports mergeable=true, but this is not a substitute for testing the resulting merged tree.
+- PR #19 base SHA is three commits behind PR #17's current head. Comparing PR #17 head to PR #19 head shows divergence: PR #19 has 9 commits ahead and is three commits behind. Preserve the H1.12 fail-closed unsupported-encryption-version guard in `scripts/rotate-integration-secrets.mjs`; do not restore a broad fallback on arbitrary decryption failures.
+- PR #18 is directly one commit ahead of PR #19's current head, with no behind commits. Its base SHA matches PR #19 head `85b92a4284909a1b4503bfe2fe6ec51209097f70`.
+- PR #23's base SHA exactly matches PR #18 head `2d7c2a2f4a9500062e8803fbce924e9ef95fba65`.
+
+### Current exact-head CI evidence
+
+The latest queried commit-associated workflows for the following branch heads completed successfully:
+- PR #4 head `597257ab9c03a7bf7842181cdfd5aa0db7c3fea3`: run `41487929940`.
+- PR #10 head `53907368a09867077db52cc5335c525bb6d57953`: run `41530811665`.
+- PR #19 head `85b92a4284909a1b4503bfe2fe6ec51209097f70`: run `41541073179`.
+- PR #18 head `2d7c2a2f4a9500062e8803fbce924e9ef95fba65`: run `41541884319`.
+- PR #23 implementation head `dce2de3ae422d8bbbec6cb6f477a41ea483bc5e4`: run `41662483430`.
+
+These are branch-level green runs. They do not prove that the entire stack, after sequential integration into a single target branch, builds and passes one unified suite.
+
+### Safe integration decision
+
+Do not merge the stack wholesale yet. Before any product merge:
+1. Reconcile the stale base commits for #4, #10, and #19, preserving the previously recorded cross-stack API, schema, and secret-rotation safeguards.
+2. Merge/rehearse in topological order, never merge a downstream PR before its dependency.
+3. Run the full CI suite on the resulting integration tree after each dependency boundary, especially after #4, #10, #19, #18, and #23.
+4. Re-run tenant authorization, PostgreSQL/SQLite parity, migration safety, secret rotation, benchmark validation, and H2.2 packet/analysis CLI tests on the combined tree.
+5. Keep PR #20 and #21 as superseded alternatives; do not merge them alongside #23 or pool their incompatible rubrics.
+
+| Gate | State |
+|---|---|
+| Branch-level CI for #4/#10/#19/#18 | Passed |
+| H2.2 canonical hybrid CLI + exact-head CI | Passed on implementation head `dce2de3` |
+| PR #4/#10/#19 stale-base reconciliation | Outstanding |
+| Single combined integration-tree CI | Not run |
+| Product PR merges | None |
+| Production provider / Redis / email / OAuth verification | Not performed |
+
+The canonical H2.2 implementation is ready for the next integration rehearsal, not for an unreviewed wholesale merge. PR #23 remains draft/open/unmerged.
