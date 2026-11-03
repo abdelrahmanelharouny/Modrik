@@ -591,8 +591,9 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
     if (!cfgKind) return;
     const d = await act(cfgKind, "save-config", { config: cfg }, "Credentials saved (server-side, masked)");
     if (!d) return;
-    if (cfgKind === "github" && cfg.webhookSecret?.trim()) {
-      const webhook = await act("github", "save-webhook-secret", { secret: cfg.webhookSecret }, "GitHub webhook secret saved");
+    if (cfg.webhookSecret?.trim()) {
+      const webhook = await act(cfgKind, "save-webhook-secret", { secret: cfg.webhookSecret },
+        cfgKind === "github" ? "GitHub webhook secret saved" : "Jira webhook secret saved");
       if (!webhook) return;
     }
     setCfgKind(null);
@@ -615,7 +616,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                 {configured
                   ? kind === "github"
                     ? `${st?.owner}/${st?.repo} · token ${st?.token} · webhook ${st?.webhookConfigured ? "configured" : "not configured"}`
-                    : `${st?.baseUrl} · project ${st?.projectKey} · email ${st?.email} · token ${st?.token}`
+                    : `${st?.baseUrl} · project ${st?.projectKey} · email ${st?.email} · token ${st?.token} · webhook ${st?.webhookConfigured ? "configured" : "not configured"}`
                   : kind === "github"
                     ? "Provide a personal access token (repo scope), owner and repository. Stored server-side; responses always mask secrets."
                     : "Provide the site baseUrl, account email, API token and project key. Stored server-side; responses always mask secrets."}
@@ -729,6 +730,11 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                 <div>
                   <Label htmlFor="j-key" className="text-xs text-muted-foreground">Project key</Label>
                   <Input id="j-key" placeholder="RP" value={cfg.projectKey ?? ""} onChange={(e) => setCfg((c) => ({ ...c, projectKey: e.target.value }))} />
+                </div>
+                <div>
+                  <Label htmlFor="jira-webhook-secret" className="text-xs text-muted-foreground">Jira webhook secret (min. 32 characters)</Label>
+                  <Input id="jira-webhook-secret" type="password" autoComplete="new-password" value={cfg.webhookSecret ?? ""} onChange={(e) => setCfg((c) => ({ ...c, webhookSecret: e.target.value }))} placeholder="Set or rotate the Jira webhook secret" />
+                  <p className="mt-1 text-[10px] text-muted-foreground">Optional. Stored encrypted; never returned. In Jira Cloud, configure an admin webhook with this secret and send issue created/updated/deleted events to /api/webhooks/jira/{projectId}.</p>
                 </div>
               </>
             )}
