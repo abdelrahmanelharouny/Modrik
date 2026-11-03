@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hashEvidenceRevision } from "@/lib/evidence/revision.mjs";
-import { isEvidenceRevisionVersionConflict } from "@/lib/evidence/revision-conflict.mjs";
+import { isEvidenceRevisionVersionConflict, parseExpectedRevisionVersion } from "@/lib/evidence/revision-conflict.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
@@ -283,12 +283,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!evidenceId) {
     return NextResponse.json({ error: "evidenceId is required" }, { status: 400 });
   }
-  if (expectedRevisionVersionRaw === null || !/^(0|[1-9]\\d*)$/.test(expectedRevisionVersionRaw)) {
-    return NextResponse.json({ error: "expectedRevisionVersion must be a non-negative integer" }, { status: 400 });
-  }
-  const expectedRevisionVersion = Number(expectedRevisionVersionRaw);
-  if (!Number.isSafeInteger(expectedRevisionVersion)) {
-    return NextResponse.json({ error: "expectedRevisionVersion is outside the supported range" }, { status: 400 });
+  const expectedRevisionVersion = parseExpectedRevisionVersion(expectedRevisionVersionRaw);
+  if (expectedRevisionVersion === null) {
+    return NextResponse.json({ error: "expectedRevisionVersion must be a safe non-negative integer" }, { status: 400 });
   }
 
   const removed = await db.$transaction(async (tx) => {
