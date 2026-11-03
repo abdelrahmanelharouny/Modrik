@@ -47,6 +47,11 @@ model Project {
   knowledgeNodeClaims KnowledgeNodeClaim[]
   knowledgeRequirements KnowledgeRequirement[]
   requirementQualityAssessments RequirementQualityAssessment[]
+  stakeholders StakeholderProfile[]
+  stakeholderPositions StakeholderPosition[]
+  stakeholderPositionEvidence StakeholderPositionEvidence[]
+  negotiationDecisions NegotiationDecision[]
+  negotiationParticipants NegotiationParticipant[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -185,6 +190,7 @@ model EvidenceClaim {
   @@index([projectId, status, claimKind])
   @@index([evidenceId, revisionId])
   knowledgeNodes KnowledgeNodeClaim[]
+  stakeholderPositionEvidence StakeholderPositionEvidence[]
 }
 
 model RequirementClaim {
@@ -284,6 +290,122 @@ model KnowledgeRequirement {
 
   @@unique([nodeId, requirementId, role])
   @@index([projectId, requirementId])
+}
+
+ 
+// Stakeholder registry and requirement-specific positions. Positions are
+// proposals until reviewed; evidence links must point to accepted claims.
+model StakeholderProfile {
+  id               String   @id @default(cuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stakeholderRef   String
+  displayName      String
+  role             String
+  organization     String   @default("")
+  authorityScore   Int      @default(50)
+  influenceScore   Int      @default(50)
+  interestScore    Int      @default(50)
+  approvalRole     String   @default("consulted") // decision_maker | approver | contributor | consulted | informed | observer
+  engagementStatus String   @default("active") // active | pending | unavailable | withdrawn
+  preferredLanguage String  @default("en")
+  goals            String   @default("[]")
+  concerns         String   @default("[]")
+  notes            String   @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  positions        StakeholderPosition[]
+  negotiationParticipants NegotiationParticipant[]
+
+  @@unique([projectId, stakeholderRef])
+  @@unique([id, projectId])
+  @@index([projectId, approvalRole, engagementStatus])
+}
+
+model StakeholderPosition {
+  id             String             @id @default(cuid())
+  projectId      String
+  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stakeholderId  String
+  stakeholder    StakeholderProfile @relation(fields: [stakeholderId, projectId], references: [id, projectId], onDelete: Cascade)
+  requirementId  String
+  requirement    Requirement        @relation(fields: [requirementId, projectId], references: [id, projectId], onDelete: Cascade)
+  position       String             // supports | opposes | neutral | conditional
+  confidence     Float              @default(0.5)
+  rationale      String
+  conditions     String             @default("")
+  status         String             @default("proposed") // proposed | accepted | rejected
+  capturedBy     String             @default("human")
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  evidence       StakeholderPositionEvidence[]
+
+  @@unique([id, projectId])
+  @@index([projectId, stakeholderId, requirementId])
+  @@index([projectId, position, status])
+}
+
+model StakeholderPositionEvidence {
+  id             String             @id @default(cuid())
+  projectId      String
+  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  positionId     String
+  position       StakeholderPosition @relation(fields: [positionId, projectId], references: [id, projectId], onDelete: Cascade)
+  claimId        String
+  claim          EvidenceClaim      @relation(fields: [claimId, projectId], references: [id, projectId], onDelete: Cascade)
+  relationship   String             @default("supports") // supports | contradicts | qualifies | context
+  note           String             @default("")
+  createdAt      DateTime           @default(now())
+
+  @@unique([positionId, claimId])
+  @@index([projectId, claimId])
+}
+
+model NegotiationDecision {
+  id              String             @id @default(cuid())
+  projectId       String
+  project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementId   String
+  requirement     Requirement        @relation(fields: [requirementId, projectId], references: [id, projectId], onDelete: Cascade)
+  participants    NegotiationParticipant[]
+  title           String
+  context         String             @default("")
+  options         String             @default("[]")
+  chosenOption    String?
+  rationale       String             @default("")
+  tradeoffs       String             @default("")
+  dissent         String             @default("[]")
+  status          String             @default("proposed") // proposed | approved | rejected
+  decidedBy       String?
+  decidedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([id, projectId])
+  @@index([projectId, requirementId, status])
+}
+
+ 
+model NegotiationParticipant {
+  id             String             @id @default(cuid())
+  projectId      String
+  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  decisionId     String
+  decision       NegotiationDecision @relation(fields: [decisionId, projectId], references: [id, projectId], onDelete: Cascade)
+  stakeholderId  String
+  stakeholder    StakeholderProfile @relation(fields: [stakeholderId, projectId], references: [id, projectId], onDelete: Cascade)
+  role           String             @default("consulted") // proposer | approver | consulted | dissenting | informed
+  note           String             @default("")
+  responseStatus String             @default("pending") // pending | supports | opposes | conditional | abstains
+  responseOptionId String?
+  responseRationale String          @default("")
+  respondedAt    DateTime?
+  createdAt      DateTime           @default(now())
+
+  @@unique([decisionId, stakeholderId])
+  @@index([projectId, stakeholderId])
 }
 
 // Agent-generated clarifying questions, answered by the human (HITL gate 1)
@@ -400,8 +522,13 @@ model Requirement {
   @@unique([id, projectId])
   knowledgeNodes KnowledgeRequirement[]
   qualityAssessments RequirementQualityAssessment[]
+  stakeholderPositions StakeholderPosition[]
+  negotiationDecisions NegotiationDecision[]
 }
 
+ 
+// Human-reviewable quality assessment snapshots. sourceText/sourceHash preserve
+// exactly what was assessed; edits make prior assessments visibly stale.
 model RequirementQualityAssessment {
   id              String      @id @default(cuid())
   projectId       String
