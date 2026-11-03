@@ -662,3 +662,15 @@ PR #25 exact-head workflow run `41671593546` is currently in progress. Do not co
 | H1.5 onto latest H1.4 (#25) | CI in progress |
 | Original PR #4 / #10 supersession | Not performed |
 | Product merges | None |
+
+
+## RI.8 — Reconcile H1.12 onto current H1.11 (2026-11-03)
+
+Created draft PR #26: https://github.com/abdelrahmanelharouny/Modrik/pull/26
+
+- Branch `codex/modrik-h1-12-reconciled` starts from current H1.11 head `1a13291f838e5f4c30859c660d602ba05da1e539`.
+- Replayed planner sensitivity analysis module/tests and the fail-closed unsupported-version guard.
+- Verified the H1.11 secret rotation regression test file is identical on both original branches (same blob SHA), so it was retained without duplicate replay.
+- The H1.12 study protocol document was already present in the current H1.11 tree; the reconciled PR diff therefore focuses on the secret-rotation guard and planner analysis module/tests.
+
+Exact-head workflow run `41672295795` is in progress. H1.12 is not yet considered reconciled until both quality and PostgreSQL schema jobs pass.
