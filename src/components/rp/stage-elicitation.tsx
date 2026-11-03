@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
+import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
 import { HudPanel, Eyebrow, Chip, Meter, SectionHead, EmptyBay, LiveDot } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -499,6 +500,12 @@ export function ElicitationStage({
                 <EvidenceRevisionPanel
                   projectId={project.id}
                   evidence={ev}
+                  onSaved={refresh}
+                />
+                <EvidenceClaimsPanel
+                  projectId={project.id}
+                  evidence={ev}
+                  requirements={project.requirements}
                   onSaved={refresh}
                 />
               </li>
