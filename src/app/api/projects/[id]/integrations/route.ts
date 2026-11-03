@@ -10,6 +10,7 @@ import {
   testConnection,
   listSyncMaps,
   saveGitHubWebhookSecret,
+  saveJiraWebhookSecret,
 } from "@/lib/integrations";
 
 type Params = { params: Promise<{ id: string }> };
@@ -40,9 +41,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ ok: true, status });
       }
       case "save-webhook-secret": {
-        if (kind !== "github") return NextResponse.json({ error: "Webhook secrets are currently supported for GitHub only" }, { status: 400 });
         const secret = String(body.secret ?? "");
-        await saveGitHubWebhookSecret(id, secret);
+        if (kind === "github") await saveGitHubWebhookSecret(id, secret);
+        else await saveJiraWebhookSecret(id, secret);
         return NextResponse.json({ ok: true, webhookConfigured: true });
       }
       case "test":
