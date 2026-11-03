@@ -276,6 +276,7 @@ export function ElicitationStage({
 
   useEffect(() => {
     void loadOfflineQueue();
+    void syncOfflineEvidence();
     const onOnline = () => { void syncOfflineEvidence(); };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
@@ -291,7 +292,7 @@ export function ElicitationStage({
         await putOfflineEvidenceOperation(operation);
         await loadOfflineQueue();
         setTitle(""); setContent(""); setConsent(false); setOpen(false);
-        toast({ title: "Evidence saved on this device", description: "It is queued privately in this browser and will sync when you reconnect. Keep this browser profile available until sync completes." });
+        toast({ title: "Evidence saved on this device", description: "It is queued privately in this browser and will sync when you reconnect. This browser profile must remain available until sync completes. Local browser storage is not separately encrypted; avoid queuing highly sensitive material on shared devices." });
         return;
       }
       await api(`/api/projects/${project.id}/evidence`, {
@@ -504,7 +505,7 @@ export function ElicitationStage({
             <div className="min-w-0">
               <p className="text-xs font-semibold">{pendingOffline.length} evidence source(s) waiting to sync</p>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Saved in this browser only · {pendingOffline.reduce((sum, item) => sum + item.attempts, 0)} retry attempt(s)
+                Stored in this browser profile (IndexedDB; not separately encrypted) · {pendingOffline.reduce((sum, item) => sum + item.attempts, 0)} retry attempt(s)
                 {pendingOffline[0]?.lastError ? ` · Last issue: ${pendingOffline[0].lastError}` : ""}
               </p>
             </div>
