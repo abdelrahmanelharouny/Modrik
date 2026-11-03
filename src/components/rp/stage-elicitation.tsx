@@ -234,6 +234,10 @@ export function ElicitationStage({
   const [evidenceTypeFilter, setEvidenceTypeFilter] = useState("all");
   const [pendingOffline, setPendingOffline] = useState<OfflineEvidenceOperation[]>([]);
   const [syncingOffline, setSyncingOffline] = useState(false);
+  // Mount + the browser online event can fire close together. Keep one sync
+  // worker per mounted project so queue rows are never concurrently acked or
+  // have their retry counters overwritten by this component instance.
+  const offlineSyncInFlightRef = useRef(false);
 
   const loadOfflineQueue = useCallback(async () => {
     try { setPendingOffline(await listOfflineEvidenceOperations(project.id)); }
@@ -241,7 +245,8 @@ export function ElicitationStage({
   }, [project.id, toast]);
 
   const syncOfflineEvidence = useCallback(async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    if (offlineSyncInFlightRef.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+    offlineSyncInFlightRef.current = true;
     setSyncingOffline(true);
     let changed = false;
     try {
@@ -270,6 +275,7 @@ export function ElicitationStage({
     } catch (error) {
       toast({ title: "Could not sync offline evidence", description: (error as Error).message, variant: "destructive" });
     } finally {
+      offlineSyncInFlightRef.current = false;
       setSyncingOffline(false);
     }
   }, [project.id, loadOfflineQueue, refresh, toast]);
