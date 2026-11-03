@@ -69,3 +69,6 @@ Caddyfile
 
 # generated benchmark result artifacts
 /bench/results/
+
+# generated benchmark and human-evaluation artifacts
+/bench/results/
