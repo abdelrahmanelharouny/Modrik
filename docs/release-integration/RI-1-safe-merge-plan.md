@@ -350,3 +350,12 @@ Commits: 90736cfcc428e8f1d7d50c6d6d7f81b6b2639c70, 70f2f21716fbd7d2c9d1d515b8da8
 | Human recruitment / actual ratings | Not started / no claims |
 
 The change set remains on PR #20's branch. PR #20 and PR #21 are still competing implementations on the same H2.1 base; neither is merged. The intended final implementation remains a single canonical H2.2 workflow combining PR #20's statistical engine with PR #21's packet/key integrity and strict validation. No participant data or real human evaluation is implied by synthetic unit tests.
+
+
+### RI.4.1 — H2.2 answer-key coverage integrity
+
+Further changes on PR #20's statistical branch make the answer key the authoritative expected-output inventory. Analysis now rejects any rater-submitted blind output ID absent from the answer key and reports expected outputs, each rater's submitted count, matched outputs, and missing-from-each-rater counts. Tests cover incomplete submissions and unknown blind IDs.
+
+Commits: 2661272240defff3951f60faa4a2de7a8c05ec2c, d7f8659000f5617a7fd578419e6ed757e2189b1e.
+
+CI status for the latest head is still unavailable (no workflow run or combined status returned). H2.2 remains open until exact-head tests pass and the PR #20/#21 hybrid is consolidated and verified.
