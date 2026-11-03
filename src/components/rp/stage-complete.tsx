@@ -431,6 +431,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
   const [tunnel, setTunnel] = useState<{ answered: number } | null>(null);
   const [tunnelBusy, setTunnelBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [auditExportBusy, setAuditExportBusy] = useState(false);
 
   useEffect(() => {
     api<{ report: HealthReport | null; debt: DebtProfileDTO | null }>(`/api/projects/${project.id}/health`)
@@ -568,12 +569,29 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
     toast({ title: "Gherkin skeleton exported" });
   };
 
-  const exportAudit = () => {
-    download(
-      `${project.name.replace(/\W+/g, "_")}_audit_log.json`,
-      JSON.stringify({ project: project.name, decisions: project.decisions, runs: project.runs }, null, 2)
-    );
-    toast({ title: "Audit log exported" });
+  const exportAudit = async (format: "json" | "csv" = "json") => {
+    setAuditExportBusy(true);
+    try {
+      const response = await fetch("/api/projects/" + project.id + "/audit/export?format=" + format + "&limit=10000", {
+        method: "GET", credentials: "same-origin",
+        headers: { Accept: format === "csv" ? "text/csv" : "application/json" },
+      });
+      const content = await response.text();
+      if (!response.ok) {
+        let message = "Audit export failed";
+        try { message = String((JSON.parse(content) as { error?: string }).error ?? message); } catch { /* keep fallback */ }
+        throw new Error(message);
+      }
+      const truncated = response.headers.get("X-Export-Truncated") === "true" ||
+        (format === "json" && Boolean((JSON.parse(content) as { truncated?: boolean }).truncated));
+      const name = project.name.replace(/\W+/g, "_") + "_audit_log." + format;
+      download(name, content, format === "csv" ? "text/csv;charset=utf-8" : "application/json");
+      toast({ title: ar ? "تم تصدير سجل التدقيق" : "Audit log exported", description: truncated ? (ar ? "تم الوصول إلى حد التصدير؛ استخدم فلاتر التاريخ لتصدير الباقي." : "Export reached the 10,000-row cap; use date filters for the remaining records.") : undefined });
+    } catch (error) {
+      toast({ title: ar ? "تعذر تصدير سجل التدقيق" : "Audit export failed", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setAuditExportBusy(false);
+    }
   };
 
   const githubPayload = () =>
@@ -983,9 +1001,14 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
                 title={ar ? "سجل القرارات" : "Decision journal"}
                 blurb={ar ? "سجل تدقيق غير قابل للتعديل لكل قرار بشري أو آلي." : "Immutable audit trail of every human and agent decision."}
                 right={
-                  <Button size="sm" variant="outline" onClick={exportAudit} className="border-border">
-                    <Download className="mr-2 h-3.5 w-3.5" /> {ar ? "تصدير التدقيق" : "Export audit"}
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" disabled={auditExportBusy} onClick={() => exportAudit("json")} className="border-border">
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> JSON
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={auditExportBusy} onClick={() => exportAudit("csv")} className="border-border">
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> CSV
+                    </Button>
+                  </>
                 }
               />
               {project.decisions.length === 0 ? (
@@ -1069,7 +1092,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
         <Button variant="outline" onClick={exportGherkin} className="border-border">
           <Download className="mr-2 h-4 w-4" /> {ar ? "تصدير Gherkin" : "Export Gherkin (.feature)"}
         </Button>
-        <Button variant="outline" onClick={exportAudit} className="border-border">
+        <Button variant="outline" disabled={auditExportBusy} onClick={() => exportAudit("json")} className="border-border">
           <ScrollText className="mr-2 h-4 w-4" /> {ar ? "سجل التدقيق" : "Audit log"}
         </Button>
       </div>
