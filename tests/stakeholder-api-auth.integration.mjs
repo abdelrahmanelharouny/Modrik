@@ -199,7 +199,9 @@ try {
     await page.getByRole("button", { name: "Create negotiation" }).click();
     const negotiationResponse = await negotiationResponsePromise;
     const negotiationResponseBody = await negotiationResponse.text();
-    assert.equal(negotiationResponse.status(), 201, `create negotiation API failed: HTTP ${negotiationResponse.status()} ${negotiationResponseBody}; request diagnostics: ${JSON.stringify(browserDiagnostics.projectApi.at(-1))}`);
+    const negotiationRequestHeaders = await negotiationResponse.request().allHeaders();
+    const negotiationRequestDiagnostics = { origin: negotiationRequestHeaders.origin ?? null, host: negotiationRequestHeaders.host ?? null, forwardedProto: negotiationRequestHeaders["x-forwarded-proto"] ?? null, secFetchSite: negotiationRequestHeaders["sec-fetch-site"] ?? null };
+    assert.equal(negotiationResponse.status(), 201, `create negotiation API failed: HTTP ${negotiationResponse.status()} ${negotiationResponseBody}; request diagnostics: ${JSON.stringify(negotiationRequestDiagnostics)}`);
     await page.getByText("Browser-driven stakeholder negotiation", { exact: false }).waitFor();
 
     for (const stakeholderName of ["Stakeholder A1", "Stakeholder A2"]) {
