@@ -15,6 +15,14 @@ Modrik has one canonical Prisma data model at `prisma/schema.prisma` (SQLite). T
 - `bun run db:push` and `bun run db:push:pg` remain schema-prototyping/CI operations, not a production migration strategy.
 - Pull requests validate SQLite and PostgreSQL independently. CI database pushes target disposable databases only.
 
+## H1.7 organization invitation lifecycle
+
+- Organization invitations store only a SHA-256 hash of a 256-bit random bearer token; the raw token is returned once to the authorized inviter.
+- Invitations expire after seven days, can be revoked, and are claimed atomically so concurrent acceptance attempts cannot both succeed.
+- Owner-role assignment is excluded from invitation roles. Management and revocation require the `members:manage` permission.
+- New invitees set a password using the existing bounded scrypt format. Existing accounts retain their current password.
+- This deployment has no email delivery provider configured. The API explicitly returns a one-time manual invitation URL; operators must share it through a trusted channel and configure `APP_URL`/`NEXT_PUBLIC_APP_URL` to a trusted HTTPS origin in production.
+
 ## Required migration rollout before production adoption
 
 1. Inventory every deployed database and record provider, schema fingerprint, migration history table presence, backup timestamp, and row counts for critical tables.
