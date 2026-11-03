@@ -329,11 +329,20 @@ export function ElicitationStage({
   };
 
   const removeEvidence = async (id: string) => {
+    const evidence = project.evidences.find((item) => item.id === id);
+    if (!evidence) return;
+    const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
     try {
-      await api(`/api/projects/${project.id}/evidence?evidenceId=${id}`, { method: "DELETE" });
+      await api(`/api/projects/${project.id}/evidence?evidenceId=${encodeURIComponent(id)}&expectedRevisionVersion=${expectedRevisionVersion}`, { method: "DELETE" });
       await refresh();
     } catch (e) {
-      toast({ title: "Could not remove evidence", description: (e as Error).message, variant: "destructive" });
+      const message = (e as Error).message;
+      if (message.includes("EVIDENCE_REVISION_CONFLICT") || message.includes("changed in another session")) {
+        await refresh();
+        toast({ title: "Evidence changed before deletion", description: "The source was not removed. The latest revision has been loaded; review it before trying again.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Could not remove evidence", description: message, variant: "destructive" });
     }
   };
 
