@@ -9,6 +9,7 @@ import {
   jiraPull,
   testConnection,
   listSyncMaps,
+  saveGitHubWebhookSecret,
 } from "@/lib/integrations";
 
 type Params = { params: Promise<{ id: string }> };
@@ -37,6 +38,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         for (const k of Object.keys(cfg)) cfg[k] = String(cfg[k] ?? "").slice(0, 400);
         const status = await saveConfig(id, kind, cfg);
         return NextResponse.json({ ok: true, status });
+      }
+      case "save-webhook-secret": {
+        if (kind !== "github") return NextResponse.json({ error: "Webhook secrets are currently supported for GitHub only" }, { status: 400 });
+        const secret = String(body.secret ?? "");
+        await saveGitHubWebhookSecret(id, secret);
+        return NextResponse.json({ ok: true, webhookConfigured: true });
       }
       case "test":
         return NextResponse.json(await testConnection(id, kind));
