@@ -24,7 +24,7 @@ async function main(){
  ];
  const canonicalPacketText=JSON.stringify({schemaVersion:1,rubricVersion:"modrik-human-ratings-v1",seed:packet.seed,scenarioCount:packet.scenarioCount,raters:{R1:packet.raters.R1,R2:packet.raters.R2}},null,2)+"\n";
  const rater1Text=artifacts[0][1],rater2Text=artifacts[1][1],answerKeyText=artifacts[2][1];
- const manifest={schemaVersion:1,rubricVersion:"modrik-human-ratings-v1",seed:packet.seed,scenarioCount:packet.scenarioCount,outputsPerRater:packet.rowsPerRater,createdAt:new Date().toISOString(),canonicalPacket:"canonical-packet.json",raterFiles:["rater-1/packet.csv","rater-2/packet.csv"],restrictedKey:"answer-key.csv",canonicalPacketSha256:sha256(canonicalPacketText),rater1CsvSha256:sha256(rater1Text),rater2CsvSha256:sha256(rater2Text),answerKeyCsvSha256:sha256(answerKeyText)};
+ const manifest={schemaVersion:1,rubricVersion:"modrik-human-ratings-v1",seed:packet.seed,scenarioCount:packet.scenarioCount,outputsPerRater:packet.rowsPerRater,createdAt:new Date().toISOString(),canonicalPacket:"canonical-packet.json",raterFiles:["../rater-1/packet.csv","../rater-2/packet.csv"],restrictedKey:"answer-key.csv",canonicalPacketSha256:sha256(canonicalPacketText),rater1CsvSha256:sha256(rater1Text),rater2CsvSha256:sha256(rater2Text),answerKeyCsvSha256:sha256(answerKeyText)};
  artifacts.push([path.join(out,"coordinator-only","canonical-packet.json"),canonicalPacketText,0o600]);
  artifacts.push([path.join(out,"coordinator-only","manifest.json"),JSON.stringify(manifest,null,2)+"\n",0o600]);
  const created=[];
