@@ -495,3 +495,39 @@ The new integration test invokes `scripts/create-human-rating-packets.mjs` as a 
 | PR #23 merge / stack integration | Not performed |
 
 This closes the packet-export CLI verification gap for the synthetic benchmark fixture path. It does not establish that actual raters have been recruited, that human ratings exist, that the rubric has been calibrated with participants, or that the full PR stack is merge-ready. PR #23 remains draft/open/unmerged pending broader stack reconciliation and release-integration gates.
+
+
+### RI.4.9 — H2.2 rating-submission integrity and analyzer CLI round trip (2026-11-03)
+
+A final workflow audit found a protocol-level issue that unit-only tests had not exposed: the manifest originally hashed the blank rater CSV exports byte-for-byte, but raters necessarily edit those CSVs to enter scores and notes. The analyzer would therefore reject every legitimate completed submission as a hash mismatch.
+
+The canonical packet and coordinator answer key remain exact-byte SHA-256 checked. Rater submissions now use a packet-projection verification rule:
+- The submitted CSV must have the exact expected rater schema and column set.
+- The verifier blanks only the eight score columns and notes, then serializes the rows using the canonical column order.
+- The resulting packet projection must match the original rater export digest from the coordinator manifest.
+- Rater identity, scenario IDs, blind output IDs, scenario metadata, brief, evidence, question text, row order, and schema are therefore bound to the original export; only score and notes fields may change.
+- The analysis function still enforces R1/R2 identity and validates rating values.
+
+This preserves provenance while allowing legitimate rater work. It does not claim that the filled rating values themselves are independently signed or cryptographically authenticated; the manifest is a coordinator-trusted integrity record, not a digital signature.
+
+The integration test now performs a complete synthetic CLI round trip:
+1. Generate private blinded packets from ten checked-in fixtures with explicit consent.
+2. Verify all generated artifact hashes, no leakage, owner-only permissions, and no-overwrite behavior.
+3. Fill both rater CSVs with synthetic ratings.
+4. Invoke the actual analysis CLI with the manifest and answer key.
+5. Assert ten complete scenarios, 40 matched outputs, perfect synthetic inter-rater agreement, the expected impact-aware contrast verdict, and JSON/Markdown/adjudication outputs.
+6. Modify an immutable brief field and verify the analyzer rejects the tampered submission.
+
+Exact-head GitHub Actions run `41660811675` completed successfully on PR #23 head `82fafcd456794eb44503ecadec07317519ccaad0`; both `quality` and `postgres-schema` passed. The run includes the new packet-generation and analysis CLI round-trip test. A subsequent documentation-only correction explains the packet-projection rule in `docs/planner-human-evaluation.md`; that newer documentation commit is not the code head verified by run 41660811675.
+
+| Gate | State |
+|---|---|
+| Packet generation CLI E2E | Passed |
+| Filled-rater CSV integrity verification | Passed |
+| Analysis CLI end-to-end round trip | Passed |
+| Tampered immutable packet payload rejection | Passed |
+| Exact-head CI for implementation head `82fafcd` (run 41660811675) | Passed |
+| Actual human participants / calibration | Not started |
+| Full stack merge / production deployment | Not performed |
+
+PR #23 remains draft/open/unmerged. Synthetic CLI ratings are test fixtures only and are not human-subject evidence.
