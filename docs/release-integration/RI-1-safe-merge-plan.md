@@ -628,3 +628,37 @@ The canonical H2.2 implementation is ready for the next integration rehearsal, n
 The latest PR #23 head is `bdc01b164fd805e817fbe8b76634deea2a4bbb3c`, which adds only the documentation note describing spreadsheet-formula neutralization. Its exact-head workflow run `41663042327` completed successfully; both `quality` and `postgres-schema` passed. The code implementation immediately preceding that documentation-only commit was already verified by run `41662483430`.
 
 PR #23 current head therefore has a green exact-head CI result. This does not change the release boundary: it remains draft/open/unmerged and the full stack still needs safe topological integration.
+
+
+## RI.6 — Reconcile Phase 3 onto current Phase 2 (2026-11-03)
+
+Created draft PR #24: https://github.com/abdelrahmanelharouny/Modrik/pull/24
+
+- New branch `codex/modrik-phase-3-reconciled` starts from the exact current Phase 2 head `9a030f8bbde4030e3082282639798e54fc01a82f`.
+- Replayed the Phase 3 requirement-quality API, panel, scoring module, and regression tests.
+- Merged only the additive Phase 3 Prisma additions into the current Phase 2 schema; all Phase 2 schema content remains.
+- Confirmed the Phase 2 `src/lib/knowledge-graph/validation.d.mts` declaration and `tests/knowledge-graph.test.mjs` are present on the reconciled branch.
+- PR #24 changed files are limited to the schema and four Phase 3 implementation/test files.
+
+Exact-head CI run `41671237145` completed successfully on `494cc46623a06582d00feffc3d519ea56f3936df`: both `quality` and `postgres-schema` passed. The quality job runs the regression suite, TypeScript, lint, SQLite build, Playwright setup, and stakeholder API/browser E2E.
+
+PR #24 is a verified reconciliation candidate, not merged. The original PR #4 remains open pending decision to supersede it. Tenant authorization regression coverage from H1.4 remains a downstream combined-tree gate.
+
+## RI.7 — Reconcile H1.5 database safety onto current H1.4 (2026-11-03)
+
+Created draft PR #25: https://github.com/abdelrahmanelharouny/Modrik/pull/25
+
+- New branch `codex/modrik-h1-5-reconciled` starts from exact current H1.4 head `9d5975470180ec5a35144c0fa34905f836d27ef1`.
+- Replayed the provider schema parity validator, tests, and database migration documentation.
+- Preserved H1.4's benchmark validation command while adding `db:validate:parity` to `package.json`.
+- Preserved H1.4's CI workflow and added the PostgreSQL parity gate after schema generation.
+- The PostgreSQL synchronization script was already present on H1.4, so it did not need to be copied.
+
+PR #25 exact-head workflow run `41671593546` is currently in progress. Do not consider H1.5 reconciled until both `quality` and `postgres-schema` complete successfully, and confirm that H1.4 tenant authorization tests remain in the combined quality suite.
+
+| Reconciliation | State |
+|---|---|
+| Phase 3 onto latest Phase 2 (#24) | Exact-head CI passed |
+| H1.5 onto latest H1.4 (#25) | CI in progress |
+| Original PR #4 / #10 supersession | Not performed |
+| Product merges | None |
