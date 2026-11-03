@@ -308,10 +308,10 @@ A targeted reread of PR #4 (Requirement Quality Intelligence), #18 (H2.1 benchma
 
 ### RI.3.3 — Requirement Quality API authorization regression coverage (2026-11-03)
 
-A focused E2E regression suite was added to the H1.4 release-gates branch (codex/modrik-h1-4-release-gates) in commit 8b28570f0eb192da7ca75b05802428c74ed2df1c, modifying only tests/stakeholder-api-auth.integration.mjs.
+A focused E2E regression suite was added to the H1.4 release-gates branch (codex/modrik-h1-4-release-gates) in commit 9d5975470180ec5a35144c0fa34905f836d27ef1, modifying only tests/stakeholder-api-auth.integration.mjs.
 
 Coverage added:
-- same-tenant member can create and read a Requirement Quality assessment;
+- same-tenant member can create, read, and accept a current Requirement Quality assessment;
 - cross-tenant GET and POST are hidden with HTTP 404;
 - forged x-modrik-organization-id and x-modrik-role headers do not change the identity session's tenant boundary;
 - an authenticated tenant-A user cannot submit a tenant-B requirement ID against a tenant-A project;
