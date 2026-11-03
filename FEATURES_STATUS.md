@@ -22,7 +22,7 @@
 - GitHub/Jira OAuth authorization and provider-side token lifecycle management.
 - Larger full-bench ablation sweeps and publication-grade set-level judge sensitivity/calibration.
 - Broader Playwright coverage for the complete six-stage product, cross-browser behavior, mobile workflows and accessibility regression.
-- Offline evidence capture is implemented for new text sources using an IndexedDB queue, stable operation UUIDs, idempotent server intake, reconnect/manual retry and duplicate-payload conflict rejection. Offline edits/deletes, file/audio blobs, cross-device sync, service-worker background sync and a full conflict-resolution UI remain open.
+- Offline evidence capture is implemented for new text sources using an IndexedDB queue, stable operation UUIDs, idempotent server intake, reconnect/manual retry and duplicate-payload conflict rejection. Queue writes enforce the 100-item project cap inside a single read-write transaction, validate operation metadata at persistence boundaries, and prune expired entries during queue reads/writes. Offline edits/deletes, file/audio blobs, cross-device sync, service-worker background sync and a full conflict-resolution UI remain open.
 - Calibration and validation of the initial requirement-level change-effort proxy against observed engineering work; organization-scale knowledge memory.
 - Advanced organization governance and audit-export workflows beyond current RBAC and audit primitives.
 - Egyptian Arabic ASR quality remains provider-dependent; script checks and human review are guardrails, not a full upstream accuracy solution.
