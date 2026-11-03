@@ -269,3 +269,38 @@ A second pass over the complete #20 module/tests and #21 exporter/analyzer found
 7. **Small-sample interpretation:** bootstrap/permutation/Holm outputs are exploratory. The 10-scenario threshold is a minimum computational/reporting gate, not a power analysis or guarantee of adequate inference. Report scenario count, rater count, missingness, and uncertainty; do not describe the threshold as statistical sufficiency.
 
 These are review findings and required changes, not claims that the existing PRs already implement them. Add the new cases to the acceptance matrix before any canonical H2.2 branch is approved.
+
+
+### RI.3.2 — Cross-stack API and benchmark-boundary audit
+
+A targeted reread of PR #4 (Requirement Quality Intelligence), #18 (H2.1 benchmark), and #19 (H1.12) adds these integration gates:
+
+**Requirement Quality API (PR #4)**
+- The introduced `GET /api/projects/[id]/quality` and `POST /api/projects/[id]/quality` handlers look up a project by ID and then read/write assessments. The PR predates the H1 tenant membership stack, so its original owner-session gate is not sufficient evidence of organization-scoped authorization.
+- During integration, both handlers must use the same project-scoped authorization helper as the other project APIs and derive the organization boundary from the authenticated membership, not from request body fields.
+- Add cross-tenant tests: an authenticated member of organization A cannot read, create, accept, reject, or enumerate assessments for a project belonging to organization B. Include direct API calls, not only hidden UI controls.
+- Assessment writes must be blocked during `agent_running` / `approving` states as designed, but the final handler must also validate requirement ownership within the authorized project and reject forged requirement IDs.
+- Preserve the source snapshot/hash staleness behavior and ensure the declaration file `src/lib/knowledge-graph/validation.d.mts` from Phase 2 is not lost while reconciling Phase 3.
+
+**H2.1 benchmark boundary (PR #18)**
+- The benchmark run records intentionally retain `provider/model`, `goldQuestions`, candidate-pool hashes, candidate metadata, and per-arm metrics for offline analysis. These are coordinator-side research artifacts, not rater-facing fields.
+- H2.2 export must use an explicit allowlist of rater-visible fields. A denylist alone is insufficient because new fields can be added to benchmark records later.
+- Keep benchmark outputs outside version control (`/bench/results/`) and ensure no real participant or private project evidence is included in the H2.1 synthetic fixture run.
+- Treat the 30 planner-compatible fixtures as the planner ablation subset, not as evidence that all 120 corpus scenarios ran through the planner.
+- The H2.1 runner requires a configured model provider and database; fixture validation and analysis unit tests do not prove a live 30-scenario run occurred. Record actual successful/failed scenario counts and provider configuration separately from code/CI status.
+
+**H1.12 secret rotation (PR #19)**
+- Preserve the fail-closed unsupported-version check before any fallback decryption attempt.
+- Keep the corrected newline output and test ordering; verify the dry-run and apply paths against encrypted fixtures with old key, new key, corrupt ciphertext, and unsupported future version.
+- Rotation must be backed up, idempotent, and explicitly opt-in with `--apply`; do not automatically rotate during app startup or deployment.
+
+**Additional RI.3 acceptance gates**
+| Area | Required test | Pass condition |
+|---|---|---|
+| Project authorization | Org A calls quality endpoints for Org B project | 404/403 with no data disclosure or mutation |
+| Requirement ownership | Valid project ID + requirement ID from another project | Rejected; no assessment created |
+| Assessment lifecycle | Create/read/accept/reject during stage transitions | Only authorized and valid transitions succeed |
+| H2.2 export allowlist | Add unknown sensitive fields to benchmark fixture | They are absent from rater export by construction |
+| Benchmark provenance | Synthetic fixture run vs participant data | Rater packet provenance is synthetic/offline; no participant records |
+| Benchmark scope | 30 planner subset vs 120 total corpus | Reports state exact denominator and completed run count |
+| Secret rotation | Old/new/wrong key, corrupt v1, unsupported v2 | Deterministic safe behavior; no unsupported-version fallback |
