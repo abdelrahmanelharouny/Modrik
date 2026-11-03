@@ -425,3 +425,25 @@ Initial CI run `41654180785` is in progress. At the latest poll, both `postgres-
 | Exact-byte manifest verification and rater identity tests | Committed |
 | Exact-head CI | In progress (run 41654180785) |
 | Human recruitment / actual ratings | Not started |
+
+
+### RI.4.6 — H2.2 runtime audit and follow-up fixes (2026-11-03)
+
+PR #23's initial exact-head CI run `41654180785` completed successfully for both `quality` and `postgres-schema` on head `7334ef739f62b03ef2e2def622d119766f512799`. A subsequent source-level audit found an untested runtime defect in `scripts/create-human-rating-packets.mjs`: it called `readFile()` without importing it (only `readFileSync` was imported). This could pass unit tests and build while failing when the packet-export CLI is actually invoked.
+
+Fixes committed to PR #23:
+- Commit `620cf5b7668c30f9f903681956883b8b3e67a0d4`: import the asynchronous `readFile` function and explicitly `chmod` all three rater/coordinator output directories to `0700`, including pre-existing directories where `mkdir({mode})` would not change permissions.
+- Commit `54999de8ea3bf715797726e3522d801f76dc859e`: update the documented analysis command to include the now-required `--manifest` argument.
+
+Latest PR #23 head is `54999de8ea3bf715797726e3522d801f76dc859e`. GitHub Actions run `41655770533` (run number 327) has been created and was pending at the last poll; its job list had not populated yet. No result is claimed for the new head. A source review also confirmed that arm labels are kept in the coordinator answer key, not rater CSV rows; question payloads use only `text` and `language`, and evidence is included only when `consent === true`.
+
+| Gate | State |
+|---|---|
+| Initial hybrid exact-head CI | Passed on `7334ef7` (run 41654180785) |
+| Packet CLI import/runtime defect | Fixed in `620cf5b`; new-head CI pending |
+| Existing output-directory permission hardening | Added in `620cf5b`; new-head CI pending |
+| Analysis documentation manifest command | Corrected in `54999de` |
+| Latest exact-head CI | Pending (run 41655770533) |
+| Human recruitment / actual ratings | Not started |
+
+PR #23 remains draft, open, and unmerged. The previous green run does not validate the two later commits. Do not close H2.2 until the latest exact head passes CI and the packet-generation CLI is exercised end-to-end with a real planner benchmark artifact.
