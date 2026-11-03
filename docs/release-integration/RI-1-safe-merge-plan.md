@@ -885,3 +885,12 @@ Added route-level defense in depth to `src/app/api/projects/[id]/stakeholders/ro
 - Safe methods remain unaffected; same-origin browser mutations are accepted by the same host/protocol comparison.
 
 Latest PR #47 head is now `c0858c14a97c814740284d3ff3f190800c793ec1`. Workflow run `41689653739` is running; PostgreSQL schema has passed and the quality job is at the SQLite production build. The stakeholder E2E has not yet been re-run on this head, so this change remains unverified until the run finishes.
+
+
+### RI.10.3 — Explicit proxy response header assignment
+
+The third exact-head run `41689653739` still failed at the cross-origin mutation cache-header assertion, despite route-level defense in depth. This establishes that the response is being rejected before the stakeholder route's own guard and that the proxy's `NextResponse.json(..., { headers })` construction did not expose the expected header in this standalone E2E path.
+
+Updated `src/proxy.ts` to centralize denial responses in `noStoreJson(body, status)`: construct the JSON response first, then explicitly call `response.headers.set("Cache-Control", "no-store, max-age=0")`. Applied consistently to API auth-not-configured (503), unauthenticated (401), and cross-origin mutation (403) denials. This preserves the security policy and avoids weakening the integration assertion.
+
+Latest PR #47 head: `dcf5d09c06d35a063e2e099d95a729f8a67b5a65`. Workflow run `41689973325` is queued/running; no result is claimed yet.
