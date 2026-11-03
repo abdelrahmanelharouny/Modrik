@@ -9,8 +9,12 @@ import { seedMission } from "@/lib/mission-seed";
 // The catalog itself is qualitative seed content; once loaded every
 // number the UI renders comes from the database (dynamicity rule).
 
-export async function GET() {
-  const projects = await db.project.findMany({ select: { id: true, name: true } });
+export async function GET(req: NextRequest) {
+  const organizationId = req.headers.get("x-modrik-organization-id");
+  const projects = await db.project.findMany({
+    where: organizationId ? { organizationId } : {},
+    select: { id: true, name: true },
+  });
   const byName = new Map(projects.map((p) => [p.name, p.id]));
 
   const missions = MISSION_LIBRARY.map((m) => ({
@@ -43,8 +47,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const projectId = await seedMission(seed);
-    const loadedCount = await db.project.count({ where: { name: seed.name } });
+    const organizationId = req.headers.get("x-modrik-organization-id");
+    const userId = req.headers.get("x-modrik-user-id");
+    const projectId = await seedMission(seed, organizationId && userId ? { organizationId, userId } : undefined);
+    const loadedCount = await db.project.count({
+      where: { name: seed.name, ...(organizationId ? { organizationId } : {}) },
+    });
     return NextResponse.json({ projectId, existed: loadedCount > 1, name: seed.name }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: `Seeding failed: ${(e as Error).message}` }, { status: 500 });
