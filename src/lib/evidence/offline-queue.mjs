@@ -6,9 +6,14 @@ const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function createOfflineEvidenceOperation(projectId, payload, operationId = globalThis.crypto.randomUUID()) {
   if (typeof projectId !== "string" || !projectId.trim()) throw new TypeError("projectId is required");
+  if (typeof operationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)) {
+    throw new TypeError("operationId must be a UUID so the server can safely deduplicate retries");
+  }
   if (!payload || typeof payload.title !== "string" || typeof payload.content !== "string") throw new TypeError("Evidence title and content are required");
   if (payload.title.length > 200 || payload.content.length > 8000) throw new RangeError("Evidence exceeds the supported offline size");
   if (typeof payload.consent !== "boolean") throw new TypeError("Consent must be explicit");
+  if (!["interview", "document", "meeting", "survey", "observation", "transcript", "whiteboard_ocr"].includes(payload.sourceType ?? "interview")) throw new TypeError("Unsupported evidence source type");
+  if (!["en", "ar-EG", "codeswitch"].includes(payload.language ?? "en")) throw new TypeError("Unsupported evidence language");
   return { operationId, projectId, payload: { ...payload }, createdAt: new Date().toISOString(), attempts: 0 };
 }
 
