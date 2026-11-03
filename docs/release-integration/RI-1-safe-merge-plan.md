@@ -531,3 +531,23 @@ Exact-head GitHub Actions run `41660811675` completed successfully on PR #23 hea
 | Full stack merge / production deployment | Not performed |
 
 PR #23 remains draft/open/unmerged. Synthetic CLI ratings are test fixtures only and are not human-subject evidence.
+
+
+### RI.4.10 — Strict ordinal validation and current exact-head CI (2026-11-03)
+
+A follow-up validation audit found that nonblank malformed scores (for example 0, 6, decimals, or nonnumeric strings) were being treated like missing values by the rating reader. Blank scores remain valid missing submissions for coverage accounting, but a nonblank value must be an integer from 1 through 5.
+
+The analysis engine now rejects malformed nonblank values for all eight rubric fields, including confidence, and reports the rater, field, and blind output context. A regression test covers out-of-range values.
+
+Exact-head GitHub Actions run `41661557363` completed successfully on PR #23 head `0d902031522af62375cf06291f4b8c9ce4f0bb46`. Both `quality` and `postgres-schema` passed. The quality job includes the full regression suite (packet generation + filled-rating analysis CLI integration), benchmark validation, production configuration, SQLite schema, TypeScript, lint, production build, Playwright setup, and stakeholder API/browser E2E.
+
+| Gate | State |
+|---|---|
+| Filled rating values 1–5 | Enforced |
+| Blank score handling | Allowed and reported through coverage |
+| Nonblank invalid ordinal values | Rejected with regression coverage |
+| Exact-head CI for `0d90203` (run 41661557363) | Passed |
+| Actual human calibration / recruitment | Not started |
+| Full PR stack merge / production verification | Not performed |
+
+This is the current verified implementation head for PR #23. It does not authorize merging the full stack or claiming human-subject results.
