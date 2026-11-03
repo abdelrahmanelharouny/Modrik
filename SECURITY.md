@@ -1,6 +1,8 @@
 # Modrik security setup and operational boundary
 
-## Authentication shipped in Phase 0
+> **Current status (H1):** the historical Phase 0–1 notes below are retained for design traceability, but later H1 sections supersede earlier single-owner / pre-RBAC statements. The current code enforces database-backed identity sessions, organization membership and tenant-scoped route permissions. Production rollout remains blocked on the migration-baseline and live-provider/restore gates in [docs/security-deployment.md](./docs/security-deployment.md).
+
+## Authentication and organization access
 
 The current H1 branch implements **multi-user identity and organization/project authorization**: signed identity sessions, database-backed membership checks, role-specific permissions, tenant isolation, invitations, password recovery and a shared rate limiter. This is not a replacement for enterprise SSO/MFA, and it is **not production-cleared** until the database baseline, live provider connectivity and backup/restore gates below are verified. Application pages and API routes are protected by the Next.js 16 `proxy.ts` boundary, except the narrowly scoped authentication endpoints and the public study participant page/write endpoint. Those two study paths expose no session listing or export; the write endpoint requires a high-entropy per-session bearer token, applies metric bounds and rate limits, expires after seven days, and becomes write-locked after finish except for withdrawal. The API boundary is enforced server-side; hiding UI controls is not relied upon.
 
