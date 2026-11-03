@@ -41,7 +41,7 @@ For the 2–3 scenario calibration round, generate a separate packet from a sepa
 
 Import the completed CSVs and the restricted answer key:
 
-    node scripts/analyze-human-ratings.mjs --rater1 bench/results/human-ratings/rater-1/packet.csv --rater2 bench/results/human-ratings/rater-2/packet.csv --key bench/results/human-ratings/coordinator-only/answer-key.csv --out bench/results/human-ratings-analysis
+    node scripts/analyze-human-ratings.mjs --rater1 bench/results/human-ratings/rater-1/packet.csv --rater2 bench/results/human-ratings/rater-2/packet.csv --key bench/results/human-ratings/coordinator-only/answer-key.csv --manifest bench/results/human-ratings/coordinator-only/manifest.json --out bench/results/human-ratings-analysis
 
 The report computes quadratic weighted Cohen's kappa, exact agreement, within-one agreement, arm-level mean scores, paired impact-aware contrasts, deterministic bootstrap 95% intervals, paired sign-flip permutation p-values, Holm correction, and an adjudication queue. Inferential statistics are withheld unless at least 10 complete scenarios are available. The answer key is used only by the coordinator after ratings are frozen.
 
