@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { hashEvidenceRevision } from "@/lib/evidence/revision.mjs";
 import { isEvidenceRevisionVersionConflict, parseExpectedRevisionVersion } from "@/lib/evidence/revision-conflict.mjs";
+import { buildEvidenceSnapshotWhere } from "@/lib/evidence/snapshot-where.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
@@ -188,6 +189,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (actualVersion !== body.expectedRevisionVersion) {
       return { conflict: true as const, currentRevisionVersion: actualVersion };
     }
+    // Compare-and-swap the current projection before writing revision history.
+    // PATCH and DELETE both condition on the complete prior snapshot, so only
+    // one concurrent mutation can claim this version on SQLite or PostgreSQL.
+    const claimed = await tx.evidence.updateMany({
+      where: buildEvidenceSnapshotWhere(existing),
+      data: normalized,
+    });
+    if (claimed.count !== 1) {
+      const current = await tx.evidenceRevision.findFirst({
+        where: { evidenceId: existing.id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      return { conflict: true as const, currentRevisionVersion: current?.version ?? 0 };
+    }
+
     // Legacy rows predate revision history. Preserve their pre-edit state as v1
     // before writing a changed snapshot, otherwise the first edit would erase history.
     let previousHash = latest?.contentHash ?? null;
@@ -214,10 +231,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const currentVersion = latest?.version ?? 1;
     const changed = previousHash !== contentHash;
     const revision = changed ? currentVersion + 1 : currentVersion;
-    const updated = await tx.evidence.update({
-      where: { id: existing.id },
-      data: normalized,
-    });
+    const updated = await tx.evidence.findUniqueOrThrow({ where: { id: existing.id } });
     if (changed) {
       await tx.evidenceRevision.create({
         data: {
@@ -303,8 +317,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return { kind: "conflict" as const, currentRevisionVersion };
     }
 
-    // evidenceId is authoritative; evidenceCode catches legacy trace links
-    // created before the stable foreign-key column existed.
+    // Capture dependencies, then atomically claim deletion against the exact
+    // source snapshot. A concurrent PATCH changes this predicate and wins with
+    // a 409 instead of allowing a stale delete to erase the newer revision.
     const links = await tx.traceLink.findMany({
       where: {
         projectId: id,
@@ -313,6 +328,17 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       select: { requirementId: true },
     });
     const affectedRequirementIds = [...new Set(links.map((link) => link.requirementId))];
+    const claimed = await tx.evidence.deleteMany({
+      where: buildEvidenceSnapshotWhere(evidence),
+    });
+    if (claimed.count !== 1) {
+      const current = await tx.evidenceRevision.findFirst({
+        where: { evidenceId: evidence.id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      return { kind: "conflict" as const, currentRevisionVersion: current?.version ?? 0 };
+    }
 
     await tx.traceLink.deleteMany({
       where: {
@@ -335,7 +361,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       });
     }
 
-    await tx.evidence.delete({ where: { id: evidence.id } });
     return {
       kind: "removed" as const,
       code: evidence.code,
