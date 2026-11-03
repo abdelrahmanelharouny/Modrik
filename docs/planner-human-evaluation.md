@@ -18,7 +18,7 @@ The default minimum is 10 completed scenarios. The output contains:
 
 Only the coordinator receives the answer key. The rater CSVs do not contain arm names, provider/model, candidate-pool hashes, gold questions, planner metrics, or utility scores. Blind output IDs are stable across both raters but are derived from a private packet seed. Rater order is independently shuffled.
 
-The packet includes only evidence whose fixture consent flag is true. Evidence with consent=false is excluded; the packet generator must never upgrade its consent status. The output questions omit utility metadata so the scoring interface does not reveal the selection arm.
+The packet includes only evidence whose fixture consent flag is true. Evidence with consent=false is excluded; the packet generator must never upgrade its consent status. The output questions omit utility metadata so the scoring interface does not reveal the selection arm. CSV exports also neutralize spreadsheet-formula-leading cells (including values beginning with =, +, -, or @ after leading whitespace) so evidence and question text cannot be interpreted as formulas when opened in spreadsheet software.
 
 ## Rubric
 
