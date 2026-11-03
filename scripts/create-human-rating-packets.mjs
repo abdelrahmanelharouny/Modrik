@@ -1,6 +1,6 @@
 import {randomBytes,createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
-import {mkdir,writeFile,unlink} from "node:fs/promises";
+import {mkdir,writeFile,unlink,readFile,chmod} from "node:fs/promises";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {buildBlindPackets,RATER_COLUMNS,serializeCsv} from "../src/lib/research/human-ratings.mjs";
@@ -16,7 +16,7 @@ async function main(){
  const min=Number(arg(args,"--min-scenarios","10"));if(!Number.isInteger(min)||min<2||min>30)throw new Error("--min-scenarios must be between 2 and 30");if(records.length<min)throw new Error("Need at least "+min+" completed scenarios to create a blind rating packet; found "+records.length);
  const seed=arg(args,"--seed",randomBytes(16).toString("hex")),out=path.resolve(ROOT,arg(args,"--out","bench/results/human-ratings"));
  const packet=buildBlindPackets(records,id=>JSON.parse(readFileSync(path.join(ROOT,"bench","scenarios",id+".json"),"utf8")),{seed});
- await mkdir(path.join(out,"rater-1"),{recursive:true,mode:0o700});await mkdir(path.join(out,"rater-2"),{recursive:true,mode:0o700});await mkdir(path.join(out,"coordinator-only"),{recursive:true,mode:0o700});
+ const privateDirs=[path.join(out,"rater-1"),path.join(out,"rater-2"),path.join(out,"coordinator-only")];await Promise.all(privateDirs.map(dir=>mkdir(dir,{recursive:true,mode:0o700})));await Promise.all(privateDirs.map(dir=>chmod(dir,0o700)));
  const artifacts=[
   [path.join(out,"rater-1","packet.csv"),serializeCsv(packet.raters.R1,RATER_COLUMNS),0o600],
   [path.join(out,"rater-2","packet.csv"),serializeCsv(packet.raters.R2,RATER_COLUMNS),0o600],
