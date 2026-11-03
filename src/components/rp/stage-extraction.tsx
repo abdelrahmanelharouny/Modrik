@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { DraftingCompass, Pencil, Trash2, Link2, BadgeCheck, BadgeAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { RequirementQualityPanel } from "@/components/rp/requirement-quality-panel";
 
 const PRIO_TONE: Record<string, Tone> = { Must: "coral", Should: "signal", Could: "aura", "Won't": "muted" };
 const VERIF_TONE: Record<string, Tone> = { supported: "verify", weak: "signal", unverified: "muted" };
@@ -114,6 +115,8 @@ export function ExtractionStage({
           </>
         }
       />
+
+      <RequirementQualityPanel project={project} isCurrent={isCurrent} onRefresh={refresh} />
 
       <ul className="space-y-3">
         {project.requirements.map((r) => (

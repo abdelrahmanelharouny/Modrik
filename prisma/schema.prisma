@@ -46,6 +46,7 @@ model Project {
   knowledgeEdges KnowledgeEdge[]
   knowledgeNodeClaims KnowledgeNodeClaim[]
   knowledgeRequirements KnowledgeRequirement[]
+  requirementQualityAssessments RequirementQualityAssessment[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -398,6 +399,41 @@ model Requirement {
   claimLinks RequirementClaim[]
   @@unique([id, projectId])
   knowledgeNodes KnowledgeRequirement[]
+  qualityAssessments RequirementQualityAssessment[]
+}
+
+ 
+// Human-reviewable quality assessment snapshots. sourceText/sourceHash preserve
+// exactly what was assessed; edits make prior assessments visibly stale.
+model RequirementQualityAssessment {
+  id              String      @id @default(cuid())
+  projectId       String
+  project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementId   String
+  requirement     Requirement @relation(fields: [requirementId, projectId], references: [id, projectId], onDelete: Cascade)
+  sourceText      String
+  sourceHash      String
+  atomicity       Int
+  clarity         Int
+  completeness    Int
+  testability     Int
+  consistency     Int
+  traceability    Int
+  feasibility     Int
+  verifiability   Int
+  nfrCoverage     Int
+  overallScore    Int
+  issues          String      @default("[]")
+  suggestedRewrite String?
+  assessmentNote  String      @default("")
+  status          String      @default("proposed") // proposed | accepted | rejected
+  assessedBy      String      @default("human") // human | agent
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime    @default(now())
+
+  @@index([projectId, requirementId, createdAt])
+  @@index([projectId, status])
 }
 
 // Evidence traceability: which source grounds which requirement
