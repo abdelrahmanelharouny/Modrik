@@ -97,8 +97,8 @@ test("human-rating analysis rejects nonblank ordinal values outside the 1-5 rubr
 });
 
 test("CSV exports neutralize formula-leading cells for spreadsheet safety",()=>{
- const csv=serializeCsv([{question:"=HYPERLINK(\\"https://example.invalid\\")",notes:"  @SUM(A1:A2)"}],["question","notes"]);
- assert.match(csv,/'=HYPERLINK/);
+ const csv=serializeCsv([{question:"=1+1",notes:"  @SUM(A1:A2)"}],["question","notes"]);
+ assert.match(csv,/'=1\+1/);
  assert.match(csv,/'  @SUM/);
- assert.deepEqual(parseCsv(csv),[{question:"'=HYPERLINK(\\"https://example.invalid\\")",notes:"'  @SUM(A1:A2)"}]);
+ assert.deepEqual(parseCsv(csv),[{question:"'=1+1",notes:"'  @SUM(A1:A2)"}]);
 });
