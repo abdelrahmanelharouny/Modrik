@@ -53,6 +53,16 @@ if (onVercel && !isPostgres) {
   process.exit(1);
 }
 
+if (isPostgres) {
+  const sync = spawnSync(process.execPath, [join(root, "scripts", "sync-postgres-schema.mjs")], {
+    stdio: "inherit",
+  });
+  if (sync.status !== 0) {
+    console.error("✗ failed to generate the PostgreSQL Prisma schema");
+    process.exit(sync.status ?? 1);
+  }
+}
+
 const schema = isPostgres ? pgSchema : sqliteSchema;
 if (!existsSync(schema)) {
   console.error(`✗ schema not found: ${schema}`);

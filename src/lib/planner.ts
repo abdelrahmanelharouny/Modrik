@@ -16,10 +16,49 @@
 //   avgUtility, utilityPerCost, evidenceCoverage, redundancyRate,
 //   dialectFit (Arabic-native fit, N7)
 // ─────────────────────────────────────────────────────────────
+import { randomUUID, createHash } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { z } from "zod";
+import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import { PROMPT_VERSION } from "@/lib/agents";
+import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
+import { selectByUtility, selectDistinctPoolIndices, clampSignalScore, deduplicateQuestions, pickSeededIndices } from "@/lib/planner/selection.mjs";
+export { selectByUtility } from "@/lib/planner/selection.mjs";
+
+
+const plannerPoolSchema = z.object({
+  questions: z.array(z.object({
+    text: z.string().trim().min(1).max(600),
+    rationale: z.string().max(600).catch(""),
+    priority: z.enum(["high", "medium", "low"]).catch("medium"),
+    askCost: z.number().int().min(1).max(5).catch(3),
+    fallbackAssumption: z.string().max(400).catch(""),
+    language: z.enum(["en", "ar-EG", "codeswitch"]).catch("en"),
+  })).max(30),
+});
+
+const plannerScoresSchema = z.object({
+  scores: z.array(z.object({
+    index: z.number().int().min(1),
+    infoGain: z.number().min(1).max(5),
+    impact: z.number().min(1).max(5),
+    uncertainty: z.number().min(1).max(5),
+    risk: z.number().min(1).max(5),
+  })).max(100),
+});
+
+const plannerJudgeSchema = z.object({
+  evidenceCoverage: z.number().min(0).max(100),
+  redundancyRate: z.number().min(0).max(100),
+  dialectFit: z.number().min(0).max(100),
+});
+
+const plannerSelectionSchema = z.object({
+  selected: z.array(z.number().int().min(1)).max(30),
+});
 
 export type PlannerArm = "single_shot" | "random" | "llm" | "impact_aware";
 
@@ -73,8 +112,9 @@ async function callLLM(systemBase: string, userPrompt: string, usage: UsageAcc):
   let content: string;
   try {
     content = await provider.complete(messages);
-  } catch {
-    await new Promise((r) => setTimeout(r, 1500));
+  } catch (err) {
+    if (!retryableProviderFailure(err)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     content = await provider.complete(messages);
   }
   usage.calls += 1;
@@ -102,12 +142,12 @@ function parseJson<T>(raw: string): T {
   throw new Error("Planner: unparseable LLM output");
 }
 
-async function callLLMJson<T>(systemBase: string, userPrompt: string, usage: UsageAcc): Promise<T> {
+async function callLLMJson<T>(systemBase: string, userPrompt: string, usage: UsageAcc, schema: z.ZodType<T>): Promise<T> {
   let lastErr: unknown = new Error("Planner: unparseable output");
   for (let i = 0; i < 2; i++) {
     const raw = await callLLM(systemBase, userPrompt, usage);
     try {
-      return parseJson<T>(raw);
+      return schema.parse(parseJson<unknown>(raw));
     } catch (err) {
       lastErr = err;
     }
@@ -120,13 +160,15 @@ const SYSTEM =
   "requirements engineering assistant. You are precise and ground every question in the provided " +
   "evidence. Reply with VALID JSON ONLY — no markdown fences, no commentary.";
 
-function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string }[]): string {
-  if (!evidences.length) return "(no evidence sources provided yet)";
-  const TOTAL_BUDGET = 16000;
-  const PER_MAX = 4000;
-  const total = evidences.reduce((s, e) => s + e.content.length, 0);
-  const per = total > TOTAL_BUDGET ? Math.max(1200, Math.floor(TOTAL_BUDGET / evidences.length)) : PER_MAX;
-  return evidences
+function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string; consent?: boolean; origin?: string }[]): string {
+  const eligible = filterEvidenceForAI(evidences);
+  if (!eligible.length) {
+    return evidences.length
+      ? "(evidence sources are stored, but none has explicit permission for AI processing; no source content is sent to the model)"
+      : "(no evidence sources provided yet)";
+  }
+  const per = evidenceContentBudget(eligible.length, 16000, 4000);
+  return eligible
     .map((e) => {
       const body =
         e.content.length > per
@@ -172,12 +214,12 @@ async function generatePool(
     where: { id: projectId },
     include: { evidences: true, questions: true },
   });
-  const memoryLessons = await db.memoryEntry.findMany({ where: { kind: "lesson" }, orderBy: { createdAt: "desc" }, take: 4 });
+  const memoryLessons = await db.memoryEntry.findMany({ where: { projectId, kind: "lesson" }, orderBy: { createdAt: "desc" }, take: 4 });
   const memory = memoryLessons.length
-    ? `\nCROSS-PROJECT LESSONS:\n${memoryLessons.map((l) => `- ${l.term}: ${l.detail}`).join("\n")}\n`
+    ? `\nPROJECT-SCOPED LESSONS:\n${memoryLessons.map((l) => `- ${l.term}: ${l.detail}`).join("\n")}\n`
     : "";
   const answered = project.questions
-    .filter((q) => q.answered && q.answer)
+    .filter(isHumanStakeholderAnswer)
     .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
     .join("\n\n");
   const context = `PROJECT BRIEF:\n${project.brief?.trim() || "(empty brief)"}\n${memory}\nEVIDENCE SOURCES:\n${evidenceBlock(project.evidences)}\n\nSTAKEHOLDER ANSWERS SO FAR:\n${answered || "(none yet)"}\n${uncertaintyLedger(project.questions)}`;
@@ -191,10 +233,9 @@ For each candidate: estimate askCost (1=trivial, 5=very costly interruption) and
 
 Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
 
-  const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage);
-  const pool = (out.questions ?? [])
+  const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage, plannerPoolSchema);
+  const pool = deduplicateQuestions((out.questions ?? [])
     .filter((q) => q && String(q.text ?? "").trim())
-    .slice(0, count)
     .map((q) => ({
       text: String(q.text).slice(0, 600),
       rationale: String(q.rationale ?? "").slice(0, 600),
@@ -202,7 +243,7 @@ Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "hig
       askCost: Math.min(5, Math.max(1, Math.round(Number(q.askCost) || 3))),
       fallbackAssumption: String(q.fallbackAssumption ?? "").slice(0, 400),
       language: ["en", "ar-EG", "codeswitch"].includes(String(q.language)) ? String(q.language) : "en",
-    }));
+    }))).slice(0, count);
   return { pool, context };
 }
 
@@ -230,7 +271,8 @@ Return JSON: {"scores": [{"index": 1, "infoGain": 4, "impact": 3, "uncertainty":
   const out = await callLLMJson<{ scores: { index: number; infoGain: number; impact: number; uncertainty: number; risk: number }[] }>(
     SYSTEM,
     prompt,
-    usage
+    usage,
+    plannerScoresSchema
   );
   return questions.map((q, i) => {
     const s = (out.scores ?? []).find((x) => Number(x.index) === i + 1);
@@ -239,10 +281,10 @@ Return JSON: {"scores": [{"index": 1, "infoGain": 4, "impact": 3, "uncertainty":
       return { ...q, utility: { ...base, utility: computeUtility(base) } };
     }
     const base = {
-      infoGain: Math.round(Number(s.infoGain) || 3),
-      impact: Math.round(Number(s.impact) || 3),
-      uncertainty: Math.round(Number(s.uncertainty) || 3),
-      risk: Math.round(Number(s.risk) || 3),
+      infoGain: clampSignalScore(s.infoGain),
+      impact: clampSignalScore(s.impact),
+      uncertainty: clampSignalScore(s.uncertainty),
+      risk: clampSignalScore(s.risk),
       askCost: q.askCost,
     };
     return { ...q, utility: { ...base, utility: computeUtility(base) } };
@@ -259,27 +301,6 @@ function pickRandom<T>(arr: T[], k: number): T[] {
     out.push(copy.splice(idx, 1)[0]);
   }
   return out;
-}
-
-// Budget-constrained greedy selection on the utility formula (impact_aware arm)
-export function selectByUtility(pool: PlannedQuestion[], k = 5, costBudget = 15): PlannedQuestion[] {
-  const scored = pool
-    .filter((q) => q.utility)
-    .sort((a, b) => (b.utility!.utility ?? 0) - (a.utility!.utility ?? 0));
-  const picked: PlannedQuestion[] = [];
-  let cost = 0;
-  for (const q of scored) {
-    if (picked.length >= k) break;
-    if (cost + q.askCost > costBudget) continue;
-    picked.push(q);
-    cost += q.askCost;
-  }
-  // relax the budget if the tight constraint left us underfilled
-  for (const q of scored) {
-    if (picked.length >= k) break;
-    if (!picked.includes(q)) picked.push(q);
-  }
-  return picked.slice(0, k);
 }
 
 // ── Judge (identical for all arms) ───────────────────────────
@@ -304,7 +325,7 @@ Be strict and numeric.
 
 Return JSON: {"evidenceCoverage": 62, "redundancyRate": 10, "dialectFit": 80}`;
 
-  const out = await callLLMJson<{ evidenceCoverage: number; redundancyRate: number; dialectFit: number }>(SYSTEM, prompt, usage);
+  const out = await callLLMJson<{ evidenceCoverage: number; redundancyRate: number; dialectFit: number }>(SYSTEM, prompt, usage, plannerJudgeSchema);
   const pct = (n: unknown) => Math.min(100, Math.max(0, Math.round(Number(n) || 0)));
   return {
     avgUtility,
@@ -322,6 +343,13 @@ export async function runPlanner(
   arm: PlannerArm,
   runId?: string
 ): Promise<{ arm: PlannerArm; questions: PlannedQuestion[]; metrics: ArmMetrics; candidates: number }> {
+  const existingQuestions = await db.question.findMany({
+    where: { projectId },
+    select: { answered: true, answer: true, answerSource: true, resolution: true },
+  });
+  if (hasHumanQuestionDecision(existingQuestions)) {
+    throw new Error("Refusing to overwrite elicitation questions: human answers or uncertainty decisions already exist.");
+  }
   const usage = newUsage();
   let selected: PlannedQuestion[] = [];
   let candidates = 0;
@@ -334,22 +362,22 @@ export async function runPlanner(
       include: { evidences: true, questions: true },
     });
     const answered = project.questions
-      .filter((q) => q.answered && q.answer)
+      .filter(isHumanStakeholderAnswer)
       .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
       .join("\n\n");
     context = `PROJECT BRIEF:\n${project.brief?.trim() || "(empty brief)"}\nEVIDENCE SOURCES:\n${evidenceBlock(project.evidences)}\n\nSTAKEHOLDER ANSWERS:\n${answered || "(none yet)"}\n${uncertaintyLedger(project.questions)}`;
     const prompt = `${context}
 TASK: Identify the 5 most important clarifying questions to ask the stakeholders now. For each, estimate askCost (1-5) and a testable fallbackAssumption.
 Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
-    const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage);
-    selected = (out.questions ?? []).slice(0, 5).map((q) => ({
+    const out = await callLLMJson<PoolOut>(SYSTEM, prompt, usage, plannerPoolSchema);
+    selected = deduplicateQuestions((out.questions ?? []).map((q) => ({
       text: String(q.text ?? "").slice(0, 600),
       rationale: String(q.rationale ?? "").slice(0, 600),
       priority: (["high", "medium", "low"].includes(q.priority) ? q.priority : "medium") as PlannedQuestion["priority"],
       askCost: Math.min(5, Math.max(1, Math.round(Number(q.askCost) || 3))),
       fallbackAssumption: String(q.fallbackAssumption ?? "").slice(0, 400),
       language: ["en", "ar-EG", "codeswitch"].includes(String(q.language)) ? String(q.language) : "en",
-    }));
+    }))).slice(0, 5);
   } else {
     const { pool, context: ctx } = await generatePool(projectId, usage);
     candidates = pool.length;
@@ -363,9 +391,12 @@ ${pool.map((q, i) => `${i + 1}. ${q.text} (askCost ${q.askCost})`).join("\n")}
 
 TASK: Select the 5 BEST questions from this pool for the next interview round — the ones whose answers most change what the team builds. Return ONLY their indices.
 Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
-      const out = await callLLMJson<{ selected: number[] }>(SYSTEM, prompt, usage);
-      const idxs = (out.selected ?? []).map((n) => Number(n) - 1).filter((n) => n >= 0 && n < pool.length);
-      selected = (idxs.length ? idxs : pool.map((_, i) => i)).slice(0, 5).map((i) => pool[i]);
+      const out = await callLLMJson<{ selected: number[] }>(SYSTEM, prompt, usage, plannerSelectionSchema);
+      const idxs = selectDistinctPoolIndices(out.selected ?? [], pool.length, 5);
+      if (!idxs.length) {
+        throw new Error("Planner returned no valid, distinct candidate indices; refusing to silently substitute the entire pool.");
+      }
+      selected = idxs.map((i) => pool[i]);
     } else {
       // impact_aware — signal-score the whole pool, then the formula decides.
       const scored = await scoreSignals(context, pool, usage);
@@ -380,6 +411,9 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
     selected = await scoreSignals(context, selected, usage);
   }
 
+  if (!selected.length) {
+    throw new Error("Planner produced no valid questions. Existing live questions were preserved.");
+  }
   const metrics = await judgeArm(context, selected, usage);
 
   // Persist the ablation record
@@ -398,23 +432,23 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
 
   // Materialise as the live question set (same contract as stage 1) with
   // the utility breakdown stored per question (dynamicity: UI reads these).
-  await db.question.deleteMany({ where: { projectId } });
-  await db.$transaction(
-    selected.map((q, i) =>
-      db.question.create({
+  await db.$transaction(async (tx) => {
+    await tx.question.deleteMany({ where: { projectId } });
+    for (const [i, question] of selected.entries()) {
+      await tx.question.create({
         data: {
           projectId,
           order: i,
-          text: q.text,
-          rationale: q.rationale,
-          priority: q.priority,
-          askCost: q.askCost,
-          fallbackAssumption: q.fallbackAssumption || null,
-          utility: q.utility ? JSON.stringify(q.utility) : null,
+          text: question.text,
+          rationale: question.rationale,
+          priority: question.priority,
+          askCost: question.askCost,
+          fallbackAssumption: question.fallbackAssumption || null,
+          utility: question.utility ? JSON.stringify(question.utility) : null,
         },
-      })
-    )
-  );
+      });
+    }
+  });
   await db.artifact.create({
     data: {
       projectId,
@@ -447,4 +481,278 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
     }
   }
   return { arm, questions: selected, metrics, candidates };
+}
+
+
+export interface PlannerExperimentArmResult {
+  arm: PlannerArm;
+  questions: PlannedQuestion[];
+  metrics: ArmMetrics;
+  candidates: number;
+  estTokens: number;
+  latencyMs: number;
+}
+
+export interface PlannerExperimentResult {
+  experimentId: string;
+  seed: string;
+  materializedArm: PlannerArm;
+  candidatePoolHash: string;
+  candidateCount: number;
+  arms: PlannerExperimentArmResult[];
+}
+
+function usageTotal(...values: UsageAcc[]): UsageAcc {
+  return values.reduce(
+    (total, value) => ({
+      calls: total.calls + value.calls,
+      latencyMs: total.latencyMs + value.latencyMs,
+      estTokens: total.estTokens + value.estTokens,
+    }),
+    newUsage()
+  );
+}
+
+function makeDirectPrompt(context: string) {
+  return `${context}
+TASK: Identify the 5 most important clarifying questions to ask the stakeholders now. For each, estimate askCost (1-5) and a testable fallbackAssumption.
+Return JSON: {"questions": [{"text": "...", "rationale": "...", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "...", "language": "ar-EG|codeswitch|en"}]}`;
+}
+
+/**
+ * Runs a reproducible four-arm study.
+ * random / llm / impact_aware share one immutable candidate pool and one
+ * shared signal-scoring pass. single_shot is intentionally a direct-generation
+ * baseline and is explicitly not described as selecting from that pool.
+ */
+export async function runPlannerExperiment(
+  projectId: string,
+  options: { seed?: string; materializeArm?: PlannerArm; runId?: string } = {}
+): Promise<PlannerExperimentResult> {
+  const materializeArm = options.materializeArm ?? "impact_aware";
+  if (!ARMS.includes(materializeArm)) throw new Error("Unknown materialized planner arm.");
+  const seed = String(options.seed ?? randomUUID()).trim().slice(0, 120);
+  if (!seed) throw new Error("Planner experiment seed must not be empty.");
+
+  const existingQuestions = await db.question.findMany({
+    where: { projectId },
+    select: { answered: true, answer: true, answerSource: true, resolution: true },
+  });
+  if (hasHumanQuestionDecision(existingQuestions)) {
+    throw new Error("Refusing to overwrite elicitation questions: human answers or uncertainty decisions already exist.");
+  }
+
+  const project = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { id: true, currentStage: true, status: true },
+  });
+  if (project.status === "complete" || project.currentStage !== "ELICITATION") {
+    throw new Error("A planner experiment can only run during the ELICITATION stage.");
+  }
+
+  const experimentId = randomUUID();
+  const sharedUsage = newUsage();
+  const { pool, context } = await generatePool(projectId, sharedUsage, 12);
+  if (pool.length < 5) {
+    throw new Error("The common candidate pool contains fewer than five distinct questions. No experiment was recorded.");
+  }
+
+  // This scoring pass is shared by all three pool-based arms, so they receive
+  // exactly the same question text, ask-cost and signal values.
+  const scoredPool = await scoreSignals(context, pool, sharedUsage);
+  const commonPoolJson = JSON.stringify(scoredPool);
+  const candidatePoolHash = createHash("sha256").update(commonPoolJson).digest("hex");
+
+  const armUsages: Record<PlannerArm, UsageAcc> = {
+    single_shot: newUsage(),
+    random: newUsage(),
+    llm: newUsage(),
+    impact_aware: newUsage(),
+  };
+
+  const singleShotProject = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    include: { evidences: true, questions: true },
+  });
+  const answered = singleShotProject.questions
+    .filter(isHumanStakeholderAnswer)
+    .map((question) => `Q: ${question.text}\nA: ${question.answer}`)
+    .join("\n\n");
+  const singleShotContext =
+    `PROJECT BRIEF:\n${singleShotProject.brief?.trim() || "(empty brief)"}\nEVIDENCE SOURCES:\n${evidenceBlock(singleShotProject.evidences)}\n\nSTAKEHOLDER ANSWERS:\n${answered || "(none yet)"}\n${uncertaintyLedger(singleShotProject.questions)}`;
+  const directOut = await callLLMJson<PoolOut>(
+    SYSTEM,
+    makeDirectPrompt(singleShotContext),
+    armUsages.single_shot,
+    plannerPoolSchema
+  );
+  const singleShotQuestions = deduplicateQuestions((directOut.questions ?? []).map((question) => ({
+    text: question.text,
+    rationale: question.rationale ?? "",
+    priority: question.priority,
+    askCost: question.askCost,
+    fallbackAssumption: question.fallbackAssumption ?? "",
+    language: question.language ?? "en",
+  }))).slice(0, 5);
+  if (!singleShotQuestions.length) {
+    throw new Error("single_shot returned no valid questions. No experiment was recorded.");
+  }
+  const scoredSingleShot = await scoreSignals(singleShotContext, singleShotQuestions, armUsages.single_shot);
+
+  const randomIndices = pickSeededIndices(scoredPool.length, 5, seed);
+  const randomQuestions = randomIndices.map((index) => scoredPool[index]);
+
+  const llmPrompt = `${context}
+CANDIDATE POOL (these exact candidates are shared by the random and impact_aware arms):
+${scoredPool.map((question, index) => `${index + 1}. ${question.text} (askCost ${question.askCost})`).join("\n")}
+
+TASK: Select the 5 BEST questions from this exact pool for the next interview round. Return only distinct indices. Do not invent or rewrite questions.
+Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
+  const llmOut = await callLLMJson<{ selected: number[] }>(
+    SYSTEM,
+    llmPrompt,
+    armUsages.llm,
+    plannerSelectionSchema
+  );
+  const llmIndices = selectDistinctPoolIndices(llmOut.selected, scoredPool.length, 5);
+  if (llmIndices.length < 1) {
+    throw new Error("The LLM arm returned no valid candidate indices. No experiment was recorded.");
+  }
+  const llmQuestions = llmIndices.map((index) => scoredPool[index]);
+
+  const impactQuestions = selectByUtility(scoredPool, 5, 15);
+  if (!impactQuestions.length) {
+    throw new Error("The impact_aware arm could not select within its cost budget. No experiment was recorded.");
+  }
+
+  const selectedByArm: Record<PlannerArm, PlannedQuestion[]> = {
+    single_shot: scoredSingleShot,
+    random: randomQuestions,
+    llm: llmQuestions,
+    impact_aware: impactQuestions,
+  };
+
+  const order: PlannerArm[] = ["single_shot", "random", "llm", "impact_aware"];
+  const results: PlannerExperimentArmResult[] = [];
+  const persistence: Prisma.PlannerRunUncheckedCreateInput[] = [];
+
+  for (const arm of order) {
+    const ownUsage = armUsages[arm];
+    const questions = selectedByArm[arm];
+    const metrics = await judgeArm(
+      arm === "single_shot" ? singleShotContext : context,
+      questions,
+      ownUsage
+    );
+    // Common-pool generation + signal scoring is charged equally across the
+    // three pool-based arms; the direct baseline does not inherit that cost.
+    const sharedAllocation = arm === "single_shot" ? 0 : Math.ceil(sharedUsage.estTokens / 3);
+    const estimatedTokens = ownUsage.estTokens + sharedAllocation;
+    const allocatedLatency = ownUsage.latencyMs +
+      (arm === "single_shot" ? 0 : Math.ceil(sharedUsage.latencyMs / 3));
+    results.push({
+      arm,
+      questions,
+      metrics,
+      candidates: pool.length,
+      estTokens: estimatedTokens,
+      latencyMs: allocatedLatency,
+    });
+    persistence.push({
+      projectId,
+      arm,
+      experimentId,
+      seed,
+      candidatePool: commonPoolJson.slice(0, 18000),
+      candidatePoolHash,
+      candidatePoolUsed: arm !== "single_shot",
+      questions: JSON.stringify(questions).slice(0, 18000),
+      metrics: JSON.stringify(metrics),
+      candidates: pool.length,
+      latencyMs: allocatedLatency,
+      estTokens: estimatedTokens,
+      promptVersion: PROMPT_VERSION,
+    });
+  }
+
+  const materialized = results.find((result) => result.arm === materializeArm);
+  if (!materialized) throw new Error("The selected materialized arm is missing from the experiment.");
+
+  const totalUsage = usageTotal(sharedUsage, ...Object.values(armUsages));
+  await db.$transaction(async (tx) => {
+    for (const data of persistence) {
+      await tx.plannerRun.create({ data });
+    }
+    await tx.question.deleteMany({ where: { projectId } });
+    for (const [index, question] of materialized.questions.entries()) {
+      await tx.question.create({
+        data: {
+          projectId,
+          order: index,
+          text: question.text,
+          rationale: question.rationale,
+          priority: question.priority,
+          askCost: question.askCost,
+          fallbackAssumption: question.fallbackAssumption || null,
+          utility: question.utility ? JSON.stringify(question.utility) : null,
+        },
+      });
+    }
+    await tx.artifact.create({
+      data: {
+        projectId,
+        stage: "PLANNER",
+        kind: "json",
+        content: JSON.stringify({
+          experimentId,
+          seed,
+          materializedArm: materializeArm,
+          candidatePoolHash,
+          commonPool: scoredPool,
+          sharedUsage,
+          totalUsage,
+          arms: results,
+          design: {
+            poolBasedArms: ["random", "llm", "impact_aware"],
+            singleShotIsDirectBaseline: true,
+            sharedSignalScores: true,
+          },
+        }).slice(0, 60000),
+      },
+    });
+  });
+
+  await logDecision(
+    projectId,
+    "ELICITATION",
+    "agent",
+    "planner_experiment",
+    `Experiment ${experimentId} seed=${seed}; shared pool ${pool.length}; four arms; materialized ${materializeArm}; pool hash ${candidatePoolHash.slice(0, 12)}.`
+  );
+
+  if (options.runId) {
+    try {
+      await db.pipelineRun.update({
+        where: { id: options.runId },
+        data: {
+          latencyMs: totalUsage.latencyMs,
+          estTokens: totalUsage.estTokens,
+          estCostUsd: +(totalUsage.estTokens * 0.0000006).toFixed(6),
+          promptVersion: PROMPT_VERSION,
+          log: `planner-experiment:${experimentId};seed:${seed}`,
+        },
+      });
+    } catch {
+      // Pipeline outcome remains authoritative even if observatory metadata fails.
+    }
+  }
+
+  return {
+    experimentId,
+    seed,
+    materializedArm: materializeArm,
+    candidatePoolHash,
+    candidateCount: pool.length,
+    arms: results,
+  };
 }

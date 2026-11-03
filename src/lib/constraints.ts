@@ -1,40 +1,24 @@
-// ─────────────────────────────────────────────────────────────
-// Modrik (مدرك) — CONSTRAINT PACK ENGINE · DUAL ROLE (I11)
-//
-// Role 1 (product): the LLM pack scans in agents.ts check the
-//   *user's requirement graph* against WCAG 2.2 / PDPL / perf.
-// Role 2 (platform): THIS module holds the DETERMINISTIC self-audit
-//   — the platform audits ITSELF with hard math and structural
-//   checks. WCAG 2.2 contrast ratios are computed from the live
-//   design tokens (single source: globals.css `:root`), performance
-//   budgets come from PipelineRun telemetry, PDPL structure from
-//   the consent/ledger models. No LLM, no hardcoding of results —
-//   every number is recomputed on request (dynamicity rule).
-// ─────────────────────────────────────────────────────────────
+// Deterministic self-audit. Runtime measurements are reported separately
+// from source-level checks, and unobserved properties are never marked pass.
 import { db } from "@/lib/db";
+import { isEncryptedSecret } from "@/lib/security/secret-box.mjs";
+import { DESIGN_TOKENS, DESIGN_SOURCE_CHECKS, DESIGN_TOKEN_SOURCE_SHA256 } from "@/lib/generated/design-tokens";
+import {
+  auditConsentCoverage,
+  auditCredentialEncryption,
+  auditDataAvailability,
+  auditSourceCheck,
+  nearestRankPercentile,
+} from "@/lib/audit/metrics.mjs";
 
-// Mirror of the NIGHTFLIGHT design tokens in globals.css — the
-// self-audit contract. If a token changes there, update this
-// declaration; the MATH below always recomputes from these values.
-export const DESIGN_TOKENS: Record<string, string> = {
-  background: "#060b14",
-  foreground: "#e6eef5",
-  card: "#0a1322",
-  cardForeground: "#e6eef5",
-  primary: "#2ce8c8",
-  primaryForeground: "#04211c",
-  secondaryForeground: "#cfe4e0",
-  mutedForeground: "#7e96b0",
-  accentForeground: "#a9f2e4",
-  destructive: "#ff6b7a",
-  verify: "#3ddc97",
-  signal: "#ffb454",
-  plasma: "#a78bfa",
-  aura: "#2ce8c8",
-};
+export { DESIGN_TOKENS };
 
-// WCAG-critical foreground/background pairs actually used by the UI
-export const CONTRAST_PAIRS: { fg: string; bg: string; usage: string; level: "AA" | "AAA" }[] = [
+export const CONTRAST_PAIRS: {
+  fg: keyof typeof DESIGN_TOKENS | "coral/destructive";
+  bg: keyof typeof DESIGN_TOKENS;
+  usage: string;
+  level: "AA" | "AAA";
+}[] = [
   { fg: "foreground", bg: "background", usage: "body text", level: "AAA" },
   { fg: "foreground", bg: "card", usage: "panel text", level: "AAA" },
   { fg: "primaryForeground", bg: "primary", usage: "primary buttons", level: "AA" },
@@ -46,164 +30,244 @@ export const CONTRAST_PAIRS: { fg: string; bg: string; usage: string; level: "AA
   { fg: "coral/destructive", bg: "card", usage: "destructive text", level: "AA" },
 ];
 
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-}
-
-function relLuminance(hex: string): number {
-  const [r, g, b] = hexToRgb(hex).map((v) => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
 export function contrastRatio(fgHex: string, bgHex: string): number {
-  const l1 = relLuminance(fgHex);
-  const l2 = relLuminance(bgHex);
-  return +(((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)).toFixed(2));
+  const valid = (value: string) => /^#[0-9a-f]{6}$/i.test(value);
+  if (!valid(fgHex) || !valid(bgHex)) {
+    throw new TypeError("Contrast colors must be six-digit hex values");
+  }
+  const luminance = (hex: string) => {
+    const values = [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255);
+    const linear = values.map((value) =>
+      value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    );
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+  const a = luminance(fgHex);
+  const b = luminance(bgHex);
+  return +(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toFixed(2));
 }
 
 export interface AuditCheck {
   id: string;
   pack: "wcag22" | "performance" | "pdpl";
   label: string;
-  status: "pass" | "warn" | "fail";
+  status: "pass" | "warn" | "fail" | "not-assessed";
   detail: string;
   value?: string;
 }
 
-export async function runSelfAudit(): Promise<{ checks: AuditCheck[]; summary: { pass: number; warn: number; fail: number }; generatedAt: string }> {
+export interface SelfAudit {
+  checks: AuditCheck[];
+  summary: { pass: number; warn: number; fail: number; notAssessed: number };
+  generatedAt: string;
+  designTokenSourceSha256: string;
+}
+
+export async function runSelfAudit(): Promise<SelfAudit> {
   const checks: AuditCheck[] = [];
 
-  // ── WCAG 2.2 contrast math on live token pairs ─────────────
+  // ── WCAG contrast is computed from CSS-generated source tokens ──
   for (const pair of CONTRAST_PAIRS) {
-    const fg = pair.fg === "coral/destructive" ? DESIGN_TOKENS.destructive : DESIGN_TOKENS[pair.fg];
+    const fg = pair.fg === "coral/destructive"
+      ? DESIGN_TOKENS.destructive
+      : DESIGN_TOKENS[pair.fg];
     const bg = DESIGN_TOKENS[pair.bg];
-    if (!fg || !bg) continue;
+
+    if (!fg || !bg) {
+      checks.push({
+        id: "wcag-contrast-" + pair.fg + "-" + pair.bg,
+        pack: "wcag22",
+        label: "Contrast " + pair.fg + " on " + pair.bg + " (" + pair.usage + ")",
+        status: "fail",
+        detail: "The foreground or background token was not extracted from the actual root CSS token block.",
+      });
+      continue;
+    }
+
     const ratio = contrastRatio(fg, bg);
     const threshold = pair.level === "AAA" ? 7 : 4.5;
     checks.push({
-      id: `wcag-contrast-${pair.fg}-${pair.bg}`,
+      id: "wcag-contrast-" + pair.fg + "-" + pair.bg,
       pack: "wcag22",
-      label: `Contrast ${pair.fg} on ${pair.bg} (${pair.usage})`,
+      label: "Contrast " + pair.fg + " on " + pair.bg + " (" + pair.usage + ")",
       status: ratio >= threshold ? "pass" : ratio >= 4.5 ? "warn" : "fail",
-      detail:
-        ratio >= threshold
-          ? `${ratio}:1 ≥ ${threshold}:1 (${pair.level})`
-          : ratio >= 4.5
-            ? `${ratio}:1 passes AA but misses ${pair.level} (${threshold}:1)`
-            : `${ratio}:1 below AA 4.5:1 — do not use this pair for body text`,
-      value: `${ratio}:1`,
+      detail: ratio >= threshold
+        ? ratio + ":1 meets " + pair.level + " threshold " + threshold + ":1"
+        : ratio >= 4.5
+          ? ratio + ":1 meets AA but misses " + pair.level + " threshold " + threshold + ":1"
+          : ratio + ":1 fails the WCAG AA 4.5:1 text threshold",
+      value: ratio + ":1",
     });
   }
-  // WCAG 2.2 structural checks (declarative — verified against source patterns)
+
+  const focus = auditSourceCheck(
+    DESIGN_SOURCE_CHECKS.focusVisible,
+    "The actual global stylesheet includes an explicit 2px :focus-visible outline.",
+    "The actual global stylesheet is missing the explicit focus-visible outline rule."
+  );
   checks.push({
     id: "wcag-focus-visible",
     pack: "wcag22",
-    label: "Focus visibility token",
-    status: "pass",
-    detail: "Global :focus-visible ring wired to --ring (#2ce8c8), 2px minimum, never removed",
+    label: "Keyboard focus visibility",
+    ...focus,
   });
-  checks.push({
-    id: "wcag-lang-dir",
-    pack: "wcag22",
-    label: "Document language & RTL",
-    status: "pass",
-    detail: "html lang switches en/ar with dir=rtl for Arabic (I6 layer); both declared at runtime",
-  });
+
+  const motion = auditSourceCheck(
+    DESIGN_SOURCE_CHECKS.reducedMotion,
+    "The actual stylesheet disables/reduces animation and transition motion under prefers-reduced-motion.",
+    "The actual stylesheet is missing the reduced-motion media query or its animation override."
+  );
   checks.push({
     id: "wcag-motion",
     pack: "wcag22",
-    label: "Reduced-motion respect",
-    status: "pass",
-    detail: "@media (prefers-reduced-motion: reduce) disables radar sweep, aurora and dash-flow animations",
+    label: "Reduced-motion preference",
+    ...motion,
   });
 
-  // ── Performance budgets from live telemetry ────────────────
+  const language = auditSourceCheck(
+    DESIGN_SOURCE_CHECKS.clientLocaleSync,
+    "The language provider updates document lang and dir when the selected language changes.",
+    "The language provider does not update both document lang and dir."
+  );
+  checks.push({
+    id: "wcag-lang-dir",
+    pack: "wcag22",
+    label: "Runtime language and RTL direction",
+    ...language,
+  });
+  checks.push({
+    id: "wcag-server-locale",
+    pack: "wcag22",
+    label: "Server-rendered locale",
+    status: DESIGN_SOURCE_CHECKS.serverLocaleNegotiation ? "pass" : "warn",
+    detail: DESIGN_SOURCE_CHECKS.serverLocaleNegotiation
+      ? "The initial HTML language is negotiated before rendering."
+      : "Arabic locale is applied on the client after hydration; the initial server-rendered HTML remains lang=en and may briefly be LTR.",
+  });
+
+  // ── Performance is not measured until there are real completed runs ──
   const runs = await db.pipelineRun.findMany({
     where: { status: "done", latencyMs: { not: null } },
     orderBy: { createdAt: "desc" },
     take: 100,
+    select: { latencyMs: true },
   });
-  const latencies = runs.map((r) => r.latencyMs ?? 0).sort((a, b) => a - b);
-  const p95 = latencies.length ? latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * 0.95))] : 0;
-  const BUDGET_P95 = 90_000; // stage agents are long-horizon LLM calls; budget is per stage run
+  const latencies = runs.map((run) => run.latencyMs).filter((value): value is number => value !== null);
+  const p95 = nearestRankPercentile(latencies, 0.95);
+  const latencyAudit = auditDataAvailability(
+    latencies.length,
+    p95 ?? Number.NaN,
+    90_000,
+    "max"
+  );
   checks.push({
     id: "perf-stage-p95",
     pack: "performance",
-    label: "Stage agent latency p95",
-    status: p95 <= BUDGET_P95 ? "pass" : "warn",
-    detail: `p95 over last ${latencies.length} completed runs: ${(p95 / 1000).toFixed(1)}s (budget ${(BUDGET_P95 / 1000).toFixed(0)}s)`,
-    value: `${(p95 / 1000).toFixed(1)}s`,
+    label: "Stage-agent latency p95",
+    status: latencyAudit.status,
+    detail: p95 === null
+      ? "No completed stage-run latency observations are available yet."
+      : "Nearest-rank p95 over " + latencies.length + " completed runs: " + (p95 / 1000).toFixed(1) + "s (budget 90s).",
+    value: p95 === null ? undefined : (p95 / 1000).toFixed(1) + "s",
   });
+
   const costliest = await db.pipelineRun.findFirst({
     where: { estCostUsd: { not: null } },
     orderBy: { estCostUsd: "desc" },
+    select: { estCostUsd: true },
   });
-  const BUDGET_RUN_COST = 0.05;
+  const costAudit = auditDataAvailability(
+    costliest ? 1 : 0,
+    costliest?.estCostUsd ?? Number.NaN,
+    0.05,
+    "max"
+  );
   checks.push({
     id: "perf-run-cost",
     pack: "performance",
-    label: "Per-run cost budget",
-    status: (costliest?.estCostUsd ?? 0) <= BUDGET_RUN_COST ? "pass" : "warn",
+    label: "Per-run estimated cost",
+    status: costAudit.status,
     detail: costliest
-      ? `costliest run $${(costliest.estCostUsd ?? 0).toFixed(4)} (budget $${BUDGET_RUN_COST.toFixed(2)} blended estimate)`
-      : "no runs recorded yet",
-    value: costliest ? `$${(costliest.estCostUsd ?? 0).toFixed(4)}` : undefined,
+      ? "Highest recorded heuristic cost estimate is $" + (costliest.estCostUsd ?? 0).toFixed(4) + " (budget $0.05). Token cost is estimated, not provider-billed usage."
+      : "No run-cost observations are available yet.",
+    value: costliest ? "$" + (costliest.estCostUsd ?? 0).toFixed(4) : undefined,
   });
+
   checks.push({
     id: "perf-degradation",
     pack: "performance",
-    label: "Graceful degradation",
-    status: "pass",
-    detail: "Every LLM call has transport retry + JSON repair; instruments degrade to live DB numbers when the model is unavailable",
+    label: "Graceful degradation under provider failure",
+    status: "not-assessed",
+    detail: "Transient retry classification and runtime response validation are implemented; production fault-injection and multi-provider failover have not been measured by this runtime audit.",
   });
 
-  // ── PDPL structural checks from the data itself ────────────
+  // ── Data-protection signals are explicit and non-legal ──
   const [evidenceCount, consented] = await Promise.all([
     db.evidence.count(),
-    db.evidence.count({ where: { consent: true } }),
+    db.evidence.count({ where: { consent: true, origin: { not: "synthetic" } } }),
   ]);
-  const consentRatio = evidenceCount ? consented / evidenceCount : 1;
+  const consentAudit = auditConsentCoverage(evidenceCount, consented);
   checks.push({
-    id: "pdpl-consent",
+    id: "pdpl-ai-processing-permission",
     pack: "pdpl",
-    label: "Consent coverage on evidence",
-    status: consentRatio >= 0.5 ? "pass" : "warn",
-    detail: `${consented}/${evidenceCount} evidence record(s) carry recorded stakeholder consent (G13 registry)`,
-    value: `${Math.round(consentRatio * 100)}%`,
+    label: "Evidence AI-processing permission",
+    status: consentAudit.status,
+    detail: consentAudit.detail,
+    value: consentAudit.ratio === null ? undefined : Math.round(consentAudit.ratio * 100) + "%",
   });
-  const projects = await db.project.count();
-  const demoProjects = await db.project.count({ where: { isDemo: true } });
+
+  // Project deletion cascades are wired, but this must not be mistaken for
+  // a tested legal retention/erasure programme. In particular, the journal
+  // currently cascades with the project and no immutable archive is claimed.
   checks.push({
     id: "pdpl-erasure",
     pack: "pdpl",
-    label: "Right-to-erasure path",
-    status: projects > demoProjects || projects === 0 ? "pass" : "warn",
-    detail: "Project delete cascades to evidence, requirements, journals and integrations (Prisma onDelete: Cascade); demo data excluded from any retention claim",
+    label: "Retention and erasure verification",
+    status: "not-assessed",
+    detail: "Project deletion and database cascades exist, but retention policy, backup erasure, legal holds and preservation/export of decision history have not been independently verified.",
   });
-  const integrationRows = await db.integration.count();
+
+  const integrationRows = await db.integration.findMany({
+    select: { config: true },
+  });
+  const credentials = integrationRows.map((row) => {
+    try {
+      const config = JSON.parse(row.config) as Record<string, unknown>;
+      return { encrypted: isEncryptedSecret(config.token) };
+    } catch {
+      return { encrypted: false };
+    }
+  });
+  const credentialAudit = auditCredentialEncryption(credentials);
   checks.push({
     id: "pdpl-credentials",
     pack: "pdpl",
-    label: "Credential exposure surface",
-    status: "pass",
-    detail: `${integrationRows} stored integration config(s) — tokens are server-only and always masked in API responses`,
+    label: "Integration credential encryption at rest",
+    status: credentialAudit.status,
+    detail: credentialAudit.detail,
+    value: credentialAudit.total
+      ? credentialAudit.encrypted + "/" + credentialAudit.total + " encrypted"
+      : undefined,
   });
+
   checks.push({
     id: "pdpl-residency",
     pack: "pdpl",
-    label: "Data residency option",
-    status: "pass",
-    detail: "Local provider (RP_LLM_PROVIDER=local) supports air-gapped deployments so evidence never leaves the jurisdiction (Egypt PDPL)",
+    label: "External model data residency",
+    status: "not-assessed",
+    detail: "A local-provider option exists, but provider endpoint ownership, runtime network path, jurisdiction, contractual safeguards and backup locations are not established by this source check.",
   });
 
   const summary = {
-    pass: checks.filter((c) => c.status === "pass").length,
-    warn: checks.filter((c) => c.status === "warn").length,
-    fail: checks.filter((c) => c.status === "fail").length,
+    pass: checks.filter((check) => check.status === "pass").length,
+    warn: checks.filter((check) => check.status === "warn").length,
+    fail: checks.filter((check) => check.status === "fail").length,
+    notAssessed: checks.filter((check) => check.status === "not-assessed").length,
   };
-  return { checks, summary, generatedAt: new Date().toISOString() };
+  return {
+    checks,
+    summary,
+    generatedAt: new Date().toISOString(),
+    designTokenSourceSha256: DESIGN_TOKEN_SOURCE_SHA256,
+  };
 }

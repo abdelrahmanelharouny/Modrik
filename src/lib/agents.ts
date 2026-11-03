@@ -4,7 +4,7 @@
 //   I1  ask-vs-proceed signals (askCost + fallbackAssumption)
 //   I2  confidence values per requirement (calibration input)
 //   I3  critic-verifier pass (Propose → Verify → Human arbitrates)
-//   I4  cross-project memory re-injection + harvest
+//   I4  project-scoped memory re-injection + harvest
 //   I7  synthetic stakeholder wind tunnel (persona + held-out secret)
 //   I8  drift radar over the requirement graph
 //   I11 compliance / NFR constraint pack checks
@@ -13,8 +13,11 @@
 //   G4  structured state re-injection between stages
 //   G6  prompt version recorded on every run
 // ─────────────────────────────────────────────────────────────
-import ZAI from "z-ai-web-dev-sdk"; // retained for direct SDK consumers; agent calls flow through providers.ts
+import ZAI from "z-ai-web-dev-sdk";
+import { z } from "zod";
+import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs"; // retained for direct SDK consumers; agent calls flow through providers.ts
 import { db } from "@/lib/db";
+import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, hasHumanCandidateEdits, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import type { Stage } from "@/lib/rp";
@@ -40,6 +43,133 @@ function newUsage(): UsageAcc {
   return { calls: 0, latencyMs: 0, estTokens: 0 };
 }
 
+const questionsOutputSchema = z.object({
+  questions: z.array(z.object({
+    text: z.string().trim().min(1).max(600),
+    rationale: z.string().max(600).catch(""),
+    priority: z.enum(["high", "medium", "low"]).catch("medium"),
+    askCost: z.number().int().min(1).max(5).catch(3),
+    fallbackAssumption: z.string().max(400).catch(""),
+  })).max(20),
+});
+
+const candidatesOutputSchema = z.object({
+  candidates: z.array(z.object({
+    title: z.string().trim().min(1).max(200),
+    description: z.string().max(1000).catch(""),
+    evidenceCodes: z.array(z.string().max(80)).max(30).catch([]),
+    suggestedImpact: z.number().min(1).max(5).catch(3),
+    suggestedEffort: z.number().min(1).max(5).catch(3),
+  })).max(12),
+});
+
+const requirementsOutputSchema = z.object({
+  requirements: z.array(z.object({
+    text: z.string().trim().min(1).max(800),
+    type: z.enum(["functional", "nonfunctional", "constraint"]).catch("functional"),
+    priority: z.enum(["Must", "Should", "Could", "Won't"]).catch("Should"),
+    evidenceCodes: z.array(z.string().max(80)).max(30).catch([]),
+    confidence: z.number().min(0).max(100).catch(60),
+    language: z.enum(["en", "ar-EG", "codeswitch"]).catch("en"),
+  })).max(30),
+});
+
+const verdictsOutputSchema = z.object({
+  verdicts: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    verdict: z.enum(["supported", "weak"]),
+    note: z.string().max(400).catch(""),
+  })).max(30),
+});
+
+const assessmentsOutputSchema = z.object({
+  assessments: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    score: z.number().min(0).max(100),
+    issues: z.string().max(500).catch(""),
+    suggestion: z.string().max(800).catch(""),
+  })).max(30),
+});
+
+const storiesOutputSchema = z.object({
+  stories: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    title: z.string().trim().min(1).max(200),
+    narrative: z.string().max(800).catch(""),
+    acceptance: z.array(z.string().min(1).max(800)).max(8).catch([]),
+    investScore: z.number().min(0).max(100).catch(0),
+    investNote: z.string().max(400).catch(""),
+  })).max(40),
+});
+
+const conflictsOutputSchema = z.object({
+  conflicts: z.array(z.object({
+    reqARef: z.string().trim().min(1).max(40),
+    reqBRef: z.string().trim().min(1).max(40),
+    kind: z.enum(["contradiction", "duplication", "overlap"]).catch("overlap"),
+    taxonomy: z.enum(["value", "terminology", "scale", "constraint", "precedence", "knowledge"]).catch("value"),
+    description: z.string().trim().min(1).max(800),
+    severity: z.enum(["high", "medium", "low"]).catch("medium"),
+    suggestion: z.string().max(800).catch(""),
+    implications: z.array(z.object({
+      option: z.string().min(1).max(200),
+      impact: z.string().max(300).catch(""),
+    })).max(4).catch([]),
+  })).max(20),
+});
+
+const windTunnelOutputSchema = z.object({
+  answers: z.array(z.object({
+    id: z.string().trim().min(1).max(100),
+    answer: z.string().trim().min(1).max(1500),
+  })).max(30),
+});
+
+const driftOutputSchema = z.object({
+  impacted: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    note: z.string().max(500),
+  })).max(100),
+  summary: z.string().trim().min(1).max(1200),
+});
+
+const complianceOutputSchema = z.object({
+  overall: z.enum(["pass", "partial", "fail"]),
+  gaps: z.array(z.object({
+    aspect: z.string().trim().min(1).max(200),
+    note: z.string().max(600),
+    suggestion: z.string().max(800),
+  })).max(50),
+  covered: z.array(z.object({
+    refId: z.string().trim().min(1).max(40),
+    aspect: z.string().trim().min(1).max(200),
+  })).max(100),
+});
+
+const healthOutputSchema = z.object({
+  summary: z.string().trim().min(1).max(1200),
+  strengths: z.array(z.string().max(400)).max(20),
+  risks: z.array(z.object({
+    title: z.string().trim().min(1).max(200),
+    note: z.string().max(600),
+  })).max(20),
+  recommendations: z.array(z.string().max(600)).max(20),
+  ambiguityDebt: z.string().max(600),
+  uncertaintyLedger: z.string().max(600),
+  conflictDigest: z.string().max(600),
+});
+
+const memoryOutputSchema = z.object({
+  glossary: z.array(z.object({
+    term: z.string().trim().min(1).max(120),
+    definition: z.string().max(400),
+  })).max(10),
+  lessons: z.array(z.object({
+    term: z.string().trim().min(1).max(120),
+    detail: z.string().max(400),
+  })).max(10),
+});
+
 async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
   // Dev item 12 — the FIXED STRATEGY (transport retry, usage accounting)
   // lives here; the MODEL is whatever provider resolves from the environment.
@@ -53,9 +183,10 @@ async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
   try {
     content = await provider.complete(messages);
   } catch (err) {
-    // one transient-failure retry (network blips / 5xx) — the audit found a
-    // single unguarded failure aborts a whole stage run
-    await new Promise((r) => setTimeout(r, 1500));
+    // Retry only network/timeouts, rate limits and 5xx. A 401/403/400 or
+    // schema/configuration error is permanent and should surface immediately.
+    if (!retryableProviderFailure(err)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     content = await provider.complete(messages);
   }
   const latencyMs = Date.now() - t0;
@@ -71,12 +202,13 @@ async function callLLM(userPrompt: string, usage: UsageAcc): Promise<string> {
 // Call + parse with one retry on unparseable output (audit finding: a single
 // malformed LLM response used to abort the whole stage run with a 500).
 // Usage accumulates across attempts so the cost observatory stays honest.
-async function callLLMJson<T>(userPrompt: string, usage: UsageAcc, attempts = 2): Promise<T> {
+async function callLLMJson<T>(userPrompt: string, usage: UsageAcc, schema: z.ZodType<T>, attempts = 2): Promise<T> {
   let lastErr: unknown = new Error("Agent returned unparseable output");
   for (let i = 0; i < attempts; i++) {
     const raw = await callLLM(userPrompt, usage);
     try {
-      return parseJson<T>(raw);
+      const parsed = parseJson<unknown>(raw);
+      return schema.parse(parsed);
     } catch (err) {
       lastErr = err;
     }
@@ -183,20 +315,18 @@ async function recordUsage(runId: string | undefined, u: UsageAcc) {
 
 // ---------- context builders (G4 state re-injection) ----------
 
-function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string }[]): string {
-  if (!evidences.length) return "(no evidence sources provided yet)";
-  // Audit fix: a hard 1200-char per-evidence window was silently blinding
-  // every agent to everything beyond it (confirmed by the truncation probe).
-  // Budget: up to 4000 chars per evidence, 16000 chars total; when the total
-  // overflows, shrink the per-evidence window fairly but never below 1200.
-  const TOTAL_BUDGET = 16000;
-  const PER_MAX = 4000;
-  const total = evidences.reduce((s, e) => s + e.content.length, 0);
-  let per = PER_MAX;
-  if (total > TOTAL_BUDGET) {
-    per = Math.max(1200, Math.floor(TOTAL_BUDGET / evidences.length));
+function evidenceBlock(evidences: { code: string; title: string; sourceType: string; language: string; content: string; consent?: boolean; origin?: string }[]): string {
+  const eligible = filterEvidenceForAI(evidences);
+  if (!eligible.length) {
+    return evidences.length
+      ? "(evidence sources are stored, but none has explicit permission for AI processing; no source content is sent to the model)"
+      : "(no evidence sources provided yet)";
   }
-  return evidences
+  // Hard cap: each eligible source receives an equal share of a 16,000
+  // character aggregate budget, up to 4,000 chars. The per-source floor is
+  // intentionally zero for large source counts; the overall cap must win.
+  const per = evidenceContentBudget(eligible.length, 16000, 4000);
+  return eligible
     .map((e) => {
       const body =
         e.content.length > per
@@ -211,14 +341,14 @@ function briefBlock(brief: string): string {
   return brief?.trim() ? brief : "(empty brief)";
 }
 
-async function memoryBlock(): Promise<string> {
+async function memoryBlock(projectId: string): Promise<string> {
   const lessons = await db.memoryEntry.findMany({
-    where: { kind: "lesson" },
+    where: { projectId, kind: "lesson" },
     orderBy: { createdAt: "desc" },
     take: 6,
   });
   if (!lessons.length) return "";
-  return `\nCROSS-PROJECT LESSONS (learned from previous projects — apply where relevant):\n${lessons
+  return `\nPROJECT-SCOPED LESSONS (from this project's own evidence and decisions):\n${lessons
     .map((l) => `- ${l.term}: ${l.detail}`)
     .join("\n")}\n`;
 }
@@ -246,9 +376,16 @@ export async function runElicitation(projectId: string, runId?: string): Promise
     where: { id: projectId },
     include: { evidences: true },
   });
+  const existingQuestions = await db.question.findMany({
+    where: { projectId },
+    select: { answered: true, answer: true, answerSource: true, resolution: true },
+  });
+  if (hasHumanQuestionDecision(existingQuestions)) {
+    throw new Error("Refusing to regenerate elicitation: human answers or uncertainty decisions already exist.");
+  }
   const usage = newUsage();
 
-  const memory = await memoryBlock();
+  const memory = await memoryBlock(projectId);
 
   const prompt = `PROJECT BRIEF:
 ${briefBlock(project.brief)}
@@ -264,13 +401,14 @@ This platform implements an UNCERTAINTY-GATED ask-versus-proceed policy: for eve
 
 Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "priority": "high|medium|low", "askCost": 2, "fallbackAssumption": "if skipped, assume that ..."}]}`;
 
-  const out = await callLLMJson<{ questions: AgentQuestion[] }>(prompt, usage);
+  const out = await callLLMJson<{ questions: AgentQuestion[] }>(prompt, usage, questionsOutputSchema);
   const qs = (out.questions ?? []).slice(0, 7);
+  if (!qs.length) throw new Error("Elicitation returned no usable questions; the previous question set was preserved.");
 
-  await db.question.deleteMany({ where: { projectId } });
-  await db.$transaction(
-    qs.map((q, i) =>
-      db.question.create({
+  await db.$transaction(async (tx) => {
+    await tx.question.deleteMany({ where: { projectId } });
+    for (const [i, q] of qs.entries()) {
+      await tx.question.create({
         data: {
           projectId,
           order: i,
@@ -280,9 +418,9 @@ Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "pr
           askCost: Math.min(5, Math.max(1, Math.round(Number(q.askCost) || 3))),
           fallbackAssumption: String(q.fallbackAssumption ?? "").slice(0, 400) || null,
         },
-      })
-    )
-  );
+      });
+    }
+  });
   await saveArtifact(projectId, "ELICITATION", out);
   await recordUsage(runId, usage);
 }
@@ -302,10 +440,17 @@ export async function runProblemSelection(projectId: string, runId?: string): Pr
     where: { id: projectId },
     include: { evidences: true, questions: true },
   });
+  const existingCandidates = await db.problemCandidate.findMany({
+    where: { projectId },
+    select: { selected: true, humanEdited: true },
+  });
+  if (hasHumanCandidateEdits(existingCandidates)) {
+    throw new Error("Refusing to regenerate problem candidates: a candidate has been selected or manually scored.");
+  }
   const usage = newUsage();
 
   const answers = project.questions
-    .filter((q) => q.answered && q.answer)
+    .filter(isHumanStakeholderAnswer)
     .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
     .join("\n\n");
 
@@ -320,27 +465,29 @@ ${answers || "(no answers yet)"}
 ${uncertaintyBlock(project.questions)}
 TASK: Propose 3-4 candidate problem statements worth solving in this project. For each: a short title, a 2-3 sentence description, the evidence codes that ground it, and suggested impact (1-5, value to users/business) and effort (1-5, 5 = hardest). Prefer problems strongly supported by the evidence. Treat ledger assumptions as provisional, not as facts.
 
-Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCodes": ["E1"], "suggestedImpact": 4, "suggestedEffort": 3}]}`;
+Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCodes": ["E-ABC12345"], "suggestedImpact": 4, "suggestedEffort": 3}]}`;
 
-  const out = await callLLMJson<{ candidates: AgentCandidate[] }>(prompt, usage);
+  const out = await callLLMJson<{ candidates: AgentCandidate[] }>(prompt, usage, candidatesOutputSchema);
   const cs = (out.candidates ?? []).slice(0, 4);
+  if (!cs.length) throw new Error("Problem selection returned no usable candidates; the previous candidate set was preserved.");
 
-  await db.problemCandidate.deleteMany({ where: { projectId } });
   const clamp = (n: unknown) => Math.min(5, Math.max(1, Math.round(Number(n) || 3)));
-  await db.$transaction(
-    cs.map((c) =>
-      db.problemCandidate.create({
+  await db.$transaction(async (tx) => {
+    await tx.problemCandidate.deleteMany({ where: { projectId } });
+    for (const candidate of cs) {
+      await tx.problemCandidate.create({
         data: {
           projectId,
-          title: String(c.title ?? "Untitled").slice(0, 200),
-          description: String(c.description ?? "").slice(0, 1000),
-          impact: clamp(c.suggestedImpact),
-          effort: clamp(c.suggestedEffort),
-          evidenceIds: (c.evidenceCodes ?? []).join(","),
+          humanEdited: false,
+          title: String(candidate.title ?? "Untitled").slice(0, 200),
+          description: String(candidate.description ?? "").slice(0, 1000),
+          impact: clamp(candidate.suggestedImpact),
+          effort: clamp(candidate.suggestedEffort),
+          evidenceIds: (candidate.evidenceCodes ?? []).join(","),
         },
-      })
-    )
-  );
+      });
+    }
+  });
   await saveArtifact(projectId, "PROBLEM_SELECTION", out);
   await recordUsage(runId, usage);
 }
@@ -367,15 +514,27 @@ export async function runExtraction(projectId: string, runId?: string): Promise<
     where: { id: projectId },
     include: { evidences: true, questions: true, candidates: true },
   });
+  const [existingRequirements, storiesCount, conflictsCount, edgesCount, scenariosCount, syncMapsCount] = await Promise.all([
+    db.requirement.findMany({ where: { projectId }, select: { status: true } }),
+    db.userStory.count({ where: { projectId } }),
+    db.conflict.count({ where: { projectId } }),
+    db.reqEdge.count({ where: { projectId } }),
+    db.execScenario.count({ where: { projectId } }),
+    db.syncMap.count({ where: { projectId } }),
+  ]);
+  if (existingRequirements.some((r) => r.status !== "draft") ||
+      storiesCount + conflictsCount + edgesCount + scenariosCount + syncMapsCount > 0) {
+    throw new Error("Refusing to replace requirements: reviewed requirements or dependent stories, conflicts, graph edges, scenarios or sync records already exist.");
+  }
   const usage = newUsage();
 
   const answers = project.questions
-    .filter((q) => q.answered && q.answer)
+    .filter(isHumanStakeholderAnswer)
     .map((q) => `Q: ${q.text}\nA: ${q.answer}`)
     .join("\n\n");
 
   const selected = project.candidates.find((c) => c.selected);
-  const evidences = project.evidences;
+  const evidences = filterEvidenceForAI(project.evidences);
   const codeToId = new Map(evidences.map((e) => [e.code, e.id]));
 
   const prompt = `PROJECT BRIEF:
@@ -394,81 +553,97 @@ TASK: Extract 8-12 atomic requirements for the selected problem. Each requiremen
 
 Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional|constraint", "priority": "Must|Should|Could|Won't", "evidenceCodes": ["E1"], "confidence": 82, "language": "en"}]}`;
 
-  const out = await callLLMJson<{ requirements: AgentRequirement[] }>(prompt, usage);
+  const out = await callLLMJson<{ requirements: AgentRequirement[] }>(prompt, usage, requirementsOutputSchema);
   const rs = (out.requirements ?? []).slice(0, 14);
 
-  // replace previous extraction
-  await db.requirement.deleteMany({ where: { projectId } });
-  let i = 0;
-  const refIndex: { refId: string; id: string; text: string }[] = [];
-  for (const r of rs) {
-    i += 1;
-    const refId = `REQ-${String(i).padStart(2, "0")}`;
-    const type = ["functional", "nonfunctional", "constraint"].includes(r.type)
-      ? r.type
-      : "functional";
-    const priority = ["Must", "Should", "Could", "Won't"].includes(r.priority)
-      ? r.priority
-      : "Should";
-    const codes = (r.evidenceCodes ?? []).filter((c) => codeToId.has(c));
-    const created = await db.requirement.create({
-      data: {
-        projectId,
-        refId,
-        text: String(r.text ?? "").slice(0, 800),
-        type,
-        priority,
-        language: ["en", "ar-EG", "codeswitch"].includes(r.language) ? r.language : "en",
-        confidence: Math.min(100, Math.max(0, Math.round(Number(r.confidence) || 60))),
-        ambiguity: -1,
-        order: i,
-      },
-    });
-    refIndex.push({ refId, id: created.id, text: created.text });
-    if (codes.length === 0) {
-      // Audit fix: an ungrounded requirement used to slip through silently.
-      // Force it into the critic's "weak" lane so the human must ground or delete it.
-      await db.requirement.update({
-        where: { id: created.id },
+  // Replace the generated requirements and their provenance in one transaction.
+  // If any record or TraceLink fails to persist, the old baseline stays intact.
+  if (!rs.length) throw new Error("Extraction returned no requirements; the previous requirement set was preserved.");
+  const refIndex: { refId: string; id: string; text: string; evidenceCodes: string[] }[] = [];
+  await db.$transaction(async (tx) => {
+    await tx.requirement.deleteMany({ where: { projectId } });
+    let i = 0;
+    for (const r of rs) {
+      i += 1;
+      const refId = `REQ-${String(i).padStart(2, "0")}`;
+      const type = ["functional", "nonfunctional", "constraint"].includes(r.type)
+        ? r.type
+        : "functional";
+      const priority = ["Must", "Should", "Could", "Won't"].includes(r.priority)
+        ? r.priority
+        : "Should";
+      const codes = (r.evidenceCodes ?? []).filter((code) => codeToId.has(code));
+      const created = await tx.requirement.create({
         data: {
-          verifyStatus: "weak",
-          verifyNote: "No valid evidence citation provided by the extractor — human must ground or delete this requirement.",
+          projectId,
+          refId,
+          text: String(r.text ?? "").slice(0, 800),
+          type,
+          priority,
+          language: ["en", "ar-EG", "codeswitch"].includes(r.language) ? r.language : "en",
+          confidence: Number.isFinite(Number(r.confidence))
+            ? Math.min(100, Math.max(0, Math.round(Number(r.confidence))))
+            : 60,
+          ambiguity: -1,
+          order: i,
         },
       });
+      refIndex.push({ refId, id: created.id, text: created.text, evidenceCodes: codes });
+      if (codes.length === 0) {
+        await tx.requirement.update({
+          where: { id: created.id },
+          data: {
+            verifyStatus: "weak",
+            verifyNote: "No valid evidence citation provided by the extractor — human must ground or delete this requirement.",
+          },
+        });
+      }
+      for (const code of codes) {
+        const evidenceId = codeToId.get(code);
+        if (!evidenceId) continue;
+        await tx.traceLink.create({
+          data: {
+            projectId,
+            requirementId: created.id,
+            evidenceId,
+            evidenceCode: code,
+            note: "cited by extraction agent",
+          },
+        });
+      }
     }
-    for (const c of codes) {
-      await db.traceLink.create({
-        data: { projectId, requirementId: created.id, evidenceCode: c, note: "cited by extraction agent" },
-      });
-    }
-  }
+  });
 
   // ── I3 critic-verifier pass: second model call checks each
   //    requirement against the evidence spans (Propose → Verify).
   try {
-    const verifyPrompt = `You are the VERIFIER in a propose-verify requirements pipeline. Below are candidate requirements and the evidence sources they claim to be grounded in. For each requirement, judge strictly whether the evidence actually supports it:
-- "supported": the evidence explicitly states or clearly implies it.
-- "weak": the evidence only partially supports it, is stretched, or the requirement adds an assumption not in the evidence.
+    const verifiable = refIndex.filter((r) => r.evidenceCodes.length > 0);
+    if (verifiable.length) {
+      const verifierCases = verifiable.map((r) => {
+        const cited = evidences.filter((e) => r.evidenceCodes.includes(e.code));
+        return `CANDIDATE ${r.refId}: ${r.text}\nITS CITED EVIDENCE ONLY:\n${evidenceBlock(cited)}`;
+      });
+      const verifyPrompt = `You are the VERIFIER in a propose-verify requirements pipeline.
+Each candidate is paired ONLY with the evidence sources it explicitly cited. Do not use another candidate's evidence or unrelated project context.
+For each candidate, mark "supported" only when its own cited evidence directly states or clearly entails the requirement. Otherwise mark "weak".
 
-EVIDENCE SOURCES:
-${evidenceBlock(evidences)}
-
-CANDIDATE REQUIREMENTS:
-${refIndex.map((r) => `${r.refId}: ${r.text}`).join("\n")}
+${verifierCases.join("\n\n---\n\n")}
 
 Return JSON: {"verdicts": [{"refId": "REQ-01", "verdict": "supported|weak", "note": "one-line justification"}]}`;
 
-    const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage);
-    for (const v of vOut.verdicts ?? []) {
-      const target = refIndex.find((r) => r.refId === v.refId);
-      if (!target) continue;
-      await db.requirement.update({
-        where: { id: target.id },
-        data: {
-          verifyStatus: v.verdict === "supported" ? "supported" : "weak",
-          verifyNote: String(v.note ?? "").slice(0, 400),
-        },
-      });
+      const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage, verdictsOutputSchema);
+      for (const v of vOut.verdicts ?? []) {
+        const target = refIndex.find((r) => r.refId === v.refId);
+        if (!target || !target.evidenceCodes.length) continue;
+        await db.requirement.update({
+          where: { id: target.id },
+          data: {
+            verifyStatus: v.verdict === "supported" ? "supported" : "weak",
+            verificationSource: "agent",
+            verifyNote: String(v.note ?? "").slice(0, 400),
+          },
+        });
+      }
     }
   } catch {
     // verifier is best-effort; requirements stay "unverified" on failure
@@ -505,7 +680,7 @@ TASK: Score each requirement for ambiguity from 0 (crisp, testable) to 100 (vagu
 
 Return JSON: {"assessments": [{"refId": "REQ-01", "score": 42, "issues": "vague term 'fast'", "suggestion": "rewritten requirement"}]}`;
 
-  const out = await callLLMJson<{ assessments: AgentAssessment[] }>(prompt, usage);
+  const out = await callLLMJson<{ assessments: AgentAssessment[] }>(prompt, usage, assessmentsOutputSchema);
   const map = new Map((out.assessments ?? []).map((a) => [a.refId, a]));
 
   for (const r of project.reqs) {
@@ -554,28 +729,44 @@ TASK: Write one user story per requirement (skip "Won't" priorities). Narrative 
 
 Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative": "As a...", "acceptance": ["Given ... when ... then ..."], "investScore": 78, "investNote": "..."}]}`;
 
-  const out = await callLLMJson<{ stories: AgentStory[] }>(prompt, usage);
+  const [existingStories, existingSyncMaps] = await Promise.all([
+    db.userStory.findMany({ where: { projectId }, select: { status: true } }),
+    db.syncMap.count({ where: { projectId } }),
+  ]);
+  if (existingStories.some((story) => story.status !== "draft") || existingSyncMaps > 0) {
+    throw new Error("Refusing to regenerate stories: reviewed or externally synchronized stories already exist.");
+  }
+
+  const out = await callLLMJson<{ stories: AgentStory[] }>(prompt, usage, storiesOutputSchema);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
-  await db.userStory.deleteMany({ where: { projectId } });
-  let i = 0;
-  for (const s of out.stories ?? []) {
-    const req = byRef.get(s.refId);
-    if (!req || req.priority === "Won't") continue;
-    i += 1;
-    await db.userStory.create({
-      data: {
-        projectId,
-        requirementId: req.id,
-        refId: `US-${String(i).padStart(2, "0")}`,
-        title: String(s.title ?? req.refId).slice(0, 200),
-        narrative: String(s.narrative ?? "").slice(0, 800),
-        acceptance: (s.acceptance ?? []).map(String).join("\n").slice(0, 2000),
-        investScore: Math.min(100, Math.max(0, Math.round(Number(s.investScore) || 0))),
-        investNote: String(s.investNote ?? "").slice(0, 400),
-      },
-    });
+  const validStories = (out.stories ?? []).filter((story) => {
+    const requirement = byRef.get(story.refId);
+    return Boolean(requirement && requirement.priority !== "Won't" && String(story.title ?? "").trim());
+  });
+  if (!validStories.length && project.reqs.some((requirement) => requirement.priority !== "Won't")) {
+    throw new Error("Story generation returned no valid stories; the previous story set was preserved.");
   }
+  await db.$transaction(async (tx) => {
+    await tx.userStory.deleteMany({ where: { projectId } });
+    let i = 0;
+    for (const story of validStories) {
+      const requirement = byRef.get(story.refId)!;
+      i += 1;
+      await tx.userStory.create({
+        data: {
+          projectId,
+          requirementId: requirement.id,
+          refId: `US-${String(i).padStart(2, "0")}`,
+          title: String(story.title ?? requirement.refId).slice(0, 200),
+          narrative: String(story.narrative ?? "").slice(0, 800),
+          acceptance: (story.acceptance ?? []).map(String).join("\n").slice(0, 2000),
+          investScore: Math.min(100, Math.max(0, Math.round(Number(story.investScore) || 0))),
+          investNote: String(story.investNote ?? "").slice(0, 400),
+        },
+      });
+    }
+  });
   await saveArtifact(projectId, "STORIES", out);
   await recordUsage(runId, usage);
 }
@@ -622,35 +813,42 @@ For each finding, lay out the IMPLICATIONS of each resolution direction — what
 
 Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "contradiction", "taxonomy": "scale", "description": "...", "severity": "high", "suggestion": "...", "implications": [{"option": "Keep REQ-01 as written", "impact": "..."}, {"option": "Keep REQ-04 as written", "impact": "..."}, {"option": "Merge/re-scope", "impact": "..."}]}]}`;
 
-  const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage);
+  const resolvedConflict = await db.conflict.findFirst({ where: { projectId, status: "resolved" }, select: { id: true } });
+  if (resolvedConflict) {
+    throw new Error("Refusing to regenerate conflicts: at least one conflict has a human resolution.");
+  }
+
+  const out = await callLLMJson<{ conflicts: AgentConflict[] }>(prompt, usage, conflictsOutputSchema);
   const byRef = new Map(project.reqs.map((r) => [r.refId, r]));
 
-  await db.conflict.deleteMany({ where: { projectId } });
   const TAXONOMIES = ["value", "terminology", "scale", "constraint", "precedence", "knowledge"];
-  for (const c of (out.conflicts ?? []).slice(0, 6)) {
-    const a = byRef.get(c.reqARef);
-    const b = byRef.get(c.reqBRef);
-    if (!a || !b || a.id === b.id) continue;
-    const implications = Array.isArray(c.implications)
-      ? c.implications
-          .filter((i) => i && i.option)
-          .slice(0, 4)
-          .map((i) => ({ option: String(i.option).slice(0, 200), impact: String(i.impact ?? "").slice(0, 300) }))
-      : [];
-    await db.conflict.create({
-      data: {
-        projectId,
-        reqAId: a.id,
-        reqBId: b.id,
-        kind: ["contradiction", "duplication", "overlap"].includes(c.kind) ? c.kind : "overlap",
-        taxonomy: TAXONOMIES.includes(c.taxonomy) ? c.taxonomy : "value",
-        description: String(c.description ?? "").slice(0, 800),
-        severity: ["high", "medium", "low"].includes(c.severity) ? c.severity : "medium",
-        suggestion: String(c.suggestion ?? "").slice(0, 800),
-        implications: implications.length ? JSON.stringify(implications) : null,
-      },
-    });
-  }
+  await db.$transaction(async (tx) => {
+    await tx.conflict.deleteMany({ where: { projectId } });
+    for (const conflict of (out.conflicts ?? []).slice(0, 6)) {
+      const a = byRef.get(conflict.reqARef);
+      const b = byRef.get(conflict.reqBRef);
+      if (!a || !b || a.id === b.id) continue;
+      const implications = Array.isArray(conflict.implications)
+        ? conflict.implications
+            .filter((item) => item && item.option)
+            .slice(0, 4)
+            .map((item) => ({ option: String(item.option).slice(0, 200), impact: String(item.impact ?? "").slice(0, 300) }))
+        : [];
+      await tx.conflict.create({
+        data: {
+          projectId,
+          reqAId: a.id,
+          reqBId: b.id,
+          kind: ["contradiction", "duplication", "overlap"].includes(conflict.kind) ? conflict.kind : "overlap",
+          taxonomy: TAXONOMIES.includes(conflict.taxonomy) ? conflict.taxonomy : "value",
+          description: String(conflict.description ?? "").slice(0, 800),
+          severity: ["high", "medium", "low"].includes(conflict.severity) ? conflict.severity : "medium",
+          suggestion: String(conflict.suggestion ?? "").slice(0, 800),
+          implications: implications.length ? JSON.stringify(implications) : null,
+        },
+      });
+    }
+  });
   await saveArtifact(projectId, "CONFLICTS", out);
   await recordUsage(runId, usage);
 }
@@ -684,7 +882,7 @@ TASK: Answer each question in character. If (and only if) a question directly pr
 
 Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
 
-  const out = await callLLMJson<{ answers: { id: string; answer: string }[] }>(prompt, usage);
+  const out = await callLLMJson<{ answers: { id: string; answer: string }[] }>(prompt, usage, windTunnelOutputSchema);
   let n = 0;
   for (const a of out.answers ?? []) {
     const q = pending.find((p) => p.id === a.id);
@@ -695,6 +893,7 @@ Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
         answer: `[synthetic · wind tunnel] ${String(a.answer).slice(0, 1500)}`,
         answered: true,
         resolution: "answered",
+        answerSource: "synthetic",
       },
     });
     n += 1;
@@ -712,7 +911,11 @@ Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
 
 // ---------- I8 drift radar ----------
 
-export async function runDrift(projectId: string, signal: string): Promise<{ impacted: number; summary: string }> {
+export async function runDrift(projectId: string, signal: string): Promise<{
+  impacted: number;
+  summary: string;
+  requirements: { refId: string; note: string }[];
+}> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
@@ -729,20 +932,49 @@ TASK: Determine which requirements are impacted by this change signal (contradic
 
 Return JSON: {"impacted": [{"refId": "REQ-03", "note": "why it is impacted"}], "summary": "..."}`;
 
-  const out = await callLLMJson<{ impacted: { refId: string; note: string }[]; summary: string }>(prompt, usage);
+  const out = await callLLMJson<{ impacted: { refId: string; note: string }[]; summary: string }>(prompt, usage, driftOutputSchema);
 
-  await db.requirement.updateMany({ where: { projectId }, data: { driftStatus: "none" } });
-  for (const imp of out.impacted ?? []) {
-    const r = project.reqs.find((x) => x.refId === imp.refId);
-    if (!r) continue;
-    await db.requirement.update({
-      where: { id: r.id },
-      data: { driftStatus: "suspected" },
+  const impactedById = new Map<string, { refId: string; note: string }>();
+  for (const impact of out.impacted ?? []) {
+    const requirement = project.reqs.find((item) => item.refId === impact.refId);
+    if (!requirement) continue;
+    impactedById.set(requirement.id, {
+      refId: requirement.refId,
+      note: String(impact.note ?? "").slice(0, 500),
     });
   }
-  await logDecision(projectId, "LIFECYCLE", "agent", "drift_check", out.summary ?? "");
-  await saveArtifact(projectId, "DRIFT", out);
-  return { impacted: (out.impacted ?? []).length, summary: String(out.summary ?? "") };
+  // A new scan is additive: it must never silently clear a previous drift
+  // signal. Only an explicit human triage decision may clear/confirm a flag.
+  await db.$transaction(async (tx) => {
+    for (const [requirementId] of impactedById) {
+      await tx.requirement.update({
+        where: { id: requirementId },
+        data: { driftStatus: "suspected" },
+      });
+    }
+    await tx.artifact.create({
+      data: {
+        projectId,
+        stage: "DRIFT",
+        kind: "json",
+        content: JSON.stringify({
+          ...out,
+          signal: signal.slice(0, 2000),
+          detectedAt: new Date().toISOString(),
+          impacted: [...impactedById.values()],
+        }).slice(0, 24000),
+      },
+    });
+  });
+  const impacted = [...impactedById.values()];
+  await logDecision(
+    projectId,
+    "LIFECYCLE",
+    "agent",
+    "drift_check",
+    `Change signal: ${signal.slice(0, 220)}; ${impacted.length} newly flagged requirement(s). ${String(out.summary ?? "").slice(0, 500)}`
+  );
+  return { impacted: impacted.length, summary: String(out.summary ?? ""), requirements: impacted };
 }
 
 // ---------- I11 compliance / NFR constraint packs ----------
@@ -791,7 +1023,7 @@ Return JSON: {"overall": "partial", "covered": [{"refId": "REQ-02", "aspect": "c
     overall: string;
     gaps: { aspect: string; note: string; suggestion: string }[];
     covered: { refId: string; aspect: string }[];
-  }>(prompt, usage);
+  }>(prompt, usage, complianceOutputSchema);
   await logDecision(projectId, "LIFECYCLE", "agent", "compliance_check", `${p.label}: ${out.overall}`);
   await saveArtifact(projectId, "COMPLIANCE", { pack, ...out });
   return out;
@@ -837,13 +1069,13 @@ TASK: Produce a requirements health report for handoff. Write it for a delivery 
 
 Return JSON: {"summary": "2-3 sentence overall health assessment", "strengths": ["..."], "risks": [{"title": "...", "note": "..."}], "recommendations": ["..."], "ambiguityDebt": "...", "uncertaintyLedger": "...", "conflictDigest": "..."}`;
 
-  const out = await callLLMJson<HealthReport>(prompt, usage);
+  const out = await callLLMJson<HealthReport>(prompt, usage, healthOutputSchema);
   await logDecision(projectId, "LIFECYCLE", "agent", "health_report", out.summary ?? "");
   await saveArtifact(projectId, "HEALTH", out);
   return out;
 }
 
-// ---------- I4 cross-project memory harvest ----------
+// ---------- I4 project-scoped memory harvest ----------
 
 export async function harvestMemory(projectId: string): Promise<void> {
   try {
@@ -853,23 +1085,23 @@ export async function harvestMemory(projectId: string): Promise<void> {
     });
     const usage = newUsage();
 
-    const prompt = `A requirements project just completed. Harvest reusable knowledge for FUTURE projects on this platform.
+    const prompt = `A requirements project just completed. Harvest reusable knowledge for the next stages of THIS project only. Do not generalize stakeholder data for other projects.
 
 PROJECT: ${project.name}
 BRIEF: ${briefBlock(project.brief)}
 DOMAIN EVIDENCE: ${evidenceBlock(project.evidences).slice(0, 2000)}
 SELECTED PROBLEM: ${project.candidates.find((c) => c.selected)?.title ?? "(none)"}
 Q&A OUTCOMES:
-${project.questions.filter((q) => q.answer).map((q) => `- Q: ${q.text.slice(0, 100)} → A: ${(q.answer ?? "").slice(0, 100)}`).join("\n") || "(none)"}
+${project.questions.filter(isHumanStakeholderAnswer).map((q) => `- Q: ${q.text.slice(0, 100)} → A: ${(q.answer ?? "").slice(0, 100)}`).join("\n") || "(none)"}
 
-TASK: Extract (a) 3-5 domain GLOSSARY terms with crisp definitions, and (b) 2-4 reusable LESSONS — what a future analyst should do differently on a similar project (question-outcome lessons, elicitation tactics, domain pitfalls). Lessons must be general enough to carry across projects.
+TASK: Extract (a) 3-5 domain GLOSSARY terms with crisp definitions, and (b) 2-4 project-specific LESSONS — what this same project's team should do in its next stages (decision constraints, discovered domain terms, validated tactics). Do not include personal data or material that should not leave this project's boundary.
 
 Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"term": "short lesson title", "detail": "..."}]}`;
 
     const out = await callLLMJson<{
       glossary: { term: string; definition: string }[];
       lessons: { term: string; detail: string }[];
-    }>(prompt, usage);
+    }>(prompt, usage, memoryOutputSchema);
 
     for (const g of (out.glossary ?? []).slice(0, 5)) {
       if (!g.term) continue;
@@ -880,7 +1112,7 @@ Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"
     for (const l of (out.lessons ?? []).slice(0, 4)) {
       if (!l.term) continue;
       await db.memoryEntry.create({
-        data: { projectId: null, kind: "lesson", term: String(l.term).slice(0, 120), detail: String(l.detail ?? "").slice(0, 400) },
+        data: { projectId, kind: "lesson", term: String(l.term).slice(0, 120), detail: String(l.detail ?? "").slice(0, 400) },
       });
     }
   } catch {

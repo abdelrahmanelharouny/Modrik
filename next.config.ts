@@ -11,17 +11,13 @@ import type { NextConfig } from "next";
 // • serverExternalPackages keeps z-ai-web-dev-sdk out of the
 //   bundler (it resolves its own transports/credentials at
 //   runtime and misbehaves when inlined).
-// • ignoreBuildErrors keeps the deploy path resilient; the
-//   project gate is `npx tsc --noEmit` (kept at zero errors)
-//   run separately in CI / pre-commit.
+// • TypeScript build errors are not ignored. CI runs the same
+//   strict compiler gate before the production build.
 // ─────────────────────────────────────────────────────────────
 
 const nextConfig: NextConfig = {
   ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
   serverExternalPackages: ["z-ai-web-dev-sdk", "@prisma/client", "prisma"],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   reactStrictMode: false,
 };
 

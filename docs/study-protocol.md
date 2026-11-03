@@ -8,9 +8,17 @@ unconstrained LLM chat.
 - **Version:** 1.0 · **Status:** protocol ready, data collection not started
 - **Populations:** 2–3 university software-engineering / student teams
   (pilot sites not yet signed — see FEATURES_STATUS.md)
-- **Data handling:** anonymised participant codes only; Egypt PDPL-aligned
-  consent; recordings and transcripts deleted after analysis; export is the
-  anonymised CSV at `GET /api/study?export=csv`.
+- **Data handling:** anonymised participant codes only; study-specific bearer
+  tokens; no participant names in the study database; recordings and transcripts
+  deleted after analysis. The moderator creates sessions while authenticated;
+  the raw per-session token is handed to the participant once and only its hash
+  is stored. Participants open `/study/participant` and submit updates to
+  `POST /api/study/respond` with the token as a Bearer credential. Session write
+  tokens expire after seven days; after Finish, only withdrawal is accepted.
+  Withdrawal scrubs measurements/events but leaves a minimal withdrawal marker.
+  Export remains owner-authenticated at
+  `GET /api/study?export=csv`. Legal compliance is not inferred by these
+  technical controls and requires a separately approved consent/retention policy.
 
 ## 1. Design
 
@@ -130,9 +138,16 @@ dimensions from `/api/projects/[id]/health`), calibration (Brier/ECE from
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /api/study` | open a session `{groupId, participantCode, scenarioId, projectId?}` |
-| `PATCH /api/study` | log events, task time, NASA-TLX `{mental, physical, temporal, performance, effort, frustration}`, SUS, finish |
-| `GET /api/study` | session listing (masked, for moderation dashboards) |
+| `POST /api/study` | moderator-only session creation; returns the raw participant bearer token once |
+| `/study/participant` | public participant portal; no account or session listing |
+| `POST /api/study/respond` | public token-scoped write for task time, NASA-TLX `{mental, physical, temporal, performance, effort, frustration}`, SUS, events and finish |
+| `PATCH /api/study` | owner-authenticated moderation updates and correction |
+| `GET /api/study` | owner-authenticated session listing (masked, for moderation dashboards) |
 | `GET /api/study?export=csv` | anonymised analysis export |
 
 Groups: `A_traditional` · `B_unconstrained_llm` · `C_modrik`.
+
+
+### 7.1 Participant credential lifecycle
+
+The moderator creates a session while signed in and receives a random `mps_` bearer token. The raw token must be delivered to that participant through a separate trusted channel and must not be placed in notes, URLs, exported CSV or screen recordings. The server stores only SHA-256(token), accepts writes at `POST /api/study/respond`, rate-limits each session token, validates metric ranges, and locks the session after `finished=true`. Token expiry is seven days from creation. After finish it permits withdrawal only; no further measurements or events can be added. A lost token is not recoverable from the database; the moderator should revoke/replace the session rather than attempting to reconstruct the secret.
