@@ -1,4 +1,4 @@
-export interface ReverseTraceRequirement { id: string; refId: string }
+export interface ReverseTraceRequirement { id: string; refId: string; text?: string; status?: string; priority?: string }
 export interface ReverseTraceTrackerRecord { requirementId?: string | null; storyId?: string | null; localLabel?: string | null }
 export function resolveTrackerRequirement(syncMap: ReverseTraceTrackerRecord | null, requirements: ReverseTraceRequirement[], stories?: Array<{ id: string; requirementId: string }>): { requirement: ReverseTraceRequirement | null; resolution: "unmapped" | "explicit_requirement_link" | "linked_user_story" | "exact_stable_reference" | "ambiguous_reference" };
 export function summarizeReverseTrace(input: { requirement: unknown; traceLinks?: Array<{ evidenceCode: string; evidenceId?: string | null; note?: string | null }>; claimLinks?: Array<{ claim: any; relationship: string }>; knowledgeLinks?: Array<{ node: any; role: string }>; stories?: Array<any>; impacted?: Array<any> }): Record<string, unknown>;
