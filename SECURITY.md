@@ -2,7 +2,7 @@
 
 ## Authentication shipped in Phase 0
 
-This release adds a **single-owner deployment access boundary**. It is not multi-user authentication, organization tenancy, or a replacement for enterprise SSO/RBAC. Application pages and API routes are protected by the Next.js 16 `proxy.ts` boundary, except the sign-in/sign-out endpoints and the public study participant page/write endpoint. Those two study paths expose no session listing or export; the write endpoint requires a high-entropy per-session bearer token, applies metric bounds and rate limits, expires after seven days, and becomes write-locked after finish except for withdrawal. The API boundary is enforced server-side; hiding UI controls is not relied upon.
+The current H1 branch implements **multi-user identity and organization/project authorization**: signed identity sessions, database-backed membership checks, role-specific permissions, tenant isolation, invitations, password recovery and a shared rate limiter. This is not a replacement for enterprise SSO/MFA, and it is **not production-cleared** until the database baseline, live provider connectivity and backup/restore gates below are verified. Application pages and API routes are protected by the Next.js 16 `proxy.ts` boundary, except the narrowly scoped authentication endpoints and the public study participant page/write endpoint. Those two study paths expose no session listing or export; the write endpoint requires a high-entropy per-session bearer token, applies metric bounds and rate limits, expires after seven days, and becomes write-locked after finish except for withdrawal. The API boundary is enforced server-side; hiding UI controls is not relied upon.
 
 Set these variables before deploying:
 
@@ -35,7 +35,7 @@ For local development, add the generated values to the ignored `.env` file. The 
 - Rate-limit ingress identity must come from trusted proxy headers. The ingress must overwrite `X-Real-IP` and `X-Forwarded-For`; never trust arbitrary client-supplied forwarding headers.
 - State-changing requests with an explicit cross-origin Origin are rejected. The origin check compares against the incoming request Host and the ingress-provided `X-Forwarded-Proto` (when present), rather than Next.js' internal URL origin; the reverse proxy must overwrite forwarded headers. Requests without Origin are rejected when Fetch Metadata marks them cross-site.
 - Security response headers include frame denial, MIME sniffing protection and a restrictive referrer policy.
-- The proxy is an early access boundary. Sensitive route handlers must still add resource-level authorization when multi-user roles are introduced.
+- The proxy validates identity and organization membership, while route-level policy checks enforce organization and project permissions. New API handlers must be explicitly classified and covered by authorization regression tests.
 
 ## Integration credential storage
 
@@ -65,7 +65,7 @@ Stakeholder profiles remain project-domain records. They are not users, cannot a
 
 Project `organizationId` and `createdByUserId` are intentionally nullable in this additive schema slice. Existing projects are not silently assigned to a guessed tenant or account. A later, explicit backfill must establish an owner organization before tenant-scoped access is enabled.
 
-The pure policy in `src/lib/security/organization-access.mjs` defines a fail-closed permission matrix and tenant-ID comparison. Organization-level control is owner-only; admins can manage members and projects but cannot change organization ownership/settings. It is not yet wired into the session or route boundary. Until the next H1 authorization slice replaces the owner-only assumption with authenticated user identity and membership lookup, deployments remain single-owner only. Do not treat the presence of these tables as multi-tenant security.
+The pure policy in `src/lib/security/organization-access.mjs` defines the fail-closed permission matrix and tenant-ID comparison. It is wired into identity-backed sessions and route authorization in the subsequent H1 slices. Organization-level control is owner-only; admins can manage members and projects but cannot change organization ownership/settings. The presence of schema tables alone is not the security guarantee: the proxy, session revalidation and route-policy checks are the enforcement boundary.
 
 ## Identity-backed sessions and tenant authorization (H1.3)
 
@@ -99,13 +99,13 @@ Run `bun run security:release-check` in the deployment environment before releas
 
 ## Current boundary and next security phase
 
-This phase does not claim full legal compliance or a completed penetration test. Organization-scoped authorization and application-level distributed rate limits are implemented, but production rollout still requires provider configuration and operational verification. The following remain required before serving multiple organizations:
-- distributed rate limiting and abuse controls beyond the current per-process login/recovery throttles;
-- Owner / Admin / Engineer / Reviewer / Approver / Viewer roles;
-- per-resource authorization in every route and background job;
+This phase does not claim full legal compliance or a completed penetration test. Organization-scoped authorization and application-level distributed rate limits are implemented, but production rollout still requires provider configuration and operational verification. The following remain required before production rollout and before claiming enterprise-grade security:
+- provider-specific database baseline reconciliation, verified backup/restore and controlled migration execution;
+- live Upstash Redis and Resend connectivity checks plus production HTTPS/cookie verification;
+- broader authorization tests for every background job and any future API surface;
 - MFA/SSO and centralized security event monitoring;
 - auditable retention, erasure, consent purpose and processing-provider policies;
-- automated penetration testing and security review.
+- independent penetration testing and security review.
 
 The system must not process stakeholder evidence using an external model unless the applicable project processing policy permits that provider. Consent fields alone do not establish legal compliance.
 
