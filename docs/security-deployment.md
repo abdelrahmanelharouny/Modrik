@@ -1,58 +1,79 @@
 # Modrik deployment security
 
-## Owner authentication
+## Identity, sessions, and organization access
 
-All `/api/*` routes are protected by the Next.js 16 `src/proxy.ts` gate except these exact paths:
+The Next.js 16 `src/proxy.ts` gate protects application APIs and pages by default. Public API exemptions are method-specific:
 
 - `POST /api/auth/login`
+- `POST /api/auth/invitations/accept`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/password-reset/complete`
 - `POST /api/auth/logout`
-- `GET /api/auth/session`
-- `GET|POST /api/study/respond` — participant-scoped bearer-token endpoint; it does not expose moderator session listing or study exports.
+- `GET|HEAD /api/auth/session`
+- `GET|POST /api/study/respond` — participant-scoped bearer-token endpoint.
 
-Authentication fails closed. If required owner secrets are missing, protected APIs return `503 AUTH_NOT_CONFIGURED`; they do not silently become public.
+The owner bootstrap credentials establish the initial administrator identity; they are not a substitute for organization membership. Organization and project operations resolve the authenticated identity, active membership, organization state, project ownership, and method-specific permission. Unknown API routes fail closed. Caller-supplied `x-modrik-*` identity headers are stripped and rebuilt only by the trusted proxy.
 
-Set these secrets in the deployment environment (never in Git):
+If authentication is not configured, protected APIs return `503 AUTH_NOT_CONFIGURED`; they do not silently become public.
 
-- `MODRIK_ADMIN_EMAIL` — the single owner email.
-- `MODRIK_ADMIN_PASSWORD_HASH` — scrypt hash generated below.
-- `MODRIK_AUTH_SECRET` — at least 32 random bytes, used to sign session tokens.
-- `MODRIK_ENCRYPTION_KEY` — a separate 32-byte key for integration credentials at rest.
+Required secrets (never commit them):
 
-Generate an owner password hash in an interactive terminal:
+- `MODRIK_ADMIN_EMAIL` — bootstrap owner email.
+- `MODRIK_ADMIN_PASSWORD_HASH` — supported scrypt password hash.
+- `MODRIK_AUTH_SECRET` — at least 32 random bytes for signed sessions.
+- `MODRIK_ENCRYPTION_KEY` — independent 32-byte AES-256-GCM key for stored integration credentials.
+
+Generate the owner password hash interactively:
 
 ```bash
 bun scripts/hash-admin-password.mjs
 ```
 
-The script disables terminal echo, asks for the password twice, enforces 14 characters, and prints the value for `MODRIK_ADMIN_PASSWORD_HASH`. Do not paste the password into a shell command or commit the resulting hash.
+The script disables terminal echo, asks for the password twice, enforces the configured minimum, and prints the hash. Do not pass a password in a shell command or commit the hash.
 
-Generate independent encryption and signing keys:
+Generate independent keys:
 
 ```bash
 openssl rand -hex 32
 openssl rand -hex 32
 ```
 
-Use one value as `MODRIK_AUTH_SECRET` and the other as `MODRIK_ENCRYPTION_KEY`. Keep a secure backup of `MODRIK_ENCRYPTION_KEY`: losing it makes already encrypted integration credentials unrecoverable.
+Use one value for `MODRIK_AUTH_SECRET` and the other for `MODRIK_ENCRYPTION_KEY`. Back up the encryption key securely: losing it makes encrypted integration credentials unrecoverable. Automated key rotation is still a release gap; do not replace the key until a reviewed re-encryption/rollback procedure exists.
 
-The owner session is an eight-hour HMAC-SHA256 signed cookie with `HttpOnly`, `SameSite=Strict`, and `Secure` in production. Password verification uses bounded scrypt parameters and constant-time comparisons. The login endpoint has a per-process attempt limiter; multi-instance deployments should also configure an ingress/WAF rate limit because in-memory counters are not shared between instances.
+## Invitations and password recovery
+
+- Invitation tokens are random, single-use, expiring bearer secrets; only their SHA-256 digests are persisted. Owner/admin membership permissions govern issuance and revocation. The raw invitation URL is returned once for manual delivery; this release does not claim that invitation email has been sent.
+- Password-reset tokens are random, single-use and time-limited; only hashes are persisted. Successful reset revokes active sessions and other outstanding reset tokens.
+- Recovery email uses Resend. Configure `RESEND_API_KEY`, `PASSWORD_RESET_EMAIL_FROM`, and a trusted HTTPS `APP_URL`; without these, recovery delivery is not production-ready. Public responses are enumeration-resistant.
+
+## Distributed rate limiting
+
+Authentication, invitation and recovery mutation endpoints use the shared Upstash Redis REST limiter with an atomic fixed-window operation. Production fails closed when Redis configuration is missing or the shared limiter is unavailable. Configure:
+
+- `UPSTASH_REDIS_REST_URL` — HTTPS REST endpoint.
+- `UPSTASH_REDIS_REST_TOKEN` — secret bearer token.
+
+The in-process fallback is restricted to development/test and is not a multi-instance production guarantee. Verify the real Redis endpoint from the deployed runtime; CI uses placeholders and does not prove provider connectivity.
 
 ## Integration credentials
 
-Integration tokens are encrypted with AES-256-GCM before being stored. Old plaintext rows remain readable for migration compatibility, but the self-audit marks them as warnings. After setting `MODRIK_ENCRYPTION_KEY`, re-save each legacy integration configuration to replace its plaintext token with authenticated ciphertext.
+Saved GitHub/Jira credentials are encrypted at rest using AES-256-GCM. Legacy plaintext values remain readable for compatibility and should be re-saved after encryption is configured. OAuth authorization flows and automated encryption-key rotation are not yet complete. Treat static-token integration as the current capability; do not advertise OAuth or automatic rotation as supported.
 
-The Jira connector accepts Atlassian Cloud tenants or exact HTTPS origins listed in `MODRIK_JIRA_ALLOWED_ORIGINS`. Redirects are not followed for Jira requests. Deployments using a private Jira Data Center host must explicitly assess outbound network access and DNS/IP egress policy; hostname allowlisting alone is not a complete network-layer SSRF control.
+The Jira connector validates allowed HTTPS origins and does not follow redirects. Private Jira Data Center deployments must additionally assess DNS/IP egress controls; hostname allowlisting alone is not a complete network-layer SSRF defense.
 
-## Participant study endpoint
+## Database migration release gate
 
-The moderator study API (`/api/study`) is owner-authenticated. Participant actions use the issued one-time bearer token against `/api/study/respond`. The token is stored hashed, expires, is scoped to one study session, and is not returned by moderator listing/export endpoints.
+SQLite is the canonical development schema; PostgreSQL schema is generated and parity-checked. The repository inventory fingerprints describe checked-in schemas only; they do not prove equivalence with a deployed database. There is no committed production baseline because deployed database history has not been reconciled. Do not run `prisma migrate deploy` against an existing environment until backups have been restored in a rehearsal, the provider-specific baseline is reviewed, and the migration history is reconciled. See [database-migrations.md](database-migrations.md).
 
 ## Operational checklist
 
-1. Configure all four secrets above before publishing the deployment.
-2. Use HTTPS and keep `NODE_ENV=production`.
-3. Configure an edge/WAF rate limit for `/api/auth/login` and `/api/study/respond`.
-4. Verify that unauthenticated requests to `/api/projects` return `401`, and that requests with no auth configuration return `503`.
-5. Verify that `/api/study/respond` rejects missing/expired tokens and cannot access other participants' sessions.
-6. Re-save any integration configuration created before encryption was enabled.
-7. Do not describe the self-audit as legal certification. It reports technical evidence and explicitly marks unmeasured controls `not-assessed`.
+1. Configure all required secrets and run `bun run security:release-check` in the deployment environment.
+2. Verify Redis connectivity and Resend sender/domain verification using real provider credentials.
+3. Verify HTTPS, secure cookies, and the canonical `APP_URL`.
+4. Verify unauthenticated protected APIs return `401`, while missing auth configuration returns `503`.
+5. Verify invitation tokens expire, are single-use, and cannot grant owner membership.
+6. Verify password-reset responses do not reveal account existence and successful resets revoke sessions.
+7. Verify cross-organization and cross-project access is denied for every role and HTTP method.
+8. Test a full database backup restore before approving a production migration baseline.
+9. Re-save legacy plaintext integration credentials; retain the old encryption key until a reviewed rotation process is implemented.
+10. Do not describe technical self-audit output as legal certification. Unmeasured controls remain `not-assessed`.
