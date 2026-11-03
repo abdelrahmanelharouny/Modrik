@@ -156,6 +156,9 @@ try {
   const tenantQualityRequirement = await prisma.requirement.create({
     data: { projectId: tenantProjectA.id, refId: "REQ-QA-TENANT-A", text: "The system shall expose tenant-scoped quality assessments." },
   });
+  const foreignQualityRequirement = await prisma.requirement.create({
+    data: { projectId: tenantProjectB.id, refId: "REQ-QA-TENANT-B", text: "A foreign tenant requirement." },
+  });
   const qualityPayload = {
     requirementId: tenantQualityRequirement.id,
     atomicity: 90, clarity: 90, completeness: 90, testability: 90,
@@ -169,6 +172,11 @@ try {
   const createdQualityAssessment = (await json(tenantQualityCreate)).assessment;
   assert.equal(createdQualityAssessment.requirementId, tenantQualityRequirement.id);
   assert.equal(createdQualityAssessment.overallScore, 90);
+  const forgedRequirementQualityCreate = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ ...qualityPayload, requirementId: foreignQualityRequirement.id }),
+  });
+  await expectStatus(forgedRequirementQualityCreate, 404, "foreign requirement cannot be assessed through an authorized project");
   const tenantQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, { headers: tenantHeaders });
   await expectStatus(tenantQualityRead, 200, "same-tenant requirement quality assessment read");
   assert.ok((await json(tenantQualityRead)).assessments.some(item => item.id === createdQualityAssessment.id));
