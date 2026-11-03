@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { estimateChangeCost, type ChangeCostEstimate } from "@/lib/change-cost.mjs";
 import { PRIORITY_ORDER, type ProjectDTO } from "@/lib/rp";
 import { INTEGRATIONS, INSTRUMENTS } from "@/lib/registry";
 import { useLang } from "@/lib/i18n";
@@ -131,9 +132,12 @@ function Constellation({ project }: { project: ProjectDTO }) {
   const [sel, setSel] = useState<{ kind: "req" | "ev"; id: string } | null>(null);
   const [edges, setEdges] = useState<GraphEdgeDTO[]>([]);
   const [impact, setImpact] = useState<ImpactNodeDTO[]>([]);
+  const [changeCost, setChangeCost] = useState<ChangeCostEstimate | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [tracing, setTracing] = useState(false);
   const { toast } = useToast();
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const W = 640;
   const H = 400;
   const cx = W / 2;
@@ -201,7 +205,8 @@ function Constellation({ project }: { project: ProjectDTO }) {
         body: JSON.stringify({ action: "traverse", requirementIds: [requirementId] }),
       });
       setImpact(d.impacted);
-      toast({ title: "Impact traversal complete", description: `${d.impacted.length} requirement(s) reachable through typed edges.` });
+      setChangeCost(estimateChangeCost(reqs.find((r) => r.id === requirementId)!, d.impacted, reqs));
+      toast({ title: "Impact traversal complete", description: `${d.impacted.length} requirement(s) reachable; change-effort proxy calculated.` });
     } catch (e) {
       toast({ title: "Traversal failed", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -269,7 +274,7 @@ function Constellation({ project }: { project: ProjectDTO }) {
             if (!p) return null;
             const active = sel?.id === e.id;
             return (
-              <g key={e.id} onClick={() => setSel(active ? null : { kind: "ev", id: e.id })} className="cursor-pointer">
+              <g key={e.id} onClick={() => { setSel(active ? null : { kind: "ev", id: e.id }); setImpact([]); setChangeCost(null); }} className="cursor-pointer">
                 <circle cx={p.x} cy={p.y} r="13" fill="rgba(167,139,250,0.12)" stroke="rgba(167,139,250,0.5)" strokeWidth={active ? 2 : 1} />
                 <text x={p.x} y={p.y + 3} textAnchor="middle" fill="#a78bfa" fontSize="9" fontFamily="var(--font-jbmono), monospace">{e.code}</text>
               </g>
@@ -284,7 +289,7 @@ function Constellation({ project }: { project: ProjectDTO }) {
             const impacted = impactIds.has(r.id);
             const color = impacted ? "#a78bfa" : flagged ? "#ffb454" : r.ambiguity >= 60 ? "#ff6b7a" : r.ambiguity >= 30 ? "#ffb454" : "#2ce8c8";
             return (
-              <g key={r.id} onClick={() => setSel(active ? null : { kind: "req", id: r.id })} className="cursor-pointer">
+              <g key={r.id} onClick={() => { setSel(active ? null : { kind: "req", id: r.id }); setImpact([]); setChangeCost(null); }} className="cursor-pointer">
                 {impacted && (
                   <circle cx={p.x} cy={p.y} r="21" fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="3 3">
                     <animate attributeName="r" values="18;24;18" dur="1.8s" repeatCount="indefinite" />
@@ -319,7 +324,7 @@ function Constellation({ project }: { project: ProjectDTO }) {
             {extracting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Network className="mr-1 h-3 w-3" />} extract edges
           </Button>
           {impact.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setImpact([])} className="h-7 border-border px-2 font-mono text-[10px]">
+            <Button size="sm" variant="outline" onClick={() => { setImpact([]); setChangeCost(null); }} className="h-7 border-border px-2 font-mono text-[10px]">
               clear impact ({impact.length})
             </Button>
           )}
@@ -372,6 +377,25 @@ function Constellation({ project }: { project: ProjectDTO }) {
               </li>
             ))}
           </ul>
+          {changeCost && (
+            <div className="mt-4 rounded-md border border-plasma/30 bg-plasma/5 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <Eyebrow tone="plasma">{ar ? "تقدير جهد التغيير" : "CHANGE EFFORT PROXY"}</Eyebrow>
+                  <div className="mt-1 font-display text-2xl font-bold tabular-nums">{changeCost.effortPoints.toFixed(2)} <span className="text-xs font-normal text-muted-foreground">{ar ? "نقاط جهد" : "effort points"}</span></div>
+                </div>
+                <Badge variant="outline" className="border-plasma/40 text-plasma">{changeCost.effortRange.low.toFixed(2)}–{changeCost.effortRange.high.toFixed(2)} {ar ? "نطاق تخطيطي" : "planning band"}</Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "مباشر" : "DIRECT"}</div><strong>{changeCost.directImpact}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "غير مباشر" : "TRANSITIVE"}</div><strong>{changeCost.transitiveImpact}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "إجمالي المتأثر" : "AFFECTED TOTAL"}</div><strong>{changeCost.affectedRequirements}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "مخاطر مرتفعة" : "HIGH RISK"}</div><strong>{changeCost.highRiskRequirements}</strong></div>
+              </div>
+              {changeCost.factors.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{changeCost.factors.map((factor) => <Badge key={factor.id} variant="secondary" className="text-[9px]">{factor.id.replaceAll("_", " ")} · {factor.count}</Badge>)}</div>}
+              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">{ar ? "النقاط نسبية وليست ساعات أو تكلفة مالية أو توقعًا معتمدًا. يجب معايرتها ببيانات تغييرات فعلية قبل استخدامها تشغيليًا." : changeCost.caveat} {ar ? "المنهجية: وزن أثر العلاقات حسب العمق مضروبًا في عوامل مخاطر المتطلب، مع هامش تخطيطي ±20%." : changeCost.methodology + "."}</p>
+            </div>
+          )}
         </HudPanel>
       )}
       {selectedEv && (
