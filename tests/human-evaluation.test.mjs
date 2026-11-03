@@ -10,3 +10,10 @@ test("blinded export strips arm names, preserves consent boundary and is determi
 test("human analysis validates key integrity and computes ordinal agreement",()=>{const out=createBlindedEvaluation([record("s1")],fixture,{seed:"fixed"}),[a,b]=raters(out.packet),report=analyzeHumanEvaluation(out.packet,out.key,a,b);assert.equal(report.ratedByBoth,4);assert.equal(report.interRaterAgreement.clarity.exactAgreement,0);assert.equal(report.interRaterAgreement.clarity.quadraticWeightedKappa,0);assert.equal(report.interRaterAgreement.overallUtility.quadraticWeightedKappa,1);assert.equal(report.blindedArmSummary.impact_aware.n,1);});
 test("analysis rejects tampered packet, same rater identity and unknown arm labels",()=>{const out=createBlindedEvaluation([record("s1")],fixture),[a,b]=raters(out.packet);assert.throws(()=>analyzeHumanEvaluation({...out.packet,scenarios:[]},out.key,a,b),/exact packet file/);assert.throws(()=>analyzeHumanEvaluation(out.packet,out.key,a,{...b,raterId:a.raterId}),/distinct raterId/);const bad={...a,ratings:[{...a.ratings[0],blindArmId:"fake"}]};assert.throws(()=>analyzeHumanEvaluation(out.packet,out.key,bad,b),/unknown blind arm/);});
 test("analysis reports missing paired ratings without inventing agreement",()=>{const out=createBlindedEvaluation([record("s1")],fixture),[a,b]=raters(out.packet);b.ratings=b.ratings.slice(1);const report=analyzeHumanEvaluation(out.packet,out.key,a,b);assert.equal(report.ratedByBoth,3);assert.equal(report.unpairedRatings,1);assert.equal(report.interRaterAgreement.overallUtility.n,3);});
+
+test("analysis binds the key to exact packet bytes, including whitespace",()=>{
+ const out=createBlindedEvaluation([record("s1")],fixture,{seed:"raw-bytes"});
+ const [a,b]=raters(out.packet);
+ assert.throws(()=>analyzeHumanEvaluation(out.packet,out.key,a,b,{packetBytes:out.packetText+" "}),/exact packet bytes/);
+ assert.doesNotThrow(()=>analyzeHumanEvaluation(out.packet,out.key,a,b,{packetBytes:out.packetText}));
+});
