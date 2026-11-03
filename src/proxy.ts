@@ -42,6 +42,9 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
   if (route === "integrations") {
     return method === "GET" ? "projects:read" : "members:manage";
   }
+  if (route === "audit/export") {
+    return method === "GET" || method === "HEAD" ? "audit:read" : "organization:manage";
+  }
   if (route === "stakeholders") {
     if (method === "GET" || method === "HEAD") return "projects:read";
     if (method === "PATCH") {
