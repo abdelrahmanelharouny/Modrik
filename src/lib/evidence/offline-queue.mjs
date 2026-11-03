@@ -143,3 +143,32 @@ export async function updateOfflineEvidenceOperation(operation) {
   validateOfflineEvidenceOperation(operation);
   await transaction("readwrite", (store) => store.put(operation));
 }
+
+
+// Serialize queue synchronization across tabs where the Web Locks API exists.
+// The in-process promise queue is a safe fallback for older browsers and tests.
+const inProcessSyncLocks = new Map();
+
+export async function withOfflineEvidenceSyncLock(projectId, task) {
+  if (typeof projectId !== "string" || !projectId.trim() || projectId.length > 128) {
+    throw new TypeError("projectId must contain 1–128 characters");
+  }
+  if (typeof task !== "function") throw new TypeError("A sync task is required");
+  const lockName = `modrik:offline-evidence-sync:${projectId}`;
+  const locks = globalThis.navigator?.locks;
+  if (locks?.request) {
+    return locks.request(lockName, { mode: "exclusive" }, task);
+  }
+
+  const previous = inProcessSyncLocks.get(lockName) ?? Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  inProcessSyncLocks.set(lockName, current);
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (inProcessSyncLocks.get(lockName) === current) inProcessSyncLocks.delete(lockName);
+  }
+}
