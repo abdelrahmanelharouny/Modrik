@@ -185,8 +185,9 @@ export async function maskedStatus(projectId: string) {
   const jr = await loadConfig(projectId, "jira");
   return {
     github: gh
-      ? { configured: true, owner: (gh as GithubConfig).owner, repo: (gh as GithubConfig).repo, token: mask((gh as GithubConfig).token) }
-      : { configured: false },
+      ? { configured: true, owner: (gh as GithubConfig).owner, repo: (gh as GithubConfig).repo, token: mask((gh as GithubConfig).token),
+          webhookConfigured: Boolean(await getGitHubWebhookConfig(projectId)) }
+      : { configured: false, webhookConfigured: false },
     jira: jr
       ? {
           configured: true,
@@ -562,20 +563,55 @@ export async function saveConfig(projectId: string, kind: "github" | "jira", con
     }
   }
 
-  const encrypted = { ...clean, token: clean.token ? encryptSecret(clean.token) : "" };
-  // Replace all previous rows for this project/provider atomically. This both
-  // prevents unbounded duplicate configs and scrubs legacy plaintext tokens
-  // after an owner re-enters the credential with MODRIK_ENCRYPTION_KEY set.
+  const previous = await db.integration.findFirst({ where: { projectId, kind }, orderBy: { createdAt: "desc" } });
+  let preservedWebhookSecret: string | undefined;
+  if (previous) {
+    try {
+      const oldConfig = JSON.parse(previous.config) as Record<string, unknown>;
+      if (typeof oldConfig.webhookSecret === "string") preservedWebhookSecret = oldConfig.webhookSecret;
+    } catch {
+      throw new Error("Saved integration configuration is corrupt. Re-save it after reviewing the stored record.");
+    }
+  }
+  const encrypted = {
+    ...clean,
+    token: clean.token ? encryptSecret(clean.token) : "",
+    ...(kind === "github" && preservedWebhookSecret ? { webhookSecret: preservedWebhookSecret } : {}),
+  };
+  // Preserve the separately encrypted webhook secret when tracker credentials change.
   await db.$transaction(async (tx) => {
     await tx.integration.deleteMany({ where: { projectId, kind } });
-    await tx.integration.create({
-      data: { projectId, kind, config: JSON.stringify(encrypted) },
-    });
+    await tx.integration.create({ data: { projectId, kind, config: JSON.stringify(encrypted) } });
   });
   await logDecision(projectId, "LIFECYCLE", "human", "integration_config", `${kind} credentials saved (masked: ${kind === "github" ? `${clean.owner && (clean as GithubConfig).owner}/${(clean as GithubConfig).repo}` : (clean as JiraConfig).projectKey}).`);
   return maskedStatus(projectId);
 }
 
+/** Save a per-project GitHub webhook secret encrypted at rest. */
+export async function saveGitHubWebhookSecret(projectId: string, secret: string) {
+  const clean = secret.trim();
+  if (clean.length < 32 || clean.length > 400) throw new Error("GitHub webhook secret must contain between 32 and 400 characters");
+  const row = await db.integration.findFirst({ where: { projectId, kind: "github" }, orderBy: { createdAt: "desc" } });
+  if (!row) throw new Error("Configure GitHub owner/repository credentials before adding a webhook secret");
+  let config: Record<string, unknown>;
+  try { config = JSON.parse(row.config) as Record<string, unknown>; } catch { throw new Error("Saved GitHub configuration is corrupt"); }
+  config.webhookSecret = encryptSecret(clean);
+  await db.integration.update({ where: { id: row.id }, data: { config: JSON.stringify(config) } });
+  return { configured: true };
+}
+
+/** Internal webhook verifier config; secret must never be serialized to a response. */
+export async function getGitHubWebhookConfig(projectId: string): Promise<{ owner: string; repo: string; secret: string } | null> {
+  const row = await db.integration.findFirst({ where: { projectId, kind: "github" }, orderBy: { createdAt: "desc" } });
+  if (!row) return null;
+  let config: Record<string, unknown>;
+  try { config = JSON.parse(row.config) as Record<string, unknown>; } catch { throw new Error("Saved GitHub configuration is corrupt"); }
+  if (typeof config.webhookSecret !== "string" || !config.webhookSecret) return null;
+  const secret = decryptSecret(config.webhookSecret);
+  const owner = String(config.owner ?? ""), repo = String(config.repo ?? "");
+  if (!secret || !/^[A-Za-z0-9-]{1,39}$/.test(owner) || !/^[A-Za-z0-9_.-]{1,100}$/.test(repo)) throw new Error("Saved GitHub webhook configuration is invalid");
+  return { owner, repo, secret };
+}
 export async function listSyncMaps(projectId: string) {
   const rows = await db.syncMap.findMany({ where: { projectId }, orderBy: { syncedAt: "desc" }, take: 50 });
   return rows.map((r) => ({
