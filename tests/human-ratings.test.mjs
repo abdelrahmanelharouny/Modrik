@@ -48,3 +48,15 @@ test("human-rating inference is withheld below ten complete scenarios",()=>{
  const row=report.comparisons.find(x=>x.metric==="overall"&&x.comparator==="single_shot");
  assert.equal(report.scenarioCount,9);assert.equal(row.verdict,"insufficient-data");assert.equal(row.ci95,null);
 });
+
+test("human-rating analysis reports expected per-rater coverage and rejects unknown blind IDs",()=>{
+ const data=ratingRows();
+ const missing=data.r1.pop();
+ const report=analyzeHumanRatings(data.r1,data.r2,data.key,{seed:"coverage"});
+ assert.equal(report.coverage.expectedOutputs,40);
+ assert.equal(report.coverage.rater1Submitted,39);
+ assert.equal(report.coverage.rater2Submitted,40);
+ assert.equal(report.coverage.missingFromRater1,1);
+ assert.equal(report.coverage.missingFromRater2,0);
+ assert.throws(()=>analyzeHumanRatings([...data.r1,{...missing,blind_output_id:"UNKNOWN"}],data.r2,data.key),/absent from the answer key/);
+});
