@@ -7,13 +7,13 @@ test("audit CSV quotes all fields and preserves commas, quotes and line breaks",
  assert.ok(csv.startsWith("\uFEFF"));
  assert.match(csv,/"said ""hello"", then\nleft"/);
 });
-test("audit CSV neutralizes spreadsheet formula prefixes", () => {
- const csv=auditRowsToCsv([{id:"=HYPERLINK(1)",createdAt:"",stage:"+SUM(A1)",actor:"@cmd",action:"-1+1",detail:"\tformula"}]);
+test("audit CSV neutralizes formulas including leading whitespace", () => {
+ const csv=auditRowsToCsv([{id:"=HYPERLINK(1)",createdAt:"",stage:"+SUM(A1)",actor:"@cmd",action:"-1+1",detail:"  =1+1"}]);
  assert.match(csv,/"'=HYPERLINK\(1\)"/);
  assert.match(csv,/"'\+SUM\(A1\)"/);
  assert.match(csv,/"'@cmd"/);
  assert.match(csv,/"'-1\+1"/);
- assert.match(csv,/"'\tformula"/);
+ assert.match(csv,/"'  =1\+1"/);
 });
 test("audit CSV rejects non-array input", () => {
  assert.throws(()=>auditRowsToCsv({}),/must be an array/);
