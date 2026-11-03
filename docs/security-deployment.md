@@ -61,6 +61,18 @@ Saved GitHub/Jira credentials are encrypted at rest using AES-256-GCM. Legacy pl
 
 The Jira connector validates allowed HTTPS origins and does not follow redirects. Private Jira Data Center deployments must additionally assess DNS/IP egress controls; hostname allowlisting alone is not a complete network-layer SSRF defense.
 
+## GitHub webhook drift ingestion
+
+A project can receive signed GitHub `issues` (opened, edited, reopened, closed) and `push` events at:
+
+```text
+POST /api/webhooks/github/{projectId}
+```
+
+Configure the GitHub repository webhook with content type `application/json`, a random secret of at least 32 characters, and the Issues + Push event subscriptions. Save the same secret in the project's GitHub integration settings; it is encrypted at rest with `MODRIK_ENCRYPTION_KEY`. The secret is never returned to the browser. GitHub's `X-Hub-Signature-256` is checked against the exact raw request bytes before JSON parsing or event processing. The ingress enforces a 1 MB payload limit, repository binding, bounded event summaries and a delivery-idempotency reservation; repeated deliveries do not repeat drift analysis. Unsupported event types/actions are acknowledged and ignored. Failed processing is marked retryable so GitHub can redeliver.
+
+The webhook is intentionally a public, signature-authenticated endpoint. Do not remove signature verification or add a broad `/api/webhooks/*` authentication exemption. GitHub issue/commit text is untrusted project data; it is passed only as a bounded change signal to the existing drift analysis and never treated as an authorization instruction. This is event-driven drift triage, not automatic requirement modification: humans still review and resolve drift.
+
 ## Database migration release gate
 
 SQLite is the canonical development schema; PostgreSQL schema is generated and parity-checked. The repository inventory fingerprints describe checked-in schemas only; they do not prove equivalence with a deployed database. There is no committed production baseline because deployed database history has not been reconciled. Do not run `prisma migrate deploy` against an existing environment until backups have been restored in a rehearsal, the provider-specific baseline is reviewed, and the migration history is reconciled. See [database-migrations.md](database-migrations.md).
