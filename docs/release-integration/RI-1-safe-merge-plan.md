@@ -793,3 +793,42 @@ After each proxy synchronization, the dependent child branches were replayed for
 - No PR has been merged; all source PRs remain available.
 - No production provider credentials, real Redis service, email delivery, external OAuth, human recruitment, or live participant ratings were exercised by these CI workflows.
 - The next gate is exact-head CI completion for #44–#46, followed by a combined full-stack review and one full integration CI run. Only then should any PR be marked ready for merge.
+
+
+## RI.11 — Full sequential stack exact-head CI complete (2026-11-03)
+
+The latest verification pass completed successfully for every PR in the new sequential chain #27–#46. Both `quality` and `postgres-schema` jobs passed on each exact head SHA. All 20 PRs remain Draft, open, and unmerged; GitHub reports each PR mergeable against its immediate parent branch.
+
+| PR | Head SHA | Workflow run | Quality | PostgreSQL schema |
+|---:|---|---:|---|---|
+| #27 | 626b4ccb0dca21469e2407f53e220ce6096f18ea | 41677724448 | Passed | Passed |
+| #28 | 0d91effdbcdbc561407433adfce5125d1e98ac73 | 41677966705 | Passed | Passed |
+| #29 | ec8a6fbd698f48a24883de018bfca61a1c729dd2 | 41678122357 | Passed | Passed |
+| #30 | a2dc8b1f99ebe949401c50ac6a71c3d64af31619 | 41678247155 | Passed | Passed |
+| #31 | 1c9e90a4e0ae557683e6f219a86c3cc612bac479 | 41680615085 | Passed | Passed |
+| #32 | 23c25e6eb8a755c570994933597e7f3725b408fa | 41680728469 | Passed | Passed |
+| #33 | 56e2e8c3b50f763856fb803b25c994edf4850b0e | 41680788633 | Passed | Passed |
+| #34 | b85c75f7f3cf792ceb09d7eb1897536dc8acdf53 | 41682477908 | Passed | Passed |
+| #35 | 98f60715b0203649c9bd0cf1057f47ea13e68ff4 | 41682618465 | Passed | Passed |
+| #36 | 383d0a7db52a0723fad456ca6f49e31c0f9dfb2a | 41682706091 | Passed | Passed |
+| #37 | f56a0d0a2ad3de7758395dd7fd530574e317005a | 41682815158 | Passed | Passed |
+| #38 | a20527633cde6c2e33457448a9730fa11a1e5cc3 | 41683935241 | Passed | Passed |
+| #39 | db79c0b789035ceec1c56448fb567bd350c2ec33 | 41684040055 | Passed | Passed |
+| #40 | c5c76573803567bfdbe1f07604fff1c03e064068 | 41684208296 | Passed | Passed |
+| #41 | 14434304aef77c0fad1d06a1a2b9d4aace3227ff | 41684311277 | Passed | Passed |
+| #42 | c233f082235fa217bc767fd5f4c7695eeda9dfe4 | 41684480362 | Passed | Passed |
+| #43 | 6450b057281c300f7b21f785740d98e19f5187bd | 41685034105 | Passed | Passed |
+| #44 | 369d2cdff01e58d2f70ce097251648aa17240a76 | 41685291912 | Passed | Passed |
+| #45 | d870b92d9f1f05458984c3f677292c6b57880360 | 41685376213 | Passed | Passed |
+| #46 | 42abdadb50ac4b9158242629c825a1df7ccd15a4 | 41685458424 | Passed | Passed |
+
+### What this establishes — and what it does not
+
+- Established: each sequential stage compiles, passes its regression/quality workflow, passes the SQLite production build and Playwright stakeholder API/browser integration step, and passes PostgreSQL schema validation/push on its exact head.
+- Established: the proxy entrypoint drift was corrected at Phase 4, H1.3, H1.7 and H1.9 boundaries, then carried forward through the chain.
+- Not established: a single CI run over the final #46 tree as a one-shot aggregate (the chain was verified at every sequential stage, and #46's quality job runs on the cumulative tree); external production Redis/Upstash, SMTP/email, OAuth provider, deployment ingress trust, real human participants, ethics approval, or live pilot outcomes.
+- Not established: merge readiness. All PRs remain Draft; original PRs #1–#21 and reconciliation candidates #22–#46 remain unmerged. The original competing H2.2 PRs #20/#21 are still reference branches and must not be merged alongside canonical #46.
+
+### Next release gate
+
+Run a final source-level review of the cumulative #46 tree, inspect the generated migration plan and production configuration, verify the branch protection / required status-check policy through repository settings (prior read returned 403), and only then prepare a deliberate merge plan. Do not merge a chain of 20 Draft PRs automatically. Prefer a reviewed release branch or controlled sequential merge with rollback checkpoints and an exact post-merge main verification run.
