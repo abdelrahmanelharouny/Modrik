@@ -11,14 +11,14 @@
 - Arabic-first elicitation, bilingual UI metadata, RTL switching and guarded voice intake/transcription.
 - Stakeholder registry, requirement positions, evidence links and multi-stakeholder negotiation with quorum and immutable participant responses.
 - Organization/project membership authorization, tenant isolation checks, signed sessions, invitations, password recovery and shared Upstash rate limiting.
-- GitHub/Jira static-token integrations, encrypted credential storage and a guarded, idempotent credential re-encryption utility.
+- GitHub/Jira static-token integrations, encrypted credential storage, guarded credential re-encryption, and signed GitHub Issues/Push webhook ingestion into drift review with delivery deduplication.
 - Study participant-token infrastructure, consent-aware data handling, blinded human-rating packet creation and analysis utilities.
 - CI checks for regression tests, benchmark corpus, production configuration shape, schema parity, PostgreSQL schema validation, TypeScript, lint, production build and a focused Playwright stakeholder flow.
 
 ## Incomplete implementation / research work
 
 - GitHub/Jira OAuth authorization and provider-side token lifecycle management.
-- Tracker event webhooks that automatically create drift-review work.
+- Jira event webhooks, broader tracker event coverage and operational webhook delivery monitoring.
 - Larger full-bench ablation sweeps and publication-grade set-level judge sensitivity/calibration.
 - Broader Playwright coverage for the complete six-stage product, cross-browser behavior, mobile workflows and accessibility regression.
 - Offline-first evidence capture, conflict-safe synchronization and background retry.
