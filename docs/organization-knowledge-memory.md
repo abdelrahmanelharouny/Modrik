@@ -1,19 +1,20 @@
-# Organization Knowledge Memory — H3 retrieval slice
+# Organization Knowledge Memory — H3 retrieval and governance
 
 ## Status
 
 The first authenticated read endpoint is implemented at `GET /api/organizations/knowledge-memory`. It reuses accepted `KnowledgeNode` records attached to projects and does not create a second memory store.
 
+The same endpoint now supports an authenticated `PATCH` governance action for explicit review, approval, rejection and archival transitions.
+
 ## Authorization and tenant isolation
 
 1. The route resolves the caller from the signed session cookie using the database-backed identity-session resolver.
 2. The resolver revalidates the session, user, membership, organization, status and session expiry against the database.
-3. The route requires the verified role to have `organization:read`.
-4. It derives project IDs exclusively with a server-side query scoped to the verified `organizationId`.
-5. The query builder scopes every result to those project IDs and `status: accepted`; no client-supplied organization or project IDs are used.
-6. The proxy also classifies the route under `organization:read`, so the endpoint is covered by the global API authorization policy.
-
-The route returns 401 for missing/invalid identity, 403 for insufficient permission, 400 for malformed limits, and 503 when identity resolution or retrieval is unavailable. Responses are marked `no-store`.
+3. Read access requires `organization:read`; governance actions additionally enforce their action-specific permission in the route.
+4. Target nodes are resolved through their project and the verified organization ID. No client-supplied organization or project IDs are trusted.
+5. Archived projects cannot contribute to organization-wide retrieval or governance.
+6. Read results are restricted to accepted nodes and bounded, source-attributed summaries.
+7. The proxy classifies GET/HEAD as `organization:read` and PATCH as an authenticated entry gate; the route then checks the exact action permission.
 
 ## Retrieval contract
 
@@ -24,14 +25,27 @@ The route returns 401 for missing/invalid identity, 403 for insufficient permiss
 - Descriptions are capped at 1,200 characters; confidence is clamped to [0, 1].
 - Claims, private evidence text, credentials and arbitrary project records are not returned.
 
+## Governance contract
+
+Send `PATCH /api/organizations/knowledge-memory` with `nodeId`, `action`, and optional `reason` (maximum 500 characters).
+
+| Action | Allowed source state | Result | Required permission |
+|---|---|---|---|
+| `submit_for_review` | proposed | in_review | `requirements:write` |
+| `reject` | in_review | rejected | `requirements:review` |
+| `approve` | in_review | accepted | `requirements:approve` |
+| `archive` | accepted or rejected | archived | `requirements:approve` |
+
+Transitions use a compare-and-set status guard inside a database transaction. The matching `DecisionEntry` audit record is written in the same transaction, so a failed audit write rolls back the state change. Invalid state transitions return a conflict instead of silently overwriting another reviewer’s decision. The audit detail records the authenticated user ID, node reference, transition and bounded reason.
+
 ## Known boundaries
 
 - This is project-backed retrieval, not yet a separately persisted organization-memory entity.
-- Retrieval is lexical over labels and descriptions; semantic/vector search is not enabled.
-- No organization-level write, promotion, supersession or archive workflow is exposed yet.
-- Access audit events and human curation audit events remain a follow-up; this slice does not claim them.
-- Cross-tenant protection is enforced by deriving project IDs from the verified organization and by the query's projectId allowlist. A dedicated live-database multi-tenant E2E test remains required.
+- Lexical retrieval only; semantic/vector search is not enabled.
+- Governance is deliberately limited to explicit transitions; there is no bulk mutation, delete, or automatic promotion.
+- Audit events reuse the existing append-only project decision journal. A dedicated organization-level audit-event store and cross-project audit query remain future work.
+- A live-database multi-tenant E2E test remains required before production enablement.
 
 ## Next
 
-Add auditable curation lifecycle (propose, review, promote, supersede, archive), explicit source retention/deletion semantics, and tenant-isolation integration tests before enabling semantic retrieval.
+Add a dedicated organization audit stream, review queue UI, semantic retrieval with tenant filtering before vector search, and live-database tenant-isolation integration tests.
