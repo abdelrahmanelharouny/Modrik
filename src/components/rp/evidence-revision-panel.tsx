@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { createOfflineEvidenceMutationOperation } from "@/lib/evidence/offline-queue.mjs";
 import type { EvidenceDTO } from "@/lib/rp";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,11 +32,20 @@ export function EvidenceRevisionPanel({
   const save = async () => {
     setBusy(true);
     try {
-      const requestFingerprint = JSON.stringify({ evidenceId: evidence.id, expectedRevisionVersion: evidence.revisions?.[0]?.version ?? 0, title, content, language, consent, changeNote });
+      const requestFingerprint = JSON.stringify({ evidenceId: evidence.id, expectedRevisionVersion, title, content, language, consent, changeNote });
       if (!pendingOperationRef.current || pendingOperationRef.current.fingerprint !== requestFingerprint) {
         pendingOperationRef.current = { fingerprint: requestFingerprint, id: crypto.randomUUID() };
       }
       const clientOperationId = pendingOperationRef.current.id;
+      const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (!onQueueOffline) throw new Error("Offline editing queue is unavailable");
+        await onQueueOffline(createOfflineEvidenceMutationOperation(projectId, "update", evidence.id, expectedRevisionVersion, { title, content, sourceType: evidence.sourceType, language, consent }, clientOperationId, changeNote));
+        pendingOperationRef.current = null;
+        setEditing(false);
+        toast({ title: "Revision queued", description: "Your edit is stored locally and will sync in order after reconnecting. The expected revision is pinned." });
+        return;
+      }
       const result = await api<{ revision: number }>(`/api/projects/${projectId}/evidence`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -67,6 +77,13 @@ export function EvidenceRevisionPanel({
           description: "Your draft is still here. Compare it with the refreshed history, then save again to create the next revision.",
           variant: "destructive",
         });
+      } else if (error instanceof TypeError && onQueueOffline) {
+        try {
+          await onQueueOffline(createOfflineEvidenceMutationOperation(projectId, "update", evidence.id, evidence.revisions?.[0]?.version ?? 0, { title, content, sourceType: evidence.sourceType, language, consent }, pendingOperationRef.current?.id ?? crypto.randomUUID(), changeNote));
+          pendingOperationRef.current = null;
+          setEditing(false);
+          toast({ title: "Revision queued", description: "Connection interrupted; the operation ID is preserved for safe retry." });
+        } catch (queueError) { toast({ title: "Could not preserve revision offline", description: (queueError as Error).message, variant: "destructive" }); }
       } else {
         toast({ title: "Could not save evidence", description: message, variant: "destructive" });
       }

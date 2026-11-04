@@ -105,3 +105,17 @@ test("offline evidence FIFO ordering is stable for same-millisecond operations",
   assert.equal(retriedFirst.createdAt, first.createdAt);
   assert.throws(() => orderOfflineEvidenceOperation({}, second), /array/);
 });
+
+
+test("offline mutation queue operations pin revisions and keep delete payload-free", async () => {
+  const { createOfflineEvidenceMutationOperation } = await import("../src/lib/evidence/offline-queue.mjs");
+  const update = createOfflineEvidenceMutationOperation("project-1", "update", "evidence-7", 4, { title: "Updated", content: "New notes", consent: true, language: "ar-EG", sourceType: "interview" }, "123e4567-e89b-42d3-a456-426614174010", "Clarified interview");
+  assert.equal(update.kind, "update");
+  assert.equal(update.evidenceId, "evidence-7");
+  assert.equal(update.expectedRevisionVersion, 4);
+  assert.equal(update.changeNote, "Clarified interview");
+  const deletion = createOfflineEvidenceMutationOperation("project-1", "delete", "evidence-8", 2, undefined, "123e4567-e89b-42d3-a456-426614174011");
+  assert.equal(deletion.kind, "delete");
+  assert.equal("payload" in deletion, false);
+  assert.throws(() => createOfflineEvidenceMutationOperation("project-1", "delete", "evidence-8", -1, undefined, "123e4567-e89b-42d3-a456-426614174012"));
+});

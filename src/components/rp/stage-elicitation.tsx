@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { createOfflineEvidenceOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, withOfflineEvidenceSyncLock, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
+import { createOfflineEvidenceOperation, createOfflineEvidenceMutationOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, withOfflineEvidenceSyncLock, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
@@ -255,10 +255,14 @@ export function ElicitationStage({
         const operations = await listOfflineEvidenceOperations(project.id);
         for (const operation of operations) {
           try {
-            await api(`/api/projects/${project.id}/evidence`, {
-              method: "POST",
-              body: JSON.stringify({ ...operation.payload, clientOperationId: operation.operationId }),
-            });
+            const endpoint = `/api/projects/${project.id}/evidence`;
+            if (operation.kind === "delete") {
+              await api(`${endpoint}?evidenceId=${encodeURIComponent(operation.evidenceId)}&expectedRevisionVersion=${operation.expectedRevisionVersion}&clientOperationId=${operation.operationId}`, { method: "DELETE" });
+            } else if (operation.kind === "update") {
+              await api(endpoint, { method: "PATCH", body: JSON.stringify({ evidenceId: operation.evidenceId, expectedRevisionVersion: operation.expectedRevisionVersion, ...operation.payload, changeNote: operation.changeNote ?? "", clientOperationId: operation.operationId }) });
+            } else {
+              await api(endpoint, { method: "POST", body: JSON.stringify({ ...operation.payload, clientOperationId: operation.operationId }) });
+            }
             await removeOfflineEvidenceOperation(operation.operationId);
             changed = true;
           } catch (error) {
@@ -341,6 +345,16 @@ export function ElicitationStage({
     const evidence = project.evidences.find((item) => item.id === id);
     if (!evidence) return;
     const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      try {
+        const operationId = deleteOperationIdsRef.current.get(id) ?? crypto.randomUUID();
+        await putOfflineEvidenceOperation(createOfflineEvidenceMutationOperation(project.id, "delete", id, expectedRevisionVersion, undefined, operationId));
+        deleteOperationIdsRef.current.set(id, operationId);
+        await loadOfflineQueue();
+        toast({ title: "Deletion queued", description: "The source will be removed after reconnecting. Its revision is pinned; a conflict will pause the queue for review." });
+      } catch (error) { toast({ title: "Could not queue deletion", description: (error as Error).message, variant: "destructive" }); }
+      return;
+    }
     if (!deleteOperationIdsRef.current.has(id)) deleteOperationIdsRef.current.set(id, crypto.randomUUID());
     const clientOperationId = deleteOperationIdsRef.current.get(id)!;
     try {
@@ -610,6 +624,7 @@ export function ElicitationStage({
                   projectId={project.id}
                   evidence={ev}
                   onSaved={refresh}
+                  onQueueOffline={async (operation) => { await putOfflineEvidenceOperation(operation); await loadOfflineQueue(); }}
                 />
                 <EvidenceClaimsPanel
                   projectId={project.id}
