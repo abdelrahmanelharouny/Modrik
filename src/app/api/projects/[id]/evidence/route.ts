@@ -189,7 +189,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "clientOperationId must be a UUID" }, { status: 400 });
   }
   const requestHash = requestedOperationId
-    ? hashEvidenceOperationRequest({ projectId: id, action: "update", normalized: { evidenceId: existing.id, expectedRevisionVersion: body.expectedRevisionVersion, normalized, changeNote } })
+    ? hashEvidenceOperationRequest({ projectId: id, action: "update", origin: null, normalized: { evidenceId: existing.id, expectedRevisionVersion: body.expectedRevisionVersion, normalized, changeNote } })
     : null;
   if (requestedOperationId) {
     const prior = await db.evidenceOperation.findUnique({ where: { operationId: requestedOperationId } });
@@ -347,7 +347,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "clientOperationId must be a UUID" }, { status: 400 });
   }
   const requestHash = requestedOperationId
-    ? hashEvidenceOperationRequest({ projectId: id, action: "delete", normalized: { evidenceId, expectedRevisionVersion } })
+    ? hashEvidenceOperationRequest({ projectId: id, action: "delete", origin: null, normalized: { evidenceId, expectedRevisionVersion } })
     : null;
   if (requestedOperationId) {
     const prior = await db.evidenceOperation.findUnique({ where: { operationId: requestedOperationId } });
