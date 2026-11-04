@@ -44,10 +44,14 @@ export async function GET(req: NextRequest) {
 
   const params = req.nextUrl.searchParams;
   const rawLimit = params.get("limit");
-  const limit = rawLimit === null ? undefined : Number(rawLimit);
-  if (rawLimit !== null && (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)) {
+  if (rawLimit !== null && (
+    !Number.isSafeInteger(Number(rawLimit)) ||
+    Number(rawLimit) < 1 ||
+    Number(rawLimit) > 1000
+  )) {
     return errorResponse("limit must be an integer between 1 and 1000", 400);
   }
+  const limit = rawLimit === null ? undefined : Number(rawLimit);
   const kind = params.get("kind") ?? undefined;
   const search = params.get("q") ?? undefined;
 
