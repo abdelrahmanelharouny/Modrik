@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { resolveIdentitySession } from "@/lib/security/identity";
 import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import { SESSION_COOKIE } from "@/lib/security/session.mjs";
+import { resolveOrganizationMemoryTransition, normalizeOrganizationMemoryReason } from "@/lib/knowledge-graph/organization-memory-governance.mjs";
 import {
   buildOrganizationKnowledgeQuery,
   summarizeOrganizationKnowledgeNode,
@@ -91,5 +92,124 @@ export async function GET(req: NextRequest) {
     }, { headers: noStore });
   } catch {
     return errorResponse("Organization knowledge is temporarily unavailable", 503);
+  }
+}
+
+
+/**
+ * PATCH /api/organizations/knowledge-memory
+ * Governance actions are scoped by the verified organization and use a
+ * compare-and-set status transition with an atomic decision-journal entry.
+ */
+export async function PATCH(req: NextRequest) {
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  let identity;
+  try {
+    identity = await resolveIdentitySession(token);
+  } catch {
+    return errorResponse("Identity could not be verified", 503);
+  }
+  if (!identity) return errorResponse("Authentication required", 401);
+
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return errorResponse("Invalid governance payload", 400);
+  }
+  if (typeof body.nodeId !== "string" || !body.nodeId.trim() || body.nodeId.length > 128) {
+    return errorResponse("nodeId is required", 400);
+  }
+  if (typeof body.action !== "string") return errorResponse("action is required", 400);
+  if (body.reason !== undefined && typeof body.reason !== "string") {
+    return errorResponse("reason must be a string", 400);
+  }
+  const reason = normalizeOrganizationMemoryReason(body.reason);
+
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const node = await tx.knowledgeNode.findFirst({
+        where: {
+          id: body.nodeId.trim(),
+          project: {
+            organizationId: identity.organizationId,
+            status: { not: "archived" },
+          },
+        },
+        select: {
+          id: true,
+          projectId: true,
+          nodeRef: true,
+          status: true,
+        },
+      });
+      if (!node) return { kind: "not_found" as const };
+
+      const transition = resolveOrganizationMemoryTransition(body.action, node.status);
+      if (!transition) return { kind: "invalid_transition" as const, status: node.status };
+
+      if (!hasOrganizationPermission({
+        role: identity.role,
+        status: "active",
+        userStatus: "active",
+        organizationStatus: "active",
+      }, transition.permission)) {
+        return { kind: "forbidden" as const };
+      }
+
+      const changed = await tx.knowledgeNode.updateMany({
+        where: {
+          id: node.id,
+          projectId: node.projectId,
+          status: transition.from,
+        },
+        data: { status: transition.to },
+      });
+      if (changed.count !== 1) return { kind: "conflict" as const };
+
+      await tx.decisionEntry.create({
+        data: {
+          projectId: node.projectId,
+          stage: "ORG_MEMORY",
+          actor: "human",
+          action: "organization_memory_" + transition.action,
+          detail: JSON.stringify({
+            actorUserId: identity.userId,
+            nodeId: node.id,
+            nodeRef: node.nodeRef,
+            from: transition.from,
+            to: transition.to,
+            reason,
+          }),
+        },
+      });
+
+      const updated = await tx.knowledgeNode.findUnique({
+        where: { id: node.id },
+        select: {
+          id: true,
+          projectId: true,
+          nodeRef: true,
+          kind: true,
+          label: true,
+          description: true,
+          status: true,
+          confidence: true,
+          updatedAt: true,
+        },
+      });
+      return { kind: "updated" as const, node: updated };
+    });
+
+    if (result.kind === "not_found") return errorResponse("Knowledge node not found", 404);
+    if (result.kind === "forbidden") return errorResponse("Insufficient permission for this governance action", 403);
+    if (result.kind === "invalid_transition") {
+      return NextResponse.json(
+        { error: "Invalid knowledge lifecycle transition", currentStatus: result.status },
+        { status: 409, headers: noStore },
+      );
+    }
+    if (result.kind === "conflict") return errorResponse("Knowledge node changed during review; refresh and retry", 409);
+    return NextResponse.json({ node: result.node }, { headers: noStore });
+  } catch {
+    return errorResponse("Knowledge governance is temporarily unavailable", 503);
   }
 }
