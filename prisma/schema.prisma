@@ -33,6 +33,7 @@ model User {
   projectsCreated Project[]    @relation("ProjectCreator")
   invitationsSent OrganizationInvitation[] @relation("InvitationSender")
   invitationsReceived OrganizationInvitation[] @relation("InvitationRecipient")
+  organizationAuditEvents OrganizationAuditEvent[]
   passwordResetTokens PasswordResetToken[]
 
   @@index([status, createdAt])
@@ -48,6 +49,7 @@ model Organization {
   memberships Membership[]
   projects    Project[]
   invitations OrganizationInvitation[]
+  auditEvents OrganizationAuditEvent[]
 
   @@index([status, createdAt])
 }
@@ -815,4 +817,28 @@ model EvidenceOperation {
 
   @@index([projectId, createdAt])
   @@index([status, createdAt])
+}
+
+
+// Organization-scoped audit events. projectId is a scalar snapshot so project
+// deletion cannot cascade-delete the organization audit history.
+model OrganizationAuditEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUserId    String?
+  actor          User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  eventType      String
+  resourceType   String
+  resourceId     String
+  projectId      String?
+  summary        String       @default("")
+  metadata       String       @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt, id])
+  @@index([organizationId, eventType, createdAt])
+  @@index([organizationId, actorUserId, createdAt])
+  @@index([organizationId, projectId, createdAt])
+  @@index([organizationId, resourceType, resourceId])
 }

@@ -210,6 +210,19 @@ export async function PATCH(req: NextRequest) {
         },
       });
 
+      await tx.organizationAuditEvent.create({
+        data: {
+          organizationId: identity.organizationId,
+          actorUserId: identity.userId,
+          eventType: "knowledge_memory." + transition.action,
+          resourceType: "knowledge_node",
+          resourceId: node.id,
+          projectId: node.projectId,
+          summary: "Organization knowledge " + transition.action.replaceAll("_", " "),
+          metadata: JSON.stringify({ nodeRef: node.nodeRef, from: transition.from, to: transition.to, reason }),
+        },
+      });
+
       const updated = await tx.knowledgeNode.findUnique({
         where: { id: node.id },
         select: {

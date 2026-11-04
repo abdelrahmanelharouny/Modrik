@@ -52,6 +52,8 @@ test("sensitive non-project routes require the intended least-privilege role per
   assert.equal(resolveOrganizationRoutePermission("/api/invitations/revoke", "POST"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "GET"), "organization:read");
   assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "PATCH"), "organization:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/audit", "GET"), "audit:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/audit", "POST"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "POST"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/transcribe", "GET"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/unclassified", "POST"), null);

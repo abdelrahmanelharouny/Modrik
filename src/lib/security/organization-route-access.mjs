@@ -13,6 +13,7 @@ const ROUTE_PERMISSIONS = Object.freeze({
   "/api/invitations": Object.freeze({ GET: "members:manage", HEAD: "members:manage", POST: "members:manage" }),
   "/api/invitations/revoke": Object.freeze({ POST: "members:manage" }),
   "/api/organizations/knowledge-memory": Object.freeze({ GET: "organization:read", HEAD: "organization:read", PATCH: "organization:read" }),
+  "/api/organizations/audit": Object.freeze({ GET: "audit:read", HEAD: "audit:read" }),
 });
 
 export function resolveOrganizationRoutePermission(pathname, method) {

@@ -1,0 +1,2 @@
+export function buildOrganizationAuditQuery(input?: { organizationId?: string; eventType?: string; actorUserId?: string; projectId?: string; from?: Date; to?: Date; limit?: number }): { where: Record<string, unknown>; take: number; orderBy: Array<Record<string, "desc" | "asc">> };
+export function summarizeOrganizationAuditEvent(event: unknown): { id: string; eventType: string; resourceType: string; resourceId: string; projectId: string | null; summary: string; metadata: Record<string, unknown>; actor: { id: string; displayName: string } | null; createdAt: unknown } | null;
