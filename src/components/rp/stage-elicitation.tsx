@@ -238,6 +238,7 @@ export function ElicitationStage({
   // worker per mounted project so queue rows are never concurrently acked or
   // have their retry counters overwritten by this component instance.
   const offlineSyncInFlightRef = useRef(false);
+  const deleteOperationIdsRef = useRef(new Map<string, string>());
 
   const loadOfflineQueue = useCallback(async () => {
     try { setPendingOffline(await listOfflineEvidenceOperations(project.id)); }
@@ -340,9 +341,11 @@ export function ElicitationStage({
     const evidence = project.evidences.find((item) => item.id === id);
     if (!evidence) return;
     const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
-    const clientOperationId = crypto.randomUUID();
+    if (!deleteOperationIdsRef.current.has(id)) deleteOperationIdsRef.current.set(id, crypto.randomUUID());
+    const clientOperationId = deleteOperationIdsRef.current.get(id)!;
     try {
       await api(`/api/projects/${project.id}/evidence?evidenceId=${encodeURIComponent(id)}&expectedRevisionVersion=${expectedRevisionVersion}&clientOperationId=${clientOperationId}`, { method: "DELETE" });
+      deleteOperationIdsRef.current.delete(id);
       await refresh();
     } catch (e) {
       const message = (e as Error).message;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { EvidenceDTO } from "@/lib/rp";
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,16 @@ export function EvidenceRevisionPanel({
   const [language, setLanguage] = useState(evidence.language);
   const [consent, setConsent] = useState(evidence.consent);
   const [changeNote, setChangeNote] = useState("");
+  const pendingOperationRef = useRef<{ fingerprint: string; id: string } | null>(null);
 
   const save = async () => {
     setBusy(true);
     try {
-      const clientOperationId = crypto.randomUUID();
+      const requestFingerprint = JSON.stringify({ evidenceId: evidence.id, expectedRevisionVersion: evidence.revisions?.[0]?.version ?? 0, title, content, language, consent, changeNote });
+      if (!pendingOperationRef.current || pendingOperationRef.current.fingerprint !== requestFingerprint) {
+        pendingOperationRef.current = { fingerprint: requestFingerprint, id: crypto.randomUUID() };
+      }
+      const clientOperationId = pendingOperationRef.current.id;
       const result = await api<{ revision: number }>(`/api/projects/${projectId}/evidence`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -44,6 +49,7 @@ export function EvidenceRevisionPanel({
           clientOperationId,
         }),
       });
+      pendingOperationRef.current = null;
       await onSaved();
       setEditing(false);
       setChangeNote("");
