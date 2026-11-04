@@ -559,7 +559,7 @@ export function ElicitationStage({
                 const operationTitle = operation.kind === "delete"
                   ? target?.title ?? operation.evidenceId
                   : operation.payload.title;
-                const expectedVersion = operation.kind === "create" ? "—" : operation.expectedRevisionVersion;
+                const expectedVersion = "expectedRevisionVersion" in operation ? operation.expectedRevisionVersion : "—";
                 return (
                   <li key={operation.operationId} className="rounded border border-border/70 bg-background/60 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
