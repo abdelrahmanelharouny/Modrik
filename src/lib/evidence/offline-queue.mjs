@@ -1,6 +1,9 @@
 const DB_NAME = "modrik-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "evidence-operations";
+const LOCK_STORE = "sync-leases";
+const SYNC_LEASE_MS = 60_000;
+const SYNC_HEARTBEAT_MS = 15_000;
 const MAX_PENDING = 100;
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -99,6 +102,7 @@ function openDb() {
         store.createIndex("projectId", "projectId", { unique: false });
         store.createIndex("createdAt", "createdAt", { unique: false });
       }
+      if (!db.objectStoreNames.contains(LOCK_STORE)) db.createObjectStore(LOCK_STORE, { keyPath: "name" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open offline evidence storage"));
@@ -212,30 +216,74 @@ export async function updateOfflineEvidenceOperation(operation) {
 }
 
 
-// Serialize queue synchronization across tabs where the Web Locks API exists.
-// The in-process promise queue is a safe fallback for older browsers and tests.
+// Serialize queue synchronization across tabs. Web Locks is preferred; an
+// IndexedDB lease provides a cross-tab fallback for browsers without Web Locks.
 const inProcessSyncLocks = new Map();
 
-export async function withOfflineEvidenceSyncLock(projectId, task) {
-  if (typeof projectId !== "string" || !projectId.trim() || projectId.length > 128) {
-    throw new TypeError("projectId must contain 1–128 characters");
-  }
-  if (typeof task !== "function") throw new TypeError("A sync task is required");
-  const lockName = `modrik:offline-evidence-sync:${projectId}`;
-  const locks = globalThis.navigator?.locks;
-  if (locks?.request) {
-    return locks.request(lockName, { mode: "exclusive" }, task);
-  }
-
+function withInProcessSyncLock(lockName, task) {
   const previous = inProcessSyncLocks.get(lockName) ?? Promise.resolve();
   let release;
   const current = new Promise((resolve) => { release = resolve; });
   inProcessSyncLocks.set(lockName, current);
-  await previous;
-  try {
-    return await task();
-  } finally {
-    release();
-    if (inProcessSyncLocks.get(lockName) === current) inProcessSyncLocks.delete(lockName);
+  return previous.then(async () => {
+    try { return await task(); }
+    finally {
+      release();
+      if (inProcessSyncLocks.get(lockName) === current) inProcessSyncLocks.delete(lockName);
+    }
+  });
+}
+
+async function updateSyncLease(name, owner, leaseUntil, { release = false } = {}) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCK_STORE, "readwrite");
+    const store = tx.objectStore(LOCK_STORE);
+    const request = store.get(name);
+    let acquired = false;
+    request.onsuccess = () => {
+      const current = request.result;
+      if (release) {
+        if (current?.owner === owner) store.delete(name);
+        acquired = true;
+      } else if (!current || current.owner === owner || current.leaseUntil <= Date.now()) {
+        store.put({ name, owner, leaseUntil });
+        acquired = true;
+      }
+    };
+    request.onerror = () => tx.abort();
+    tx.oncomplete = () => { db.close(); resolve(acquired); };
+    tx.onerror = () => { db.close(); reject(tx.error ?? new Error("Could not update offline sync lease")); };
+    tx.onabort = () => { db.close(); reject(tx.error ?? new Error("Offline sync lease transaction aborted")); };
+  });
+}
+
+async function withIndexedDbSyncLease(lockName, task) {
+  const owner = globalThis.crypto?.randomUUID?.() ?? `lease-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  while (!(await updateSyncLease(lockName, owner, Date.now() + SYNC_LEASE_MS))) {
+    await new Promise((resolve) => setTimeout(resolve, 120));
   }
+  let heartbeatBusy = false;
+  const heartbeat = setInterval(async () => {
+    if (heartbeatBusy) return;
+    heartbeatBusy = true;
+    try { await updateSyncLease(lockName, owner, Date.now() + SYNC_LEASE_MS); }
+    catch { /* Lease expiry lets another tab recover if storage becomes unavailable. */ }
+    finally { heartbeatBusy = false; }
+  }, SYNC_HEARTBEAT_MS);
+  try { return await task(); }
+  finally {
+    clearInterval(heartbeat);
+    await updateSyncLease(lockName, owner, 0, { release: true }).catch(() => {});
+  }
+}
+
+export async function withOfflineEvidenceSyncLock(projectId, task) {
+  if (typeof projectId !== "string" || !projectId.trim() || projectId.length > 128) throw new TypeError("projectId must contain 1–128 characters");
+  if (typeof task !== "function") throw new TypeError("A sync task is required");
+  const lockName = `modrik:offline-evidence-sync:${projectId}`;
+  const locks = globalThis.navigator?.locks;
+  if (locks?.request) return locks.request(lockName, { mode: "exclusive" }, task);
+  if (typeof indexedDB !== "undefined") return withIndexedDbSyncLease(lockName, task);
+  return withInProcessSyncLock(lockName, task);
 }
