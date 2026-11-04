@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { hashEvidenceRevision } from "@/lib/evidence/revision.mjs";
 import { isEvidenceRevisionVersionConflict, parseExpectedRevisionVersion } from "@/lib/evidence/revision-conflict.mjs";
 import { buildEvidenceSnapshotWhere } from "@/lib/evidence/snapshot-where.mjs";
+import { isEvidenceCreateReplay } from "@/lib/evidence/create-replay.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (requestedOperationId) {
     const prior = await db.evidence.findUnique({ where: { id: idempotentId } });
     if (prior) {
-      if (prior.projectId !== id || hashEvidenceRevision(prior) !== contentHash) {
+      if (!isEvidenceCreateReplay(prior, { projectId: id, normalized, origin })) {
         return NextResponse.json({ error: "Idempotency key was already used for a different evidence payload", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
       }
       return NextResponse.json({ evidence: prior, aiEligible: prior.consent, idempotentReplay: true }, { status: 200 });
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (error) {
     if (requestedOperationId) {
       const raced = await db.evidence.findUnique({ where: { id: idempotentId } });
-      if (raced?.projectId === id && hashEvidenceRevision(raced) === contentHash) {
+      if (isEvidenceCreateReplay(raced, { projectId: id, normalized, origin })) {
         return NextResponse.json({ evidence: raced, aiEligible: raced.consent, idempotentReplay: true }, { status: 200 });
       }
     }
