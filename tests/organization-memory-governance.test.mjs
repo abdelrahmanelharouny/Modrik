@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { hasOrganizationPermission } from "../src/lib/security/organization-access.mjs";
 import {
   normalizeOrganizationMemoryReason,
   resolveOrganizationMemoryTransition,
@@ -39,4 +40,20 @@ test("reason normalization is bounded and strips control characters", () => {
   assert.equal(normalizeOrganizationMemoryReason("  reviewed\nwith care  "), "reviewed with care");
   assert.equal(normalizeOrganizationMemoryReason("x".repeat(600)).length, 500);
   assert.equal(normalizeOrganizationMemoryReason(null), "");
+});
+
+test("governance permissions keep review and approval roles separate", () => {
+  const reviewer = { role: "reviewer", status: "active", userStatus: "active", organizationStatus: "active" };
+  const approver = { role: "approver", status: "active", userStatus: "active", organizationStatus: "active" };
+  const engineer = { role: "engineer", status: "active", userStatus: "active", organizationStatus: "active" };
+  assert.equal(hasOrganizationPermission(reviewer, "requirements:review"), true);
+  assert.equal(hasOrganizationPermission(reviewer, "requirements:approve"), false);
+  assert.equal(hasOrganizationPermission(approver, "requirements:approve"), true);
+  assert.equal(hasOrganizationPermission(approver, "requirements:review"), false);
+  assert.equal(hasOrganizationPermission(engineer, "requirements:write"), true);
+  assert.equal(hasOrganizationPermission(engineer, "requirements:approve"), false);
+});
+
+test("unknown governance actions fail closed", () => {
+  assert.equal(resolveOrganizationMemoryTransition("promote_everything", "proposed"), null);
 });
