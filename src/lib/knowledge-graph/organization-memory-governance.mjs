@@ -10,8 +10,8 @@ const TRANSITIONS = Object.freeze({
  * Returns null for unknown actions or invalid source states.
  */
 export function resolveOrganizationMemoryTransition(action, currentStatus) {
+  if (typeof action !== "string" || !Object.hasOwn(TRANSITIONS, action)) return null;
   const transition = TRANSITIONS[action];
-  if (!transition) return null;
   const allowedFrom = Array.isArray(transition.from) ? transition.from : [transition.from];
   if (!allowedFrom.includes(currentStatus)) return null;
   return { action, from: currentStatus, to: transition.to, permission: transition.permission };
