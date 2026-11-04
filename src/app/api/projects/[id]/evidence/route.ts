@@ -115,7 +115,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (error) {
     if (requestedOperationId) {
       const raced = await db.evidence.findUnique({ where: { id: idempotentId } });
-      if (isEvidenceCreateReplay(raced, { projectId: id, normalized, origin })) {
+      if (raced && isEvidenceCreateReplay(raced, { projectId: id, normalized, origin })) {
         return NextResponse.json({ evidence: raced, aiEligible: raced.consent, idempotentReplay: true }, { status: 200 });
       }
     }
