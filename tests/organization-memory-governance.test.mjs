@@ -36,7 +36,7 @@ test("only accepted or rejected knowledge can be archived by an approver", () =>
 });
 
 test("reason normalization is bounded and strips control characters", () => {
-  assert.equal(normalizeOrganizationMemoryReason("  reviewed\\nwith care  "), "reviewed with care");
+  assert.equal(normalizeOrganizationMemoryReason("  reviewed\nwith care  "), "reviewed with care");
   assert.equal(normalizeOrganizationMemoryReason("x".repeat(600)).length, 500);
   assert.equal(normalizeOrganizationMemoryReason(null), "");
 });
