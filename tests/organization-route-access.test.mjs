@@ -29,19 +29,17 @@ test("every non-project API handler has an explicit organization permission or e
   const unclassified = [];
   for (const file of collectRouteFiles(apiRoot)) {
     const routePath = file.split(path.sep).slice(0, -1).map((part) => part.replace(/^\[(.*)\]$/, ":$1")).join("/");
-    const pathname = routePath ? `/api/${routePath}` : "/api";
+    const pathname = routePath ? \`/api/\${routePath}\` : "/api";
     if (pathname.startsWith("/api/projects/") || pathname === "/api/projects") continue;
     const source = fs.readFileSync(path.join(apiRoot, file), "utf8");
     const methods = methodsIn(source);
-    assert.ok(methods.length > 0, `${pathname} must export an HTTP method`);
+    assert.ok(methods.length > 0, \`\${pathname} must export an HTTP method\`);
     for (const method of methods) {
       if (isPublicApiRequest(pathname, method)) continue;
-      if (!resolveOrganizationRoutePermission(pathname, method)) {
-        unclassified.push(`${method} ${pathname}`);
-      }
+      if (!resolveOrganizationRoutePermission(pathname, method)) unclassified.push(\`\${method} \${pathname}\`);
     }
   }
-  assert.deepEqual(unclassified, [], `Unclassified API handlers: ${unclassified.join(", ")}`);
+  assert.deepEqual(unclassified, [], \`Unclassified API handlers: \${unclassified.join(", ")}\`);
 });
 
 test("sensitive non-project routes require the intended least-privilege role permission", () => {
@@ -52,6 +50,8 @@ test("sensitive non-project routes require the intended least-privilege role per
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "GET"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "POST"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations/revoke", "POST"), "members:manage");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "GET"), "organization:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "POST"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/transcribe", "GET"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/unclassified", "POST"), null);
 });
