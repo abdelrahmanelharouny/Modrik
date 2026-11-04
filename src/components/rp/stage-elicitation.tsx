@@ -551,20 +551,26 @@ export function ElicitationStage({
             </div>
             <ol className="mt-3 space-y-2">
               {pendingOffline.map((operation, index) => {
-                const target = operation.kind !== "create" ? project.evidences.find((item) => item.id === operation.evidenceId) : undefined;
+                const target = operation.kind === "update" || operation.kind === "delete"
+                  ? project.evidences.find((item) => item.id === operation.evidenceId)
+                  : undefined;
                 const conflict = /EVIDENCE_REVISION_CONFLICT|changed in another session|revision.*conflict/i.test(operation.lastError ?? "");
                 const canRebase = operation.kind === "update" && !!target && conflict;
+                const operationTitle = operation.kind === "delete"
+                  ? target?.title ?? operation.evidenceId
+                  : operation.payload.title;
+                const expectedVersion = operation.kind === "create" ? "—" : operation.expectedRevisionVersion;
                 return (
                   <li key={operation.operationId} className="rounded border border-border/70 bg-background/60 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline" className="font-mono">{index + 1} · {(operation.kind ?? "create").toUpperCase()}</Badge>
-                          <span className="text-xs font-medium">{(operation.kind === "delete" ? target?.title : operation.payload.title) ?? operation.evidenceId}</span>
+                          <span className="text-xs font-medium">{operationTitle}</span>
                           {conflict ? <Badge variant="destructive">Revision conflict</Badge> : operation.lastError ? <Badge variant="secondary">Needs attention</Badge> : <Badge variant="outline">Waiting</Badge>}
                         </div>
                         <p className="mt-1 text-[10px] text-muted-foreground">
-                          Queued {new Date(operation.createdAt).toLocaleString()} · {operation.attempts} attempt(s) · expected v{operation.kind === "create" ? "—" : operation.expectedRevisionVersion}
+                          Queued {new Date(operation.createdAt).toLocaleString()} · {operation.attempts} attempt(s) · expected v{expectedVersion}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
