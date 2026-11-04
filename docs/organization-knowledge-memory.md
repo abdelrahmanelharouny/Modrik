@@ -9,7 +9,7 @@ The authenticated organization memory read endpoint reuses accepted `KnowledgeNo
 1. The route resolves the caller from the signed session cookie using the database-backed identity-session resolver.
 2. The resolver revalidates the session, user, membership, organization, status and session expiry against the database.
 3. Accepted-memory reads require `organization:read`; review-queue reads additionally require `requirements:review` or `requirements:approve`.
-4. Target nodes and project lists are scoped by the verified `identity.organizationId`. The route explicitly rejects identities without non-empty organization, actor and role scope before issuing Prisma queries; it never relies on Prisma handling of `undefined` filters. Client-supplied organization or project IDs are never trusted.
+4. Target nodes, project lists and audit reads are scoped by the verified `identity.organizationId`. Both organization-memory and audit routes explicitly reject identities without non-empty organization, actor and role scope before issuing Prisma queries; they never rely on Prisma handling of `undefined` filters. Client-supplied organization or project IDs are never trusted.
 5. Archived projects are excluded from retrieval, review and governance.
 6. Accepted-memory and review-queue serializers expose bounded, source-attributed summaries, not raw evidence or arbitrary project records.
 7. Governance actions enforce their exact permission again at mutation time.

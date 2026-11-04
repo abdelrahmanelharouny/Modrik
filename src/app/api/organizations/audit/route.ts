@@ -4,6 +4,7 @@ import { resolveIdentitySession } from "@/lib/security/identity";
 import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import { buildOrganizationAuditQuery, summarizeOrganizationAuditEvent } from "@/lib/organization-audit.mjs";
 import { SESSION_COOKIE } from "@/lib/security/session.mjs";
+import { hasVerifiedOrganizationMemoryIdentity } from "@/lib/knowledge-graph/organization-memory.mjs";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const noStore={"Cache-Control":"no-store, max-age=0"};
@@ -12,6 +13,7 @@ function parseDate(value:string|null):Date|undefined|null{if(value===null)return
 export async function GET(req:NextRequest){
  let identity;try{identity=await resolveIdentitySession(req.cookies.get(SESSION_COOKIE)?.value);}catch{return fail("Identity could not be verified",503);}
  if(!identity)return fail("Authentication required",401);
+ if(!hasVerifiedOrganizationMemoryIdentity(identity))return fail("Verified organization scope is required",403);
  const membership={role:identity.role,status:"active",userStatus:"active",organizationStatus:"active"};
  if(!hasOrganizationPermission(membership,"audit:read"))return fail("Audit permission required",403);
  const params=req.nextUrl.searchParams,rawLimit=params.get("limit");
