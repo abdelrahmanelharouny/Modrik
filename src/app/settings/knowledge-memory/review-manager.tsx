@@ -105,10 +105,15 @@ export function OrganizationKnowledgeReviewManager() {
         </button>
       </div>
 
-      <div role="tablist" aria-label="Knowledge views" className="mb-5 flex flex-wrap gap-2 border-b border-border">\n        <button type="button" role="tab" aria-selected={view === "accepted"} onClick={() => setView("accepted")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "accepted" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Trusted memory</button>\n        <button type="button" role="tab" aria-selected={view === "review_queue"} onClick={() => setView("review_queue")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "review_queue" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Review queue</button>\n      </div>\n\n      {view === "review_queue" ? <div className="mb-5 flex flex-wrap gap-2 text-xs">
+      <div role="tablist" aria-label="Knowledge views" className="mb-5 flex flex-wrap gap-2 border-b border-border">
+        <button type="button" role="tab" aria-selected={view === "accepted"} onClick={() => setView("accepted")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "accepted" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Trusted memory</button>
+        <button type="button" role="tab" aria-selected={view === "review_queue"} onClick={() => setView("review_queue")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "review_queue" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Review queue</button>
+      </div>
+
+      {view === "review_queue" ? <div className="mb-5 flex flex-wrap gap-2 text-xs">
         <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">Review permission: {capabilities.canReview ? "enabled" : "not assigned"}</span>
         <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">Approval permission: {capabilities.canApprove ? "enabled" : "not assigned"}</span>
-      </div>
+      </div> : null}
 
       <form onSubmit={applyFilters} className="mb-6 grid gap-3 rounded-2xl border border-border bg-card p-5 sm:grid-cols-[1fr_190px_auto]">
         <label className="grid gap-1.5 text-sm"><span className="text-muted-foreground">Search knowledge</span><input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={120} placeholder="Search title or description" className="h-10 rounded-lg border border-border bg-background px-3 outline-none focus-visible:ring-2 focus-visible:ring-primary" /></label>
@@ -125,14 +130,14 @@ export function OrganizationKnowledgeReviewManager() {
           <div className="divide-y divide-border">{items.map((item) => (
             <article key={item.id} className="p-5">
               <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><span className="rounded-md bg-secondary px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">{item.kind.replaceAll("_", " ")}</span><span className="font-mono text-[11px] text-muted-foreground">{item.nodeRef}</span></div><h3 className="text-base font-semibold">{item.label}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description || "No description supplied."}</p></div><div className="shrink-0 text-right text-xs text-muted-foreground"><p>{item.projectName || "Project"}</p><p className="mt-1 font-mono">{item.projectId}</p><p className="mt-1">{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : "Date unavailable"}</p></div></div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              {view === "review_queue" ? <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                 <label className="grid gap-1.5 text-xs text-muted-foreground">Decision rationale <span className="text-[11px]">Optional · up to 500 characters</span><textarea value={reasons[item.id] ?? ""} onChange={(event) => setReasons((current) => ({ ...current, [item.id]: event.target.value.slice(0, 500) }))} rows={2} maxLength={500} placeholder="Explain why this should be accepted or rejected…" className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary" /></label>
                 <div className="flex flex-wrap gap-2">
                   {capabilities.canReview ? <button type="button" disabled={!!busyId} onClick={() => void decide(item, "reject")} className="inline-flex h-10 items-center gap-2 rounded-lg border border-destructive/40 px-3 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-50"><X className="h-4 w-4" /> Reject</button> : null}
                   {capabilities.canApprove ? <button type="button" disabled={!!busyId} onClick={() => void decide(item, "approve")} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"><Check className="h-4 w-4" /> Approve</button> : null}
                   {busyId === item.id ? <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" /> Saving</span> : null}
                 </div>
-              </div>
+              </div> : <p className="mt-3 text-xs text-muted-foreground">Approved shared knowledge · Read only</p>}
             </article>
           ))}</div>
         )}
