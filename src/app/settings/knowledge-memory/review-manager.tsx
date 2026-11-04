@@ -15,13 +15,14 @@ type ReviewItem = {
   description: string;
   confidence: number | null;
   owner: string | null;
-  origin: string;
+  origin?: string;
   updatedAt: string | null;
 };
 type Capabilities = { canReview: boolean; canApprove: boolean };
 
 export function OrganizationKnowledgeReviewManager() {
   const [items, setItems] = useState<ReviewItem[]>([]);
+  const [view, setView] = useState<"review_queue" | "accepted">("review_queue");
   const [capabilities, setCapabilities] = useState<Capabilities>({ canReview: false, canApprove: false });
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("");
@@ -36,7 +37,7 @@ export function OrganizationKnowledgeReviewManager() {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ view: "review_queue", limit: "100" });
+      const params = new URLSearchParams({ view, limit: "100" });
       if (applied.query) params.set("q", applied.query);
       if (applied.kind) params.set("kind", applied.kind);
       const response = await fetch("/api/organizations/knowledge-memory?" + params.toString(), {
@@ -44,7 +45,7 @@ export function OrganizationKnowledgeReviewManager() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (response.status === 403) throw new Error("Your organization role does not include knowledge review access.");
+        if (response.status === 403) throw new Error(view === "accepted" ? "Your organization role does not include knowledge read access." : "Your organization role does not include knowledge review access.");
         throw new Error(payload.error || "Unable to load the review queue.");
       }
       setItems(Array.isArray(payload.items) ? payload.items : []);
@@ -54,7 +55,7 @@ export function OrganizationKnowledgeReviewManager() {
     } finally {
       setLoading(false);
     }
-  }, [applied]);
+  }, [applied, view]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -96,15 +97,15 @@ export function OrganizationKnowledgeReviewManager() {
         <div>
           <Link href="/" className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-primary"><ArrowLeft className="h-4 w-4" /> Mission Control</Link>
           <p className="font-mono text-xs uppercase tracking-[0.22em] text-primary">Workspace governance</p>
-          <h1 className="mt-2 flex items-center gap-3 text-3xl font-semibold"><BookOpenCheck className="h-7 w-7 text-primary" /> Knowledge review queue</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Review proposed organization knowledge before it becomes trusted shared memory. Every decision is permission-checked and recorded in the organization audit stream.</p>
+          <h1 className="mt-2 flex items-center gap-3 text-3xl font-semibold"><BookOpenCheck className="h-7 w-7 text-primary" /> Organization knowledge</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Explore trusted knowledge shared across active organization projects, or review submissions before they enter the accepted memory.</p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading || !!busyId} className="inline-flex h-10 items-center gap-2 self-start rounded-lg border border-border px-3 text-sm hover:bg-secondary disabled:opacity-50">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2 text-xs">
+      <div role="tablist" aria-label="Knowledge views" className="mb-5 flex flex-wrap gap-2 border-b border-border">\n        <button type="button" role="tab" aria-selected={view === "accepted"} onClick={() => setView("accepted")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "accepted" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Trusted memory</button>\n        <button type="button" role="tab" aria-selected={view === "review_queue"} onClick={() => setView("review_queue")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "review_queue" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Review queue</button>\n      </div>\n\n      {view === "review_queue" ? <div className="mb-5 flex flex-wrap gap-2 text-xs">
         <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">Review permission: {capabilities.canReview ? "enabled" : "not assigned"}</span>
         <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">Approval permission: {capabilities.canApprove ? "enabled" : "not assigned"}</span>
       </div>
@@ -119,8 +120,8 @@ export function OrganizationKnowledgeReviewManager() {
       {notice ? <p role="status" className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">{notice}</p> : null}
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">Pending decisions</h2><p className="mt-1 text-xs text-muted-foreground">{items.length} items loaded · oldest submitted first</p></div><span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">Organization scope</span></div>
-        {loading ? <p className="p-6 text-sm text-muted-foreground">Loading review queue…</p> : items.length === 0 ? <div className="p-10 text-center"><BookOpenCheck className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="font-medium">Review queue is clear</p><p className="mt-1 text-sm text-muted-foreground">New knowledge submissions will appear here when they are ready for review.</p></div> : (
+        <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">{view === "accepted" ? "Trusted organization knowledge" : "Pending decisions"}</h2><p className="mt-1 text-xs text-muted-foreground">{items.length} items loaded · {view === "accepted" ? "approved knowledge, newest updated first" : "oldest submitted first"}</p></div><span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">Organization scope</span></div>
+        {loading ? <p className="p-6 text-sm text-muted-foreground">Loading {view === "accepted" ? "trusted memory" : "review queue"}…</p> : items.length === 0 ? <div className="p-10 text-center"><BookOpenCheck className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="font-medium">{view === "accepted" ? "No trusted knowledge yet" : "Review queue is clear"}</p><p className="mt-1 text-sm text-muted-foreground">{view === "accepted" ? "Knowledge approved by an organization approver will appear here." : "New knowledge submissions will appear here when they are ready for review."}</p></div> : (
           <div className="divide-y divide-border">{items.map((item) => (
             <article key={item.id} className="p-5">
               <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><span className="rounded-md bg-secondary px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">{item.kind.replaceAll("_", " ")}</span><span className="font-mono text-[11px] text-muted-foreground">{item.nodeRef}</span></div><h3 className="text-base font-semibold">{item.label}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description || "No description supplied."}</p></div><div className="shrink-0 text-right text-xs text-muted-foreground"><p>{item.projectName || "Project"}</p><p className="mt-1 font-mono">{item.projectId}</p><p className="mt-1">{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : "Date unavailable"}</p></div></div>
@@ -136,7 +137,7 @@ export function OrganizationKnowledgeReviewManager() {
           ))}</div>
         )}
       </section>
-      <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Review and approval are separate permissions. A rejected item remains out of accepted memory; approval is the only transition that promotes an item into shared retrieval.</p>
+      {view === "review_queue" ? <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Review and approval are separate permissions. A rejected item remains out of accepted memory; approval is the only transition that promotes an item into shared retrieval.</p> : <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Trusted memory is read-only here. Governance changes remain restricted to the review queue and authorized approvers.</p>}
     </main>
   );
 }
