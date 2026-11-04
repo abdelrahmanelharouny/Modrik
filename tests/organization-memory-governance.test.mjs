@@ -56,4 +56,5 @@ test("governance permissions keep review and approval roles separate", () => {
 
 test("unknown governance actions fail closed", () => {
   assert.equal(resolveOrganizationMemoryTransition("promote_everything", "proposed"), null);
+  assert.equal(resolveOrganizationMemoryTransition("toString", "proposed"), null);
 });
