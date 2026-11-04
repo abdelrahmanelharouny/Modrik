@@ -30,6 +30,7 @@ export function EvidenceRevisionPanel({
   const save = async () => {
     setBusy(true);
     try {
+      const clientOperationId = crypto.randomUUID();
       const result = await api<{ revision: number }>(`/api/projects/${projectId}/evidence`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -40,6 +41,7 @@ export function EvidenceRevisionPanel({
           language,
           consent,
           changeNote,
+          clientOperationId,
         }),
       });
       await onSaved();

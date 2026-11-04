@@ -340,8 +340,9 @@ export function ElicitationStage({
     const evidence = project.evidences.find((item) => item.id === id);
     if (!evidence) return;
     const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
+    const clientOperationId = crypto.randomUUID();
     try {
-      await api(`/api/projects/${project.id}/evidence?evidenceId=${encodeURIComponent(id)}&expectedRevisionVersion=${expectedRevisionVersion}`, { method: "DELETE" });
+      await api(`/api/projects/${project.id}/evidence?evidenceId=${encodeURIComponent(id)}&expectedRevisionVersion=${expectedRevisionVersion}&clientOperationId=${clientOperationId}`, { method: "DELETE" });
       await refresh();
     } catch (e) {
       const message = (e as Error).message;

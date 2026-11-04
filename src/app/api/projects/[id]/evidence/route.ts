@@ -184,6 +184,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   const changeNote = typeof body.changeNote === "string" ? body.changeNote.trim().slice(0, 500) : "";
   const contentHash = hashEvidenceRevision(normalized);
+  const requestedOperationId = typeof body.clientOperationId === "string" ? body.clientOperationId : null;
+  if (requestedOperationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedOperationId)) {
+    return NextResponse.json({ error: "clientOperationId must be a UUID" }, { status: 400 });
+  }
+  const requestHash = requestedOperationId
+    ? hashEvidenceOperationRequest({ projectId: id, action: "update", normalized: { evidenceId: existing.id, expectedRevisionVersion: body.expectedRevisionVersion, normalized, changeNote } })
+    : null;
+  if (requestedOperationId) {
+    const prior = await db.evidenceOperation.findUnique({ where: { operationId: requestedOperationId } });
+    if (prior) {
+      if (prior.projectId !== id || prior.action !== "update" || prior.requestHash !== requestHash) return NextResponse.json({ error: "Idempotency key was already used for a different operation", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
+      if (prior.status !== "completed" || !prior.responseJson) return NextResponse.json({ error: "This operation is still being finalized. Retry with the same idempotency key.", code: "IDEMPOTENCY_IN_PROGRESS" }, { status: 409 });
+      const saved = JSON.parse(prior.responseJson);
+      const replayEvidence = await db.evidence.findFirst({ where: { id: existing.id, projectId: id } });
+      if (!replayEvidence) return NextResponse.json({ error: "The update completed, but its evidence was subsequently deleted.", code: "IDEMPOTENCY_RESOURCE_DELETED" }, { status: 410 });
+      return NextResponse.json({ conflict: false, evidence: replayEvidence, revision: saved.revision, idempotentReplay: true }, { status: 200 });
+    }
+  }
 
   let result;
   try {
@@ -252,9 +270,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       });
     }
-    return { conflict: false as const, evidence: updated, revision };
+    const operationResult = { conflict: false as const, evidence: updated, revision };
+    if (requestedOperationId) {
+      await tx.evidenceOperation.create({ data: { operationId: requestedOperationId, projectId: id, action: "update", requestHash: requestHash!, status: "completed", responseJson: JSON.stringify({ evidenceId: updated.id, revision }), completedAt: new Date() } });
+    }
+    return operationResult;
     });
   } catch (error) {
+    if (requestedOperationId && typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      const raced = await db.evidenceOperation.findUnique({ where: { operationId: requestedOperationId } });
+      if (raced?.projectId === id && raced.action === "update" && raced.requestHash === requestHash && raced.status === "completed" && raced.responseJson) {
+        const saved = JSON.parse(raced.responseJson);
+        const replayEvidence = await db.evidence.findFirst({ where: { id: existing.id, projectId: id } });
+        if (!replayEvidence) return NextResponse.json({ error: "The update completed, but its evidence was subsequently deleted.", code: "IDEMPOTENCY_RESOURCE_DELETED" }, { status: 410 });
+        return NextResponse.json({ conflict: false, evidence: replayEvidence, revision: saved.revision, idempotentReplay: true }, { status: 200 });
+      }
+      if (raced) return NextResponse.json({ error: "Idempotency key was already used for a different operation", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
+    }
     // Concurrent writers can both read the same latest version under the
     // database default isolation. The unique (evidenceId, version) constraint
     // is the final arbiter; translate its loser into a recoverable 409.
@@ -308,6 +340,22 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const expectedRevisionVersion = parseExpectedRevisionVersion(expectedRevisionVersionRaw);
   if (expectedRevisionVersion === null) {
     return NextResponse.json({ error: "expectedRevisionVersion must be a safe non-negative integer" }, { status: 400 });
+  }
+
+  const requestedOperationId = searchParams.get("clientOperationId");
+  if (requestedOperationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedOperationId)) {
+    return NextResponse.json({ error: "clientOperationId must be a UUID" }, { status: 400 });
+  }
+  const requestHash = requestedOperationId
+    ? hashEvidenceOperationRequest({ projectId: id, action: "delete", normalized: { evidenceId, expectedRevisionVersion } })
+    : null;
+  if (requestedOperationId) {
+    const prior = await db.evidenceOperation.findUnique({ where: { operationId: requestedOperationId } });
+    if (prior) {
+      if (prior.projectId !== id || prior.action !== "delete" || prior.requestHash !== requestHash) return NextResponse.json({ error: "Idempotency key was already used for a different operation", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
+      if (prior.status !== "completed" || !prior.responseJson) return NextResponse.json({ error: "This operation is still being finalized. Retry with the same idempotency key.", code: "IDEMPOTENCY_IN_PROGRESS" }, { status: 409 });
+      return NextResponse.json(JSON.parse(prior.responseJson), { status: 200 });
+    }
   }
 
   const removed = await db.$transaction(async (tx) => {
@@ -369,12 +417,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       });
     }
 
-    return {
+    const outcome = {
       kind: "removed" as const,
       code: evidence.code,
       title: evidence.title,
       affectedRequirements: affectedRequirementIds.length,
     };
+    if (requestedOperationId) {
+      await tx.evidenceOperation.create({ data: { operationId: requestedOperationId, projectId: id, action: "delete", requestHash: requestHash!, status: "completed", responseJson: JSON.stringify({ ok: true, removed: outcome }), completedAt: new Date() } });
+    }
+    return outcome;
   });
 
   if (removed.kind === "missing") {
@@ -399,5 +451,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   await db.project.update({ where: { id }, data: { updatedAt: new Date() } });
-  return NextResponse.json({ ok: true, removed: removed.kind === "removed" ? removed : null });
+  const response = { ok: true, removed: removed.kind === "removed" ? removed : null };
+  return NextResponse.json(response);
 }
