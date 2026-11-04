@@ -119,3 +119,21 @@ test("offline mutation queue operations pin revisions and keep delete payload-fr
   assert.equal("payload" in deletion, false);
   assert.throws(() => createOfflineEvidenceMutationOperation("project-1", "delete", "evidence-8", -1, undefined, "123e4567-e89b-42d3-a456-426614174012"));
 });
+
+
+test("offline update rebase advances only the expected revision and preserves the operation identity and draft", async () => {
+  const { createOfflineEvidenceMutationOperation, rebaseOfflineEvidenceUpdateOperation } = await import("../src/lib/evidence/offline-queue.mjs");
+  const operation = createOfflineEvidenceMutationOperation("project-1", "update", "evidence-9", 3, {
+    title: "Local draft", content: "Preserve this draft", consent: true,
+  }, "123e4567-e89b-42d3-a456-426614174020", "Offline correction");
+  const failed = { ...operation, attempts: 4, lastError: "EVIDENCE_REVISION_CONFLICT" };
+  const rebased = rebaseOfflineEvidenceUpdateOperation(failed, 7);
+  assert.equal(rebased.expectedRevisionVersion, 7);
+  assert.equal(rebased.operationId, operation.operationId);
+  assert.deepEqual(rebased.payload, operation.payload);
+  assert.equal(rebased.changeNote, operation.changeNote);
+  assert.equal(rebased.attempts, 0);
+  assert.equal("lastError" in rebased, false);
+  assert.throws(() => rebaseOfflineEvidenceUpdateOperation({ ...operation, kind: "delete", payload: undefined }, 7), /update/);
+  assert.throws(() => rebaseOfflineEvidenceUpdateOperation(operation, -1), /revision/);
+});

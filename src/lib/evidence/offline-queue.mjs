@@ -119,6 +119,23 @@ async function transaction(mode, action) {
   });
 }
 
+/**
+ * Explicitly rebase a conflicted queued update onto a reviewed server revision.
+ * The content payload and idempotency key remain unchanged; only the expected
+ * revision advances, and retry metadata is cleared after user confirmation.
+ */
+export function rebaseOfflineEvidenceUpdateOperation(operation, latestRevisionVersion) {
+  validateOfflineEvidenceOperation(operation);
+  if (operation.kind !== "update") throw new TypeError("Only queued updates can be rebased");
+  if (!Number.isSafeInteger(latestRevisionVersion) || latestRevisionVersion < 0) throw new TypeError("Latest revision version must be a nonnegative safe integer");
+  return validateOfflineEvidenceOperation({
+    ...operation,
+    expectedRevisionVersion: latestRevisionVersion,
+    attempts: 0,
+    lastError: undefined,
+  });
+}
+
 export async function putOfflineEvidenceOperation(operation) {
   validateOfflineEvidenceOperation(operation);
   const db = await openDb();

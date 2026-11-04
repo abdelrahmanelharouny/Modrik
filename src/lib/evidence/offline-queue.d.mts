@@ -11,3 +11,5 @@ export function removeOfflineEvidenceOperation(operationId: string): Promise<voi
 export function updateOfflineEvidenceOperation(operation: OfflineEvidenceOperation): Promise<void>;
 export function withOfflineEvidenceSyncLock<T>(projectId: string, task: () => Promise<T> | T): Promise<T>;
 export function orderOfflineEvidenceOperation(existingOperations: OfflineEvidenceOperation[], operation: OfflineEvidenceOperation): OfflineEvidenceOperation;
+
+export function rebaseOfflineEvidenceUpdateOperation(operation: OfflineEvidenceOperation, latestRevisionVersion: number): OfflineEvidenceOperation;
