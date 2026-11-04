@@ -40,7 +40,7 @@ export function EvidenceRevisionPanel({
         pendingOperationRef.current = { fingerprint: requestFingerprint, id: crypto.randomUUID() };
       }
       const clientOperationId = pendingOperationRef.current.id;
-      const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
+
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         if (!onQueueOffline) throw new Error("Offline editing queue is unavailable");
         await onQueueOffline(createOfflineEvidenceMutationOperation(projectId, "update", evidence.id, expectedRevisionVersion, { title, content, sourceType: evidence.sourceType, language, consent }, clientOperationId, changeNote));
