@@ -36,6 +36,10 @@ Modrik has one canonical Prisma data model at `prisma/schema.prisma` (SQLite). T
 - New invitees set a password using the existing bounded scrypt format. Existing accounts retain their current password.
 - This deployment has no email delivery provider configured. The API explicitly returns a one-time manual invitation URL; operators must share it through a trusted channel and configure `APP_URL`/`NEXT_PUBLIC_APP_URL` to a trusted HTTPS origin in production.
 
+## Organization audit event schema addition
+
+`OrganizationAuditEvent` is an additive schema model represented in both provider schemas and the repository inventory. This repository still has no committed migration history. Do not deploy this model to an existing database with an ad hoc production `db push`; follow the baseline reconciliation and controlled migration process below. The model retains project identity as a scalar snapshot and restricts organization deletion to preserve audit history.
+
 ## Required migration rollout before production adoption
 
 1. Inventory every deployed database and record provider, schema fingerprint, migration history table presence, backup timestamp, and row counts for critical tables.
