@@ -560,7 +560,7 @@ export function ElicitationStage({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline" className="font-mono">{index + 1} · {(operation.kind ?? "create").toUpperCase()}</Badge>
-                          <span className="text-xs font-medium">{operation.payload?.title ?? target?.title ?? operation.evidenceId}</span>
+                          <span className="text-xs font-medium">{(operation.kind === "delete" ? target?.title : operation.payload.title) ?? operation.evidenceId}</span>
                           {conflict ? <Badge variant="destructive">Revision conflict</Badge> : operation.lastError ? <Badge variant="secondary">Needs attention</Badge> : <Badge variant="outline">Waiting</Badge>}
                         </div>
                         <p className="mt-1 text-[10px] text-muted-foreground">
