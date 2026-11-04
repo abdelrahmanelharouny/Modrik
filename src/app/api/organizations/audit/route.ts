@@ -25,6 +25,7 @@ export async function GET(req:NextRequest){
   if(cursor){const found=await db.organizationAuditEvent.findFirst({where:{id:cursor,organizationId:identity.organizationId},select:{id:true}});if(!found)return fail("Cursor not found",400);}
   const rows=await db.organizationAuditEvent.findMany({where:query.where,take:query.take+1,orderBy:query.orderBy,...(cursor?{cursor:{id:cursor},skip:1}:{}),include:{actor:{select:{id:true,displayName:true}}}});
   const hasMore=rows.length>query.take,items=rows.slice(0,query.take).map(summarizeOrganizationAuditEvent).filter(Boolean);
-  return NextResponse.json({items,page:{limit:query.take,hasMore,nextCursor:hasMore&&items.length?items[items.length-1].id:null},scope:"organization",filters:{eventType:filters.eventType?.slice(0,128)??null,actorUserId:filters.actorUserId?.slice(0,128)??null,projectId:filters.projectId?.slice(0,128)??null,from:from?.toISOString()??null,to:to?.toISOString()??null}},{headers:noStore});
+  const nextCursor=hasMore?rows[query.take-1]?.id??null:null;
+  return NextResponse.json({items,page:{limit:query.take,hasMore,nextCursor},scope:"organization",filters:{eventType:filters.eventType?.slice(0,128)??null,actorUserId:filters.actorUserId?.slice(0,128)??null,projectId:filters.projectId?.slice(0,128)??null,from:from?.toISOString()??null,to:to?.toISOString()??null}},{headers:noStore});
  }catch{return fail("Organization audit is temporarily unavailable",503);}
 }
