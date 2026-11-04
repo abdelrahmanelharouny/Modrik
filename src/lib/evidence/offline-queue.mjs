@@ -128,11 +128,11 @@ export function rebaseOfflineEvidenceUpdateOperation(operation, latestRevisionVe
   validateOfflineEvidenceOperation(operation);
   if (operation.kind !== "update") throw new TypeError("Only queued updates can be rebased");
   if (!Number.isSafeInteger(latestRevisionVersion) || latestRevisionVersion < 0) throw new TypeError("Latest revision version must be a nonnegative safe integer");
+  const { lastError: _discardedError, ...retryable } = operation;
   return validateOfflineEvidenceOperation({
-    ...operation,
+    ...retryable,
     expectedRevisionVersion: latestRevisionVersion,
     attempts: 0,
-    lastError: undefined,
   });
 }
 
