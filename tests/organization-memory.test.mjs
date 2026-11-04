@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildOrganizationKnowledgeQuery,
+  buildOrganizationReviewQueueQuery,
+  summarizeOrganizationReviewQueueNode,
   summarizeOrganizationKnowledgeNode,
 } from "../src/lib/knowledge-graph/organization-memory.mjs";
 
@@ -59,4 +61,32 @@ test("organization memory summaries reject records without stable source identit
   assert.equal(summarizeOrganizationKnowledgeNode({
     id: "n1", status: "accepted", nodeRef: "KN-01", kind: "decision", label: "x",
   }), null);
+});
+
+test("organization review queue is limited to in-review nodes in authorized projects", () => {
+  const result = buildOrganizationReviewQueueQuery({
+    projectIds: ["p1", "p2", "p1", ""], kind: "risk", search: "  outage  ", limit: 12,
+  });
+  assert.deepEqual(result.where.projectId, { in: ["p1", "p2"] });
+  assert.equal(result.where.status, "in_review");
+  assert.equal(result.where.kind, "risk");
+  assert.deepEqual(result.where.OR, [
+    { label: { contains: "outage" } },
+    { description: { contains: "outage" } },
+  ]);
+  assert.equal(result.take, 12);
+  assert.equal(buildOrganizationReviewQueueQuery({ projectIds: [] }).take, 0);
+});
+
+test("review queue summaries expose only bounded in-review metadata with provenance", () => {
+  const summary = summarizeOrganizationReviewQueueNode({
+    id: "n1", projectId: "p1", project: { name: "Payments" }, nodeRef: "KN-01",
+    kind: "risk", label: "Outage", description: "x".repeat(1300), confidence: -1,
+    owner: "Team A", origin: "agent", status: "in_review",
+  });
+  assert.equal(summary.description.length, 1200);
+  assert.equal(summary.confidence, 0);
+  assert.equal(summary.projectName, "Payments");
+  assert.equal(summary.owner, "Team A");
+  assert.equal(summarizeOrganizationReviewQueueNode({ id: "n2", status: "accepted" }), null);
 });

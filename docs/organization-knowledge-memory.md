@@ -4,7 +4,7 @@
 
 The first authenticated read endpoint is implemented at `GET /api/organizations/knowledge-memory`. It reuses accepted `KnowledgeNode` records attached to projects and does not create a second memory store.
 
-The same endpoint now supports an authenticated `PATCH` governance action for explicit review, approval, rejection and archival transitions.
+The same endpoint now supports an authenticated `PATCH` governance action for explicit review, approval, rejection and archival transitions. A reviewer/approver-only queue is available through `GET ?view=review_queue`.
 
 ## Authorization and tenant isolation
 
@@ -20,7 +20,7 @@ The same endpoint now supports an authenticated `PATCH` governance action for ex
 
 - Query parameters: `q` (label/description search), `kind` (allowlisted node kind), `limit` (1–1000 input, clamped to 100 by the query builder).
 - Default result limit: 25; maximum returned: 100.
-- Only accepted nodes are returned.
+- Default view returns only accepted nodes.\n- `view=review_queue` returns only `in_review` nodes and requires `requirements:review` or `requirements:approve`; writers and viewers cannot enumerate the queue.
 - Each item retains `projectId`, `projectName`, and stable `nodeRef` provenance.
 - Descriptions are capped at 1,200 characters; confidence is clamped to [0, 1].
 - Claims, private evidence text, credentials and arbitrary project records are not returned.
@@ -38,7 +38,7 @@ Send `PATCH /api/organizations/knowledge-memory` with `nodeId`, `action`, and op
 
 Transitions use a compare-and-set status guard inside a database transaction. The matching `DecisionEntry` audit record is written in the same transaction, so a failed audit write rolls back the state change. Invalid state transitions return a conflict instead of silently overwriting another reviewer’s decision. The audit detail records the authenticated user ID, node reference, transition and bounded reason.
 
-## Known boundaries
+## Review queue\n\n- Endpoint: `GET /api/organizations/knowledge-memory?view=review_queue`.\n- Only reviewer, approver, owner and admin roles with the corresponding permission can read the queue.\n- Results are limited to the caller organization’s non-archived projects, ordered oldest-first to reduce review starvation, and capped at 100.\n- The queue exposes bounded node metadata and project provenance, not raw evidence or claims.\n- Decisions still use the existing PATCH lifecycle actions and their independent permissions.\n\n## Known boundaries
 
 - This is project-backed retrieval, not yet a separately persisted organization-memory entity.
 - Lexical retrieval only; semantic/vector search is not enabled.
@@ -48,4 +48,4 @@ Transitions use a compare-and-set status guard inside a database transaction. Th
 
 ## Next
 
-Add a dedicated organization audit stream, review queue UI, semantic retrieval with tenant filtering before vector search, and live-database tenant-isolation integration tests.
+Add a dedicated organization audit stream, review queue UI, semantic retrieval with tenant filtering before vector search, and live-database tenant-isolation integration tests. The authenticated review-queue API and pure query/serialization contract are now implemented.

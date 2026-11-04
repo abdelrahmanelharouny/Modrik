@@ -7,6 +7,8 @@ import { resolveOrganizationMemoryTransition, normalizeOrganizationMemoryReason 
 import {
   buildOrganizationKnowledgeQuery,
   summarizeOrganizationKnowledgeNode,
+  buildOrganizationReviewQueueQuery,
+  summarizeOrganizationReviewQueueNode,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
 
 export const runtime = "nodejs";
@@ -55,6 +57,25 @@ export async function GET(req: NextRequest) {
   const limit = rawLimit === null ? undefined : Number(rawLimit);
   const kind = params.get("kind") ?? undefined;
   const search = params.get("q") ?? undefined;
+  const view = params.get("view") ?? "accepted";
+  if (view !== "accepted" && view !== "review_queue") {
+    return errorResponse("view must be accepted or review_queue", 400);
+  }
+  if (view === "review_queue" &&
+      !hasOrganizationPermission({
+        role: identity.role,
+        status: "active",
+        userStatus: "active",
+        organizationStatus: "active",
+      }, "requirements:review") &&
+      !hasOrganizationPermission({
+        role: identity.role,
+        status: "active",
+        userStatus: "active",
+        organizationStatus: "active",
+      }, "requirements:approve")) {
+    return errorResponse("Review permission required", 403);
+  }
 
   try {
     // This is the only project scope used below. Never accept projectIds from
@@ -63,14 +84,17 @@ export async function GET(req: NextRequest) {
       where: { organizationId: identity.organizationId, status: { not: "archived" } },
       select: { id: true },
     });
-    const query = buildOrganizationKnowledgeQuery({
+    const queryBuilder = view === "review_queue"
+      ? buildOrganizationReviewQueueQuery
+      : buildOrganizationKnowledgeQuery;
+    const query = queryBuilder({
       projectIds: projects.map((project) => project.id),
       kind,
       search,
       limit,
     });
     if (query.take === 0) {
-      return NextResponse.json({ items: [], total: 0, scope: "organization" }, { headers: noStore });
+      return NextResponse.json({ items: [], total: 0, scope: "organization", view }, { headers: noStore });
     }
 
     const nodes = await db.knowledgeNode.findMany({
@@ -79,12 +103,16 @@ export async function GET(req: NextRequest) {
       orderBy: query.orderBy,
       include: { project: { select: { name: true } } },
     });
-    const items = nodes.map(summarizeOrganizationKnowledgeNode).filter(Boolean);
+    const summarize = view === "review_queue"
+      ? summarizeOrganizationReviewQueueNode
+      : summarizeOrganizationKnowledgeNode;
+    const items = nodes.map(summarize).filter(Boolean);
     return NextResponse.json({
       items,
       total: items.length,
       limit: query.take,
       scope: "organization",
+      view,
       filters: {
         kind: typeof kind === "string" && kind.length <= 40 ? kind : null,
         query: typeof search === "string" ? search.trim().slice(0, 120) : null,

@@ -19,3 +19,27 @@ export function summarizeOrganizationKnowledgeNode(node: unknown): {
   confidence: number | null;
   updatedAt: unknown;
 } | null;
+
+export function buildOrganizationReviewQueueQuery(input?: {
+  projectIds?: string[];
+  kind?: string;
+  search?: string;
+  limit?: number;
+}): {
+  where: Record<string, unknown>;
+  take: number;
+  orderBy: Array<Record<string, "desc" | "asc">>;
+};
+export function summarizeOrganizationReviewQueueNode(node: unknown): {
+  id: string;
+  projectId: string;
+  projectName: string | null;
+  nodeRef: string;
+  kind: string;
+  label: string;
+  description: string;
+  confidence: number | null;
+  owner: string | null;
+  origin: string;
+  updatedAt: unknown;
+} | null;
