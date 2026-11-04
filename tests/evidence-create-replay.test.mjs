@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { isEvidenceCreateReplay } from "../src/lib/evidence/create-replay.mjs";
+import { hashEvidenceOperationRequest } from "../src/lib/evidence/operation-hash.mjs";
 
 const normalized = {
   title: "Interview",
@@ -26,13 +27,15 @@ test("create replay requires the same project, source content and provenance", (
 });
 
 
-test("idempotency request fingerprint binds project, action, provenance and normalized payload", async () => {
-  const { createHash } = await import("node:crypto");
-  const fingerprint = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+test("operation fingerprint binds project, action, provenance and normalized payload", () => {
   const base = { projectId: "project-1", action: "create", origin: "human", normalized };
-  assert.equal(fingerprint(base), fingerprint({ ...base }));
-  assert.notEqual(fingerprint(base), fingerprint({ ...base, projectId: "project-2" }));
-  assert.notEqual(fingerprint(base), fingerprint({ ...base, action: "update" }));
-  assert.notEqual(fingerprint(base), fingerprint({ ...base, origin: "file" }));
-  assert.notEqual(fingerprint(base), fingerprint({ ...base, normalized: { ...normalized, consent: true } }));
+  const hash = hashEvidenceOperationRequest(base);
+  assert.match(hash, /^[a-f0-9]{64}$/);
+  assert.equal(hashEvidenceOperationRequest(base), hash);
+  assert.notEqual(hashEvidenceOperationRequest({ ...base, projectId: "project-2" }), hash);
+  assert.notEqual(hashEvidenceOperationRequest({ ...base, action: "update" }), hash);
+  assert.notEqual(hashEvidenceOperationRequest({ ...base, origin: "file" }), hash);
+  assert.notEqual(hashEvidenceOperationRequest({ ...base, normalized: { ...normalized, consent: true } }), hash);
+  assert.throws(() => hashEvidenceOperationRequest({ ...base, action: "invalid" }), /action/);
 });

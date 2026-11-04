@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { hashEvidenceOperationRequest } from "@/lib/evidence/operation-hash.mjs";
 import { hashEvidenceRevision } from "@/lib/evidence/revision.mjs";
 import { isEvidenceRevisionVersionConflict, parseExpectedRevisionVersion } from "@/lib/evidence/revision-conflict.mjs";
 import { buildEvidenceSnapshotWhere } from "@/lib/evidence/snapshot-where.mjs";
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const contentHash = hashEvidenceRevision(normalized);
   // Durable operation records survive evidence deletion, preventing an old
   // client UUID from silently creating a second source after a delayed retry.
-  const requestHash = createHash("sha256").update(JSON.stringify({ projectId: id, action: "create", origin, normalized })).digest("hex");
+  const requestHash = hashEvidenceOperationRequest({ projectId: id, action: "create", origin, normalized });
   if (requestedOperationId) {
     const priorOperation = await db.evidenceOperation.findUnique({ where: { operationId: idempotentId } });
     if (priorOperation) {
