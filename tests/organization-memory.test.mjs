@@ -5,6 +5,7 @@ import {
   buildOrganizationReviewQueueQuery,
   summarizeOrganizationReviewQueueNode,
   summarizeOrganizationKnowledgeNode,
+  hasVerifiedOrganizationMemoryIdentity,
 } from "../src/lib/knowledge-graph/organization-memory.mjs";
 
 test("organization memory query fails closed when no authorized projects are supplied", () => {
@@ -89,4 +90,14 @@ test("review queue summaries expose only bounded in-review metadata with provena
   assert.equal(summary.projectName, "Payments");
   assert.equal(summary.owner, "Team A");
   assert.equal(summarizeOrganizationReviewQueueNode({ id: "n2", status: "accepted" }), null);
+});
+
+test("organization memory identity rejects missing tenant or actor scope before database queries", () => {
+  assert.equal(hasVerifiedOrganizationMemoryIdentity({ userId: "u1", role: "owner" }), false);
+  assert.equal(hasVerifiedOrganizationMemoryIdentity({ organizationId: "org1", role: "owner" }), false);
+  assert.equal(hasVerifiedOrganizationMemoryIdentity({ organizationId: "  ", userId: "u1", role: "owner" }), false);
+  assert.equal(hasVerifiedOrganizationMemoryIdentity({ organizationId: "org1", userId: " ", role: "owner" }), false);
+  assert.equal(hasVerifiedOrganizationMemoryIdentity({ organizationId: "org1", userId: "u1", role: "" }), false);
+  assert.equal(hasVerifiedOrganizationMemoryIdentity({ organizationId: "org1", userId: "u1", role: "owner" }), true);
+  assert.equal(hasVerifiedOrganizationMemoryIdentity(null), false);
 });

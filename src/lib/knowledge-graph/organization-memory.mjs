@@ -1,3 +1,13 @@
+/** A verified identity must carry explicit, non-empty organization and actor scope. */
+export function hasVerifiedOrganizationMemoryIdentity(identity) {
+  return Boolean(
+    identity && typeof identity === "object" && !Array.isArray(identity) &&
+    typeof identity.organizationId === "string" && identity.organizationId.trim().length > 0 &&
+    typeof identity.userId === "string" && identity.userId.trim().length > 0 &&
+    typeof identity.role === "string" && identity.role.length > 0
+  );
+}
+
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const ALLOWED_KINDS = new Set([

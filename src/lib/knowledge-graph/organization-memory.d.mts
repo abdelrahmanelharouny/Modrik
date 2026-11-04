@@ -43,3 +43,5 @@ export function summarizeOrganizationReviewQueueNode(node: unknown): {
   origin: string;
   updatedAt: unknown;
 } | null;
+
+export function hasVerifiedOrganizationMemoryIdentity(identity: unknown): boolean;

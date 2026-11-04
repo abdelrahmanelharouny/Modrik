@@ -9,6 +9,7 @@ import {
   summarizeOrganizationKnowledgeNode,
   buildOrganizationReviewQueueQuery,
   summarizeOrganizationReviewQueueNode,
+  hasVerifiedOrganizationMemoryIdentity,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
 
 export const runtime = "nodejs";
@@ -37,6 +38,9 @@ export async function GET(req: NextRequest) {
     return errorResponse("Identity could not be verified", 503);
   }
   if (!identity) return errorResponse("Authentication required", 401);
+  if (!hasVerifiedOrganizationMemoryIdentity(identity)) {
+    return errorResponse("Verified organization scope is required", 403);
+  }
 
   const permissions = permissionContext(identity);
   if (!hasOrganizationPermission(permissions, "organization:read")) {
@@ -128,6 +132,9 @@ export async function PATCH(req: NextRequest) {
     return errorResponse("Identity could not be verified", 503);
   }
   if (!identity) return errorResponse("Authentication required", 401);
+  if (!hasVerifiedOrganizationMemoryIdentity(identity)) {
+    return errorResponse("Verified organization scope is required", 403);
+  }
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) {
