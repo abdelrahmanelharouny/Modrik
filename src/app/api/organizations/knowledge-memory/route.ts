@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     // This is the only project scope used below. Never accept projectIds from
     // query parameters or request bodies for organization-wide retrieval.
     const projects = await db.project.findMany({
-      where: { organizationId: identity.organizationId },
+      where: { organizationId: identity.organizationId, status: { not: "archived" } },
       select: { id: true },
     });
     const query = buildOrganizationKnowledgeQuery({
