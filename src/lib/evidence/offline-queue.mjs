@@ -12,6 +12,7 @@ function validateOfflineEvidenceOperation(operation) {
   if (typeof operation.operationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operation.operationId)) throw new TypeError("operationId must be a UUID");
   const kind = operation.kind ?? "create";
   if (!["create", "update", "delete"].includes(kind)) throw new TypeError("Unsupported offline evidence operation kind");
+  if (kind === "create" && (operation.evidenceId !== undefined || operation.expectedRevisionVersion !== undefined)) throw new TypeError("Create operations cannot target an existing evidence revision");
   if (kind !== "create" && (typeof operation.evidenceId !== "string" || !operation.evidenceId.trim() || operation.evidenceId.length > 128)) throw new TypeError("evidenceId is required for evidence mutations");
   if (kind !== "create" && (!Number.isSafeInteger(operation.expectedRevisionVersion) || operation.expectedRevisionVersion < 0)) throw new TypeError("Expected revision version is required for evidence mutations");
   if (operation.changeNote !== undefined && (typeof operation.changeNote !== "string" || operation.changeNote.length > 500)) throw new TypeError("Revision note is invalid");
@@ -126,6 +127,7 @@ export async function putOfflineEvidenceOperation(operation) {
     const store = tx.objectStore(STORE);
     const request = store.index("projectId").getAll(operation.projectId);
     let queueFull = false;
+    let duplicateMutation = false;
     request.onsuccess = () => {
       const now = Date.now();
       const existing = request.result ?? [];
@@ -135,6 +137,14 @@ export async function putOfflineEvidenceOperation(operation) {
         }
       }
       const fresh = existing.filter((item) => Number.isFinite(Date.parse(item.createdAt)) && now - Date.parse(item.createdAt) <= MAX_AGE_MS);
+      const duplicateTarget = operation.kind && operation.kind !== "create"
+        ? fresh.find((item) => item.operationId !== operation.operationId && item.kind !== "create" && item.evidenceId === operation.evidenceId)
+        : null;
+      if (duplicateTarget) {
+        duplicateMutation = true;
+        tx.abort();
+        return;
+      }
       if (fresh.length >= MAX_PENDING && !fresh.some((item) => item.operationId === operation.operationId)) {
         queueFull = true;
         tx.abort();
@@ -144,8 +154,8 @@ export async function putOfflineEvidenceOperation(operation) {
     };
     request.onerror = () => { tx.abort(); };
     tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(queueFull ? new Error("Offline queue is full (100 pending sources). Sync or remove pending items before adding more.") : tx.error ?? new Error("Could not save offline evidence")); };
-    tx.onabort = () => { db.close(); reject(queueFull ? new Error("Offline queue is full (100 pending sources). Sync or remove pending items before adding more.") : tx.error ?? new Error("Offline queue transaction aborted")); };
+    tx.onerror = () => { db.close(); reject(duplicateMutation ? new Error("A mutation for this evidence source is already queued. Sync or resolve it before queuing another change.") : queueFull ? new Error("Offline queue is full (100 pending sources). Sync or remove pending items before adding more.") : tx.error ?? new Error("Could not save offline evidence")); };
+    tx.onabort = () => { db.close(); reject(duplicateMutation ? new Error("A mutation for this evidence source is already queued. Sync or resolve it before queuing another change.") : queueFull ? new Error("Offline queue is full (100 pending sources). Sync or remove pending items before adding more.") : tx.error ?? new Error("Offline queue transaction aborted")); };
   });
 }
 
