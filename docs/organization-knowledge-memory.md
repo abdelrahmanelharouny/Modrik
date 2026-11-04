@@ -1,41 +1,37 @@
-# Organization Knowledge Memory — H3 foundation
+# Organization Knowledge Memory — H3 retrieval slice
 
 ## Status
 
-This change introduces the first safe query/serialization boundary for organization-level knowledge retrieval. It does **not** add a public API route or persist organization-owned memory records yet.
+The first authenticated read endpoint is implemented at `GET /api/organizations/knowledge-memory`. It reuses accepted `KnowledgeNode` records attached to projects and does not create a second memory store.
 
-## Source of truth
+## Authorization and tenant isolation
 
-The first release reuses accepted `KnowledgeNode` records already attached to projects. It does not duplicate content into a second memory store. Every returned item retains its source `projectId` and stable `nodeRef`, so users can inspect where a fact originated.
+1. The route resolves the caller from the signed session cookie using the database-backed identity-session resolver.
+2. The resolver revalidates the session, user, membership, organization, status and session expiry against the database.
+3. The route requires the verified role to have `organization:read`.
+4. It derives project IDs exclusively with a server-side query scoped to the verified `organizationId`.
+5. The query builder scopes every result to those project IDs and `status: accepted`; no client-supplied organization or project IDs are used.
+6. The proxy also classifies the route under `organization:read`, so the endpoint is covered by the global API authorization policy.
 
-## Authorization contract
+The route returns 401 for missing/invalid identity, 403 for insufficient permission, 400 for malformed limits, and 503 when identity resolution or retrieval is unavailable. Responses are marked `no-store`.
 
-1. Resolve the caller from the verified session, never from client-supplied user headers.
-2. Resolve an active organization membership and verify `organization:read`.
-3. Resolve the organization's active projects on the server.
-4. Pass only those server-derived project IDs to `buildOrganizationKnowledgeQuery`.
-5. Query accepted nodes only; proposed, in-review, rejected and archived nodes are excluded.
-6. Return bounded summaries with source attribution; never return claims, private evidence text, credentials or unrelated project records by default.
+## Retrieval contract
 
-The helper deliberately fails closed when the authorized project list is empty. It is a query builder, not an authorization function; a future route must enforce the complete contract before calling it.
+- Query parameters: `q` (label/description search), `kind` (allowlisted node kind), `limit` (1–1000 input, clamped to 100 by the query builder).
+- Default result limit: 25; maximum returned: 100.
+- Only accepted nodes are returned.
+- Each item retains `projectId`, `projectName`, and stable `nodeRef` provenance.
+- Descriptions are capped at 1,200 characters; confidence is clamped to [0, 1].
+- Claims, private evidence text, credentials and arbitrary project records are not returned.
 
-## Retrieval behavior
+## Known boundaries
 
-- Search is limited to label and description.
-- Optional node kind is allowlisted.
-- Search input is capped at 120 characters.
-- Result count defaults to 25 and is capped at 100.
-- Stable ordering uses most recently updated first, then ID.
-- Summary descriptions are capped at 1,200 characters and confidence is clamped to [0, 1].
+- This is project-backed retrieval, not yet a separately persisted organization-memory entity.
+- Retrieval is lexical over labels and descriptions; semantic/vector search is not enabled.
+- No organization-level write, promotion, supersession or archive workflow is exposed yet.
+- Access audit events and human curation audit events remain a follow-up; this slice does not claim them.
+- Cross-tenant protection is enforced by deriving project IDs from the verified organization and by the query's projectId allowlist. A dedicated live-database multi-tenant E2E test remains required.
 
-## Next implementation slice
+## Next
 
-- Add a session-backed organization memory route after wiring it to the existing trusted membership resolver.
-- Add explicit organization-level memory records only when retention, ownership, provenance, supersession and deletion semantics are finalized.
-- Add cross-project retrieval E2E proving that a user cannot enumerate or retrieve a neighboring organization's project IDs.
-- Add audit events for memory access and human curation.
-- Add semantic retrieval only after tenant filters are enforced before vector search; never rely on post-filtering alone.
-
-## Non-goals
-
-This foundation does not claim semantic/vector search, automatic memory promotion, organization-wide write permissions, or production readiness.
+Add auditable curation lifecycle (propose, review, promote, supersede, archive), explicit source retention/deletion semantics, and tenant-isolation integration tests before enabling semantic retrieval.

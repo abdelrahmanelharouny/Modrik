@@ -11,6 +11,7 @@ export function buildOrganizationKnowledgeQuery(input?: {
 export function summarizeOrganizationKnowledgeNode(node: unknown): {
   id: string;
   projectId: string;
+  projectName: string | null;
   nodeRef: string;
   kind: string;
   label: string;

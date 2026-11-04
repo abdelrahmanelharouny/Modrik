@@ -30,10 +30,7 @@ test("organization memory query scopes strictly to supplied projects and accepte
 
 test("organization memory query clamps limits and ignores unknown kinds", () => {
   const result = buildOrganizationKnowledgeQuery({
-    projectIds: ["p1"],
-    kind: "untrusted-kind",
-    limit: 9999,
-    search: "x".repeat(200),
+    projectIds: ["p1"], kind: "untrusted-kind", limit: 9999, search: "x".repeat(200),
   });
   assert.equal(result.take, 100);
   assert.equal("kind" in result.where, false);
@@ -47,12 +44,19 @@ test("organization memory query rejects malformed top-level input", () => {
 
 test("organization memory summaries expose accepted, bounded, source-attributed knowledge only", () => {
   const summary = summarizeOrganizationKnowledgeNode({
-    id: "n1", projectId: "p1", nodeRef: "KN-01", kind: "decision",
-    label: "Retention", description: "x".repeat(1500),
+    id: "n1", projectId: "p1", project: { name: "Payments" }, nodeRef: "KN-01",
+    kind: "decision", label: "Retention", description: "x".repeat(1500),
     confidence: 4, status: "accepted", updatedAt: "2026-11-04T00:00:00Z",
   });
   assert.equal(summary.description.length, 1200);
   assert.equal(summary.confidence, 1);
   assert.equal(summary.projectId, "p1");
+  assert.equal(summary.projectName, "Payments");
   assert.equal(summarizeOrganizationKnowledgeNode({ id: "n2", status: "proposed" }), null);
+});
+
+test("organization memory summaries reject records without stable source identity", () => {
+  assert.equal(summarizeOrganizationKnowledgeNode({
+    id: "n1", status: "accepted", nodeRef: "KN-01", kind: "decision", label: "x",
+  }), null);
 });
