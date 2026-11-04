@@ -104,6 +104,7 @@ model Project {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  evidenceOperations EvidenceOperation[]
   evidences  Evidence[]
   questions  Question[]
   candidates ProblemCandidate[]
@@ -796,4 +797,22 @@ model PasswordResetToken {
 
   @@index([userId, usedAt, revokedAt])
   @@index([expiresAt, usedAt, revokedAt])
+}
+
+
+// Durable idempotency ledger. Records outlive evidence deletion so a delayed
+// retry cannot recreate a source after its original operation was completed.
+model EvidenceOperation {
+  operationId String   @id // client-generated UUID; globally unique like Evidence IDs
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  action      String   // create | update | delete
+  requestHash String   // SHA-256 of canonical project/action/payload semantics
+  status      String   @default("processing") // processing | completed
+  responseJson String? // immutable successful response snapshot for exact replay
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
 }

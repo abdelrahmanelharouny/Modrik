@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { hashEvidenceRevision } from "@/lib/evidence/revision.mjs";
 import { isEvidenceRevisionVersionConflict, parseExpectedRevisionVersion } from "@/lib/evidence/revision-conflict.mjs";
 import { buildEvidenceSnapshotWhere } from "@/lib/evidence/snapshot-where.mjs";
@@ -77,47 +77,43 @@ export async function POST(req: NextRequest, { params }: Params) {
     consent,
   };
   const contentHash = hashEvidenceRevision(normalized);
-  // The browser operation UUID becomes the evidence primary key. A retry after
-  // a lost response therefore resolves to the same row instead of duplicating it.
+  // Durable operation records survive evidence deletion, preventing an old
+  // client UUID from silently creating a second source after a delayed retry.
+  const requestHash = createHash("sha256").update(JSON.stringify({ projectId: id, action: "create", origin, normalized })).digest("hex");
   if (requestedOperationId) {
-    const prior = await db.evidence.findUnique({ where: { id: idempotentId } });
-    if (prior) {
-      if (!isEvidenceCreateReplay(prior, { projectId: id, normalized, origin })) {
-        return NextResponse.json({ error: "Idempotency key was already used for a different evidence payload", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
-      }
-      return NextResponse.json({ evidence: prior, aiEligible: prior.consent, idempotentReplay: true }, { status: 200 });
+    const priorOperation = await db.evidenceOperation.findUnique({ where: { operationId: idempotentId } });
+    if (priorOperation) {
+      if (priorOperation.projectId !== id || priorOperation.action !== "create" || priorOperation.requestHash !== requestHash) return NextResponse.json({ error: "Idempotency key was already used for a different operation", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
+      if (priorOperation.status !== "completed" || !priorOperation.responseJson) return NextResponse.json({ error: "This operation is still being finalized. Retry with the same idempotency key.", code: "IDEMPOTENCY_IN_PROGRESS" }, { status: 409 });
+      return NextResponse.json({ ...JSON.parse(priorOperation.responseJson), idempotentReplay: true }, { status: 200 });
+    }
+    // Backfill exact replays from the pre-ledger implementation.
+    const legacyEvidence = await db.evidence.findUnique({ where: { id: idempotentId } });
+    if (legacyEvidence) {
+      if (!isEvidenceCreateReplay(legacyEvidence, { projectId: id, normalized, origin })) return NextResponse.json({ error: "Idempotency key was already used for a different evidence payload", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
+      const replayBody = { evidence: legacyEvidence, aiEligible: legacyEvidence.consent };
+      await db.evidenceOperation.create({ data: { operationId: idempotentId, projectId: id, action: "create", requestHash, status: "completed", responseJson: JSON.stringify(replayBody), completedAt: new Date() } });
+      return NextResponse.json({ ...replayBody, idempotentReplay: true }, { status: 200 });
     }
   }
   let evidence;
   try {
     evidence = await db.$transaction(async (tx) => {
-    const created = await tx.evidence.create({
-      data: {
-        id: idempotentId,
-        projectId: id,
-        code: `E-${idempotentId.slice(0, 8).toUpperCase()}`,
-        ...normalized,
-        origin,
-      },
-    });
-    await tx.evidenceRevision.create({
-      data: {
-        evidenceId: created.id,
-        version: 1,
-        ...normalized,
-        contentHash,
-        changeNote: "Initial source capture",
-        createdBy: "human",
-      },
-    });
-    return created;
+      if (requestedOperationId) await tx.evidenceOperation.create({ data: { operationId: idempotentId, projectId: id, action: "create", requestHash, status: "processing" } });
+      const created = await tx.evidence.create({ data: { id: idempotentId, projectId: id, code: `E-${idempotentId.slice(0, 8).toUpperCase()}`, ...normalized, origin } });
+      await tx.evidenceRevision.create({ data: { evidenceId: created.id, version: 1, ...normalized, contentHash, changeNote: "Initial source capture", createdBy: "human" } });
+      if (requestedOperationId) await tx.evidenceOperation.update({ where: { operationId: idempotentId }, data: { status: "completed", responseJson: JSON.stringify({ evidence: created, aiEligible: created.consent }), completedAt: new Date() } });
+      return created;
     });
   } catch (error) {
     if (requestedOperationId) {
-      const raced = await db.evidence.findUnique({ where: { id: idempotentId } });
-      if (raced && isEvidenceCreateReplay(raced, { projectId: id, normalized, origin })) {
-        return NextResponse.json({ evidence: raced, aiEligible: raced.consent, idempotentReplay: true }, { status: 200 });
+      const racedOperation = await db.evidenceOperation.findUnique({ where: { operationId: idempotentId } });
+      if (racedOperation) {
+        if (racedOperation.projectId !== id || racedOperation.action !== "create" || racedOperation.requestHash !== requestHash) return NextResponse.json({ error: "Idempotency key was already used for a different operation", code: "IDEMPOTENCY_CONFLICT" }, { status: 409 });
+        if (racedOperation.status === "completed" && racedOperation.responseJson) return NextResponse.json({ ...JSON.parse(racedOperation.responseJson), idempotentReplay: true }, { status: 200 });
       }
+      const raced = await db.evidence.findUnique({ where: { id: idempotentId } });
+      if (raced && isEvidenceCreateReplay(raced, { projectId: id, normalized, origin })) return NextResponse.json({ evidence: raced, aiEligible: raced.consent, idempotentReplay: true }, { status: 200 });
     }
     throw error;
   }
