@@ -47,6 +47,28 @@ export function createOfflineEvidenceOperation(projectId, payload, operationId =
   return validateOfflineEvidenceOperation({ operationId, projectId, payload: normalized, createdAt: new Date().toISOString(), attempts: 0 });
 }
 
+
+/**
+ * Preserve deterministic FIFO ordering when multiple operations are created
+ * within the same millisecond. Re-putting an existing operation keeps its
+ * original position; new operations are placed strictly after current rows.
+ */
+export function orderOfflineEvidenceOperation(existingOperations, operation) {
+  validateOfflineEvidenceOperation(operation);
+  if (!Array.isArray(existingOperations)) throw new TypeError("Existing offline operations must be an array");
+  const prior = existingOperations.find((item) => item?.operationId === operation.operationId);
+  if (prior) return { ...operation, createdAt: prior.createdAt };
+  const latest = existingOperations.reduce((max, item) => {
+    const timestamp = Date.parse(item?.createdAt);
+    return Number.isFinite(timestamp) ? Math.max(max, timestamp) : max;
+  }, Number.NEGATIVE_INFINITY);
+  const requested = Date.parse(operation.createdAt);
+  return {
+    ...operation,
+    createdAt: new Date(Number.isFinite(latest) ? Math.max(requested, latest + 1) : requested).toISOString(),
+  };
+}
+
 function openDb() {
   if (typeof indexedDB === "undefined") return Promise.reject(new Error("Offline storage is unavailable in this browser"));
   return new Promise((resolve, reject) => {
@@ -100,7 +122,7 @@ export async function putOfflineEvidenceOperation(operation) {
         tx.abort();
         return;
       }
-      store.put(operation);
+      store.put(orderOfflineEvidenceOperation(fresh, operation));
     };
     request.onerror = () => { tx.abort(); };
     tx.oncomplete = () => { db.close(); resolve(); };
