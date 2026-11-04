@@ -70,3 +70,11 @@ test("public API exemptions are restricted to the intended HTTP methods", async 
   assert.equal(isPublicApiRequest("/api/study/respond", "GET"), true);
   assert.equal(isPublicApiRequest("/api/study/respond", "PATCH"), false);
 });
+
+test("organization audit route rejects incomplete tenant identity before database access", () => {
+  const source = fs.readFileSync(path.join(apiRoot, "organizations", "audit", "route.ts"), "utf8");
+  const guard = source.indexOf("hasVerifiedOrganizationMemoryIdentity(identity)");
+  const firstQuery = source.search(/db\\.organizationAuditEvent\\./);
+  assert.ok(guard >= 0, "audit route must verify organization, actor and role scope");
+  assert.ok(firstQuery < 0 || guard < firstQuery, "identity guard must run before audit database access");
+});
