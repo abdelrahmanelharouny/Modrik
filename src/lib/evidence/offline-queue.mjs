@@ -104,7 +104,7 @@ function openDb() {
       }
       if (!db.objectStoreNames.contains(LOCK_STORE)) db.createObjectStore(LOCK_STORE, { keyPath: "name" });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => { request.result.onversionchange = () => request.result.close(); resolve(request.result); };
     request.onerror = () => reject(request.error ?? new Error("Could not open offline evidence storage"));
     request.onblocked = () => reject(new Error("Offline storage upgrade is blocked by another Modrik tab"));
   });
@@ -246,7 +246,7 @@ async function updateSyncLease(name, owner, leaseUntil, { release = false } = {}
       if (release) {
         if (current?.owner === owner) store.delete(name);
         acquired = true;
-      } else if (!current || current.owner === owner || current.leaseUntil <= Date.now()) {
+      } else if (!current || current.owner === owner || !Number.isFinite(current.leaseUntil) || current.leaseUntil <= Date.now()) {
         store.put({ name, owner, leaseUntil });
         acquired = true;
       }
