@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOfflineEvidenceOperation } from "../src/lib/evidence/offline-queue.mjs";
+import { createOfflineEvidenceOperation, orderOfflineEvidenceOperation } from "../src/lib/evidence/offline-queue.mjs";
 
 test("offline evidence operation preserves explicit consent and stable idempotency identity", () => {
   const payload = { title: "Interview", sourceType: "interview", language: "ar-EG", content: "نحتاج دعم العربية", consent: false };
@@ -86,4 +86,22 @@ test("offline evidence sync lock validates its project and task", async () => {
   const { withOfflineEvidenceSyncLock } = await import("../src/lib/evidence/offline-queue.mjs");
   await assert.rejects(() => withOfflineEvidenceSyncLock("", async () => {}), /projectId/);
   await assert.rejects(() => withOfflineEvidenceSyncLock("project-a", null), /task/);
+});
+
+
+test("offline evidence FIFO ordering is stable for same-millisecond operations", () => {
+  const first = createOfflineEvidenceOperation("project-1", {
+    title: "First", content: "First source", consent: false,
+  }, "123e4567-e89b-42d3-a456-426614174000");
+  const second = createOfflineEvidenceOperation("project-1", {
+    title: "Second", content: "Second source", consent: false,
+  }, "123e4567-e89b-42d3-a456-426614174001");
+  second.createdAt = first.createdAt;
+  const orderedSecond = orderOfflineEvidenceOperation([first], second);
+  assert.equal(Date.parse(orderedSecond.createdAt), Date.parse(first.createdAt) + 1);
+  const retriedFirst = orderOfflineEvidenceOperation([first, orderedSecond], {
+    ...first, attempts: 1, lastError: "Temporary network error",
+  });
+  assert.equal(retriedFirst.createdAt, first.createdAt);
+  assert.throws(() => orderOfflineEvidenceOperation({}, second), /array/);
 });
