@@ -2,28 +2,27 @@
 
 ## Status
 
-The first authenticated read endpoint is implemented at `GET /api/organizations/knowledge-memory`. It reuses accepted `KnowledgeNode` records attached to projects and does not create a second memory store.
-
-The same endpoint now supports an authenticated `PATCH` governance action for explicit review, approval, rejection and archival transitions. A reviewer/approver-only queue is available through `GET ?view=review_queue`.
+The authenticated organization memory read endpoint reuses accepted `KnowledgeNode` records attached to projects; it does not create a second memory store. Governance transitions and the reviewer/approver queue are implemented, with a dedicated organization audit stream and reader UI.
 
 ## Authorization and tenant isolation
 
 1. The route resolves the caller from the signed session cookie using the database-backed identity-session resolver.
 2. The resolver revalidates the session, user, membership, organization, status and session expiry against the database.
-3. Read access requires `organization:read`; governance actions additionally enforce their action-specific permission in the route.
-4. Target nodes are resolved through their project and the verified organization ID. No client-supplied organization or project IDs are trusted.
-5. Archived projects cannot contribute to organization-wide retrieval or governance.
-6. Read results are restricted to accepted nodes and bounded, source-attributed summaries.
-7. The proxy classifies GET/HEAD as `organization:read` and PATCH as an authenticated entry gate; the route then checks the exact action permission.
+3. Accepted-memory reads require `organization:read`; review-queue reads additionally require `requirements:review` or `requirements:approve`.
+4. Target nodes and project lists are scoped by the verified `identity.organizationId`. Client-supplied organization or project IDs are never trusted.
+5. Archived projects are excluded from retrieval, review and governance.
+6. Accepted-memory and review-queue serializers expose bounded, source-attributed summaries, not raw evidence or arbitrary project records.
+7. Governance actions enforce their exact permission again at mutation time.
 
 ## Retrieval contract
 
-- Query parameters: `q` (label/description search), `kind` (allowlisted node kind), `limit` (1–1000 input, clamped to 100 by the query builder).
+- Query parameters: `q` (label/description search), `kind` (allowlisted node kind), `limit` (1–1000 input, clamped to 100).
 - Default result limit: 25; maximum returned: 100.
-- Default view returns only accepted nodes.\n- `view=review_queue` returns only `in_review` nodes and requires `requirements:review` or `requirements:approve`; writers and viewers cannot enumerate the queue.
-- Each item retains `projectId`, `projectName`, and stable `nodeRef` provenance.
+- Default view returns only accepted nodes.
+- `view=review_queue` returns only `in_review` nodes and requires reviewer or approver permission.
+- Each item retains project ID, project name and stable node-reference provenance.
 - Descriptions are capped at 1,200 characters; confidence is clamped to [0, 1].
-- Claims, private evidence text, credentials and arbitrary project records are not returned.
+- Lexical retrieval only; semantic/vector retrieval is not enabled.
 
 ## Governance contract
 
@@ -36,16 +35,31 @@ Send `PATCH /api/organizations/knowledge-memory` with `nodeId`, `action`, and op
 | `approve` | in_review | accepted | `requirements:approve` |
 | `archive` | accepted or rejected | archived | `requirements:approve` |
 
-Transitions use a compare-and-set status guard inside a database transaction. The matching `DecisionEntry` audit record is written in the same transaction, so a failed audit write rolls back the state change. Invalid state transitions return a conflict instead of silently overwriting another reviewer’s decision. The audit detail records the authenticated user ID, node reference, transition and bounded reason.
+Transitions use compare-and-set status guards inside a database transaction. The matching project decision-journal row and organization audit event are written in that same transaction, so a failed audit write rolls back the state change. Conflicts return HTTP 409 rather than overwriting another reviewer’s decision.
 
-## Organization audit stream\n\n- Endpoint: `GET /api/organizations/audit`; requires `audit:read`.\n- Reader UI: `/settings/audit`, with event, project and actor filters plus cursor-based older-event pagination.\n- Uses a dedicated `OrganizationAuditEvent` model, not only project-scoped `DecisionEntry` rows.\n- Events are scoped by the verified session organization and support bounded filters for event type, actor, project, and time range.\n- Cursor pagination is stable by creation time and ID; actor email and session secrets are never serialized.\n- Governance changes write both the legacy project decision journal and organization event in one transaction.\n- `projectId` is a scalar snapshot, so project deletion cannot cascade-delete audit history; organization deletion is restricted while events exist.\n\n## Review queue\n\n- Endpoint: `GET /api/organizations/knowledge-memory?view=review_queue`.\n- Only reviewer, approver, owner and admin roles with the corresponding permission can read the queue.\n- Results are limited to the caller organization’s non-archived projects, ordered oldest-first to reduce review starvation, and capped at 100.\n- The queue exposes bounded node metadata and project provenance, not raw evidence or claims.\n- Decisions still use the existing PATCH lifecycle actions and their independent permissions.\n\n## Known boundaries
+## Review queue UI
 
-- This is project-backed retrieval, not yet a separately persisted organization-memory entity.
-- Lexical retrieval only; semantic/vector search is not enabled.
-- Governance is deliberately limited to explicit transitions; there is no bulk mutation, delete, or automatic promotion.
-- Audit events reuse the existing append-only project decision journal. A dedicated organization-level audit-event store and cross-project audit query remain future work.
-- A live-database multi-tenant E2E test remains required before production enablement.
+- Reader: `/settings/knowledge-memory`.
+- Queue API: `GET /api/organizations/knowledge-memory?view=review_queue`.
+- Search and kind filters are bounded by the API query builder.
+- The API returns the caller's effective review/approval capabilities; the UI only renders actions those capabilities allow.
+- Reviewer can reject; approver can approve. These are independent permissions.
+- Decisions include an optional bounded rationale, remove the item from the visible queue after success, and refresh on conflict.
+- The server remains authoritative; hiding a UI action is not an authorization boundary.
 
-## Next
+## Organization audit stream
 
-Add a dedicated organization audit stream, review queue UI, semantic retrieval with tenant filtering before vector search, and live-database tenant-isolation integration tests. The review-queue API and dedicated organization audit persistence foundation are implemented; the audit reader API, UI, semantic retrieval and live database isolation tests remain.
+- Endpoint: `GET /api/organizations/audit`; requires `audit:read`.
+- Reader UI: `/settings/audit`, with event, project and actor filters plus cursor-based pagination.
+- Uses dedicated `OrganizationAuditEvent` persistence, not only project-scoped decision rows.
+- Events are scoped by verified session organization; actor email and session secrets are never serialized.
+- Governance changes write both the legacy project decision journal and organization event in one transaction.
+- Project ID is a scalar snapshot, preserving audit history if a project is deleted; organization deletion is restricted while events exist.
+
+## Known boundaries and next gates
+
+- This is project-backed retrieval, not a separately persisted organization-memory entity.
+- Semantic/vector search is not enabled. Do not add vector retrieval until the vector provider, embedding lifecycle, deletion semantics and tenant pre-filter can be verified.
+- Governance is explicit; no bulk mutation, delete, or automatic promotion.
+- Live-database cross-tenant integration tests and concurrent reviewer stress tests remain required before production enablement.
+- Real-world pilot recruitment, rater calibration and empirical H2 evaluation remain separate research gates.

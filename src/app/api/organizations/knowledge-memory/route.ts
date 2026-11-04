@@ -19,6 +19,10 @@ function errorResponse(error: string, status: number) {
   return NextResponse.json({ error }, { status, headers: noStore });
 }
 
+function permissionContext(identity: { role: string }) {
+  return { role: identity.role, status: "active", userStatus: "active", organizationStatus: "active" };
+}
+
 /**
  * GET /api/organizations/knowledge-memory
  * All scope is derived from the verified session. Client-supplied organization
@@ -34,14 +38,8 @@ export async function GET(req: NextRequest) {
   }
   if (!identity) return errorResponse("Authentication required", 401);
 
-  // resolveIdentitySession re-reads the session, user, membership and organization
-  // from the database; this permission check uses that verified membership role.
-  if (!hasOrganizationPermission({
-    role: identity.role,
-    status: "active",
-    userStatus: "active",
-    organizationStatus: "active",
-  }, "organization:read")) {
+  const permissions = permissionContext(identity);
+  if (!hasOrganizationPermission(permissions, "organization:read")) {
     return errorResponse("Insufficient organization permission", 403);
   }
 
@@ -61,25 +59,13 @@ export async function GET(req: NextRequest) {
   if (view !== "accepted" && view !== "review_queue") {
     return errorResponse("view must be accepted or review_queue", 400);
   }
-  if (view === "review_queue" &&
-      !hasOrganizationPermission({
-        role: identity.role,
-        status: "active",
-        userStatus: "active",
-        organizationStatus: "active",
-      }, "requirements:review") &&
-      !hasOrganizationPermission({
-        role: identity.role,
-        status: "active",
-        userStatus: "active",
-        organizationStatus: "active",
-      }, "requirements:approve")) {
+  const canReview = hasOrganizationPermission(permissions, "requirements:review");
+  const canApprove = hasOrganizationPermission(permissions, "requirements:approve");
+  if (view === "review_queue" && !canReview && !canApprove) {
     return errorResponse("Review permission required", 403);
   }
 
   try {
-    // This is the only project scope used below. Never accept projectIds from
-    // query parameters or request bodies for organization-wide retrieval.
     const projects = await db.project.findMany({
       where: { organizationId: identity.organizationId, status: { not: "archived" } },
       select: { id: true },
@@ -93,8 +79,12 @@ export async function GET(req: NextRequest) {
       search,
       limit,
     });
+    const capabilities = view === "review_queue" ? { canReview, canApprove } : undefined;
     if (query.take === 0) {
-      return NextResponse.json({ items: [], total: 0, scope: "organization", view }, { headers: noStore });
+      return NextResponse.json({
+        items: [], total: 0, scope: "organization", view,
+        ...(capabilities ? { capabilities } : {}),
+      }, { headers: noStore });
     }
 
     const nodes = await db.knowledgeNode.findMany({
@@ -113,6 +103,7 @@ export async function GET(req: NextRequest) {
       limit: query.take,
       scope: "organization",
       view,
+      ...(capabilities ? { capabilities } : {}),
       filters: {
         kind: typeof kind === "string" && kind.length <= 40 ? kind : null,
         query: typeof search === "string" ? search.trim().slice(0, 120) : null,
@@ -122,7 +113,6 @@ export async function GET(req: NextRequest) {
     return errorResponse("Organization knowledge is temporarily unavailable", 503);
   }
 }
-
 
 /**
  * PATCH /api/organizations/knowledge-memory
@@ -162,33 +152,19 @@ export async function PATCH(req: NextRequest) {
             status: { not: "archived" },
           },
         },
-        select: {
-          id: true,
-          projectId: true,
-          nodeRef: true,
-          status: true,
-        },
+        select: { id: true, projectId: true, nodeRef: true, status: true },
       });
       if (!node) return { kind: "not_found" as const };
 
       const transition = resolveOrganizationMemoryTransition(body.action, node.status);
       if (!transition) return { kind: "invalid_transition" as const, status: node.status };
 
-      if (!hasOrganizationPermission({
-        role: identity.role,
-        status: "active",
-        userStatus: "active",
-        organizationStatus: "active",
-      }, transition.permission)) {
+      if (!hasOrganizationPermission(permissionContext(identity), transition.permission)) {
         return { kind: "forbidden" as const };
       }
 
       const changed = await tx.knowledgeNode.updateMany({
-        where: {
-          id: node.id,
-          projectId: node.projectId,
-          status: transition.from,
-        },
+        where: { id: node.id, projectId: node.projectId, status: transition.from },
         data: { status: transition.to },
       });
       if (changed.count !== 1) return { kind: "conflict" as const };
@@ -200,12 +176,8 @@ export async function PATCH(req: NextRequest) {
           actor: "human",
           action: "organization_memory_" + transition.action,
           detail: JSON.stringify({
-            actorUserId: identity.userId,
-            nodeId: node.id,
-            nodeRef: node.nodeRef,
-            from: transition.from,
-            to: transition.to,
-            reason,
+            actorUserId: identity.userId, nodeId: node.id, nodeRef: node.nodeRef,
+            from: transition.from, to: transition.to, reason,
           }),
         },
       });
@@ -226,15 +198,8 @@ export async function PATCH(req: NextRequest) {
       const updated = await tx.knowledgeNode.findUnique({
         where: { id: node.id },
         select: {
-          id: true,
-          projectId: true,
-          nodeRef: true,
-          kind: true,
-          label: true,
-          description: true,
-          status: true,
-          confidence: true,
-          updatedAt: true,
+          id: true, projectId: true, nodeRef: true, kind: true, label: true,
+          description: true, status: true, confidence: true, updatedAt: true,
         },
       });
       return { kind: "updated" as const, node: updated };
