@@ -18,4 +18,4 @@ Do not use this score for contractual estimates, staffing commitments, performan
 
 ## Current validation
 
-The pure estimator has deterministic unit coverage for direct/transitive impact, typed-edge weighting, risk modifiers, duplicate filtering and invalid inputs. The full application build and browser interaction still need the dependency-backed CI run for this branch.
+The pure estimator has deterministic unit coverage for direct/transitive impact, typed-edge weighting, risk modifiers, duplicate filtering and invalid inputs. The exact-head CI run #532 passed TypeScript, ESLint, production build, PostgreSQL schema validation and stakeholder API/browser E2E. This validates integration/build behavior, not the heuristic's predictive accuracy; empirical calibration against completed engineering changes remains open.
