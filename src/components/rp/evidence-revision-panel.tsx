@@ -14,10 +14,12 @@ export function EvidenceRevisionPanel({
   projectId,
   evidence,
   onSaved,
+  onQueueOffline,
 }: {
   projectId: string;
   evidence: EvidenceDTO;
   onSaved: () => Promise<void>;
+  onQueueOffline?: (operation: ReturnType<typeof createOfflineEvidenceMutationOperation>) => Promise<void>;
 }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -32,6 +34,7 @@ export function EvidenceRevisionPanel({
   const save = async () => {
     setBusy(true);
     try {
+      const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
       const requestFingerprint = JSON.stringify({ evidenceId: evidence.id, expectedRevisionVersion, title, content, language, consent, changeNote });
       if (!pendingOperationRef.current || pendingOperationRef.current.fingerprint !== requestFingerprint) {
         pendingOperationRef.current = { fingerprint: requestFingerprint, id: crypto.randomUUID() };
@@ -50,7 +53,7 @@ export function EvidenceRevisionPanel({
         method: "PATCH",
         body: JSON.stringify({
           evidenceId: evidence.id,
-          expectedRevisionVersion: evidence.revisions?.[0]?.version ?? 0,
+          expectedRevisionVersion,
           title,
           content,
           language,
