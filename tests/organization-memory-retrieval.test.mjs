@@ -83,3 +83,30 @@ test("retrieval evaluation handles empty relevance sets, invalid input and dupli
   });
   assert.throws(() => evaluateOrganizationMemoryRanking(null), TypeError);
 });
+
+
+test("benchmark aggregation reports macro, micro and language-sliced retrieval metrics", async () => {
+  const { evaluateOrganizationMemoryBenchmark } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const result = evaluateOrganizationMemoryBenchmark([
+    { language: "Arabic", rankedIds: ["a1", "a2"], relevantIds: ["a1"], k: 2 },
+    { language: "English", rankedIds: ["e2", "e1"], relevantIds: ["e1"], k: 2 },
+    { language: "code-switched", rankedIds: ["c1"], relevantIds: ["c1"], k: 2 },
+    { language: "Arabic", rankedIds: ["ignored"], relevantIds: [], k: 2 },
+  ]);
+  assert.equal(result.totalQueries, 4);
+  assert.equal(result.evaluatedQueries, 3);
+  assert.equal(result.excludedUnjudgedQueries, 1);
+  assert.equal(result.macro.queryCount, 3);
+  assert.equal(result.macro.mrr, (1 + 0.5 + 1) / 3);
+  assert.equal(result.perLanguage.arabic.queryCount, 1);
+  assert.equal(result.perLanguage.english.mrr, 0.5);
+  assert.equal(result.perLanguage["code-switched"].recallAtK, 1);
+  assert.equal(result.microPrecision, 2 / 5);
+  assert.equal(result.microRecall, 1);
+});
+
+test("benchmark aggregation rejects malformed collections and query entries", async () => {
+  const { evaluateOrganizationMemoryBenchmark } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  assert.throws(() => evaluateOrganizationMemoryBenchmark(null), TypeError);
+  assert.throws(() => evaluateOrganizationMemoryBenchmark([null]), TypeError);
+});
