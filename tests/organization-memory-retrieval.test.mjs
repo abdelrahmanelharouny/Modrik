@@ -15,7 +15,7 @@ const corpus = [
 test("normalization supports Arabic diacritics, alef variants and code-switching", () => {
   assert.equal(normalizeOrganizationMemoryText(String.fromCodePoint(0x625, 0x650, 0x62f, 0x627, 0x631, 0x629, 0x64f, 0x20, 0x627, 0x644, 0x628, 0x64e, 0x64a, 0x627, 0x646, 0x627, 0x62a, 0x650)), String.fromCodePoint(0x627, 0x62f, 0x627, 0x631, 0x629, 0x20, 0x627, 0x644, 0x628, 0x64a, 0x627, 0x646, 0x627, 0x62a));
   assert.deepEqual(tokenizeOrganizationMemoryText("Policy سياسة 2026"), ["policy", "سياسة", "2026"]);
-  assert.equal(normalizeOrganizationMemoryText("ا\\u0610\\u06DD\\u064B\\u0640"), "ا", "extended Arabic marks and tatweel are ignored");
+  assert.equal(normalizeOrganizationMemoryText("ا\u0610\u06DD\u064B\u0640"), "ا", "extended Arabic marks and tatweel are ignored");
 });
 
 test("lexical ranking is relevance ordered and excludes unaccepted and cross-tenant nodes", () => {
