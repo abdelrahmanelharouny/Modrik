@@ -23,7 +23,30 @@ export function summarizeReverseTrace({ requirement, traceLinks = [], claimLinks
   if (!requirement) return { status: "unmapped", direct: [], supportingClaims: [], knowledge: [], stories: [], impacted: [] };
   return {
     status: "mapped",
-    direct: traceLinks.map((link) => ({ evidenceCode: link.evidenceCode, evidenceId: link.evidenceId, note: link.note ?? null })),
+    direct: traceLinks.map((link) => {
+      const source = link.evidence ?? null;
+      const revision = source?.revisions?.[0] ?? null;
+      return {
+        evidenceCode: link.evidenceCode,
+        evidenceId: link.evidenceId,
+        note: link.note ?? null,
+        source: source ? {
+          id: source.id,
+          code: source.code,
+          title: source.title,
+          sourceType: source.sourceType,
+          language: source.language,
+          consent: source.consent,
+          createdAt: source.createdAt ?? null,
+          latestRevision: revision ? {
+            version: revision.version,
+            changeNote: revision.changeNote,
+            createdAt: revision.createdAt,
+            createdBy: revision.createdBy,
+          } : null,
+        } : null,
+      };
+    }),
     linkedClaims: claimLinks.map((link) => ({
       claimId: link.claim.id, claimRef: link.claim.claimRef, status: link.claim.status,
       relationship: link.relationship, quote: link.claim.quote,

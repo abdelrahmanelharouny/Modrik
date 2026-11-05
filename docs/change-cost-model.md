@@ -24,3 +24,8 @@ The pure estimator has deterministic unit coverage for direct/transitive impact,
 ## Reverse traceability depth
 
 Reverse tracker inspection now returns more than the impacted requirement IDs: each project-scoped impact node includes its current requirement status, priority, verification/drift state, traversal depth and typed path, plus the unique evidence codes currently linked to that requirement. This makes a change review actionable: reviewers can identify affected requirements that are unverified, drifting, or missing evidence before approving a tracker mapping. Missing/deleted requirement details fail closed to nullable metadata; the API does not infer a mapping from text similarity.
+
+
+## Source-to-requirement provenance
+
+Reverse inspection now enriches each direct trace link with a bounded source descriptor: stable evidence code, title, source type, language, consent state, source creation time and the latest immutable revision's version/change note/author/time. Raw evidence content and content hashes are deliberately excluded from this summary. Deleted or detached evidence remains visible by its stable trace code with nullable source metadata; the API does not fabricate a replacement source. This closes the source → requirement → evidence-revision portion of the reverse review path while keeping source text behind the dedicated evidence access controls.

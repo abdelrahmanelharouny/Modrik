@@ -75,3 +75,40 @@ test("reverse impact enrichment safely handles missing requirement details", () 
   assert.equal(summary.impacted[0].evidenceCount, 0);
   assert.deepEqual(summary.impacted[0].via, []);
 });
+
+
+test("reverse trace exposes source metadata and latest immutable revision without raw source content", () => {
+  const summary = summarizeReverseTrace({
+    requirement: requirements[0],
+    traceLinks: [{
+      evidenceCode: "E-123",
+      evidenceId: "evidence-1",
+      note: "Interview source",
+      evidence: {
+        id: "evidence-1", code: "E-123", title: "Customer interview",
+        sourceType: "interview", language: "ar-EG", consent: true,
+        createdAt: new Date("2026-10-01T10:00:00.000Z"),
+        revisions: [{ version: 3, changeNote: "Clarified terminology", createdAt: new Date("2026-10-02T10:00:00.000Z"), createdBy: "human", content: "must never be serialized" }],
+      },
+    }],
+  });
+  assert.deepEqual(summary.direct[0].source, {
+    id: "evidence-1", code: "E-123", title: "Customer interview",
+    sourceType: "interview", language: "ar-EG", consent: true,
+    createdAt: new Date("2026-10-01T10:00:00.000Z"),
+    latestRevision: {
+      version: 3, changeNote: "Clarified terminology",
+      createdAt: new Date("2026-10-02T10:00:00.000Z"), createdBy: "human",
+    },
+  });
+  assert.equal(JSON.stringify(summary).includes("must never be serialized"), false);
+});
+
+test("reverse trace handles deleted evidence sources without inventing source metadata", () => {
+  const summary = summarizeReverseTrace({
+    requirement: requirements[0],
+    traceLinks: [{ evidenceCode: "E-404", evidenceId: null, evidence: null }],
+  });
+  assert.equal(summary.direct[0].source, null);
+  assert.equal(summary.direct[0].evidenceCode, "E-404");
+});

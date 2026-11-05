@@ -34,7 +34,22 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const requirement = resolved.requirement;
   const [traceLinks, claimLinks, knowledgeLinks, linkedStories, impact] = await Promise.all([
-    db.traceLink.findMany({ where: { projectId, requirementId: requirement.id }, orderBy: { evidenceCode: "asc" } }),
+    db.traceLink.findMany({
+      where: { projectId, requirementId: requirement.id },
+      orderBy: { evidenceCode: "asc" },
+      include: {
+        evidence: {
+          select: {
+            id: true, code: true, title: true, sourceType: true, language: true, consent: true, createdAt: true,
+            revisions: {
+              orderBy: { version: "desc" },
+              take: 1,
+              select: { version: true, changeNote: true, createdAt: true, createdBy: true },
+            },
+          },
+        },
+      },
+    }),
     db.requirementClaim.findMany({
       where: { projectId, requirementId: requirement.id },
       include: { claim: { include: { evidence: { select: { code: true } }, revision: { select: { version: true } } } } },
