@@ -60,7 +60,7 @@ export function buildOrganizationMemoryPage(input?: {
 }): {
   limit: number;
   take: number;
-  cursor?: { id: string };
+  cursor?: { id: string; updatedAt: Date };
   skip?: number;
 };
 
