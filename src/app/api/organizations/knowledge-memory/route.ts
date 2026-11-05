@@ -12,6 +12,8 @@ import {
   summarizeOrganizationReviewQueueNode,
   hasVerifiedOrganizationMemoryIdentity,
   buildOrganizationMemoryPage,
+  buildOrganizationMemoryCursorWhere,
+  createOrganizationMemoryCursor,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
 import { rankOrganizationMemoryCandidates } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
 
@@ -63,8 +65,8 @@ export async function GET(req: NextRequest) {
   const kind = params.get("kind") ?? undefined;
   const search = params.get("q") ?? undefined;
   const cursor = params.get("cursor");
-  if (cursor !== null && (!cursor.trim() || cursor.length > 128)) {
-    return errorResponse("cursor must be a non-empty record cursor of at most 128 characters", 400);
+  if (cursor !== null && (!cursor.trim() || cursor.length > 512)) {
+    return errorResponse("cursor must be a non-empty record cursor of at most 512 characters", 400);
   }
   const view = params.get("view") ?? "accepted";
   if (view !== "accepted" && view !== "review_queue") {
@@ -100,17 +102,24 @@ export async function GET(req: NextRequest) {
     }
 
     const page = rankedSearch ? null : buildOrganizationMemoryPage({ limit: query.take, cursor: cursor ?? undefined });
+    let pageWhere = query.where;
     if (page?.cursor) {
-      // A cursor is valid only inside the exact authorized view/filter.
+      // Validate the anchor inside the exact authorized view/filter and reject
+      // stale snapshots; pagination then uses an immutable timestamp boundary.
       const anchor = await db.knowledgeNode.findFirst({
         where: { ...query.where, id: page.cursor.id },
-        select: { id: true },
+        select: { id: true, updatedAt: true },
       });
-      if (!anchor) return errorResponse("Invalid or expired organization memory cursor", 400);
+      if (!anchor || anchor.updatedAt.getTime() !== page.cursor.updatedAt.getTime()) {
+        return errorResponse("Invalid or expired organization memory cursor", 400);
+      }
+      pageWhere = buildOrganizationMemoryCursorWhere(
+        query.where, page, view === "review_queue" ? "asc" : "desc",
+      );
     }
     const nodes = await db.knowledgeNode.findMany({
-      where: query.where,
-      ...(page ? { take: page.take, ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}) } : { take: query.take }),
+      where: pageWhere,
+      ...(page ? { take: page.take } : { take: query.take }),
       orderBy: query.orderBy,
       include: { project: { select: { name: true } } },
     });
@@ -141,7 +150,7 @@ export async function GET(req: NextRequest) {
       ...(page ? {
         pagination: {
           hasMore: nodes.length > page.limit,
-          nextCursor: nodes.length > page.limit ? pageNodes.at(-1)?.id ?? null : null,
+          nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(pageNodes.at(-1)) : null,
         },
       } : { pagination: { hasMore: false, nextCursor: null } }),
       ...(rankedSearch ? { candidateWindow: query.take, candidatesScanned: nodes.length, retrievalMode: "bm25" } : {}),

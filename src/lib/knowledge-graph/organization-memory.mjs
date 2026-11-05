@@ -138,10 +138,19 @@ export function summarizeOrganizationKnowledgeNode(node) {
 
 
 /**
- * Build Prisma keyset-pagination arguments for a stable updatedAt/id ordering.
- * The cursor is an opaque record ID; authorization remains in the query's
- * projectId/status predicate and is never derived from the cursor itself.
+ * Encode a timestamp snapshot and stable record ID into an opaque cursor.
+ * This is not an authorization token; tenant and filter scope are re-applied.
  */
+export function createOrganizationMemoryCursor(node) {
+  if (!node || typeof node.id !== "string" || !node.id ||
+      !(node.updatedAt instanceof Date) || Number.isNaN(node.updatedAt.getTime())) {
+    throw new TypeError("Organization memory cursor anchor is invalid.");
+  }
+  return Buffer.from(JSON.stringify({
+    v: 1, id: node.id, updatedAt: node.updatedAt.toISOString(),
+  })).toString("base64url");
+}
+
 export function buildOrganizationMemoryPage(input = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new TypeError("Organization memory pagination input must be an object.");
@@ -150,11 +159,39 @@ export function buildOrganizationMemoryPage(input = {}) {
   const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0
     ? Math.min(requestedLimit, MAX_LIMIT)
     : DEFAULT_LIMIT;
-  const cursor = typeof input.cursor === "string" ? input.cursor.trim() : "";
-  if (cursor.length > 128) throw new TypeError("Organization memory cursor is invalid.");
+  const token = typeof input.cursor === "string" ? input.cursor.trim() : "";
+  if (token.length > 512) throw new TypeError("Organization memory cursor is invalid.");
+  if (!token) return { limit, take: limit + 1 };
+  try {
+    const decoded = JSON.parse(Buffer.from(token, "base64url").toString("utf8"));
+    const timestamp = new Date(decoded.updatedAt);
+    if (decoded.v !== 1 || typeof decoded.id !== "string" || !decoded.id ||
+        decoded.id.length > 128 || !Number.isFinite(timestamp.getTime()) ||
+        timestamp.toISOString() !== decoded.updatedAt) throw new Error("invalid cursor");
+    return { limit, take: limit + 1, cursor: { id: decoded.id, updatedAt: timestamp } };
+  } catch {
+    throw new TypeError("Organization memory cursor is invalid.");
+  }
+}
+
+/** Build a deterministic (updatedAt, id) keyset boundary, preserving search filters. */
+export function buildOrganizationMemoryCursorWhere(where, page, direction = "desc") {
+  if (!where || typeof where !== "object" || !page || !page.cursor ||
+      !(page.cursor.updatedAt instanceof Date) || typeof page.cursor.id !== "string") {
+    throw new TypeError("Organization memory cursor boundary is invalid.");
+  }
+  if (direction !== "asc" && direction !== "desc") {
+    throw new TypeError("Organization memory cursor direction is invalid.");
+  }
+  const timestampOperator = direction === "asc" ? "gt" : "lt";
   return {
-    limit,
-    take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    ...where,
+    AND: [
+      ...(Array.isArray(where.AND) ? where.AND : []),
+      { OR: [
+        { updatedAt: { [timestampOperator]: page.cursor.updatedAt } },
+        { updatedAt: page.cursor.updatedAt, id: { gt: page.cursor.id } },
+      ] },
+    ],
   };
 }

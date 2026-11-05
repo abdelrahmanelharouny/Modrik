@@ -63,3 +63,10 @@ export function buildOrganizationMemoryPage(input?: {
   cursor?: { id: string };
   skip?: number;
 };
+
+export function createOrganizationMemoryCursor(node: { id: string; updatedAt: Date }): string;
+export function buildOrganizationMemoryCursorWhere(
+  where: Record<string, unknown>,
+  page: { cursor?: { id: string; updatedAt: Date } },
+  direction?: "asc" | "desc",
+): Record<string, unknown>;

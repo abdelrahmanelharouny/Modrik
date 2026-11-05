@@ -8,6 +8,8 @@ import {
   summarizeOrganizationKnowledgeNode,
   hasVerifiedOrganizationMemoryIdentity,
   buildOrganizationMemoryPage,
+  buildOrganizationMemoryCursorWhere,
+  createOrganizationMemoryCursor,
 } from "../src/lib/knowledge-graph/organization-memory.mjs";
 
 test("organization memory query fails closed when no authorized projects are supplied", () => {
@@ -117,12 +119,33 @@ test("BM25 candidate window is bounded, accepted-only, and tenant-scoped", () =>
 });
 
 
-test("organization memory pagination uses bounded keyset cursors and fetches one lookahead row", () => {
+test("organization memory pagination uses opaque timestamp snapshots and bounded lookahead", () => {
+  const anchor = { id: "node-25", updatedAt: new Date("2026-11-05T10:00:00.000Z") };
+  const token = createOrganizationMemoryCursor(anchor);
+  const page = buildOrganizationMemoryPage({ limit: 1000, cursor: token });
+  assert.equal(page.limit, 100);
+  assert.equal(page.take, 101);
+  assert.equal(page.cursor.id, anchor.id);
+  assert.equal(page.cursor.updatedAt.toISOString(), anchor.updatedAt.toISOString());
   assert.deepEqual(buildOrganizationMemoryPage({ limit: 25 }), { limit: 25, take: 26 });
-  assert.deepEqual(buildOrganizationMemoryPage({ limit: 1000, cursor: "node-25" }), {
-    limit: 100, take: 101, cursor: { id: "node-25" }, skip: 1,
-  });
   assert.deepEqual(buildOrganizationMemoryPage({ limit: 0 }), { limit: 25, take: 26 });
-  assert.throws(() => buildOrganizationMemoryPage({ cursor: "x".repeat(129) }), TypeError);
+  assert.throws(() => buildOrganizationMemoryPage({ cursor: "invalid" }), TypeError);
+  assert.throws(() => buildOrganizationMemoryPage({ cursor: "x".repeat(513) }), TypeError);
   assert.throws(() => buildOrganizationMemoryPage(null), TypeError);
+});
+
+test("organization memory keyset boundary preserves filters and handles equal timestamps", () => {
+  const timestamp = new Date("2026-11-05T10:00:00.000Z");
+  const where = { projectId: { in: ["p1"] }, status: "accepted", OR: [{ label: { contains: "x" } }] };
+  const page = { cursor: { id: "node-25", updatedAt: timestamp } };
+  const descending = buildOrganizationMemoryCursorWhere(where, page, "desc");
+  assert.deepEqual(descending.projectId, where.projectId);
+  assert.deepEqual(descending.OR, where.OR);
+  assert.deepEqual(descending.AND[0].OR, [
+    { updatedAt: { lt: timestamp } },
+    { updatedAt: timestamp, id: { gt: "node-25" } },
+  ]);
+  const ascending = buildOrganizationMemoryCursorWhere(where, page, "asc");
+  assert.deepEqual(ascending.AND[0].OR[0], { updatedAt: { gt: timestamp } });
+  assert.throws(() => buildOrganizationMemoryCursorWhere(where, page, "invalid"), TypeError);
 });
