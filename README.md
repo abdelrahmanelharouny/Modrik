@@ -433,75 +433,73 @@ Set `DATABASE_URL` to a Postgres URL (or keep SQLite — it works on a persisten
 
 ## 18. Deploying to Vercel
 
-Modrik is prepared end-to-end for the **GitHub → Vercel** flow. The deployment has exactly one non-obvious requirement — **the database must be PostgreSQL** (Vercel's serverless filesystem is ephemeral; SQLite files do not persist) — and the build **fails fast with fix instructions** if you forget it, instead of failing cryptically at runtime.
+Modrik can be built for Vercel, but a successful build is **not** the same as production readiness. Production deployment is gated on verified secrets, real provider connectivity, a reviewed PostgreSQL baseline, a tested backup restore, and an approved database change procedure. Do not point a live deployment at an existing database and run `prisma db push` or `prisma migrate deploy` as an informal setup step.
 
-### 18.1 The 10-minute walkthrough
+### 18.1 Required deployment sequence
 
-**Step 1 — Push to GitHub.**
+**Step 1 — Integrate the release candidate.**  
+Deploy only from the reviewed release branch after the complete PR chain has been reconciled with current `main`, exact-head CI has passed, and the post-merge candidate has its own green CI. Historical green checks on individual stacked branches do not validate the final deployment tree.
 
-```bash
-git remote add origin https://github.com/<you>/modrik.git
-git push -u origin main
-```
+**Step 2 — Provision managed PostgreSQL.**  
+Vercel's serverless filesystem is ephemeral; SQLite is for local development and CI. Provision a managed PostgreSQL database and keep separate staging and production databases. Use the provider's recommended pooled runtime URL and a direct connection URL for administrative maintenance where required.
 
-The repo ships clean: `.env`, runtime data (`db/`), deliverables and sandbox artifacts are git-ignored; `.env.example` documents every variable.
+**Step 3 — Configure every required production secret.**
 
-**Step 2 — Create the database.** Pick any managed Postgres:
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `DATABASE_URL` | **Yes** | PostgreSQL connection string |
+| `MODRIK_ADMIN_EMAIL` | **Yes** | Initial owner identity |
+| `MODRIK_ADMIN_PASSWORD_HASH` | **Yes** | Scrypt hash generated with `bun scripts/hash-admin-password.mjs` |
+| `MODRIK_AUTH_SECRET` | **Yes** | Independent random secret, at least 32 bytes |
+| `MODRIK_ENCRYPTION_KEY` | **Yes** | Independent 32-byte AES-256-GCM key |
+| `UPSTASH_REDIS_REST_URL` | **Yes** | Shared production rate limiter, HTTPS URL |
+| `UPSTASH_REDIS_REST_TOKEN` | **Yes** | Upstash REST credential |
+| `RESEND_API_KEY` | **Yes** | Password-recovery email delivery |
+| `PASSWORD_RESET_EMAIL_FROM` | **Yes** | Verified sender identity |
+| `APP_URL` | **Yes** | Canonical public HTTPS origin |
+| `RP_LLM_PROVIDER` | Recommended | Explicit provider selection |
+| `RP_MODEL_B_BASE_URL`, `RP_MODEL_B_MODEL`, `RP_MODEL_B_API_KEY` | If using model-b | OpenAI-compatible chat provider configuration |
+| `RP_GITHUB_*`, `RP_JIRA_*` | Optional | Deployment-level tracker fallbacks |
 
-| Option | How |
-|--------|-----|
-| **Vercel Postgres** (simplest) | Vercel dashboard → your project → **Storage** → Create Database (Postgres). The `DATABASE_URL` env var can be attached to the project with one click. |
-| **Neon** | Create a project → copy the pooled connection string. |
-| **Supabase** | Create a project → Settings → Database → connection string (use the pooled/6543 port for serverless). |
+Generate the two independent cryptographic keys with `openssl rand -hex 32`; never reuse the authentication secret as the encryption key. Generate the password hash interactively and do not pass a plaintext password in a shell command. Store secrets only in the deployment secret manager, never in Git or client-visible variables.
 
-**Step 3 — Import the repo on Vercel.** New Project → import `modrik` → framework **Next.js** is auto-detected; build command and output need no overrides (`npm run build` handles Prisma provider selection automatically — a Postgres `DATABASE_URL` makes it generate the Postgres client, anything else on Vercel stops the build with a 2-minute fix guide).
+**Step 4 — Run the production configuration gate.**
 
-**Step 4 — Configure environment variables** (Project → Settings → Environment Variables):
+Run `bun run security:release-check` in the target deployment environment. This validates configuration shape, not provider connectivity. Separately verify that Redis, Resend, the selected LLM provider, and any configured tracker endpoints work from the deployed runtime.
 
-| Variable | Required | Value |
-|----------|----------|-------|
-| `DATABASE_URL` | **required** | Your Postgres connection string (`postgresql://…`) |
-| `RP_LLM_PROVIDER` | recommended | `model-b` on Vercel (GLM's SDK is sandbox-native — see §13); keep unset only if you run self-hosted |
-| `RP_MODEL_B_BASE_URL` | if provider=model-b | e.g. `https://api.openai.com/v1` |
-| `RP_MODEL_B_MODEL` | if provider=model-b | e.g. `gpt-4o-mini` / `deepseek-chat` / any OpenAI-compatible model |
-| `RP_MODEL_B_API_KEY` | if provider=model-b | the endpoint's key |
-| `RP_GITHUB_TOKEN` / `RP_GITHUB_OWNER` / `RP_GITHUB_REPO` | optional | GitHub Issues sync fallbacks |
-| `RP_JIRA_BASE_URL` / `RP_JIRA_EMAIL` / `RP_JIRA_TOKEN` / `RP_JIRA_PROJECT_KEY` | optional | Jira Cloud v3 sync fallbacks |
-| `RP_PLANNER_ARM` | optional | default elicitation arm (`impact_aware`) |
+**Step 5 — Reconcile and approve the database baseline before schema changes.**
 
-**Step 5 — Create the tables (one time, from your machine).** The first deploy renders an empty-but-healthy platform; push the schema once:
+The checked-in SQLite and generated PostgreSQL schemas are parity-checked, but that does not prove equivalence with an existing deployed database. The repository currently has no approved production baseline or completed production migration runner. `bun run db:migrate:deploy` intentionally fails closed. Do not bypass this guard or use `db:push` against an existing production database.
 
-```bash
-DATABASE_URL="postgresql://…" npm run db:push:pg
-```
+Before production schema deployment:
+1. Take a provider-native backup and restore it into an isolated environment.
+2. Compare the restored database's actual schema and migration history with the current Prisma schema.
+3. Document additive/destructive changes and data-preservation behavior.
+4. Approve a provider-specific baseline and release procedure.
+5. Run the procedure against staging, verify application workflows, and rehearse rollback.
 
-(Prisma prefers the inline env over `.env`, so the command above targets your production DB while `.env` still points at SQLite. Re-run this after any schema change; `db:push` diffs non-interactively and is safe for additive changes.)
+A disposable empty staging database may be used for schema validation; it is not evidence that an existing production database is safe to mutate.
 
-**Step 6 — Deploy, then seed the showcase.** Deploy (or push to trigger it). On first visit the platform is live with **zero missions** — that is the dynamicity rule being honest. Populate in one of two ways:
+**Step 6 — Deploy to staging and run smoke tests.**
 
-- In the UI: **Mission Library → Load** on any card (seeds real DB rows via the idempotent seeder), or **Load demo mission**.
-- Via API (several missions at once): `curl -X POST https://<your-app>/api/missions -H 'content-type: application/json' -d '{"missionId":"tuktuk-fleet"}'` — repeat per mission id, or script the loop over the 13 catalog ids.
+Verify HTTPS and secure cookies, owner bootstrap, login/logout, password recovery, invitations, role permissions, cross-organization isolation, project creation, the six pipeline gates, evidence revisions, knowledge governance, reverse trace review, tracker integrations, audit export, and offline evidence synchronization. Confirm that unauthenticated protected APIs return `401`, missing auth configuration returns `503`, and cross-origin mutations are rejected.
 
-**Step 7 — Configure the LLM provider.** With `RP_LLM_PROVIDER=model-b` and a valid key, every agent works. Voice intake (`/api/transcribe`) uses the GLM ASR service and therefore works when GLM is reachable; with a foreign provider the route degrades gracefully (clear error, no crash). Everything else — planner, graph, executability, health, calibration, drift, compliance math, integrations, study, telemetry — is model-independent or deterministic.
+**Step 7 — Approve production only after operational gates pass.**
 
-### 18.2 Vercel-specific limits (and how Modrik adapts)
+Verify a fresh backup restore, real provider connectivity, rate-limit behavior across multiple instances, monitoring/alerting, and an operator rollback procedure. Seed showcase missions only after the environment is approved; do not use demo data as production customer data.
 
-| Limit | Impact | Adaptation |
-|-------|--------|------------|
-| Request body ≤ **4.5 MB** | Voice-note uploads | `/api/transcribe` clamps to ~4 MB on Vercel and returns a **human-readable** message ("keep clips under ~30 seconds or self-host for 2-minute notes") instead of an opaque edge 413 |
-| Cold starts + function timeouts | Long agent runs | Agents retry internally; route handlers stream nothing and stay under default limits; for heavy missions consider Pro plan timeouts or self-hosting |
-| Ephemeral filesystem | No SQLite | Enforced at build time by the guardrail in `scripts/prisma-setup.mjs` |
-| No persistent cron | Drift sweeps are on-demand | Drift runs from the Debrief button (webhook-automated sweeps are a roadmap item) |
+### 18.2 Vercel runtime constraints
 
-### 18.3 Updating the schema later
+| Limit | Impact | Operational response |
+|-------|--------|----------------------|
+| Request body limits | Voice-note uploads may be rejected above the configured bound | Keep clips within the API's documented limit or use a separately operated ingestion service |
+| Function timeouts and cold starts | Long agent runs may exceed the runtime budget | Measure real workloads; use an appropriate plan or move long-running work to a durable worker |
+| Ephemeral filesystem | Local SQLite and local file persistence are not production storage | Use PostgreSQL and durable object storage for any future file lifecycle |
+| No persistent cron by default | Scheduled drift sweeps are not automatic | Use an external scheduler or event-driven workflow with authenticated callbacks |
 
-```bash
-# 1. edit prisma/schema.prisma (single source of truth)
-npm run db:sync:pg        # regenerate the postgres variant
-npm run db:push           # local sqlite
-DATABASE_URL="postgresql://…" npm run db:push:pg   # production
-git commit -am "schema: <change>" && git push           # redeploys
-```
+### 18.3 Schema change policy
+
+For local development, edit `prisma/schema.prisma`, regenerate the PostgreSQL schema with `npm run db:sync:pg`, and run provider-parity tests. For production, do not treat `prisma db push` as a migration strategy. Every schema change must have an approved migration/baseline, backup and restore evidence, staging validation, and an exact release SHA. See [database-migrations.md](docs/database-migrations.md) and [security-deployment.md](docs/security-deployment.md).
 
 ## 19. Design decision records — the why behind every choice
 
