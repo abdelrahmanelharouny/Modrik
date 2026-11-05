@@ -208,3 +208,35 @@ test("streaming BM25 requires an explicit accepted project scope", async () => {
     findMany: async () => [],
   }), TypeError);
 });
+
+
+test("streaming BM25 scores and tie-breaks match the in-memory BM25 reference", async () => {
+  const {
+    rankOrganizationMemoryCandidates,
+    rankOrganizationMemoryCandidatesStream,
+  } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const candidates = [
+    { id: "a", projectId: "p1", status: "accepted", kind: "decision", label: "Arabic policy review", description: "policy governance" },
+    { id: "b", projectId: "p1", status: "accepted", kind: "risk", label: "Policy risk", description: "governance review" },
+    { id: "c", projectId: "p1", status: "accepted", kind: "decision", label: "Unrelated note", description: "general context" },
+    { id: "d", projectId: "p1", status: "accepted", kind: "policy", label: "Policy review", description: "governance" },
+  ].map((row, index) => ({ ...row, updatedAt: new Date(Date.UTC(2026, 9, 1) - index * 1000), nodeRef: row.id, project: { name: "P1" } }));
+  const expected = rankOrganizationMemoryCandidates({ projectIds: ["p1"], candidates, query: "policy review", mode: "lexical", limit: 3 });
+  const findMany = async (args) => {
+    const boundary = args.where.AND?.find((clause) => clause.OR)?.OR;
+    return candidates.filter((row) => {
+      if (row.projectId !== "p1" || row.status !== "accepted") return false;
+      if (!boundary) return true;
+      const [older, same] = boundary;
+      return row.updatedAt < older.updatedAt.lt ||
+        (row.updatedAt.getTime() === same.updatedAt.getTime() && row.id > same.id.gt);
+    }).sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)).slice(0, args.take);
+  };
+  const actual = await rankOrganizationMemoryCandidatesStream({
+    where: { projectId: { in: ["p1"] }, status: "accepted" },
+    projectIds: ["p1"], query: "policy review", limit: 3, batchSize: 2,
+    snapshotAt: new Date(Date.UTC(2026, 10, 1)), withProject: true, findMany,
+  });
+  assert.deepEqual(actual.rows.map((row) => row.id), expected.map((row) => row.id));
+  assert.deepEqual(actual.rows.map((row) => row.retrieval.score), expected.map((row) => row.retrieval.score));
+});
