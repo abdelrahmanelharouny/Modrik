@@ -135,3 +135,26 @@ export function summarizeOrganizationKnowledgeNode(node) {
     updatedAt: node.updatedAt ?? null,
   };
 }
+
+
+/**
+ * Build Prisma keyset-pagination arguments for a stable updatedAt/id ordering.
+ * The cursor is an opaque record ID; authorization remains in the query's
+ * projectId/status predicate and is never derived from the cursor itself.
+ */
+export function buildOrganizationMemoryPage(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new TypeError("Organization memory pagination input must be an object.");
+  }
+  const requestedLimit = Number(input.limit);
+  const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0
+    ? Math.min(requestedLimit, MAX_LIMIT)
+    : DEFAULT_LIMIT;
+  const cursor = typeof input.cursor === "string" ? input.cursor.trim() : "";
+  if (cursor.length > 128) throw new TypeError("Organization memory cursor is invalid.");
+  return {
+    limit,
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  };
+}

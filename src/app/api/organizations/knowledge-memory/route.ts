@@ -11,6 +11,7 @@ import {
   buildOrganizationReviewQueueQuery,
   summarizeOrganizationReviewQueueNode,
   hasVerifiedOrganizationMemoryIdentity,
+  buildOrganizationMemoryPage,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
 import { rankOrganizationMemoryCandidates } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
 
@@ -61,6 +62,10 @@ export async function GET(req: NextRequest) {
   const limit = rawLimit === null ? undefined : Number(rawLimit);
   const kind = params.get("kind") ?? undefined;
   const search = params.get("q") ?? undefined;
+  const cursor = params.get("cursor");
+  if (cursor !== null && (!cursor.trim() || cursor.length > 128)) {
+    return errorResponse("cursor must be a non-empty record cursor of at most 128 characters", 400);
+  }
   const view = params.get("view") ?? "accepted";
   if (view !== "accepted" && view !== "review_queue") {
     return errorResponse("view must be accepted or review_queue", 400);
@@ -78,6 +83,9 @@ export async function GET(req: NextRequest) {
     });
     const projectIds = projects.map((project) => project.id);
     const rankedSearch = view === "accepted" && typeof search === "string" && search.trim().length > 0;
+    if (rankedSearch && cursor !== null) {
+      return errorResponse("cursor pagination is not available for ranked BM25 search; refine the query instead", 400);
+    }
     const query = rankedSearch
       ? buildOrganizationKnowledgeCandidateQuery({ projectIds, kind })
       : (view === "review_queue" ? buildOrganizationReviewQueueQuery : buildOrganizationKnowledgeQuery)({
@@ -91,9 +99,10 @@ export async function GET(req: NextRequest) {
       }, { headers: noStore });
     }
 
+    const page = rankedSearch ? null : buildOrganizationMemoryPage({ limit: query.take, cursor: cursor ?? undefined });
     const nodes = await db.knowledgeNode.findMany({
       where: query.where,
-      take: query.take,
+      ...(page ? { take: page.take, ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}) } : { take: query.take }),
       orderBy: query.orderBy,
       include: { project: { select: { name: true } } },
     });
@@ -110,7 +119,8 @@ export async function GET(req: NextRequest) {
           limit: responseLimit,
         })
       : nodes;
-    const items = rankedNodes.map((node) => {
+    const pageNodes = page ? rankedNodes.slice(0, page.limit) : rankedNodes;
+    const items = pageNodes.map((node) => {
       const summary = summarize(node);
       return summary && rankedSearch
         ? { ...summary, retrieval: node.retrieval }
@@ -119,7 +129,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       items,
       total: items.length,
-      limit: rankedSearch ? responseLimit : query.take,
+      limit: rankedSearch ? responseLimit : page.limit,
+      ...(page ? {
+        pagination: {
+          hasMore: nodes.length > page.limit,
+          nextCursor: nodes.length > page.limit ? pageNodes.at(-1)?.id ?? null : null,
+        },
+      } : { pagination: { hasMore: false, nextCursor: null } }),
       ...(rankedSearch ? { candidateWindow: query.take, candidatesScanned: nodes.length, retrievalMode: "bm25" } : {}),
       scope: "organization",
       view,

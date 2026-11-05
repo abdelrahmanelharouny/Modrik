@@ -7,6 +7,7 @@ import {
   summarizeOrganizationReviewQueueNode,
   summarizeOrganizationKnowledgeNode,
   hasVerifiedOrganizationMemoryIdentity,
+  buildOrganizationMemoryPage,
 } from "../src/lib/knowledge-graph/organization-memory.mjs";
 
 test("organization memory query fails closed when no authorized projects are supplied", () => {
@@ -113,4 +114,15 @@ test("BM25 candidate window is bounded, accepted-only, and tenant-scoped", () =>
   const empty = buildOrganizationKnowledgeCandidateQuery({ projectIds: [] });
   assert.equal(empty.take, 0);
   assert.deepEqual(empty.where, { id: "__no_authorized_projects__" });
+});
+
+
+test("organization memory pagination uses bounded keyset cursors and fetches one lookahead row", () => {
+  assert.deepEqual(buildOrganizationMemoryPage({ limit: 25 }), { limit: 25, take: 26 });
+  assert.deepEqual(buildOrganizationMemoryPage({ limit: 1000, cursor: "node-25" }), {
+    limit: 100, take: 101, cursor: { id: "node-25" }, skip: 1,
+  });
+  assert.deepEqual(buildOrganizationMemoryPage({ limit: 0 }), { limit: 25, take: 26 });
+  assert.throws(() => buildOrganizationMemoryPage({ cursor: "x".repeat(129) }), TypeError);
+  assert.throws(() => buildOrganizationMemoryPage(null), TypeError);
 });

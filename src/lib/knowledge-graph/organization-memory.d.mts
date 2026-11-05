@@ -53,3 +53,13 @@ export function summarizeOrganizationReviewQueueNode(node: unknown): {
 } | null;
 
 export function hasVerifiedOrganizationMemoryIdentity(identity: unknown): boolean;
+
+export function buildOrganizationMemoryPage(input?: {
+  limit?: number;
+  cursor?: string;
+}): {
+  limit: number;
+  take: number;
+  cursor?: { id: string };
+  skip?: number;
+};

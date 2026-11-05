@@ -19,12 +19,12 @@ Semantic retrieval architecture is recorded in ADR-018. The implementation adds 
 ## Retrieval contract
 
 - Query parameters: q (label/description search), kind (allowlisted node kind), limit (1–1000 input, clamped to 100).
-- Default result limit: 25; maximum returned: 100.
+- Default page size: 25; maximum page size: 100. Accepted and review-queue views support stable keyset pagination with an opaque `cursor` record ID and `pagination.hasMore` / `pagination.nextCursor` response fields. The cursor is only an ordering anchor; the verified organization/project and status predicates remain mandatory on every page. Fetches request one lookahead row to determine whether another page exists.
 - Default view returns only accepted nodes.
 - view=review_queue returns only in_review nodes and requires reviewer or approver permission.
 - Each item retains project ID, project name and stable node-reference provenance.
 - Descriptions are capped at 1,200 characters; confidence is clamped to [0, 1].
-- Accepted-memory search now ranks a tenant-scoped, accepted-only candidate window (up to 1,000 most recently updated nodes) with multilingual BM25 after Arabic normalization. BM25 treats query terms as a set, so accidental repetition does not inflate a term contribution. The response exposes the retrieval mode, candidate count and score per result. The window is deliberately bounded; large organizations will need database-native full-text/vector retrieval and pagination before raising this ceiling. Semantic/vector search remains disabled until a provider and tenant-filtered storage adapter are selected.
+- Accepted-memory search now ranks a tenant-scoped, accepted-only candidate window (up to 1,000 most recently updated nodes) with multilingual BM25 after Arabic normalization. BM25 search is a single bounded ranked result set and deliberately rejects cursor pagination; cursoring independently ranked windows would make page order and recall misleading. BM25 treats query terms as a set, so accidental repetition does not inflate a term contribution. The response exposes the retrieval mode, candidate count and score per result. The BM25 candidate window is deliberately bounded; large organizations will need database-native full-text/vector retrieval before raising this ceiling. Ordinary accepted/review-queue browsing is keyset-paginated. Semantic/vector search remains disabled until a provider and tenant-filtered storage adapter are selected.
 
 ## Governance and audit
 
