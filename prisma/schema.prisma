@@ -344,6 +344,7 @@ model OrganizationMemorySearchDocument {
   project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   postings          OrganizationMemorySearchPosting[]
   @@unique([id, projectId])
+  @@unique([nodeId, projectId])
   @@index([projectId, status, id])
   @@index([projectId, status, normalizerVersion])
 }
