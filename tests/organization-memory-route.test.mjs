@@ -31,3 +31,15 @@ test("organization-memory API limit contract matches the ranking and page caps",
   assert.match(source, /limit must be an integer between 1 and 100/);
   assert.doesNotMatch(source, /Number\(rawLimit\) > 1000/);
 });
+
+
+test("KnowledgeNode create and update maintain the lexical index in the same transaction", () => {
+  const source = fs.readFileSync(path.join(root, "src", "app", "api", "projects", "[id]", "knowledge-graph", "route.ts"), "utf8");
+  assert.match(source, /db\.\$transaction\(async \(tx\) => \{[\s\S]*?tx\.knowledgeNode\.create\([\s\S]*?replaceOrganizationMemorySearchDocument\(tx, created\)/);
+  assert.match(source, /tx\.knowledgeNode\.update\([\s\S]*?replaceOrganizationMemorySearchDocument\(tx, updated\)/);
+});
+
+test("organization governance transitions update the lexical index atomically", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /tx\.knowledgeNode\.updateMany\([\s\S]*?replaceOrganizationMemorySearchDocument\(tx, updated\)/);
+});

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
+import { replaceOrganizationMemorySearchDocument } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
 import {
   CLAIM_NODE_RELATIONSHIPS, KNOWLEDGE_EDGE_STATUSES,
   NODE_REQUIREMENT_ROLES, normalizeEdgeInput, normalizeNodeInput, parseNodeAttributes,
@@ -64,8 +65,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       try { nodeInput = normalizeNodeInput(body); }
       catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 400 }); }
       const nodeRef = `KN-${randomUUID().slice(0, 8).toUpperCase()}`;
-      const node = await db.knowledgeNode.create({
-        data: { projectId: id, nodeRef, ...nodeInput, status: "proposed", origin: "human" },
+      const node = await db.$transaction(async (tx) => {
+        const created = await tx.knowledgeNode.create({
+          data: { projectId: id, nodeRef, ...nodeInput, status: "proposed", origin: "human" },
+        });
+        await replaceOrganizationMemorySearchDocument(tx, created);
+        return created;
       });
       await logDecision(id, "GRAPH", "human", "created_knowledge_node", `Created ${nodeRef} (${node.kind}): ${node.label}`);
       return NextResponse.json({ node: { ...node, attributes: parseNodeAttributes(node.attributes) } }, { status: 201 });
@@ -94,7 +99,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         data.confidence = value;
       }
       if (body.owner !== undefined) data.owner = typeof body.owner === "string" ? body.owner.trim().slice(0, 160) || null : null;
-      const node = await db.knowledgeNode.update({ where: { id: existing.id }, data });
+      const node = await db.$transaction(async (tx) => {
+        const updated = await tx.knowledgeNode.update({ where: { id: existing.id }, data });
+        await replaceOrganizationMemorySearchDocument(tx, updated);
+        return updated;
+      });
       await logDecision(id, "GRAPH", "human", "updated_knowledge_node", `Updated ${node.nodeRef}: ${Object.keys(data).join(", ") || "no fields"}`);
       return NextResponse.json({ node: { ...node, attributes: parseNodeAttributes(node.attributes) } });
     }

@@ -16,6 +16,7 @@ import {
   createOrganizationMemoryCursor,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
 import { rankOrganizationMemoryCandidatesStream } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
+import { replaceOrganizationMemorySearchDocument } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -262,8 +263,11 @@ export async function PATCH(req: NextRequest) {
         select: {
           id: true, projectId: true, nodeRef: true, kind: true, label: true,
           description: true, status: true, confidence: true, updatedAt: true,
+          origin: true, owner: true,
         },
       });
+      if (!updated) throw new Error("Updated knowledge node could not be reloaded.");
+      await replaceOrganizationMemorySearchDocument(tx, updated);
       return { kind: "updated" as const, node: updated };
     });
 

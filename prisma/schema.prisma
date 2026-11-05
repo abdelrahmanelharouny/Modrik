@@ -127,6 +127,7 @@ model Project {
   evidenceClaims EvidenceClaim[]
   requirementClaims RequirementClaim[]
   knowledgeNodes KnowledgeNode[]
+  organizationMemorySearchDocuments OrganizationMemorySearchDocument[]
   knowledgeEdges KnowledgeEdge[]
   knowledgeNodeClaims KnowledgeNodeClaim[]
   knowledgeRequirements KnowledgeRequirement[]
@@ -318,12 +319,42 @@ model KnowledgeNode {
   incoming    KnowledgeEdge[] @relation("KnowledgeEdgeTo")
   claims      KnowledgeNodeClaim[]
   requirements KnowledgeRequirement[]
+  organizationMemorySearchDocument OrganizationMemorySearchDocument?
 
   @@unique([projectId, nodeRef])
   @@unique([id, projectId])
   @@index([projectId, kind, status])
   @@index([projectId, updatedAt])
   @@index([projectId, status, updatedAt, id])
+}
+
+/// Provider-neutral lexical search index. KnowledgeNode remains authoritative.
+model OrganizationMemorySearchDocument {
+  id                String   @id @default(cuid())
+  nodeId            String   @unique
+  projectId         String
+  status            String
+  normalizedText    String
+  tokenCount        Int
+  contentHash       String
+  normalizerVersion Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  node              KnowledgeNode @relation(fields: [nodeId, projectId], references: [id, projectId], onDelete: Cascade)
+  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  postings          OrganizationMemorySearchPosting[]
+  @@unique([id, projectId])
+  @@index([projectId, status, id])
+  @@index([projectId, status, normalizerVersion])
+}
+model OrganizationMemorySearchPosting {
+  id         String   @id @default(cuid())
+  documentId String
+  term       String
+  frequency  Int
+  document   OrganizationMemorySearchDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  @@unique([documentId, term])
+  @@index([term, documentId])
 }
 
 model KnowledgeEdge {
