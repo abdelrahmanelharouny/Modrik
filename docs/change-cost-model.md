@@ -18,24 +18,22 @@ Do not use this score for contractual estimates, staffing commitments, performan
 
 ## Current validation
 
-The pure estimator has deterministic unit coverage for direct/transitive impact, typed-edge weighting, risk modifiers, duplicate filtering and invalid inputs. The exact-head CI run #532 passed TypeScript, ESLint, production build, PostgreSQL schema validation and stakeholder API/browser E2E. This validates integration/build behavior, not the heuristic's predictive accuracy; empirical calibration against completed engineering changes remains open.
-
+The pure estimator has deterministic unit coverage for direct/transitive impact, typed-edge weighting, risk modifiers, duplicate filtering and invalid inputs. CI validates TypeScript, ESLint, production build, PostgreSQL schema validation and stakeholder API/browser E2E. This validates integration/build behavior, not the heuristic's predictive accuracy; empirical calibration against completed engineering changes remains open.
 
 ## Reverse traceability depth
 
-Reverse tracker inspection now returns more than the impacted requirement IDs: each project-scoped impact node includes its current requirement status, priority, verification/drift state, traversal depth and typed path, plus the unique evidence codes currently linked to that requirement. This makes a change review actionable: reviewers can identify affected requirements that are unverified, drifting, or missing evidence before approving a tracker mapping. Missing/deleted requirement details fail closed to nullable metadata; the API does not infer a mapping from text similarity.
-
+Reverse tracker inspection returns impacted requirement details, current status, priority, verification/drift state, traversal depth and typed path, plus unique evidence codes linked to each requirement. This helps reviewers identify affected requirements that are unverified, drifting, or missing evidence before approving a tracker mapping. Missing/deleted requirement details fail closed to nullable metadata; the API does not infer a mapping from text similarity.
 
 ## Source-to-requirement provenance
 
-Reverse inspection now enriches each direct trace link with a bounded source descriptor: stable evidence code, title, source type, language, consent state, source creation time and the latest immutable revision's version/change note/author/time. Raw evidence content and content hashes are deliberately excluded from this summary. Deleted or detached evidence remains visible by its stable trace code with nullable source metadata; the API does not fabricate a replacement source. This closes the source → requirement → evidence-revision portion of the reverse review path while keeping source text behind the dedicated evidence access controls.
-
+Reverse inspection enriches each direct trace link with a bounded source descriptor: stable evidence code, title, source type, language, consent state, source creation time and the latest immutable revision's version/change note/author/time. Raw evidence content and content hashes are deliberately excluded. Deleted or detached evidence remains visible by its stable trace code with nullable source metadata; the API does not fabricate a replacement source.
 
 ## Decision provenance
 
-Human tracker-to-requirement mappings now write a structured decision entry in the same database transaction as the mapping and project timestamp update. Reverse inspection returns only decision entries whose parsed structured detail exactly matches both the current tracker mapping ID and resolved requirement ID; legacy free-form notes and other mappings are excluded. The returned trail is metadata-only (actor, action, time and mapping method), not arbitrary journal detail. This provides a deterministic tracker → requirement → source/revision → review-decision path without similarity matching or inferred provenance.
-
+Human tracker-to-requirement mappings write a structured decision entry in the same database transaction as the mapping and project timestamp update. Reverse inspection returns only decision entries whose parsed structured detail exactly matches both the current tracker mapping ID and resolved requirement ID; legacy free-form notes and other mappings are excluded. The returned trail is metadata-only, not arbitrary journal detail.
 
 ## Cost-of-change v2 explainability
 
-The estimator now returns a per-requirement decomposition: depth weight, typed-relation weight, base exposure, risk multiplier, risk uplift, final contribution and the exact risk/uncertainty reasons. Missing or unknown priority, ambiguity, drift and verification states are surfaced rather than silently treated as known; graph depths beyond the calibrated weight table and unknown relation types are explicitly marked as extrapolated/defaulted. The planning band widens deterministically from 20% up to 50% as the share of missing input signals increases. This is a coverage-sensitive heuristic, not a confidence interval, probability, or validated forecast. Historical calibration and an operator-facing UI remain required before operational use.
+The estimator returns a per-requirement decomposition: depth weight, typed-relation weight, base exposure, risk multiplier, risk uplift, final contribution and exact risk/uncertainty reasons. Missing or unknown priority, ambiguity, drift and verification states are surfaced. Graph depths beyond the calibrated weight table and unknown/missing relation provenance are explicitly marked as extrapolated/defaulted. Missing-signal coverage counts each input dimension once; multiple unknown relation labels cannot inflate the uncertainty percentage. The planning band widens deterministically from 20% up to 50% as the share of missing input signals increases.
+
+This is a coverage-sensitive heuristic, not a confidence interval, probability, or validated forecast. Historical calibration and an operator-facing UI remain required before operational use.

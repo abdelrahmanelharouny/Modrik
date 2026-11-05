@@ -16,26 +16,40 @@ function requirementRisk(requirement) {
   const factors = [];
   const uncertaintyReasons = [];
   let multiplier = 1;
+  let missingSignals = 0;
   if (requirement.priority === "Must") { multiplier += 0.25; factors.push("must_priority"); }
   else if (requirement.priority === "Should") { multiplier += 0.12; factors.push("should_priority"); }
-  if (!KNOWN_PRIORITIES.has(requirement.priority)) uncertaintyReasons.push("priority_missing_or_unknown");
+  if (!KNOWN_PRIORITIES.has(requirement.priority)) {
+    uncertaintyReasons.push("priority_missing_or_unknown");
+    missingSignals += 1;
+  }
 
   const ambiguity = finite(requirement.ambiguity, -1);
   if (ambiguity >= 70) { multiplier += 0.25; factors.push("high_ambiguity"); }
   else if (ambiguity >= 40) { multiplier += 0.12; factors.push("moderate_ambiguity"); }
-  if (!Number.isFinite(requirement.ambiguity) || ambiguity < 0 || ambiguity > 100) uncertaintyReasons.push("ambiguity_missing_or_out_of_range");
+  if (!Number.isFinite(requirement.ambiguity) || ambiguity < 0 || ambiguity > 100) {
+    uncertaintyReasons.push("ambiguity_missing_or_out_of_range");
+    missingSignals += 1;
+  }
 
   if (requirement.driftStatus && requirement.driftStatus !== "none") { multiplier += 0.2; factors.push("active_drift"); }
-  if (!KNOWN_DRIFT.has(requirement.driftStatus)) uncertaintyReasons.push("drift_state_missing_or_unknown");
+  if (!KNOWN_DRIFT.has(requirement.driftStatus)) {
+    uncertaintyReasons.push("drift_state_missing_or_unknown");
+    missingSignals += 1;
+  }
 
   if (requirement.verifyStatus && requirement.verifyStatus !== "supported" && requirement.verifyStatus !== "verified") { multiplier += 0.1; factors.push("verification_open"); }
-  if (!KNOWN_VERIFICATION.has(requirement.verifyStatus)) uncertaintyReasons.push("verification_state_missing_or_unknown");
-  return { multiplier, factors, uncertaintyReasons };
+  if (!KNOWN_VERIFICATION.has(requirement.verifyStatus)) {
+    uncertaintyReasons.push("verification_state_missing_or_unknown");
+    missingSignals += 1;
+  }
+  return { multiplier, factors, uncertaintyReasons, missingSignals };
 }
 
 /**
- * Deterministic relative effort proxy. The uncertainty band measures missing
- * input coverage; it is not a statistical confidence interval or forecast.
+ * Deterministic relative effort proxy. Coverage is measured per input signal,
+ * not per explanatory reason, so multiple reasons for one graph signal cannot
+ * inflate the uncertainty score. This is not a statistical confidence model.
  */
 export function estimateChangeCost(root, impacted, requirements) {
   if (!root || typeof root.id !== "string") throw new TypeError("A root requirement is required");
@@ -57,20 +71,27 @@ export function estimateChangeCost(root, impacted, requirements) {
     const depthWeight = entry.depth === 0 ? 1 : (DEPTH_WEIGHT[entry.depth] ?? 0.24);
     const depthUnknown = entry.depth > 4;
     const unknownKinds = entry.kinds.filter((kind) => !Object.hasOwn(EDGE_WEIGHT, kind));
+    const relationMissing = entry.depth > 0 && entry.kinds.length === 0;
     const relationWeight = entry.kinds.length
       ? entry.kinds.reduce((sum, kind) => sum + (EDGE_WEIGHT[kind] ?? 1), 0) / entry.kinds.length
       : 1;
     const uncertaintyReasons = [...risk.uncertaintyReasons];
     if (depthUnknown) uncertaintyReasons.push("depth_weight_extrapolated");
     if (unknownKinds.length) uncertaintyReasons.push("relation_weight_defaulted");
+    if (relationMissing) uncertaintyReasons.push("relation_weight_missing");
     const baseExposure = depthWeight * relationWeight;
     const contribution = baseExposure * risk.multiplier;
     effortPoints += contribution;
     if (risk.multiplier >= 1.45) highRiskCount += 1;
     for (const factor of risk.factors) factorCounts.set(factor, (factorCounts.get(factor) ?? 0) + 1);
     for (const reason of uncertaintyReasons) uncertaintyCounts.set(reason, (uncertaintyCounts.get(reason) ?? 0) + 1);
-    totalSignals += 5;
-    unknownSignals += uncertaintyReasons.length;
+
+    // Four requirement signals are assessed for every node. Affected nodes
+    // add two graph signals (depth and relation); root depth is known by definition.
+    const graphSignals = entry.depth > 0 ? 2 : 0;
+    const missingGraphSignals = (depthUnknown ? 1 : 0) + (unknownKinds.length || relationMissing ? 1 : 0);
+    totalSignals += 4 + graphSignals;
+    unknownSignals += risk.missingSignals + missingGraphSignals;
     breakdown.push({
       requirementId: entry.requirement.id,
       requirementRef: entry.requirement.refId ?? null,
