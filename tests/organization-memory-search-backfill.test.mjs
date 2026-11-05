@@ -10,7 +10,8 @@ function fakeTx(nodes) {
     organizationMemorySearchIndexState: {
       upsert: async ({ create }) => state.row ??= { id: "state-1", cursorNodeId: null, scannedCount: 0, indexedCount: 0, normalizerVersion: create.normalizerVersion, status: "pending", startedAt: null, completedAt: null },
       updateMany: async ({ where, data }) => {
-        if (!state.row || state.row.cursorNodeId !== where.cursorNodeId || state.row.normalizerVersion !== where.normalizerVersion || state.row.status === "completed") return { count: 0 };
+        if (!state.row || state.row.cursorNodeId !== where.cursorNodeId || state.row.normalizerVersion !== where.normalizerVersion ||
+            (where.status === "completed" ? state.row.status !== "completed" : state.row.status === "completed")) return { count: 0 };
         Object.assign(state.row, data); return { count: 1 };
       },
     },
