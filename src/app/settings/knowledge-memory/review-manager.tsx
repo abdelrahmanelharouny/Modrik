@@ -33,8 +33,10 @@ export function OrganizationKnowledgeReviewManager() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [candidateWindowTruncated, setCandidateWindowTruncated] = useState(false);
   const [candidatesScanned, setCandidatesScanned] = useState(0);
+  const [candidatePages, setCandidatePages] = useState(0);
+  const [candidatePasses, setCandidatePasses] = useState(0);
+  const [retrievalMode, setRetrievalMode] = useState("");
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -60,8 +62,10 @@ export function OrganizationKnowledgeReviewManager() {
       setItems((current) => append ? [...current, ...receivedItems] : receivedItems);
       setNextCursor(typeof payload.pagination?.nextCursor === "string" ? payload.pagination.nextCursor : null);
       setHasMore(payload.pagination?.hasMore === true);
-      setCandidateWindowTruncated(payload.candidateWindowTruncated === true);
       setCandidatesScanned(Number.isSafeInteger(payload.candidatesScanned) ? payload.candidatesScanned : 0);
+      setCandidatePages(Number.isSafeInteger(payload.candidatePages) ? payload.candidatePages : 0);
+      setCandidatePasses(Number.isSafeInteger(payload.candidatePasses) ? payload.candidatePasses : 0);
+      setRetrievalMode(typeof payload.retrievalMode === "string" ? payload.retrievalMode : "");
       setCapabilities(payload.capabilities ?? { canReview: false, canApprove: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load the review queue.");
@@ -137,7 +141,7 @@ export function OrganizationKnowledgeReviewManager() {
 
       {error ? <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
       {notice ? <p role="status" className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">{notice}</p> : null}
-      {view === "accepted" && candidateWindowTruncated ? <p role="status" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">This search ranked the {candidatesScanned.toLocaleString()} most recently updated eligible knowledge records, but more records exist. Results are relevance-ranked within a bounded window and may not include older matches. Refine your query to narrow the search.</p> : null}
+      {view === "accepted" && retrievalMode === "streaming_bm25_keyset" ? <p role="status" className="mb-4 text-xs text-muted-foreground">Search evaluated {candidatesScanned.toLocaleString()} authorized knowledge records across {candidatePages.toLocaleString()} database pages and {candidatePasses} BM25 passes. Older matching records are included; results are ranked globally within your organization scope.</p> : null}
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
         <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">{view === "accepted" ? "Trusted organization knowledge" : "Pending decisions"}</h2><p className="mt-1 text-xs text-muted-foreground">{items.length} items loaded · {view === "accepted" ? "approved knowledge, newest updated first" : "oldest submitted first"}</p></div><span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">Organization scope</span></div>
