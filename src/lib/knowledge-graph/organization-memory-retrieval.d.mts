@@ -41,7 +41,7 @@ export interface OrganizationMemoryStreamingScanResult<T extends OrganizationMem
   snapshotAt: string;
 }
 export function rankOrganizationMemoryCandidatesStream<T extends OrganizationMemoryCandidate = OrganizationMemoryCandidate>(input: {
-  where: Record<string, any>;
+  where: Record<string, unknown>;
   projectIds: string[];
   query: string;
   limit?: number;
