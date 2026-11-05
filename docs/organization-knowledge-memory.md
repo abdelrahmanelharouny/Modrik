@@ -45,3 +45,6 @@ The review reader is /settings/knowledge-memory. The audit reader is /settings/a
 ## Retrieval evaluation contract
 
 The retrieval module exposes a deterministic binary-relevance evaluator for offline corpus comparisons. It reports Precision@K, Recall@K, reciprocal rank (the per-query contribution to MRR), and NDCG@K. Duplicate result IDs are counted once at their first rank; relevance is supplied as an explicit set of judged IDs. Empty relevance sets produce zero-valued relevance metrics rather than NaN. These metrics are evaluation primitives, not evidence of production quality: benchmark reports must publish corpus composition, query/judgment counts, K, language slices (Arabic, English, code-switched), tenant-scope checks, and latency separately.
+
+
+The benchmark aggregator accepts per-query ranked IDs, judged relevant IDs, K, and an optional language label. It reports macro-averaged Precision@K, Recall@K, MRR and NDCG@K, plus micro precision/recall and separate language slices (for example Arabic, English, and code-switched). Queries without relevance judgments are counted and excluded from quality averages instead of being silently treated as retrieval failures. The benchmark remains offline and deterministic; it does not claim production latency or exhaustive corpus recall.
