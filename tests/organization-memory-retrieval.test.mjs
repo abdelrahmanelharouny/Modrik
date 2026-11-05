@@ -139,3 +139,72 @@ test("indexed scanner rejects missing authorization filters and malformed adapte
   await assert.rejects(() => scanOrganizationMemoryCandidates({ where: { projectId: { in: ["p1"] }, status: "accepted" }, findMany: async () => ({ rows: [] }) }), TypeError);
   await assert.rejects(() => scanOrganizationMemoryCandidates({ where: { projectId: { in: ["p1"] }, status: "accepted" }, findMany: async () => [{ id: "bad", updatedAt: "not-a-date" }] }), TypeError);
 });
+
+
+test("streaming BM25 ranks old matches outside 1,000 rows with bounded page memory", async () => {
+  const { rankOrganizationMemoryCandidatesStream } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const rows = Array.from({ length: 1_251 }, (_, index) => ({
+    id: `stream-${String(index).padStart(4, "0")}`,
+    projectId: "p1",
+    status: "accepted",
+    kind: "decision",
+    label: index === 1_250 ? "Needle archive" : "Ordinary project note",
+    description: index === 1_250 ? "An old but relevant decision" : "General project context",
+    updatedAt: new Date(Date.UTC(2026, 9, 31) - Math.floor(index / 3) * 1000),
+    nodeRef: `ref-${index}`,
+    confidence: 0.8,
+    origin: "human",
+    project: { name: "Project One" },
+  }));
+  const calls = [];
+  let largestBatch = 0;
+  const findMany = async (args) => {
+    calls.push(args);
+    const clauses = args.where.AND ?? [];
+    const snapshotAt = clauses.find((clause) => clause.updatedAt?.lte)?.updatedAt.lte;
+    const boundary = clauses.find((clause) => clause.OR)?.OR;
+    const filtered = rows.filter((row) => {
+      if (!args.where.projectId.in.includes(row.projectId) || row.status !== args.where.status) return false;
+      if (snapshotAt && row.updatedAt > snapshotAt) return false;
+      if (!boundary) return true;
+      const [older, same] = boundary;
+      return row.updatedAt < older.updatedAt.lt ||
+        (row.updatedAt.getTime() === same.updatedAt.getTime() && row.id > same.id.gt);
+    });
+    const batch = filtered.slice(0, args.take);
+    largestBatch = Math.max(largestBatch, batch.length);
+    return batch;
+  };
+  const result = await rankOrganizationMemoryCandidatesStream({
+    where: { projectId: { in: ["p1"] }, status: "accepted" },
+    projectIds: ["p1"],
+    query: "needle archive",
+    limit: 3,
+    batchSize: 71,
+    snapshotAt: new Date(Date.UTC(2026, 10, 1)),
+    withProject: true,
+    findMany,
+  });
+  assert.equal(result.candidatesScanned, 1_251);
+  assert.equal(result.rankingCandidatesScanned, 1_251);
+  assert.equal(result.passes, 2);
+  assert.equal(result.rows[0].id, "stream-1250");
+  assert.equal(result.rows[0].project.name, "Project One");
+  assert.equal(result.rows.length, 1);
+  assert.equal(largestBatch, 71);
+  assert.equal(result.pages, calls.length);
+  assert.equal(calls.length, Math.ceil(1_251 / 71) * 2);
+  assert.ok(calls.every((call) => call.take === 71 && call.where.status === "accepted" && call.where.projectId.in[0] === "p1"));
+});
+
+test("streaming BM25 requires an explicit accepted project scope", async () => {
+  const { rankOrganizationMemoryCandidatesStream } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  await assert.rejects(() => rankOrganizationMemoryCandidatesStream({
+    where: { status: "accepted" }, projectIds: ["p1"], query: "policy",
+    findMany: async () => [],
+  }), TypeError);
+  await assert.rejects(() => rankOrganizationMemoryCandidatesStream({
+    where: { projectId: { in: ["p2"] }, status: "accepted" }, projectIds: ["p1"], query: "policy",
+    findMany: async () => [],
+  }), TypeError);
+});
