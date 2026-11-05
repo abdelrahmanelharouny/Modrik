@@ -52,3 +52,25 @@ export async function backfillOrganizationMemorySearchIndexBatch(tx, input = {})
   if (changed.count !== 1) throw new Error("Index backfill cursor changed concurrently; retry the transaction.");
   return { projectId: input.projectId, status: nextData.status, done, scannedCount: nextData.scannedCount, indexedCount: nextData.indexedCount, cursorNodeId: nextCursor, batchSize, processed: rows.length, normalizerVersion: ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION };
 }
+
+/** A read-path rollout gate: every in-scope project must be fully indexed. */
+export async function getOrganizationMemorySearchIndexReadiness(input = {}) {
+  const projectIds = [...new Set(Array.isArray(input.projectIds)
+    ? input.projectIds.filter((id) => typeof id === "string" && id.trim()) : [])];
+  if (typeof input.findMany !== "function") throw new TypeError("A project-scoped index-state adapter is required.");
+  if (!projectIds.length) return { ready: true, projectCount: 0, readyProjectCount: 0, missingProjectIds: [], staleProjectIds: [], incompleteProjectIds: [] };
+  const states = await input.findMany({
+    where: { projectId: { in: projectIds } },
+    select: { projectId: true, status: true, normalizerVersion: true },
+  });
+  if (!Array.isArray(states)) throw new TypeError("Index-state adapter must return an array.");
+  const byProject = new Map(states.map((state) => [state.projectId, state]));
+  const missingProjectIds = projectIds.filter((id) => !byProject.has(id));
+  const staleProjectIds = projectIds.filter((id) => byProject.has(id) &&
+    byProject.get(id).normalizerVersion !== ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION);
+  const incompleteProjectIds = projectIds.filter((id) => byProject.has(id) &&
+    byProject.get(id).normalizerVersion === ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION &&
+    byProject.get(id).status !== "completed");
+  const readyProjectCount = projectIds.length - missingProjectIds.length - staleProjectIds.length - incompleteProjectIds.length;
+  return { ready: readyProjectCount === projectIds.length, projectCount: projectIds.length, readyProjectCount, missingProjectIds, staleProjectIds, incompleteProjectIds };
+}

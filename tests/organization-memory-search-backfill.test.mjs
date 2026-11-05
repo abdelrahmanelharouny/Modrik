@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { backfillOrganizationMemorySearchIndexBatch } from "../src/lib/knowledge-graph/organization-memory-search-backfill.mjs";
+import { backfillOrganizationMemorySearchIndexBatch, getOrganizationMemorySearchIndexReadiness } from "../src/lib/knowledge-graph/organization-memory-search-backfill.mjs";
 import { ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION } from "../src/lib/knowledge-graph/organization-memory-search-index.mjs";
 
 function fakeTx(nodes) {
@@ -46,4 +46,28 @@ test("backfill rejects unscoped work and concurrent cursor advancement", async (
  const tx=fakeTx(nodes);await assert.rejects(()=>backfillOrganizationMemorySearchIndexBatch(tx,{}),TypeError);
  const conflict=fakeTx(nodes);conflict.organizationMemorySearchIndexState.updateMany=async()=>({count:0});
  await assert.rejects(()=>backfillOrganizationMemorySearchIndexBatch(conflict,{projectId:"p1"}),/changed concurrently/);
+});
+
+test("readiness gate blocks missing, stale and incomplete project indexes", async () => {
+ const result=await getOrganizationMemorySearchIndexReadiness({
+  projectIds:["p1","p2","p3","p4"],
+  findMany:async()=>[
+   {projectId:"p1",status:"completed",normalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION},
+   {projectId:"p2",status:"running",normalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION},
+   {projectId:"p3",status:"completed",normalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION-1},
+  ],
+ });
+ assert.equal(result.ready,false);
+ assert.deepEqual(result.missingProjectIds,["p4"]);
+ assert.deepEqual(result.incompleteProjectIds,["p2"]);
+ assert.deepEqual(result.staleProjectIds,["p3"]);
+});
+test("normalizer upgrades can restart a completed project backfill", async () => {
+ const tx=fakeTx(nodes.slice(0,1));
+ await backfillOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:2});
+ tx.state.row.normalizerVersion=ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION-1;
+ const reset=await backfillOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:2});
+ assert.equal(reset.done,true);
+ assert.equal(reset.indexedCount,1);
+ assert.equal(tx.state.row.normalizerVersion,ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION);
 });
