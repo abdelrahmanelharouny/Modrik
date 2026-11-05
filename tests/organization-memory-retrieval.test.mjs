@@ -24,6 +24,12 @@ test("lexical ranking is relevance ordered and excludes unaccepted and cross-ten
   assert.equal(results.every((item) => item.status === "accepted" && item.projectId === "p1"), true);
 });
 
+test("repeating query terms does not inflate BM25 relevance scores", () => {
+  const ordinary = rankOrganizationMemoryCandidates({ projectIds: ["p1"], candidates: corpus, query: "data retention", mode: "lexical" });
+  const repeated = rankOrganizationMemoryCandidates({ projectIds: ["p1"], candidates: corpus, query: "data data data retention retention", mode: "lexical" });
+  assert.deepEqual(repeated.map((item) => ({ id: item.id, score: item.retrieval.score })), ordinary.map((item) => ({ id: item.id, score: item.retrieval.score })));
+});
+
 test("semantic ranking is intersected with the authorized accepted candidate set", () => {
   const results = rankOrganizationMemoryCandidates({
     projectIds: ["p1"], candidates: corpus, query: "regional resilience", mode: "semantic",

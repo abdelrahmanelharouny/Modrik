@@ -24,7 +24,7 @@ Semantic retrieval architecture is recorded in ADR-018. The implementation adds 
 - view=review_queue returns only in_review nodes and requires reviewer or approver permission.
 - Each item retains project ID, project name and stable node-reference provenance.
 - Descriptions are capped at 1,200 characters; confidence is clamped to [0, 1].
-- Accepted-memory search now ranks a tenant-scoped, accepted-only candidate window (up to 1,000 most recently updated nodes) with multilingual BM25 after Arabic normalization. The response exposes the retrieval mode, candidate count and score per result. The window is deliberately bounded; large organizations will need database-native full-text/vector retrieval and pagination before raising this ceiling. Semantic/vector search remains disabled until a provider and tenant-filtered storage adapter are selected.
+- Accepted-memory search now ranks a tenant-scoped, accepted-only candidate window (up to 1,000 most recently updated nodes) with multilingual BM25 after Arabic normalization. BM25 treats query terms as a set, so accidental repetition does not inflate a term contribution. The response exposes the retrieval mode, candidate count and score per result. The window is deliberately bounded; large organizations will need database-native full-text/vector retrieval and pagination before raising this ceiling. Semantic/vector search remains disabled until a provider and tenant-filtered storage adapter are selected.
 
 ## Governance and audit
 

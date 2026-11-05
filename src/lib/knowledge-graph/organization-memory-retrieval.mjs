@@ -41,7 +41,8 @@ function bm25(queryTokens, documents) {
     const tokens = tokenized[index], frequencies = new Map();
     for (const token of tokens) frequencies.set(token, (frequencies.get(token) ?? 0) + 1);
     let score = 0;
-    for (const term of queryTokens) {
+    // BM25 query terms are set-valued: repetition must not inflate relevance.
+    for (const term of new Set(queryTokens)) {
       const frequency = frequencies.get(term) ?? 0;
       if (!frequency) continue;
       const df = documentFrequency.get(term) ?? 0;
