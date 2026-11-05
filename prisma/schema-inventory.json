@@ -13,7 +13,7 @@
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "00e6fd65c792f788f6522ead6f291f978381400065fb0e72379fa01dfc3fd8df"
+      "sha256": "346fd7576b9f3fbdaa224ca73beb5cc590a1175b3c4b3058508a3093d97b08d6"
     }
   },
   "models": [
