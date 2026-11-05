@@ -60,3 +60,26 @@ test("invalid semantic scores and unsupported modes cannot inject results", () =
   });
   assert.deepEqual(results, []);
 });
+
+
+test("retrieval evaluation reports precision, recall, reciprocal rank and NDCG", async () => {
+  const { evaluateOrganizationMemoryRanking } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const metrics = evaluateOrganizationMemoryRanking({ rankedIds: ["n2", "n1", "n1", "n3", "n4"], relevantIds: ["n1", "n3", "missing"], k: 3 });
+  assert.equal(metrics.k, 3);
+  assert.equal(metrics.relevantCount, 3);
+  assert.equal(metrics.retrievedCount, 3);
+  assert.equal(metrics.hits, 2);
+  assert.equal(metrics.precisionAtK, 2 / 3);
+  assert.equal(metrics.recallAtK, 2 / 3);
+  assert.equal(metrics.reciprocalRank, 0.5);
+  assert.ok(metrics.ndcgAtK > 0 && metrics.ndcgAtK < 1);
+});
+
+test("retrieval evaluation handles empty relevance sets, invalid input and duplicate result IDs", async () => {
+  const { evaluateOrganizationMemoryRanking } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  assert.deepEqual(evaluateOrganizationMemoryRanking({ rankedIds: ["a", "a"], relevantIds: [], k: 0 }), {
+    k: 10, relevantCount: 0, retrievedCount: 1, hits: 0, precisionAtK: 0,
+    recallAtK: 0, reciprocalRank: 0, ndcgAtK: 0,
+  });
+  assert.throws(() => evaluateOrganizationMemoryRanking(null), TypeError);
+});
