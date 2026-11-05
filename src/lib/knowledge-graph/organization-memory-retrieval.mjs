@@ -225,3 +225,136 @@ export function evaluateOrganizationMemoryBenchmark(queries = []) {
     perLanguage,
   };
 }
+
+
+function compareMemoryCursorOrder(left, right) {
+  const timeDelta = right.updatedAt.getTime() - left.updatedAt.getTime();
+  return timeDelta || left.id.localeCompare(right.id);
+}
+
+function scoreMemoryDocument(queryTerms, tokens, documentFrequency, documentCount, averageLength) {
+  const frequencies = new Map();
+  for (const token of tokens) frequencies.set(token, (frequencies.get(token) ?? 0) + 1);
+  const k1 = 1.2, b = 0.75;
+  let score = 0;
+  for (const term of queryTerms) {
+    const frequency = frequencies.get(term) ?? 0;
+    if (!frequency) continue;
+    const df = documentFrequency.get(term) ?? 0;
+    const idf = Math.log(1 + (documentCount - df + 0.5) / (df + 0.5));
+    const denominator = frequency + k1 * (1 - b + b * (averageLength ? tokens.length / averageLength : 0));
+    score += idf * (frequency * (k1 + 1)) / denominator;
+  }
+  return score;
+}
+
+/**
+ * Exact two-pass BM25 over a tenant-scoped, keyset-paginated corpus.
+ * Memory is O(vocabulary + batchSize + resultLimit), not O(corpus size).
+ * Run inside a serializable read transaction when the adapter supports it.
+ */
+export async function rankOrganizationMemoryCandidatesStream(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Streaming ranking input must be an object.");
+  const projectIds = new Set(Array.isArray(input.projectIds) ? input.projectIds.filter((id) => typeof id === "string" && id.trim()) : []);
+  if (!projectIds.size) return { rows: [], candidatesScanned: 0, pages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, passes: 2 };
+  if (!input.where || input.where.status !== "accepted" || !Array.isArray(input.where.projectId?.in) ||
+      input.where.projectId.in.length === 0 || input.where.projectId.in.some((id) => !projectIds.has(id))) {
+    throw new TypeError("Streaming ranking requires an accepted-only, authorized project filter.");
+  }
+  if (typeof input.findMany !== "function") throw new TypeError("A database findMany adapter is required.");
+  const queryTerms = [...new Set(tokenizeOrganizationMemoryText(input.query))];
+  if (!queryTerms.length) return { rows: [], candidatesScanned: 0, pages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, passes: 2 };
+  const rawBatch = Number(input.batchSize);
+  const batchSize = Number.isSafeInteger(rawBatch) && rawBatch > 0 ? Math.min(rawBatch, MAX_SCAN_BATCH_SIZE) : DEFAULT_SCAN_BATCH_SIZE;
+  const limit = boundedLimit(input.limit);
+  const snapshotAt = input.snapshotAt instanceof Date && Number.isFinite(input.snapshotAt.getTime()) ? input.snapshotAt : new Date();
+  const whereBase = {
+    ...input.where,
+    AND: [...(Array.isArray(input.where.AND) ? input.where.AND : []), { updatedAt: { lte: snapshotAt } }],
+  };
+  const select = {
+    id: true, projectId: true, status: true, kind: true, label: true,
+    description: true, updatedAt: true,
+    ...(input.withProject ? {
+      nodeRef: true, confidence: true, origin: true, owner: true,
+      project: { select: { name: true } },
+    } : {}),
+  };
+  const scanPass = async (onRow, withProject = false) => {
+    let cursor = null, pages = 0, count = 0, previous = null;
+    while (true) {
+      const where = cursor ? {
+        ...whereBase,
+        AND: [...whereBase.AND, { OR: [
+          { updatedAt: { lt: cursor.updatedAt } },
+          { updatedAt: cursor.updatedAt, id: { gt: cursor.id } },
+        ] }],
+      } : whereBase;
+      const batch = await input.findMany({
+        where, take: batchSize,
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        select: withProject ? select : {
+          id: true, projectId: true, status: true, kind: true,
+          label: true, description: true, updatedAt: true,
+        },
+      });
+      if (!Array.isArray(batch)) throw new TypeError("Database scan adapter must return an array.");
+      pages += 1;
+      for (const row of batch) {
+        if (!row || typeof row.id !== "string" || !row.id ||
+            !(row.updatedAt instanceof Date) || Number.isNaN(row.updatedAt.getTime()) ||
+            !projectIds.has(row.projectId) || row.status !== "accepted" ||
+            typeof row.label !== "string") {
+          throw new TypeError("Database scan returned an invalid or unauthorized candidate.");
+        }
+        if (previous && compareMemoryCursorOrder(previous, row) >= 0) {
+          throw new Error("Database scan violated stable keyset ordering.");
+        }
+        previous = row;
+        count += 1;
+        await onRow(row);
+      }
+      if (batch.length < batchSize) break;
+      const last = batch[batch.length - 1];
+      cursor = { id: last.id, updatedAt: last.updatedAt };
+      if (pages > 1_000_000) throw new Error("Database scan exceeded its safety page limit.");
+    }
+    return { pages, count };
+  };
+
+  const documentFrequency = new Map();
+  let documentCount = 0, totalLength = 0;
+  const first = await scanPass((row) => {
+    const tokens = tokenizeOrganizationMemoryText([row.label, row.description, row.kind].filter(Boolean).join(" "));
+    documentCount += 1;
+    totalLength += tokens.length;
+    for (const term of new Set(tokens)) documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+  });
+  const averageLength = documentCount ? totalLength / documentCount : 0;
+  const top = [];
+  const second = await scanPass((row) => {
+    const tokens = tokenizeOrganizationMemoryText([row.label, row.description, row.kind].filter(Boolean).join(" "));
+    const score = scoreMemoryDocument(queryTerms, tokens, documentFrequency, documentCount, averageLength);
+    if (!(score > 0) || !Number.isFinite(score)) return;
+    const candidate = { ...row, retrieval: { mode: "lexical", score: Number(score.toFixed(8)) } };
+    let low = 0, high = top.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      const current = top[mid];
+      if (current.retrieval.score > candidate.retrieval.score ||
+          (current.retrieval.score === candidate.retrieval.score && current.id.localeCompare(candidate.id) < 0)) low = mid + 1;
+      else high = mid;
+    }
+    top.splice(low, 0, candidate);
+    if (top.length > limit) top.pop();
+  }, true);
+  return {
+    rows: top,
+    candidatesScanned: first.count,
+    rankingCandidatesScanned: second.count,
+    pages: first.pages + second.pages,
+    batchSize,
+    passes: 2,
+    snapshotAt: snapshotAt.toISOString(),
+  };
+}
