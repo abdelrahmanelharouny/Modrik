@@ -110,3 +110,35 @@ export function rankOrganizationMemoryCandidates(input = {}) {
     .slice(0, limit)
     .map(([id, score]) => ({ ...byId.get(id), retrieval: { mode, score: Number(score.toFixed(8)) } }));
 }
+
+
+/**
+ * Evaluate a ranked list against a binary relevance set.
+ * Duplicate IDs count once at their first rank, preventing metric inflation.
+ */
+export function evaluateOrganizationMemoryRanking(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Ranking evaluation input must be an object.");
+  const rawK = Number(input.k);
+  const k = Number.isSafeInteger(rawK) && rawK > 0 ? Math.min(rawK, 1000) : 10;
+  const relevant = new Set(Array.isArray(input.relevantIds) ? input.relevantIds.filter((id) => typeof id === "string" && id.length > 0) : []);
+  const ranked = [], seen = new Set();
+  for (const id of Array.isArray(input.rankedIds) ? input.rankedIds : []) {
+    if (typeof id !== "string" || !id || seen.has(id)) continue;
+    seen.add(id); ranked.push(id);
+  }
+  const top = ranked.slice(0, k);
+  const hits = top.filter((id) => relevant.has(id)).length;
+  const firstRelevantRank = top.findIndex((id) => relevant.has(id));
+  let dcg = 0;
+  top.forEach((id, index) => { if (relevant.has(id)) dcg += 1 / Math.log2(index + 2); });
+  const idealHits = Math.min(relevant.size, k);
+  let idcg = 0;
+  for (let index = 0; index < idealHits; index += 1) idcg += 1 / Math.log2(index + 2);
+  return {
+    k, relevantCount: relevant.size, retrievedCount: top.length, hits,
+    precisionAtK: top.length ? hits / top.length : 0,
+    recallAtK: relevant.size ? hits / relevant.size : 0,
+    reciprocalRank: firstRelevantRank < 0 ? 0 : 1 / (firstRelevantRank + 1),
+    ndcgAtK: idcg ? dcg / idcg : 0,
+  };
+}
