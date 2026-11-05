@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       items,
       total: items.length,
-      limit: rankedSearch ? responseLimit : page.limit,
+      limit: rankedSearch ? responseLimit : (page?.limit ?? responseLimit),
       ...(page ? {
         pagination: {
           hasMore: nodes.length > page.limit,
