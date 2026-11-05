@@ -12,7 +12,7 @@ The current organization-memory endpoint reads accepted KnowledgeNode rows from 
 
 ### Retrieval contract
 
-Retrieval modes are lexical, semantic, and hybrid. Lexical remains the default and the only production-enabled mode. The pure ranking module provides multilingual normalization, BM25 lexical ranking, bounded semantic-score validation, and reciprocal-rank fusion (RRF). It is deliberately not wired to the HTTP endpoint until a real embedding provider and tenant-filtered store exist.
+Retrieval modes are lexical, semantic, and hybrid. Lexical remains the default and the only production-enabled mode. The HTTP endpoint now wires multilingual BM25 lexical ranking over a bounded, tenant-scoped candidate window of accepted KnowledgeNode records. The pure ranking module also provides bounded semantic-score validation and reciprocal-rank fusion (RRF), but semantic and hybrid modes remain offline primitives and are not exposed by the endpoint until a real embedding provider and tenant-filtered store exist.
 
 Future provider/storage contract:
 
@@ -68,4 +68,4 @@ Embedding providers are separate from LlmProvider; chat completion compatibility
 
 ## Consequences
 
-This commit improves the lexical baseline and establishes safe ranking primitives, but does not claim semantic search is active. The HTTP endpoint remains lexical-only until all rollout gates pass.
+This commit improves the lexical baseline and establishes safe ranking primitives, but does not claim semantic search is active. The HTTP endpoint remains BM25 lexical-only until all semantic rollout gates pass. The current candidate window is capped at 1,000 most-recent accepted nodes per authorized organization query; this is a bounded baseline, not a complete recall guarantee for very large organizations.
