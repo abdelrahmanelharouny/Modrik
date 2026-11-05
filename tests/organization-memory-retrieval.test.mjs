@@ -110,3 +110,32 @@ test("benchmark aggregation rejects malformed collections and query entries", as
   assert.throws(() => evaluateOrganizationMemoryBenchmark(null), TypeError);
   assert.throws(() => evaluateOrganizationMemoryBenchmark([null]), TypeError);
 });
+
+
+test("indexed keyset scanner covers candidates beyond the former 1,000-row window", async () => {
+  const { scanOrganizationMemoryCandidates } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const rows = Array.from({ length: 1_237 }, (_, index) => ({ id: `node-${String(index).padStart(4, "0")}`, projectId: index % 3 === 0 ? "p2" : "p1", status: "accepted", updatedAt: new Date(Date.UTC(2026, 0, 1) - Math.floor(index / 4) * 1000) })).filter((row) => row.projectId === "p1").sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
+  const calls = [];
+  const findMany = async (args) => {
+    calls.push(args);
+    const boundary = args.where.AND?.at(-1)?.OR;
+    return rows.filter((row) => {
+      if (!args.where.projectId.in.includes(row.projectId) || row.status !== args.where.status) return false;
+      if (!boundary) return true;
+      const [older, same] = boundary;
+      return row.updatedAt < older.updatedAt.lt || (row.updatedAt.getTime() === same.updatedAt.getTime() && row.id > same.id.gt);
+    }).slice(0, args.take);
+  };
+  const result = await scanOrganizationMemoryCandidates({ where: { projectId: { in: ["p1"] }, status: "accepted" }, findMany, batchSize: 137 });
+  assert.equal(result.candidatesScanned, rows.length);
+  assert.deepEqual(result.rows.map((row) => row.id), rows.map((row) => row.id));
+  assert.equal(result.pages, Math.ceil(rows.length / 137));
+  assert.ok(calls.length > 1 && calls.every((call) => call.where.projectId.in.join(",") === "p1" && call.where.status === "accepted"));
+});
+
+test("indexed scanner rejects missing authorization filters and malformed adapter output", async () => {
+  const { scanOrganizationMemoryCandidates } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  await assert.rejects(() => scanOrganizationMemoryCandidates({ findMany: async () => [] }), TypeError);
+  await assert.rejects(() => scanOrganizationMemoryCandidates({ where: { projectId: { in: ["p1"] }, status: "accepted" }, findMany: async () => ({ rows: [] }) }), TypeError);
+  await assert.rejects(() => scanOrganizationMemoryCandidates({ where: { projectId: { in: ["p1"] }, status: "accepted" }, findMany: async () => [{ id: "bad", updatedAt: "not-a-date" }] }), TypeError);
+});
