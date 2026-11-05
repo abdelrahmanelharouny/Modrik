@@ -49,10 +49,10 @@ export function buildOrganizationKnowledgeQuery(input = {}) {
 
 
 /**
- * Build a bounded candidate window for multilingual BM25 ranking.
+ * Build an uncapped, accepted-only candidate filter for multilingual BM25.
  * The server supplies only project IDs derived from the verified organization.
- * Search is intentionally applied in-memory after fetching this capped set,
- * so Arabic normalization is not defeated by raw database substring matching.
+ * Search is applied by the streaming ranker after Arabic normalization, not
+ * by raw database substring matching.
  */
 export function buildOrganizationKnowledgeCandidateQuery(input = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -66,7 +66,7 @@ export function buildOrganizationKnowledgeCandidateQuery(input = {}) {
   }
   const where = { projectId: { in: projectIds }, status: "accepted" };
   if (typeof input.kind === "string" && ALLOWED_KINDS.has(input.kind)) where.kind = input.kind;
-  return { where, take: 1001, orderBy: [{ updatedAt: "desc" }, { id: "asc" }] };
+  return { where, take: null, orderBy: [{ updatedAt: "desc" }, { id: "asc" }] };
 }
 
 /**
