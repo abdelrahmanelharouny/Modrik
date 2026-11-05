@@ -606,6 +606,17 @@ try {
       return targetPage.evaluate(async ({ name, owner, now, leaseMs, mode, fencingToken }) => {
         const db = await new Promise((resolve, reject) => {
           const request = indexedDB.open("modrik-offline", 2);
+          request.onupgradeneeded = () => {
+            const database = request.result;
+            if (!database.objectStoreNames.contains("evidence-operations")) {
+              const operations = database.createObjectStore("evidence-operations", { keyPath: "operationId" });
+              operations.createIndex("projectId", "projectId", { unique: false });
+              operations.createIndex("createdAt", "createdAt", { unique: false });
+            }
+            if (!database.objectStoreNames.contains("sync-leases")) {
+              database.createObjectStore("sync-leases", { keyPath: "name" });
+            }
+          };
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => reject(request.error);
         });
