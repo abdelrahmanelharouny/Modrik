@@ -63,7 +63,10 @@ export async function GET(req: NextRequest) {
   }
   const limit = rawLimit === null ? undefined : Number(rawLimit);
   const kind = params.get("kind") ?? undefined;
-  const search = params.get("q") ?? undefined;
+  const search = params.get("q")?.trim() || undefined;
+  if (search && search.length > 120) {
+    return errorResponse("q must be at most 120 characters", 400);
+  }
   const cursor = params.get("cursor");
   if (cursor !== null && (!cursor.trim() || cursor.length > 512)) {
     return errorResponse("cursor must be a non-empty record cursor of at most 512 characters", 400);
@@ -84,7 +87,8 @@ export async function GET(req: NextRequest) {
       select: { id: true },
     });
     const projectIds = projects.map((project) => project.id);
-    const rankedSearch = view === "accepted" && typeof search === "string" && search.trim().length > 0;
+    const rankedSearch = view === "accepted" && typeof search === "string" && search.length > 0;
+    const responseLimit = Math.min(limit ?? 25, 100);
     if (rankedSearch && cursor !== null) {
       return errorResponse("cursor pagination is not available for ranked BM25 search; refine the query instead", 400);
     }
@@ -137,7 +141,6 @@ export async function GET(req: NextRequest) {
     const summarize = view === "review_queue"
       ? summarizeOrganizationReviewQueueNode
       : summarizeOrganizationKnowledgeNode;
-    const responseLimit = Math.min(limit ?? 25, 100);
     const rankedNodes = nodes;
     const pageNodes = page ? rankedNodes.slice(0, page.limit) : rankedNodes;
     const items = pageNodes.map((node) => {
