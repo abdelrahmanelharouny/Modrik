@@ -393,7 +393,31 @@ function Constellation({ project }: { project: ProjectDTO }) {
                 <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "مخاطر مرتفعة" : "HIGH RISK"}</div><strong>{changeCost.highRiskRequirements}</strong></div>
               </div>
               {changeCost.factors.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{changeCost.factors.map((factor) => <Badge key={factor.id} variant="secondary" className="text-[9px]">{factor.id.replaceAll("_", " ")} · {factor.count}</Badge>)}</div>}
-              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">{ar ? "النقاط نسبية وليست ساعات أو تكلفة مالية أو توقعًا معتمدًا. يجب معايرتها ببيانات تغييرات فعلية قبل استخدامها تشغيليًا." : changeCost.caveat} {ar ? "المنهجية: وزن أثر العلاقات حسب العمق مضروبًا في عوامل مخاطر المتطلب، مع هامش تخطيطي ±20%." : changeCost.methodology + "."}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-border/70 bg-background/40 p-2 text-xs sm:grid-cols-4">
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "عدم اكتمال المدخلات" : "INPUT UNCERTAINTY"}</div><strong className="tabular-nums">{changeCost.uncertainty.percent}%</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "الإشارات الناقصة" : "MISSING SIGNALS"}</div><strong className="tabular-nums">{changeCost.uncertainty.missingSignals}/{changeCost.uncertainty.totalSignals}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "هامش التخطيط" : "PLANNING MARGIN"}</div><strong className="tabular-nums">±{changeCost.uncertainty.bandPercent}%</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "مساهمات مفصلة" : "BREAKDOWN ROWS"}</div><strong className="tabular-nums">{changeCost.breakdown.length}</strong></div>
+              </div>
+              {changeCost.uncertainty.factors.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{changeCost.uncertainty.factors.map((factor) => <Badge key={factor.id} variant="outline" className="border-signal/40 text-[9px] text-signal">{ar ? "نقص" : "missing"} · {factor.id.replaceAll("_", " ")} · {factor.count}</Badge>)}</div>}
+              <details className="mt-3 rounded-md border border-border/70 bg-background/30 p-3">
+                <summary className="cursor-pointer text-xs font-medium">{ar ? "عرض تفصيل مساهمة كل متطلب" : "Inspect per-requirement cost breakdown"}</summary>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-left text-[10px]">
+                    <thead className="text-muted-foreground"><tr>
+                      <th className="py-1 pr-3">{ar ? "المتطلب" : "Requirement"}</th><th className="py-1 pr-3">{ar ? "العمق" : "Depth"}</th><th className="py-1 pr-3">{ar ? "وزن العلاقة" : "Relation"}</th><th className="py-1 pr-3">{ar ? "مضاعف المخاطر" : "Risk ×"}</th><th className="py-1 pr-3">{ar ? "المساهمة" : "Contribution"}</th>
+                    </tr></thead>
+                    <tbody>{changeCost.breakdown.map((row) => <tr key={row.requirementId} className="border-t border-border/50 align-top">
+                      <td className="py-2 pr-3 font-mono">{row.requirementRef ?? row.requirementId}</td><td className="py-2 pr-3 tabular-nums">{row.depth}</td><td className="py-2 pr-3 tabular-nums">{row.relationWeight.toFixed(2)}</td><td className="py-2 pr-3 tabular-nums">{row.riskMultiplier.toFixed(2)}</td><td className="py-2 pr-3 tabular-nums">{row.effortPoints.toFixed(3)}</td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+                {changeCost.breakdown.some((row) => row.uncertaintyReasons.length > 0) && <div className="mt-3 space-y-1">
+                  <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{ar ? "أسباب عدم اليقين" : "UNCERTAINTY REASONS"}</p>
+                  {changeCost.breakdown.filter((row) => row.uncertaintyReasons.length > 0).map((row) => <p key={row.requirementId} className="text-[10px] text-muted-foreground"><span className="font-mono text-foreground">{row.requirementRef ?? row.requirementId}:</span> {row.uncertaintyReasons.map((reason) => reason.replaceAll("_", " ")).join(" · ")}</p>)}
+                </div>}
+              </details>
+              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">{ar ? "النقاط نسبية وليست ساعات أو تكلفة مالية أو توقعًا معتمدًا. هامش التخطيط يتسع من 20% إلى 50% وفق اكتمال الإشارات، وليس فترة ثقة إحصائية." : changeCost.caveat} {ar ? "المنهجية: وزن أثر العلاقات حسب العمق مضروبًا في عوامل مخاطر المتطلب." : changeCost.methodology + "."}</p>
             </div>
           )}
         </HudPanel>
