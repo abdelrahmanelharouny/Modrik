@@ -15,7 +15,7 @@ import {
   buildOrganizationMemoryCursorWhere,
   createOrganizationMemoryCursor,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
-import { rankOrganizationMemoryCandidates } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
+import { rankOrganizationMemoryCandidates, scanOrganizationMemoryCandidates } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -117,7 +117,8 @@ export async function GET(req: NextRequest) {
         query.where, page, view === "review_queue" ? "asc" : "desc",
       );
     }
-    const nodes = await db.knowledgeNode.findMany({
+    const scan = rankedSearch ? await scanOrganizationMemoryCandidates({ where: query.where, findMany: (args) => db.knowledgeNode.findMany(args), include: { project: { select: { name: true } } } }) : null;
+    const nodes = rankedSearch ? scan!.rows : await db.knowledgeNode.findMany({
       where: pageWhere,
       ...(page ? { take: page.take } : { take: query.take }),
       orderBy: query.orderBy,
@@ -127,17 +128,7 @@ export async function GET(req: NextRequest) {
       ? summarizeOrganizationReviewQueueNode
       : summarizeOrganizationKnowledgeNode;
     const responseLimit = Math.min(limit ?? 25, 100);
-    const candidateWindow = 1000;
-    const candidateRows = rankedSearch ? nodes.slice(0, candidateWindow) : nodes;
-    const rankedNodes = rankedSearch
-      ? rankOrganizationMemoryCandidates({
-          projectIds,
-          candidates: candidateRows,
-          query: search,
-          mode: "lexical",
-          limit: responseLimit,
-        })
-      : nodes;
+    const rankedNodes = rankedSearch ? rankOrganizationMemoryCandidates({ projectIds, candidates: nodes, query: search, mode: "lexical", limit: responseLimit }) : nodes;
     const pageNodes = page ? rankedNodes.slice(0, page.limit) : rankedNodes;
     const items = pageNodes.map((node) => {
       const summary = summarize(node);
@@ -155,12 +146,7 @@ export async function GET(req: NextRequest) {
           nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(nodes[page.limit - 1]!) : null,
         },
       } : { pagination: { hasMore: false, nextCursor: null } }),
-      ...(rankedSearch ? {
-        candidateWindow,
-        candidatesScanned: candidateRows.length,
-        candidateWindowTruncated: nodes.length > candidateWindow,
-        retrievalMode: "bm25",
-      } : {}),
+      ...(rankedSearch ? { candidatesScanned: scan!.candidatesScanned, candidatePages: scan!.pages, candidateBatchSize: scan!.batchSize, candidateWindowTruncated: false, retrievalMode: "indexed_keyset_bm25" } : {}),
       scope: "organization",
       view,
       ...(capabilities ? { capabilities } : {}),
