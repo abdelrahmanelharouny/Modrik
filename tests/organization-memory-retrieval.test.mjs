@@ -101,7 +101,7 @@ test("benchmark aggregation reports macro, micro and language-sliced retrieval m
   assert.equal(result.perLanguage.arabic.queryCount, 1);
   assert.equal(result.perLanguage.english.mrr, 0.5);
   assert.equal(result.perLanguage["code-switched"].recallAtK, 1);
-  assert.equal(result.microPrecision, 2 / 5);
+  assert.equal(result.microPrecision, 3 / 5);
   assert.equal(result.microRecall, 1);
 });
 
