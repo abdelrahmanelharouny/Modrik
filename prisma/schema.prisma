@@ -323,6 +323,7 @@ model KnowledgeNode {
   @@unique([id, projectId])
   @@index([projectId, kind, status])
   @@index([projectId, updatedAt])
+  @@index([projectId, status, updatedAt, id])
 }
 
 model KnowledgeEdge {
