@@ -250,7 +250,7 @@ function scoreMemoryDocument(queryTerms, tokens, documentFrequency, documentCoun
 
 /**
  * Exact two-pass BM25 over a tenant-scoped, keyset-paginated corpus.
- * Memory is O(vocabulary + batchSize + resultLimit), not O(corpus size).
+ * Memory is O(queryTerms + batchSize + resultLimit), not O(corpus size).
  * Run inside a serializable read transaction when the adapter supports it.
  */
 export async function rankOrganizationMemoryCandidatesStream(input = {}) {
@@ -328,7 +328,10 @@ export async function rankOrganizationMemoryCandidatesStream(input = {}) {
     const tokens = tokenizeOrganizationMemoryText([row.label, row.description, row.kind].filter(Boolean).join(" "));
     documentCount += 1;
     totalLength += tokens.length;
-    for (const term of new Set(tokens)) documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+    const uniqueTokens = new Set(tokens);
+    for (const term of queryTerms) {
+      if (uniqueTokens.has(term)) documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
+    }
   });
   const averageLength = documentCount ? totalLength / documentCount : 0;
   const top = [];
