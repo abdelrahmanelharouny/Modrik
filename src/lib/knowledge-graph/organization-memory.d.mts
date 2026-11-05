@@ -1,3 +1,11 @@
+export function buildOrganizationKnowledgeCandidateQuery(input?: {
+  projectIds?: string[];
+  kind?: string;
+}): {
+  where: Record<string, unknown>;
+  take: number;
+  orderBy: Array<Record<string, "desc" | "asc">>;
+};
 export function buildOrganizationKnowledgeQuery(input?: {
   projectIds?: string[];
   kind?: string;

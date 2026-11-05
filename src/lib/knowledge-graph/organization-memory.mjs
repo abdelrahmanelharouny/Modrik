@@ -49,6 +49,27 @@ export function buildOrganizationKnowledgeQuery(input = {}) {
 
 
 /**
+ * Build a bounded candidate window for multilingual BM25 ranking.
+ * The server supplies only project IDs derived from the verified organization.
+ * Search is intentionally applied in-memory after fetching this capped set,
+ * so Arabic normalization is not defeated by raw database substring matching.
+ */
+export function buildOrganizationKnowledgeCandidateQuery(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new TypeError("Organization knowledge candidate query must be an object.");
+  }
+  const projectIds = Array.isArray(input.projectIds)
+    ? [...new Set(input.projectIds.filter((id) => typeof id === "string" && id.trim()).map((id) => id.trim()))]
+    : [];
+  if (projectIds.length === 0) {
+    return { where: { id: "__no_authorized_projects__" }, take: 0, orderBy: [{ updatedAt: "desc" }] };
+  }
+  const where = { projectId: { in: projectIds }, status: "accepted" };
+  if (typeof input.kind === "string" && ALLOWED_KINDS.has(input.kind)) where.kind = input.kind;
+  return { where, take: 1000, orderBy: [{ updatedAt: "desc" }, { id: "asc" }] };
+}
+
+/**
  * Build a bounded review-queue filter. The caller must first authorize
  * requirements:review or requirements:approve and derive projectIds from
  * the verified organization session.

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildOrganizationKnowledgeQuery,
+  buildOrganizationKnowledgeCandidateQuery,
   buildOrganizationReviewQueueQuery,
   summarizeOrganizationReviewQueueNode,
   summarizeOrganizationKnowledgeNode,
@@ -100,4 +101,16 @@ test("organization memory identity rejects missing tenant or actor scope before 
   assert.equal(hasVerifiedOrganizationMemoryIdentity({ organizationId: "org1", userId: "u1", role: "" }), false);
   assert.equal(hasVerifiedOrganizationMemoryIdentity({ organizationId: "org1", userId: "u1", role: "owner" }), true);
   assert.equal(hasVerifiedOrganizationMemoryIdentity(null), false);
+});
+
+test("BM25 candidate window is bounded, accepted-only, and tenant-scoped", () => {
+  const result = buildOrganizationKnowledgeCandidateQuery({ projectIds: ["p1", "p2", "p1"], kind: "decision" });
+  assert.deepEqual(result.where.projectId, { in: ["p1", "p2"] });
+  assert.equal(result.where.status, "accepted");
+  assert.equal(result.where.kind, "decision");
+  assert.equal(result.take, 1000);
+  assert.deepEqual(result.orderBy, [{ updatedAt: "desc" }, { id: "asc" }]);
+  const empty = buildOrganizationKnowledgeCandidateQuery({ projectIds: [] });
+  assert.equal(empty.take, 0);
+  assert.deepEqual(empty.where, { id: "__no_authorized_projects__" });
 });

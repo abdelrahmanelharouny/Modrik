@@ -24,7 +24,7 @@ Semantic retrieval architecture is recorded in ADR-018. The implementation adds 
 - view=review_queue returns only in_review nodes and requires reviewer or approver permission.
 - Each item retains project ID, project name and stable node-reference provenance.
 - Descriptions are capped at 1,200 characters; confidence is clamped to [0, 1].
-- HTTP retrieval remains lexical-only. The ranking module adds multilingual normalization, BM25 and RRF primitives; it is not wired to semantic storage.
+- Accepted-memory search now ranks a tenant-scoped, accepted-only candidate window (up to 1,000 most recently updated nodes) with multilingual BM25 after Arabic normalization. The response exposes the retrieval mode, candidate count and score per result. The window is deliberately bounded; large organizations will need database-native full-text/vector retrieval and pagination before raising this ceiling. Semantic/vector search remains disabled until a provider and tenant-filtered storage adapter are selected.
 
 ## Governance and audit
 
@@ -35,6 +35,7 @@ The review reader is /settings/knowledge-memory. The audit reader is /settings/a
 ## Known boundaries and next gates
 
 - This is project-backed retrieval, not a separately persisted organization-memory entity.
+- BM25 ranking is bounded to a 1,000-node candidate window ordered by recency; it is a multilingual lexical baseline, not semantic retrieval or a complete organization-wide recall guarantee.
 - Semantic/vector search is not enabled. Follow ADR-018: provider selection, tenant-filtered storage adapters, embedding lifecycle/outbox, deletion/re-embedding and multilingual benchmark must pass before rollout.
 - Governance is explicit; no bulk mutation, delete, or automatic promotion.
 - PostgreSQL integration coverage creates two isolated organizations and verifies accepted-memory and audit reads cannot cross tenant boundaries. It races two compare-and-set governance transitions and injects an audit foreign-key failure to prove atomic rollback. These focused integration tests are not a substitute for production load testing.

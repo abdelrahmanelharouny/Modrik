@@ -6,11 +6,13 @@ import { SESSION_COOKIE } from "@/lib/security/session.mjs";
 import { resolveOrganizationMemoryTransition, normalizeOrganizationMemoryReason } from "@/lib/knowledge-graph/organization-memory-governance.mjs";
 import {
   buildOrganizationKnowledgeQuery,
+  buildOrganizationKnowledgeCandidateQuery,
   summarizeOrganizationKnowledgeNode,
   buildOrganizationReviewQueueQuery,
   summarizeOrganizationReviewQueueNode,
   hasVerifiedOrganizationMemoryIdentity,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
+import { rankOrganizationMemoryCandidates } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,15 +76,13 @@ export async function GET(req: NextRequest) {
       where: { organizationId: identity.organizationId, status: { not: "archived" } },
       select: { id: true },
     });
-    const queryBuilder = view === "review_queue"
-      ? buildOrganizationReviewQueueQuery
-      : buildOrganizationKnowledgeQuery;
-    const query = queryBuilder({
-      projectIds: projects.map((project) => project.id),
-      kind,
-      search,
-      limit,
-    });
+    const projectIds = projects.map((project) => project.id);
+    const rankedSearch = view === "accepted" && typeof search === "string" && search.trim().length > 0;
+    const query = rankedSearch
+      ? buildOrganizationKnowledgeCandidateQuery({ projectIds, kind })
+      : (view === "review_queue" ? buildOrganizationReviewQueueQuery : buildOrganizationKnowledgeQuery)({
+          projectIds, kind, search, limit,
+        });
     const capabilities = view === "review_queue" ? { canReview, canApprove } : undefined;
     if (query.take === 0) {
       return NextResponse.json({
@@ -100,11 +100,26 @@ export async function GET(req: NextRequest) {
     const summarize = view === "review_queue"
       ? summarizeOrganizationReviewQueueNode
       : summarizeOrganizationKnowledgeNode;
-    const items = nodes.map(summarize).filter(Boolean);
+    const rankedNodes = rankedSearch
+      ? rankOrganizationMemoryCandidates({
+          projectIds,
+          candidates: nodes,
+          query: search,
+          mode: "lexical",
+          limit,
+        })
+      : nodes;
+    const items = rankedNodes.map((node) => {
+      const summary = summarize(node);
+      return summary && rankedSearch
+        ? { ...summary, retrieval: node.retrieval }
+        : summary;
+    }).filter(Boolean);
     return NextResponse.json({
       items,
       total: items.length,
-      limit: query.take,
+      limit: rankedSearch ? (limit ?? 25) : query.take,
+      ...(rankedSearch ? { candidateWindow: query.take, candidatesScanned: nodes.length, retrievalMode: "bm25" } : {}),
       scope: "organization",
       view,
       ...(capabilities ? { capabilities } : {}),
