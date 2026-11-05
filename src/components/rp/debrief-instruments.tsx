@@ -544,6 +544,22 @@ interface PulledIssue {
   state: string;
   url: string;
 }
+interface ReverseTraceDTO {
+  ok: boolean;
+  tracker: { id: string; kind: string; externalKey: string; externalUrl: string; title: string };
+  resolution: string;
+  guidance?: string;
+  requirement?: { id: string; refId: string; text: string; status: string; priority: string };
+  trace: {
+    status: string;
+    direct: { evidenceCode: string; note?: string | null; source?: { title: string; sourceType: string; language: string; consent: boolean; latestRevision?: { version: number; changeNote?: string | null; createdAt?: string | null; createdBy?: string | null } | null } | null }[];
+    linkedClaims: { claimRef: string; status: string; relationship: string; evidenceCode?: string | null; revisionVersion?: number | null }[];
+    knowledge: { nodeRef: string; kind: string; label: string; status: string; role: string }[];
+    stories: { refId: string; title: string; status: string }[];
+    impacted: { id: string; refId: string | null; text: string | null; status: string | null; priority: string | null; verifyStatus: string | null; driftStatus: string | null; depth: number; evidenceCount: number; evidenceCodes: string[] }[];
+    decisions: { id: string; action: string; actor: string; createdAt?: string | null; mappingMethod: string; requirementRef: string | null }[];
+  };
+}
 
 export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const { toast } = useToast();
@@ -553,6 +569,8 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const [cfgKind, setCfgKind] = useState<"github" | "jira" | null>(null);
   const [cfg, setCfg] = useState<Record<string, string>>({});
   const [pulled, setPulled] = useState<Record<string, PulledIssue[]>>({});
+  const [reverseTrace, setReverseTrace] = useState<ReverseTraceDTO | null>(null);
+  const [traceBusyId, setTraceBusyId] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -567,6 +585,19 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const inspectReverseTrace = async (mapping: SyncMapDTO) => {
+    setTraceBusyId(mapping.id);
+    setReverseTrace(null);
+    try {
+      const result = await api<ReverseTraceDTO>(`/api/projects/${projectId}/traceability/reverse?syncMapId=${encodeURIComponent(mapping.id)}`);
+      setReverseTrace(result);
+    } catch (e) {
+      toast({ title: "Reverse trace unavailable", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setTraceBusyId("");
+    }
+  };
 
   const act = async (kind: "github" | "jira", action: string, extra?: object, okMsg?: string) => {
     setBusy(`${kind}:${action}`);
@@ -676,11 +707,61 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                 </a>
                 <span className="truncate text-muted-foreground" dir="auto">{m.title}</span>
                 <span className="ml-auto shrink-0 font-mono text-[9px] text-muted-foreground">{m.direction}</span>
+                <Button size="sm" variant="outline" disabled={traceBusyId !== ""} onClick={() => void inspectReverseTrace(m)} className="h-7 px-2 text-[10px]">
+                  {traceBusyId === m.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null} Inspect trace
+                </Button>
               </li>
             ))}
           </ul>
         )}
       </HudPanel>
+
+      {reverseTrace && (
+        <HudPanel className="space-y-3 p-4" as="section">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <Eyebrow className="mb-1 block">◉ REVERSE TRACE · HUMAN-REVIEWED PROVENANCE</Eyebrow>
+              <h4 className="text-sm font-semibold">{reverseTrace.tracker.externalKey} · {reverseTrace.tracker.title}</h4>
+              <p className="mt-1 text-[10px] text-muted-foreground">Resolution: <span className="font-mono text-foreground">{reverseTrace.resolution.replaceAll("_", " ")}</span></p>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setReverseTrace(null)} className="h-7 px-2">Close</Button>
+          </div>
+          {reverseTrace.trace.status !== "mapped" || !reverseTrace.requirement ? (
+            <div className="rounded-md border border-signal/30 bg-signal/5 p-3 text-xs text-muted-foreground">{reverseTrace.guidance ?? "No verified requirement mapping exists yet. Similarity is not accepted as traceability."}</div>
+          ) : (
+            <>
+              <div className="rounded-md border border-aura/30 bg-aura/5 p-3">
+                <p className="font-mono text-[10px] text-aura">TRACKER → REQUIREMENT</p>
+                <p className="mt-1 text-sm font-semibold">{reverseTrace.requirement.refId} · {reverseTrace.requirement.text}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5"><Badge variant="outline">{reverseTrace.requirement.status}</Badge><Badge variant="outline">{reverseTrace.requirement.priority}</Badge><Badge variant="outline">Human-reviewed mapping</Badge></div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-border/70 p-3">
+                  <p className="mb-2 font-mono text-[10px] text-muted-foreground">SOURCE → EVIDENCE REVISION ({reverseTrace.trace.direct.length})</p>
+                  {reverseTrace.trace.direct.length === 0 ? <p className="text-xs text-muted-foreground">No direct evidence links.</p> : <ul className="space-y-2">{reverseTrace.trace.direct.map((item) => <li key={item.evidenceCode} className="text-xs">
+                    <p className="font-mono text-aura">{item.evidenceCode}</p><p>{item.source?.title ?? "Source metadata unavailable"}</p>
+                    {item.source?.latestRevision && <p className="mt-1 text-[10px] text-muted-foreground">v{item.source.latestRevision.version} · {item.source.latestRevision.changeNote ?? "No revision note"} · {item.source.latestRevision.createdBy ?? "unknown actor"}</p>}
+                    {item.source && <p className="text-[10px] text-muted-foreground">{item.source.sourceType} · {item.source.language} · consent {item.source.consent ? "recorded" : "not recorded"}</p>}
+                  </li>)}</ul>}
+                </div>
+                <div className="rounded-md border border-border/70 p-3">
+                  <p className="mb-2 font-mono text-[10px] text-muted-foreground">DECISION TRAIL ({reverseTrace.trace.decisions.length})</p>
+                  {reverseTrace.trace.decisions.length === 0 ? <p className="text-xs text-muted-foreground">No structured mapping decision recorded.</p> : <ul className="space-y-2">{reverseTrace.trace.decisions.map((decision) => <li key={decision.id} className="text-xs">
+                    <p className="font-medium">{decision.action.replaceAll("_", " ")}</p><p className="text-[10px] text-muted-foreground">{decision.actor} · {decision.mappingMethod.replaceAll("_", " ")} · {decision.createdAt ? new Date(decision.createdAt).toLocaleString() : "time unavailable"}</p>
+                  </li>)}</ul>}
+                </div>
+              </div>
+              <div className="rounded-md border border-border/70 p-3">
+                <p className="mb-2 font-mono text-[10px] text-muted-foreground">IMPACTED REQUIREMENTS ({reverseTrace.trace.impacted.length})</p>
+                {reverseTrace.trace.impacted.length === 0 ? <p className="text-xs text-muted-foreground">No downstream impact was returned.</p> : <div className="space-y-2">{reverseTrace.trace.impacted.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 pb-2 text-xs last:border-0 last:pb-0">
+                  <span className="font-mono text-aura">{item.refId ?? item.id}</span><Badge variant="outline">hop {item.depth}</Badge><span>{item.priority ?? "priority unknown"}</span><span className="text-muted-foreground">verify: {item.verifyStatus ?? "unknown"} · drift: {item.driftStatus ?? "unknown"} · evidence: {item.evidenceCount}</span>
+                </div>)}</div>}
+              </div>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">Read-only inspection. Mapping changes remain a separate human action; this view never creates or changes a tracker-to-requirement link automatically.</p>
+            </>
+          )}
+        </HudPanel>
+      )}
 
       {/* config dialog */}
       <Dialog open={cfgKind !== null} onOpenChange={(o) => !o && setCfgKind(null)}>
