@@ -24,3 +24,10 @@ test("organization-memory search rejects oversized raw queries before database a
   assert.ok(projectQuery >= 0, "project scope query must exist");
   assert.ok(validation < projectQuery, "query validation must happen before database access");
 });
+
+test("organization-memory API limit contract matches the ranking and page caps", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /Number\(rawLimit\) > 100/);
+  assert.match(source, /limit must be an integer between 1 and 100/);
+  assert.doesNotMatch(source, /Number\(rawLimit\) > 1000/);
+});

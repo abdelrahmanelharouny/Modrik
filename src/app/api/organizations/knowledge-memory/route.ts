@@ -57,9 +57,9 @@ export async function GET(req: NextRequest) {
   if (rawLimit !== null && (
     !Number.isSafeInteger(Number(rawLimit)) ||
     Number(rawLimit) < 1 ||
-    Number(rawLimit) > 1000
+    Number(rawLimit) > 100
   )) {
-    return errorResponse("limit must be an integer between 1 and 1000", 400);
+    return errorResponse("limit must be an integer between 1 and 100", 400);
   }
   const limit = rawLimit === null ? undefined : Number(rawLimit);
   const kind = params.get("kind") ?? undefined;
