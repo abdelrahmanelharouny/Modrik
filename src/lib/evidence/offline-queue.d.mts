@@ -9,7 +9,7 @@ export function putOfflineEvidenceOperation(operation: OfflineEvidenceOperation)
 export function listOfflineEvidenceOperations(projectId: string): Promise<OfflineEvidenceOperation[]>;
 export function removeOfflineEvidenceOperation(operationId: string): Promise<void>;
 export function updateOfflineEvidenceOperation(operation: OfflineEvidenceOperation): Promise<void>;
-export function withOfflineEvidenceSyncLock<T>(projectId: string, task: (lease?: OfflineEvidenceSyncLeaseContext) => Promise<T> | T): Promise<T>;
+export function withOfflineEvidenceSyncLock<T>(projectId: string, task: (lease: OfflineEvidenceSyncLeaseContext) => Promise<T> | T): Promise<T>;
 export function orderOfflineEvidenceOperation(existingOperations: OfflineEvidenceOperation[], operation: OfflineEvidenceOperation): OfflineEvidenceOperation;
 
 export function rebaseOfflineEvidenceUpdateOperation(operation: OfflineEvidenceOperation, latestRevisionVersion: number): OfflineEvidenceOperation;

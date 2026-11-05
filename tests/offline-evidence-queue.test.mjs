@@ -171,3 +171,16 @@ test("offline sync lease fencing renews only the current live generation and pre
   assert.equal(next.lease.fencingToken, 2);
   assert.throws(() => transitionOfflineEvidenceLease(null, "", 1, 1), /Invalid/);
 });
+
+
+test("all offline sync lock backends provide one consistent lease context", async () => {
+  const { withOfflineEvidenceSyncLock } = await import("../src/lib/evidence/offline-queue.mjs");
+  let observed;
+  await withOfflineEvidenceSyncLock("project-context-contract", async (lease) => {
+    observed = lease;
+    assert.equal(typeof lease.assertLease, "function");
+    assert.equal(await lease.assertLease(), lease.fencingToken);
+  });
+  assert.ok(observed);
+  assert.equal(Number.isSafeInteger(observed.fencingToken), true);
+});

@@ -226,7 +226,7 @@ function withInProcessSyncLock(lockName, task) {
   const current = new Promise((resolve) => { release = resolve; });
   inProcessSyncLocks.set(lockName, current);
   return previous.then(async () => {
-    try { return await task(); }
+    try { return await task({ fencingToken: 0, assertLease: async () => 0 }); }
     finally {
       release();
       if (inProcessSyncLocks.get(lockName) === current) inProcessSyncLocks.delete(lockName);
@@ -344,7 +344,7 @@ export async function withOfflineEvidenceSyncLock(projectId, task) {
   if (typeof task !== "function") throw new TypeError("A sync task is required");
   const lockName = `modrik:offline-evidence-sync:${projectId}`;
   const locks = globalThis.navigator?.locks;
-  if (locks?.request) return locks.request(lockName, { mode: "exclusive" }, task);
+  if (locks?.request) return locks.request(lockName, { mode: "exclusive" }, () => task({ fencingToken: 0, assertLease: async () => 0 }));
   if (typeof indexedDB !== "undefined") return withIndexedDbSyncLease(lockName, task);
   return withInProcessSyncLock(lockName, task);
 }
