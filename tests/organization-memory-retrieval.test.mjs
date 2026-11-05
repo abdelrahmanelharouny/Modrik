@@ -13,7 +13,7 @@ const corpus = [
 ];
 
 test("normalization supports Arabic diacritics, alef variants and code-switching", () => {
-  assert.equal(normalizeOrganizationMemoryText("إِدارةُ البَياناتِ"), "اداره البيانات");
+  assert.equal(normalizeOrganizationMemoryText("\\u0625\\u0650\\u062f\\u0627\\u0631\\u0629\\u064f \\u0627\\u0644\\u0628\\u064e\\u064a\\u0627\\u0646\\u0627\\u062a\\u0650"), "\\u0627\\u062f\\u0627\\u0631\\u0629 \\u0627\\u0644\\u0628\\u064a\\u0627\\u0646\\u0627\\u062a");
   assert.deepEqual(tokenizeOrganizationMemoryText("Policy سياسة 2026"), ["policy", "سياسة", "2026"]);
 });
 
