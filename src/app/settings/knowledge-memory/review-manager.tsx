@@ -36,6 +36,7 @@ export function OrganizationKnowledgeReviewManager() {
   const [candidatesScanned, setCandidatesScanned] = useState(0);
   const [candidatePages, setCandidatePages] = useState(0);
   const [candidatePasses, setCandidatePasses] = useState(0);
+  const [retrievalDurationMs, setRetrievalDurationMs] = useState(0);
   const [retrievalMode, setRetrievalMode] = useState("");
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -65,6 +66,7 @@ export function OrganizationKnowledgeReviewManager() {
       setCandidatesScanned(Number.isSafeInteger(payload.candidatesScanned) ? payload.candidatesScanned : 0);
       setCandidatePages(Number.isSafeInteger(payload.candidatePages) ? payload.candidatePages : 0);
       setCandidatePasses(Number.isSafeInteger(payload.candidatePasses) ? payload.candidatePasses : 0);
+      setRetrievalDurationMs(Number.isFinite(payload.retrievalDurationMs) ? payload.retrievalDurationMs : 0);
       setRetrievalMode(typeof payload.retrievalMode === "string" ? payload.retrievalMode : "");
       setCapabilities(payload.capabilities ?? { canReview: false, canApprove: false });
     } catch (err) {
@@ -141,7 +143,7 @@ export function OrganizationKnowledgeReviewManager() {
 
       {error ? <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
       {notice ? <p role="status" className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">{notice}</p> : null}
-      {view === "accepted" && retrievalMode === "streaming_bm25_keyset" ? <p role="status" className="mb-4 text-xs text-muted-foreground">Search evaluated {candidatesScanned.toLocaleString()} authorized knowledge records across {candidatePages.toLocaleString()} database pages and {candidatePasses} BM25 passes. Older matching records are included; results are ranked globally within your organization scope.</p> : null}
+      {view === "accepted" && retrievalMode === "streaming_bm25_keyset" ? <p role="status" className="mb-4 text-xs text-muted-foreground">Search evaluated {candidatesScanned.toLocaleString()} authorized knowledge records across {candidatePages.toLocaleString()} database pages and {candidatePasses} BM25 passes in {retrievalDurationMs.toLocaleString()} ms. Older matching records are included; results are ranked globally within your organization scope.</p> : null}
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
         <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">{view === "accepted" ? "Trusted organization knowledge" : "Pending decisions"}</h2><p className="mt-1 text-xs text-muted-foreground">{items.length} items loaded · {view === "accepted" ? "approved knowledge, newest updated first" : "oldest submitted first"}</p></div><span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">Organization scope</span></div>
