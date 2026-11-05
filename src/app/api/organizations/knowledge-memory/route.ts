@@ -127,10 +127,12 @@ export async function GET(req: NextRequest) {
       ? summarizeOrganizationReviewQueueNode
       : summarizeOrganizationKnowledgeNode;
     const responseLimit = Math.min(limit ?? 25, 100);
+    const candidateWindow = 1000;
+    const candidateRows = rankedSearch ? nodes.slice(0, candidateWindow) : nodes;
     const rankedNodes = rankedSearch
       ? rankOrganizationMemoryCandidates({
           projectIds,
-          candidates: nodes,
+          candidates: candidateRows,
           query: search,
           mode: "lexical",
           limit: responseLimit,
@@ -153,7 +155,12 @@ export async function GET(req: NextRequest) {
           nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(nodes[page.limit - 1]!) : null,
         },
       } : { pagination: { hasMore: false, nextCursor: null } }),
-      ...(rankedSearch ? { candidateWindow: query.take, candidatesScanned: nodes.length, retrievalMode: "bm25" } : {}),
+      ...(rankedSearch ? {
+        candidateWindow,
+        candidatesScanned: candidateRows.length,
+        candidateWindowTruncated: nodes.length > candidateWindow,
+        retrievalMode: "bm25",
+      } : {}),
       scope: "organization",
       view,
       ...(capabilities ? { capabilities } : {}),

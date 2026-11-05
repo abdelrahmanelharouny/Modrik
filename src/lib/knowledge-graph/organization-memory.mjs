@@ -66,7 +66,7 @@ export function buildOrganizationKnowledgeCandidateQuery(input = {}) {
   }
   const where = { projectId: { in: projectIds }, status: "accepted" };
   if (typeof input.kind === "string" && ALLOWED_KINDS.has(input.kind)) where.kind = input.kind;
-  return { where, take: 1000, orderBy: [{ updatedAt: "desc" }, { id: "asc" }] };
+  return { where, take: 1001, orderBy: [{ updatedAt: "desc" }, { id: "asc" }] };
 }
 
 /**

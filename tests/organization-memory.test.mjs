@@ -111,7 +111,7 @@ test("BM25 candidate window is bounded, accepted-only, and tenant-scoped", () =>
   assert.deepEqual(result.where.projectId, { in: ["p1", "p2"] });
   assert.equal(result.where.status, "accepted");
   assert.equal(result.where.kind, "decision");
-  assert.equal(result.take, 1000);
+  assert.equal(result.take, 1001, "one lookahead row detects a truncated lexical candidate window");
   assert.deepEqual(result.orderBy, [{ updatedAt: "desc" }, { id: "asc" }]);
   const empty = buildOrganizationKnowledgeCandidateQuery({ projectIds: [] });
   assert.equal(empty.take, 0);
