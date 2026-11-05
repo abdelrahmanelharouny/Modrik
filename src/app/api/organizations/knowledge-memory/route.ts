@@ -15,7 +15,7 @@ import {
   buildOrganizationMemoryCursorWhere,
   createOrganizationMemoryCursor,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
-import { rankOrganizationMemoryCandidates, scanOrganizationMemoryCandidates } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
+import { rankOrganizationMemoryCandidatesStream } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -117,7 +117,17 @@ export async function GET(req: NextRequest) {
         query.where, page, view === "review_queue" ? "asc" : "desc",
       );
     }
-    const scan = rankedSearch ? await scanOrganizationMemoryCandidates({ where: query.where, findMany: (args) => db.knowledgeNode.findMany(args as Parameters<typeof db.knowledgeNode.findMany>[0]), include: { project: { select: { name: true } } } }) : null;
+    const scan = rankedSearch ? await db.$transaction(
+      (tx) => rankOrganizationMemoryCandidatesStream({
+        where: query.where,
+        projectIds,
+        query: search,
+        limit: responseLimit,
+        withProject: true,
+        findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
+      }),
+      { isolationLevel: "Serializable" },
+    ) : null;
     const nodes = rankedSearch ? scan!.rows : await db.knowledgeNode.findMany({
       where: pageWhere,
       ...(page ? { take: page.take } : { take: query.take }),
@@ -128,7 +138,7 @@ export async function GET(req: NextRequest) {
       ? summarizeOrganizationReviewQueueNode
       : summarizeOrganizationKnowledgeNode;
     const responseLimit = Math.min(limit ?? 25, 100);
-    const rankedNodes = rankedSearch ? rankOrganizationMemoryCandidates({ projectIds, candidates: nodes, query: search, mode: "lexical", limit: responseLimit }) : nodes;
+    const rankedNodes = nodes;
     const pageNodes = page ? rankedNodes.slice(0, page.limit) : rankedNodes;
     const items = pageNodes.map((node) => {
       const summary = summarize(node);
@@ -146,7 +156,7 @@ export async function GET(req: NextRequest) {
           nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(nodes[page.limit - 1]!) : null,
         },
       } : { pagination: { hasMore: false, nextCursor: null } }),
-      ...(rankedSearch ? { candidatesScanned: scan!.candidatesScanned, candidatePages: scan!.pages, candidateBatchSize: scan!.batchSize, candidateWindowTruncated: false, retrievalMode: "indexed_keyset_bm25" } : {}),
+      ...(rankedSearch ? { candidatesScanned: scan!.candidatesScanned, rankingCandidatesScanned: scan!.rankingCandidatesScanned, candidatePages: scan!.pages, candidatePasses: scan!.passes, candidateBatchSize: scan!.batchSize, candidateWindowTruncated: false, retrievalMode: "streaming_bm25_keyset", retrievalSnapshotAt: scan!.snapshotAt } : {}),
       scope: "organization",
       view,
       ...(capabilities ? { capabilities } : {}),
