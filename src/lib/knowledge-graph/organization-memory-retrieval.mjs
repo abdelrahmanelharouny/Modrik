@@ -32,8 +32,8 @@ export async function scanOrganizationMemoryCandidates(input = {}) {
 export function normalizeOrganizationMemoryText(value) {
   if (typeof value !== "string") return "";
   return value.normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/[\u064B-\u065F\u0670\u0640]/gu, "")
+    .toLowerCase()
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/gu, "")
     .replace(/[إأآٱ]/gu, "ا")
     .replace(/ى/gu, "ي")
     .replace(/ؤ/gu, "و")
