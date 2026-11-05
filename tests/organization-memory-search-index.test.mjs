@@ -53,7 +53,7 @@ test("reindex is idempotent and replaces stale postings after content changes", 
   await replaceOrganizationMemorySearchDocument(tx, node);
   assert.equal(tx.state.postings.filter((posting) => posting.term === "retention").length, 1);
   assert.equal(tx.state.document.contentHash, firstHash);
-  await replaceOrganizationMemorySearchDocument(tx, { ...node, label: "سياسة access control", status: "rejected" });
+  await replaceOrganizationMemorySearchDocument(tx, { ...node, label: "سياسة access control", description: "access control only", status: "rejected" });
   assert.equal(tx.state.document.status, "rejected");
   assert.equal(tx.state.postings.some((posting) => posting.term === "retention"), false);
   assert.equal(tx.state.postings.some((posting) => posting.term === "access"), true);
