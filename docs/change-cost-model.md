@@ -8,11 +8,11 @@ The Debrief requirement constellation now shows an explainable change-effort pro
 - The graph's typed reverse traversal supplies directly and transitively affected requirements and their hop depth.
 - Each affected requirement contributes a relative effort point weighted by traversal depth and relation type.
 - Requirement risk modifiers increase the weight for Must/Should priority, high ambiguity, active drift and open/weak verification.
-- The UI reports direct/transitive impact counts, high-risk count, factor frequencies, total relative effort points and a ±20% planning band.
+- The UI reports direct/transitive impact counts, high-risk count, factor frequencies, total relative effort points and a 20–50% planning band widened according to missing input coverage.
 
 ## Interpretation and guardrails
 
-This is a deterministic **relative effort heuristic**, not estimated hours, money, schedule or a validated prediction. It does not yet account for team skill, codebase size, architecture boundaries, implementation/test surface, release coordination, or historical change records. The displayed band is a planning margin, not a statistical confidence interval.
+This is a deterministic **relative effort heuristic**, not estimated hours, money, schedule or a validated prediction. It does not yet account for team skill, codebase size, architecture boundaries, implementation/test surface, release coordination, or historical change records. The displayed band is a deterministic planning margin widened by missing-input coverage, not a statistical confidence interval. The uncertainty score is an input-completeness indicator, not a probability.
 
 Do not use this score for contractual estimates, staffing commitments, performance evaluation or prioritization without human review. Before operational use, calibrate the weights against a representative set of completed requirement changes, evaluate rank correlation and absolute error by project type, and version the model/weights. Preserve the current inputs and outputs for reproducibility.
 
@@ -34,3 +34,8 @@ Reverse inspection now enriches each direct trace link with a bounded source des
 ## Decision provenance
 
 Human tracker-to-requirement mappings now write a structured decision entry in the same database transaction as the mapping and project timestamp update. Reverse inspection returns only decision entries whose parsed structured detail exactly matches both the current tracker mapping ID and resolved requirement ID; legacy free-form notes and other mappings are excluded. The returned trail is metadata-only (actor, action, time and mapping method), not arbitrary journal detail. This provides a deterministic tracker → requirement → source/revision → review-decision path without similarity matching or inferred provenance.
+
+
+## Cost-of-change v2 explainability
+
+The estimator now returns a per-requirement decomposition: depth weight, typed-relation weight, base exposure, risk multiplier, risk uplift, final contribution and the exact risk/uncertainty reasons. Missing or unknown priority, ambiguity, drift and verification states are surfaced rather than silently treated as known; graph depths beyond the calibrated weight table and unknown relation types are explicitly marked as extrapolated/defaulted. The planning band widens deterministically from 20% up to 50% as the share of missing input signals increases. This is a coverage-sensitive heuristic, not a confidence interval, probability, or validated forecast. Historical calibration and an operator-facing UI remain required before operational use.

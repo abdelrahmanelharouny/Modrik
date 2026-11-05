@@ -25,3 +25,41 @@ test("invalid input is rejected instead of silently producing a score", () => {
  assert.throws(()=>estimateChangeCost(null,[],[]),/root requirement/);
  assert.throws(()=>estimateChangeCost(req("root"),{},[]),/collections must be arrays/);
 });
+
+
+test("change-cost v2 explains each requirement contribution and separates exposure from risk uplift", () => {
+ const root=req("root",{priority:"Must",ambiguity:80});
+ const child=req("child",{priority:"Should",ambiguity:50,driftStatus:"changed",verifyStatus:"weak"});
+ const estimate=estimateChangeCost(root,[{id:"child",depth:1,via:[{kind:"conflicts_with"}]}],[root,child]);
+ assert.equal(estimate.breakdown.length,2);
+ const childRow=estimate.breakdown.find((row)=>row.requirementId==="child");
+ assert.equal(childRow.depthWeight,1);
+ assert.equal(childRow.relationWeight,1.35);
+ assert.ok(childRow.riskMultiplier>1);
+ assert.ok(childRow.riskUplift>0);
+ assert.ok(childRow.effortPoints>childRow.baseExposure);
+ assert.ok(estimate.uncertainty.totalSignals>0);
+});
+
+test("change-cost uncertainty widens the planning band only when inputs are missing or unknown", () => {
+ const complete=req("root");
+ const completeEstimate=estimateChangeCost(complete,[],[complete]);
+ const sparse={id:"sparse",refId:"REQ-sparse"};
+ const sparseEstimate=estimateChangeCost(sparse,[],[sparse]);
+ assert.equal(completeEstimate.uncertainty.percent,0);
+ assert.equal(completeEstimate.uncertainty.bandPercent,20);
+ assert.ok(sparseEstimate.uncertainty.percent>0);
+ assert.ok(sparseEstimate.uncertainty.bandPercent>completeEstimate.uncertainty.bandPercent);
+ assert.ok(sparseEstimate.effortRange.high-sparseEstimate.effortRange.low>
+   completeEstimate.effortRange.high-completeEstimate.effortRange.low);
+});
+
+test("change-cost reports extrapolated graph weights and unknown relationship types", () => {
+ const root=req("root");
+ const child=req("child");
+ const estimate=estimateChangeCost(root,[{id:"child",depth:6,via:[{kind:"untyped_edge"}]}],[root,child]);
+ const row=estimate.breakdown.find((item)=>item.requirementId==="child");
+ assert.ok(row.uncertaintyReasons.includes("depth_weight_extrapolated"));
+ assert.ok(row.uncertaintyReasons.includes("relation_weight_defaulted"));
+ assert.ok(estimate.uncertainty.factors.some((factor)=>factor.id==="relation_weight_defaulted"));
+});
