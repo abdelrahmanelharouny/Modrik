@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
           nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(nodes[page.limit - 1]!) : null,
         },
       } : { pagination: { hasMore: false, nextCursor: null } }),
-      ...(rankedSearch ? { candidatesScanned: scan!.candidatesScanned, rankingCandidatesScanned: scan!.rankingCandidatesScanned, candidatePages: scan!.pages, candidatePasses: scan!.passes, candidateBatchSize: scan!.batchSize, candidateWindowTruncated: false, retrievalMode: "streaming_bm25_keyset", retrievalSnapshotAt: scan!.snapshotAt } : {}),
+      ...(rankedSearch ? { candidatesScanned: scan!.candidatesScanned, rankingCandidatesScanned: scan!.rankingCandidatesScanned, candidatePages: scan!.pages, candidateFirstPassPages: scan!.firstPassPages, candidateSecondPassPages: scan!.secondPassPages, candidatePasses: scan!.passes, candidateBatchSize: scan!.batchSize, retrievalDurationMs: scan!.durationMs, candidateWindowTruncated: false, retrievalMode: "streaming_bm25_keyset", retrievalSnapshotAt: scan!.snapshotAt } : {}),
       scope: "organization",
       view,
       ...(capabilities ? { capabilities } : {}),
