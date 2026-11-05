@@ -13,7 +13,7 @@ const corpus = [
 ];
 
 test("normalization supports Arabic diacritics, alef variants and code-switching", () => {
-  assert.equal(normalizeOrganizationMemoryText("\\u0625\\u0650\\u062f\\u0627\\u0631\\u0629\\u064f \\u0627\\u0644\\u0628\\u064e\\u064a\\u0627\\u0646\\u0627\\u062a\\u0650"), "\\u0627\\u062f\\u0627\\u0631\\u0629 \\u0627\\u0644\\u0628\\u064a\\u0627\\u0646\\u0627\\u062a");
+  assert.equal(normalizeOrganizationMemoryText(String.fromCodePoint(0x625, 0x650, 0x62f, 0x627, 0x631, 0x629, 0x64f, 0x20, 0x627, 0x644, 0x628, 0x64e, 0x64a, 0x627, 0x646, 0x627, 0x62a, 0x650)), String.fromCodePoint(0x627, 0x62f, 0x627, 0x631, 0x629, 0x20, 0x627, 0x644, 0x628, 0x64a, 0x627, 0x646, 0x627, 0x62a));
   assert.deepEqual(tokenizeOrganizationMemoryText("Policy سياسة 2026"), ["policy", "سياسة", "2026"]);
 });
 
