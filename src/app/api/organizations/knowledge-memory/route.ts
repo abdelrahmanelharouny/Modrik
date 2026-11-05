@@ -100,6 +100,14 @@ export async function GET(req: NextRequest) {
     }
 
     const page = rankedSearch ? null : buildOrganizationMemoryPage({ limit: query.take, cursor: cursor ?? undefined });
+    if (page?.cursor) {
+      // A cursor is valid only inside the exact authorized view/filter.
+      const anchor = await db.knowledgeNode.findFirst({
+        where: { ...query.where, id: page.cursor.id },
+        select: { id: true },
+      });
+      if (!anchor) return errorResponse("Invalid or expired organization memory cursor", 400);
+    }
     const nodes = await db.knowledgeNode.findMany({
       where: query.where,
       ...(page ? { take: page.take, ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}) } : { take: query.take }),
