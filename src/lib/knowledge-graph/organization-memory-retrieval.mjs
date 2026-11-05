@@ -142,3 +142,60 @@ export function evaluateOrganizationMemoryRanking(input = {}) {
     ndcgAtK: idcg ? dcg / idcg : 0,
   };
 }
+
+
+/**
+ * Aggregate query-level retrieval judgments into macro-averaged benchmark
+ * metrics. Queries without relevance judgments are reported but excluded from
+ * ranking-quality averages; language labels are normalized to stable buckets.
+ */
+export function evaluateOrganizationMemoryBenchmark(queries = []) {
+  if (!Array.isArray(queries)) throw new TypeError("Benchmark queries must be an array.");
+  const buckets = new Map();
+  let evaluatedQueries = 0;
+  let excludedUnjudgedQueries = 0;
+  let totalRelevant = 0;
+  let totalRetrieved = 0;
+  let totalHits = 0;
+  for (const query of queries) {
+    if (!query || typeof query !== "object" || Array.isArray(query)) {
+      throw new TypeError("Each benchmark query must be an object.");
+    }
+    const metrics = evaluateOrganizationMemoryRanking(query);
+    const language = typeof query.language === "string" && query.language.trim()
+      ? query.language.trim().toLowerCase().slice(0, 32) : "unspecified";
+    if (!buckets.has(language)) buckets.set(language, []);
+    if (metrics.relevantCount === 0) {
+      excludedUnjudgedQueries += 1;
+      continue;
+    }
+    evaluatedQueries += 1;
+    totalRelevant += metrics.relevantCount;
+    totalRetrieved += metrics.retrievedCount;
+    totalHits += metrics.hits;
+    buckets.get(language).push(metrics);
+  }
+  const average = (rows, key) => rows.length
+    ? rows.reduce((sum, row) => sum + row[key], 0) / rows.length : 0;
+  const summarize = (rows) => ({
+    queryCount: rows.length,
+    precisionAtK: average(rows, "precisionAtK"),
+    recallAtK: average(rows, "recallAtK"),
+    mrr: average(rows, "reciprocalRank"),
+    ndcgAtK: average(rows, "ndcgAtK"),
+  });
+  const perLanguage = {};
+  for (const [language, rows] of [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    perLanguage[language] = summarize(rows);
+  }
+  const all = [...buckets.values()].flat();
+  return {
+    totalQueries: queries.length,
+    evaluatedQueries,
+    excludedUnjudgedQueries,
+    microPrecision: totalRetrieved ? totalHits / totalRetrieved : 0,
+    microRecall: totalRelevant ? totalHits / totalRelevant : 0,
+    macro: summarize(all),
+    perLanguage,
+  };
+}
