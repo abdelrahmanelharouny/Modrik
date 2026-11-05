@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { logDecision } from "@/lib/journal";
+
 import { traverseImpact } from "@/lib/graph";
-import { resolveTrackerRequirement, summarizeReverseTrace } from "@/lib/traceability/reverse.mjs";
+import { resolveTrackerRequirement, summarizeReverseDecisions, summarizeReverseTrace } from "@/lib/traceability/reverse.mjs";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   const requirement = resolved.requirement;
-  const [traceLinks, claimLinks, knowledgeLinks, linkedStories, impact] = await Promise.all([
+  const [traceLinks, claimLinks, knowledgeLinks, linkedStories, impact, decisionEntries] = await Promise.all([
     db.traceLink.findMany({
       where: { projectId, requirementId: requirement.id },
       orderBy: { evidenceCode: "asc" },
@@ -62,6 +62,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     }),
     db.userStory.findMany({ where: { projectId, requirementId: requirement.id }, select: { id: true, refId: true, title: true, status: true } }),
     traverseImpact(projectId, [requirement.id]),
+    db.decisionEntry.findMany({
+      where: { projectId, stage: "GRAPH", action: "linked_tracker_change_to_requirement" },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { id: true, action: true, actor: true, detail: true, createdAt: true },
+    }),
   ]);
 
   // Enrich reverse impact with the affected requirement's current verification
@@ -95,7 +101,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     tracker: { id: syncMap.id, kind: syncMap.kind, externalKey: syncMap.externalKey, externalUrl: syncMap.externalUrl, title: syncMap.title, syncedAt: syncMap.syncedAt },
     resolution: resolved.resolution,
     requirement: { id: requirement.id, refId: requirement.refId, text: requirement.text, status: requirement.status, priority: requirement.priority },
-    trace: summarizeReverseTrace({ requirement, traceLinks, claimLinks, knowledgeLinks, stories: linkedStories, impacted: enrichedImpact }),
+    trace: summarizeReverseTrace({
+      requirement, traceLinks, claimLinks, knowledgeLinks, stories: linkedStories, impacted: enrichedImpact,
+      decisions: summarizeReverseDecisions(decisionEntries, requirement.id, syncMap.id),
+    }),
   });
 }
 
@@ -121,13 +130,23 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (["agent_running", "approving"].includes(project.stageStatus)) {
     return NextResponse.json({ error: "Traceability links are locked while the pipeline is processing." }, { status: 409 });
   }
-  const updated = await db.syncMap.update({
-    where: { id: syncMap.id },
-    data: { requirementId: requirement.id, localLabel: requirement.refId },
-    select: { id: true, kind: true, externalKey: true, localLabel: true, requirementId: true },
+  const updated = await db.$transaction(async (tx) => {
+    const mapping = await tx.syncMap.update({
+      where: { id: syncMap.id },
+      data: { requirementId: requirement.id, localLabel: requirement.refId },
+      select: { id: true, kind: true, externalKey: true, localLabel: true, requirementId: true },
+    });
+    await tx.decisionEntry.create({
+      data: {
+        projectId, stage: "GRAPH", actor: "human", action: "linked_tracker_change_to_requirement",
+        detail: JSON.stringify({
+          syncMapId: syncMap.id, trackerKind: syncMap.kind, externalKey: syncMap.externalKey,
+          requirementId: requirement.id, requirementRef: requirement.refId, mappingMethod: "human_review",
+        }),
+      },
+    });
+    await tx.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+    return mapping;
   });
-  await logDecision(projectId, "GRAPH", "human", "linked_tracker_change_to_requirement",
-    `${syncMap.kind} ${syncMap.externalKey} → ${requirement.refId}; explicit human-reviewed reverse traceability link.`);
-  await db.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
   return NextResponse.json({ ok: true, mapping: updated });
 }

@@ -19,8 +19,26 @@ export function resolveTrackerRequirement(syncMap, requirements, stories = []) {
   return { requirement: null, resolution: exact.length > 1 ? "ambiguous_reference" : "unmapped" };
 }
 
-export function summarizeReverseTrace({ requirement, traceLinks = [], claimLinks = [], knowledgeLinks = [], stories = [], impacted = [] }) {
-  if (!requirement) return { status: "unmapped", direct: [], supportingClaims: [], knowledge: [], stories: [], impacted: [] };
+export function summarizeReverseDecisions(decisions = [], requirementId, syncMapId) {
+  if (!Array.isArray(decisions) || typeof requirementId !== "string" || typeof syncMapId !== "string") return [];
+  return decisions.flatMap((entry) => {
+    if (!entry || typeof entry.detail !== "string") return [];
+    let detail;
+    try { detail = JSON.parse(entry.detail); } catch { return []; }
+    if (detail?.requirementId !== requirementId || detail?.syncMapId !== syncMapId) return [];
+    return [{
+      id: entry.id,
+      action: entry.action,
+      actor: entry.actor,
+      createdAt: entry.createdAt ?? null,
+      mappingMethod: detail.mappingMethod === "human_review" ? "human_review" : "explicit_link",
+      requirementRef: typeof detail.requirementRef === "string" ? detail.requirementRef : null,
+    }];
+  });
+}
+
+export function summarizeReverseTrace({ requirement, traceLinks = [], claimLinks = [], knowledgeLinks = [], stories = [], impacted = [], decisions = [] }) {
+  if (!requirement) return { status: "unmapped", direct: [], supportingClaims: [], knowledge: [], stories: [], impacted: [], decisions: [] };
   return {
     status: "mapped",
     direct: traceLinks.map((link) => {
@@ -58,6 +76,7 @@ export function summarizeReverseTrace({ requirement, traceLinks = [], claimLinks
       label: link.node.label, status: link.node.status, role: link.role,
     })),
     stories: stories.map((story) => ({ id: story.id, refId: story.refId, title: story.title, status: story.status })),
+    decisions,
     impacted: impacted.map((item) => {
       const requirement = item.requirement ?? item;
       const evidenceCodes = Array.isArray(item.evidenceCodes) ? [...new Set(item.evidenceCodes.filter((code) => typeof code === "string"))].sort() : [];

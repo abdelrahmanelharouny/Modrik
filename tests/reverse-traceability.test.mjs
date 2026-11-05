@@ -112,3 +112,18 @@ test("reverse trace handles deleted evidence sources without inventing source me
   assert.equal(summary.direct[0].source, null);
   assert.equal(summary.direct[0].evidenceCode, "E-404");
 });
+
+
+test("reverse decision trail accepts only exact structured tracker and requirement provenance", async () => {
+  const { summarizeReverseDecisions } = await import("../src/lib/traceability/reverse.mjs");
+  const entries = [
+    { id: "d1", action: "linked_tracker_change_to_requirement", actor: "human", createdAt: new Date("2026-10-03T10:00:00.000Z"), detail: JSON.stringify({ syncMapId: "map-1", requirementId: "req-1", requirementRef: "REQ-01", mappingMethod: "human_review" }) },
+    { id: "d2", action: "linked_tracker_change_to_requirement", actor: "human", detail: "Legacy free-form journal detail" },
+    { id: "d3", action: "linked_tracker_change_to_requirement", actor: "human", detail: JSON.stringify({ syncMapId: "map-2", requirementId: "req-1", requirementRef: "REQ-01" }) },
+    { id: "d4", action: "linked_tracker_change_to_requirement", actor: "human", detail: JSON.stringify({ syncMapId: "map-1", requirementId: "req-2", requirementRef: "REQ-02" }) },
+  ];
+  assert.deepEqual(summarizeReverseDecisions(entries, "req-1", "map-1"), [{
+    id: "d1", action: "linked_tracker_change_to_requirement", actor: "human",
+    createdAt: new Date("2026-10-03T10:00:00.000Z"), mappingMethod: "human_review", requirementRef: "REQ-01",
+  }]);
+});

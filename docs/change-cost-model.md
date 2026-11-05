@@ -29,3 +29,8 @@ Reverse tracker inspection now returns more than the impacted requirement IDs: e
 ## Source-to-requirement provenance
 
 Reverse inspection now enriches each direct trace link with a bounded source descriptor: stable evidence code, title, source type, language, consent state, source creation time and the latest immutable revision's version/change note/author/time. Raw evidence content and content hashes are deliberately excluded from this summary. Deleted or detached evidence remains visible by its stable trace code with nullable source metadata; the API does not fabricate a replacement source. This closes the source → requirement → evidence-revision portion of the reverse review path while keeping source text behind the dedicated evidence access controls.
+
+
+## Decision provenance
+
+Human tracker-to-requirement mappings now write a structured decision entry in the same database transaction as the mapping and project timestamp update. Reverse inspection returns only decision entries whose parsed structured detail exactly matches both the current tracker mapping ID and resolved requirement ID; legacy free-form notes and other mappings are excluded. The returned trail is metadata-only (actor, action, time and mapping method), not arbitrary journal detail. This provides a deterministic tracker → requirement → source/revision → review-decision path without similarity matching or inferred provenance.
