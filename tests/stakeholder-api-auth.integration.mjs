@@ -597,6 +597,89 @@ try {
     await context.addCookies([{ name: SESSION_COOKIE, value: createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret), url: baseUrl }]);
     const page = await context.newPage();
 
+    // Exercise IndexedDB cross-tab serialization using two real same-origin pages.
+    const leasePageA = await context.newPage();
+    const leasePageB = await context.newPage();
+    await Promise.all([leasePageA.goto(baseUrl), leasePageB.goto(baseUrl)]);
+    const leaseName = `modrik:e2e:lease:${randomUUID()}`;
+    async function browserLeaseTransition(targetPage, input) {
+      return targetPage.evaluate(async ({ name, owner, now, leaseMs, mode, fencingToken }) => {
+        const db = await new Promise((resolve, reject) => {
+          const request = indexedDB.open("modrik-offline", 2);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        try {
+          return await new Promise((resolve, reject) => {
+            const tx = db.transaction("sync-leases", "readwrite");
+            const store = tx.objectStore("sync-leases");
+            const request = store.get(name);
+            let outcome = null;
+            request.onsuccess = () => {
+              const current = request.result ?? null;
+              let next = null;
+              if (mode === "acquire") {
+                if (current && current.owner && current.owner !== owner && current.leaseUntil > now) {
+                  outcome = { acquired: false, lease: current };
+                } else if (current?.owner === owner && current.leaseUntil > now) {
+                  next = { ...current, leaseUntil: now + leaseMs };
+                  outcome = { acquired: true, lease: next };
+                } else {
+                  next = { name, owner, leaseUntil: now + leaseMs, fencingToken: (Number.isSafeInteger(current?.fencingToken) ? current.fencingToken : 0) + 1 };
+                  outcome = { acquired: true, lease: next };
+                }
+              } else if (mode === "heartbeat") {
+                if (current?.owner === owner && current?.fencingToken === fencingToken && current.leaseUntil > now) {
+                  next = { ...current, leaseUntil: now + leaseMs };
+                  outcome = { acquired: true, lease: next };
+                } else outcome = { acquired: false, lease: current };
+              } else if (mode === "release") {
+                if (current?.owner === owner && current?.fencingToken === fencingToken) {
+                  next = { ...current, owner: null, leaseUntil: 0 };
+                  outcome = { acquired: true, lease: next };
+                } else outcome = { acquired: false, lease: current };
+              } else if (mode === "expire") {
+                next = { ...(current ?? { name, fencingToken: 0 }), owner: null, leaseUntil: 0 };
+                outcome = { acquired: true, lease: next };
+              }
+              if (next) store.put(next);
+            };
+            request.onerror = () => tx.abort();
+            tx.oncomplete = () => resolve(outcome);
+            tx.onerror = () => reject(tx.error ?? new Error("Cross-tab lease transaction failed"));
+            tx.onabort = () => reject(tx.error ?? new Error("Cross-tab lease transaction aborted"));
+          });
+        } finally { db.close(); }
+      }, { name: leaseName, ...input });
+    }
+    const leaseNow = Date.now();
+    const [tabAAcquire, tabBAcquire] = await Promise.all([
+      browserLeaseTransition(leasePageA, { owner: "tab-a", now: leaseNow, leaseMs: 5_000, mode: "acquire" }),
+      browserLeaseTransition(leasePageB, { owner: "tab-b", now: leaseNow, leaseMs: 5_000, mode: "acquire" }),
+    ]);
+    assert.equal(Number(tabAAcquire.acquired) + Number(tabBAcquire.acquired), 1, "two tabs must never acquire the same live lease");
+    const firstOwner = tabAAcquire.acquired ? "tab-a" : "tab-b";
+    const secondOwner = firstOwner === "tab-a" ? "tab-b" : "tab-a";
+    const firstToken = (tabAAcquire.acquired ? tabAAcquire : tabBAcquire).lease.fencingToken;
+    const ownerPage = firstOwner === "tab-a" ? leasePageA : leasePageB;
+    const contenderPage = secondOwner === "tab-a" ? leasePageA : leasePageB;
+    const blockedContender = firstOwner === "tab-a" ? tabBAcquire : tabAAcquire;
+    assert.equal(blockedContender.acquired, false, "the losing tab must observe the active owner");
+    await browserLeaseTransition(ownerPage, { owner: firstOwner, now: leaseNow + 5_001, leaseMs: 1, mode: "expire" });
+    const takeover = await browserLeaseTransition(contenderPage, { owner: secondOwner, now: leaseNow + 5_002, leaseMs: 5_000, mode: "acquire" });
+    assert.equal(takeover.acquired, true, "the second tab must acquire after expiry");
+    assert.equal(takeover.lease.fencingToken, firstToken + 1, "lease generations must increase monotonically");
+    const staleHeartbeat = await browserLeaseTransition(ownerPage, { owner: firstOwner, now: leaseNow + 5_003, leaseMs: 5_000, mode: "heartbeat", fencingToken: firstToken });
+    const staleRelease = await browserLeaseTransition(ownerPage, { owner: firstOwner, now: leaseNow + 5_004, leaseMs: 5_000, mode: "release", fencingToken: firstToken });
+    assert.equal(staleHeartbeat.acquired, false, "stale tab cannot renew the new owner's lease");
+    assert.equal(staleRelease.acquired, false, "stale tab cannot release the new owner's lease");
+    assert.equal(staleRelease.lease.owner, secondOwner);
+    await ownerPage.close(); // Simulate a crashed/suspended lease owner.
+    const recovered = await browserLeaseTransition(contenderPage, { owner: "recovery-tab", now: leaseNow + 10_004, leaseMs: 5_000, mode: "acquire" });
+    assert.equal(recovered.acquired, true, "another tab must recover after the crashed owner's lease expires");
+    assert.equal(recovered.lease.fencingToken, firstToken + 2);
+    await contenderPage.close();
+
     page.on("pageerror", error => browserDiagnostics.pageErrors.push(error.message));
     page.on("requestfailed", request => browserDiagnostics.failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
     page.on("response", async response => {
