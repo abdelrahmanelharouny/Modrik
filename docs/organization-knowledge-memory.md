@@ -40,3 +40,8 @@ The review reader is /settings/knowledge-memory. The audit reader is /settings/a
 - Governance is explicit; no bulk mutation, delete, or automatic promotion.
 - PostgreSQL integration coverage creates two isolated organizations and verifies accepted-memory and audit reads cannot cross tenant boundaries. It races two compare-and-set governance transitions and injects an audit foreign-key failure to prove atomic rollback. These focused integration tests are not a substitute for production load testing.
 - Real-world pilot recruitment, rater calibration and empirical H2 evaluation remain separate research gates.
+
+
+## Retrieval evaluation contract
+
+The retrieval module exposes a deterministic binary-relevance evaluator for offline corpus comparisons. It reports Precision@K, Recall@K, reciprocal rank (the per-query contribution to MRR), and NDCG@K. Duplicate result IDs are counted once at their first rank; relevance is supplied as an explicit set of judged IDs. Empty relevance sets produce zero-valued relevance metrics rather than NaN. These metrics are evaluation primitives, not evidence of production quality: benchmark reports must publish corpus composition, query/judgment counts, K, language slices (Arabic, English, code-switched), tenant-scope checks, and latency separately.
