@@ -45,3 +45,33 @@ test("reverse trace summary preserves provenance and impact depth", () => {
   assert.equal(summary.knowledge[0].role, "implements");
   assert.equal(summary.impacted[0].depth, 1);
 });
+
+
+test("reverse impact enrichment preserves affected requirement state and unique evidence coverage", () => {
+  const summary = summarizeReverseTrace({
+    requirement: requirements[0],
+    impacted: [
+      { id: "req-2", depth: 1, via: [{ kind: "depends_on" }], requirement: { refId: "REQ-02", text: "Affected requirement", status: "revised", priority: "Must", verifyStatus: "unverified", driftStatus: "changed" }, evidenceCodes: ["E-2", "E-1", "E-2"] },
+    ],
+  });
+  assert.deepEqual(summary.impacted[0], {
+    id: "req-2",
+    refId: "REQ-02",
+    text: "Affected requirement",
+    status: "revised",
+    priority: "Must",
+    verifyStatus: "unverified",
+    driftStatus: "changed",
+    depth: 1,
+    via: [{ kind: "depends_on" }],
+    evidenceCodes: ["E-1", "E-2"],
+    evidenceCount: 2,
+  });
+});
+
+test("reverse impact enrichment safely handles missing requirement details", () => {
+  const summary = summarizeReverseTrace({ requirement: requirements[0], impacted: [{ id: "req-missing", depth: 2 }] });
+  assert.equal(summary.impacted[0].refId, null);
+  assert.equal(summary.impacted[0].evidenceCount, 0);
+  assert.deepEqual(summary.impacted[0].via, []);
+});

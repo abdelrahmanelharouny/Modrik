@@ -35,6 +35,22 @@ export function summarizeReverseTrace({ requirement, traceLinks = [], claimLinks
       label: link.node.label, status: link.node.status, role: link.role,
     })),
     stories: stories.map((story) => ({ id: story.id, refId: story.refId, title: story.title, status: story.status })),
-    impacted: impacted.map((item) => ({ id: item.id, refId: item.refId, depth: item.depth, via: item.via })),
+    impacted: impacted.map((item) => {
+      const requirement = item.requirement ?? item;
+      const evidenceCodes = Array.isArray(item.evidenceCodes) ? [...new Set(item.evidenceCodes.filter((code) => typeof code === "string"))].sort() : [];
+      return {
+        id: item.id,
+        refId: requirement.refId ?? item.refId ?? null,
+        text: requirement.text ?? null,
+        status: requirement.status ?? null,
+        priority: requirement.priority ?? null,
+        verifyStatus: requirement.verifyStatus ?? null,
+        driftStatus: requirement.driftStatus ?? null,
+        depth: item.depth,
+        via: Array.isArray(item.via) ? item.via : [],
+        evidenceCodes,
+        evidenceCount: evidenceCodes.length,
+      };
+    }),
   };
 }

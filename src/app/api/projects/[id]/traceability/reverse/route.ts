@@ -49,12 +49,38 @@ export async function GET(request: NextRequest, { params }: Params) {
     traverseImpact(projectId, [requirement.id]),
   ]);
 
+  // Enrich reverse impact with the affected requirement's current verification
+  // state and evidence coverage. Every lookup remains project-scoped.
+  const impactedIds = [...new Set(impact.impacted.map((item) => item.id).filter((item) => typeof item === "string"))];
+  const [impactedRequirements, impactedEvidence] = impactedIds.length ? await Promise.all([
+    db.requirement.findMany({
+      where: { projectId, id: { in: impactedIds } },
+      select: { id: true, refId: true, text: true, status: true, priority: true, verifyStatus: true, driftStatus: true },
+    }),
+    db.traceLink.findMany({
+      where: { projectId, requirementId: { in: impactedIds } },
+      select: { requirementId: true, evidenceCode: true },
+    }),
+  ]) : [[], []];
+  const impactedById = new Map(impactedRequirements.map((item) => [item.id, item]));
+  const evidenceByRequirement = new Map();
+  for (const link of impactedEvidence) {
+    const codes = evidenceByRequirement.get(link.requirementId) ?? [];
+    codes.push(link.evidenceCode);
+    evidenceByRequirement.set(link.requirementId, codes);
+  }
+  const enrichedImpact = impact.impacted.map((item) => ({
+    ...item,
+    requirement: impactedById.get(item.id) ?? null,
+    evidenceCodes: evidenceByRequirement.get(item.id) ?? [],
+  }));
+
   return NextResponse.json({
     ok: true,
     tracker: { id: syncMap.id, kind: syncMap.kind, externalKey: syncMap.externalKey, externalUrl: syncMap.externalUrl, title: syncMap.title, syncedAt: syncMap.syncedAt },
     resolution: resolved.resolution,
     requirement: { id: requirement.id, refId: requirement.refId, text: requirement.text, status: requirement.status, priority: requirement.priority },
-    trace: summarizeReverseTrace({ requirement, traceLinks, claimLinks, knowledgeLinks, stories: linkedStories, impacted: impact.impacted }),
+    trace: summarizeReverseTrace({ requirement, traceLinks, claimLinks, knowledgeLinks, stories: linkedStories, impacted: enrichedImpact }),
   });
 }
 

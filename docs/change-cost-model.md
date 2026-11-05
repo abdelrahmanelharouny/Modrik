@@ -19,3 +19,8 @@ Do not use this score for contractual estimates, staffing commitments, performan
 ## Current validation
 
 The pure estimator has deterministic unit coverage for direct/transitive impact, typed-edge weighting, risk modifiers, duplicate filtering and invalid inputs. The exact-head CI run #532 passed TypeScript, ESLint, production build, PostgreSQL schema validation and stakeholder API/browser E2E. This validates integration/build behavior, not the heuristic's predictive accuracy; empirical calibration against completed engineering changes remains open.
+
+
+## Reverse traceability depth
+
+Reverse tracker inspection now returns more than the impacted requirement IDs: each project-scoped impact node includes its current requirement status, priority, verification/drift state, traversal depth and typed path, plus the unique evidence codes currently linked to that requirement. This makes a change review actionable: reviewers can identify affected requirements that are unverified, drifting, or missing evidence before approving a tracker mapping. Missing/deleted requirement details fail closed to nullable metadata; the API does not infer a mapping from text similarity.
