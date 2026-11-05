@@ -8,12 +8,12 @@
     "sqlite": {
       "provider": "sqlite",
       "schemaPath": "prisma/schema.prisma",
-      "sha256": "9c7af35a48f23c549904709332a932a3fa85a608670029bd1a27eb216a34f366"
+      "sha256": "ec5c4d1fdae4f4bb9ce583a607792bdd8bdef4270c0e76c395c9a35c47bf9004"
     },
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "8ea584df2da16ad162812421230bb81969e0f09d2dfb79eb53b52c8f8af2aef4"
+      "sha256": "8b24244471249c47701ff33f6c5d573b89ce8a1a6a509399d4ff523d3b3df142"
     }
   },
   "models": [
@@ -33,6 +33,7 @@
     "KnowledgeNode",
     "OrganizationMemorySearchDocument",
     "OrganizationMemorySearchPosting",
+    "OrganizationMemorySearchIndexState",
     "KnowledgeEdge",
     "KnowledgeNodeClaim",
     "KnowledgeRequirement",
