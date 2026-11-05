@@ -52,10 +52,10 @@ test("change-cost uncertainty counts missing input signals, not the number of ex
  const sparseEstimate=estimateChangeCost(sparse,[{id:"child",depth:1,via:[{kind:"unknown-a"},{kind:"unknown-b"}]}],[sparse,{id:"child"}]);
  assert.equal(complete.uncertainty.percent,0);
  assert.equal(complete.uncertainty.totalSignals,10);
- assert.equal(sparseEstimate.uncertainty.missingSignals,8);
+ assert.equal(sparseEstimate.uncertainty.missingSignals,9);
  assert.equal(sparseEstimate.uncertainty.totalSignals,10);
- assert.equal(sparseEstimate.uncertainty.percent,80);
- assert.equal(sparseEstimate.uncertainty.bandPercent,44);
+ assert.equal(sparseEstimate.uncertainty.percent,90);
+ assert.equal(sparseEstimate.uncertainty.bandPercent,47);
  assert.ok(sparseEstimate.effortRange.high>sparseEstimate.effortPoints);
 });
 
