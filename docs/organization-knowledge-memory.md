@@ -19,7 +19,7 @@ Semantic retrieval architecture is recorded in ADR-018. The implementation adds 
 ## Retrieval contract
 
 - Query parameters: q (label/description search), kind (allowlisted node kind), limit (1–1000 input, clamped to 100).
-- Default page size: 25; maximum page size: 100. Accepted and review-queue views support stable keyset pagination with an opaque versioned cursor containing a timestamp snapshot and record ID and `pagination.hasMore` / `pagination.nextCursor` response fields. The timestamp snapshot provides a deterministic (updatedAt, id) boundary and rejects stale anchors; the verified organization/project and status predicates remain mandatory on every page. Fetches request one lookahead row to determine whether another page exists.
+- Default page size: 25; maximum page size: 100. Accepted and review-queue views support stable keyset pagination with an opaque versioned cursor containing a timestamp snapshot and record ID and `pagination.hasMore` / `pagination.nextCursor` response fields. The timestamp snapshot provides a deterministic (updatedAt, id) boundary and rejects stale anchors. Cursor payloads are versioned, validated, and capped at 512 URL-safe characters; they do not grant access or encode tenant scope; the verified organization/project and status predicates remain mandatory on every page. Fetches request one lookahead row to determine whether another page exists.
 - Default view returns only accepted nodes.
 - view=review_queue returns only in_review nodes and requires reviewer or approver permission.
 - Each item retains project ID, project name and stable node-reference provenance.
