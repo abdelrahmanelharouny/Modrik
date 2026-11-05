@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
+import {
+  buildOrganizationMemoryPage,
+  buildOrganizationMemoryCursorWhere,
+  createOrganizationMemoryCursor,
+} from "../src/lib/knowledge-graph/organization-memory.mjs";
 
 const db = new PrismaClient();
 const suffix = `org-memory-${process.pid}-${Date.now()}`;
@@ -44,6 +49,52 @@ test("PostgreSQL organization memory is tenant-isolated and governance writes ar
   assert.deepEqual(bMemory.map((row) => row.nodeRef), ["KM-B"]);
   assert.equal(aAudit.length, 1);
   assert.equal(bAudit.length, 0);
+
+  // Exercise real PostgreSQL keyset pagination across equal timestamps. The
+  // page boundary must be stable, tenant-scoped, and free of duplicates.
+  const pageFixtures = await Promise.all(Array.from({ length: 4 }, (_, index) =>
+    db.knowledgeNode.create({ data: {
+      projectId: projectA.id, nodeRef: "PAGE-" + index, kind: "decision",
+      label: "Pagination fixture " + index, status: "accepted",
+    } }),
+  ));
+  const sharedTimestamp = new Date("2026-11-05T12:00:00.000Z");
+  await db.knowledgeNode.updateMany({
+    where: { id: { in: pageFixtures.map((node) => node.id) } },
+    data: { updatedAt: sharedTimestamp },
+  });
+  const baseWhere = {
+    projectId: { in: [projectA.id] }, status: "accepted",
+    nodeRef: { startsWith: "PAGE-" },
+  };
+  const ordering = [{ updatedAt: "desc" }, { id: "asc" }];
+  const firstPage = buildOrganizationMemoryPage({ limit: 2 });
+  const firstRows = await db.knowledgeNode.findMany({
+    where: baseWhere, take: firstPage.take, orderBy: ordering,
+    select: { id: true, updatedAt: true },
+  });
+  const firstVisible = firstRows.slice(0, firstPage.limit);
+  assert.equal(firstVisible.length, 2);
+  assert.equal(firstRows.length, 3);
+  const cursorToken = createOrganizationMemoryCursor(firstVisible[1]);
+  const secondPage = buildOrganizationMemoryPage({ limit: 2, cursor: cursorToken });
+  const anchor = await db.knowledgeNode.findFirst({
+    where: { ...baseWhere, id: secondPage.cursor.id },
+    select: { id: true, updatedAt: true },
+  });
+  assert.equal(anchor.updatedAt.getTime(), secondPage.cursor.updatedAt.getTime());
+  const secondWhere = buildOrganizationMemoryCursorWhere(baseWhere, secondPage, "desc");
+  const secondRows = await db.knowledgeNode.findMany({
+    where: secondWhere, take: secondPage.take, orderBy: ordering,
+    select: { id: true, updatedAt: true },
+  });
+  const secondVisible = secondRows.slice(0, secondPage.limit);
+  assert.equal(secondVisible.length, 2);
+  assert.equal(new Set([...firstVisible, ...secondVisible].map((node) => node.id)).size, 4);
+  assert.deepEqual(
+    [...firstVisible, ...secondVisible].map((node) => node.id),
+    [...pageFixtures].sort((a, b) => a.id.localeCompare(b.id)).map((node) => node.id),
+  );
 
   const concurrent = await Promise.all([1, 2].map((reviewer) => db.$transaction(async (tx) => {
     const changed = await tx.knowledgeNode.updateMany({
