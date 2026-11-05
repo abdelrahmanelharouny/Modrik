@@ -100,13 +100,14 @@ export async function GET(req: NextRequest) {
     const summarize = view === "review_queue"
       ? summarizeOrganizationReviewQueueNode
       : summarizeOrganizationKnowledgeNode;
+    const responseLimit = Math.min(limit ?? 25, 100);
     const rankedNodes = rankedSearch
       ? rankOrganizationMemoryCandidates({
           projectIds,
           candidates: nodes,
           query: search,
           mode: "lexical",
-          limit,
+          limit: responseLimit,
         })
       : nodes;
     const items = rankedNodes.map((node) => {
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       items,
       total: items.length,
-      limit: rankedSearch ? (limit ?? 25) : query.take,
+      limit: rankedSearch ? responseLimit : query.take,
       ...(rankedSearch ? { candidateWindow: query.take, candidatesScanned: nodes.length, retrievalMode: "bm25" } : {}),
       scope: "organization",
       view,
