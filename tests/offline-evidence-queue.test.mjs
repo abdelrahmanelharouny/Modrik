@@ -137,3 +137,37 @@ test("offline update rebase advances only the expected revision and preserves th
   assert.throws(() => rebaseOfflineEvidenceUpdateOperation({ ...operation, kind: "delete", payload: undefined }, 7), /update/);
   assert.throws(() => rebaseOfflineEvidenceUpdateOperation(operation, -1), /revision/);
 });
+
+
+test("offline sync lease fencing rejects stale owners after expiry and reacquisition", async () => {
+  const { transitionOfflineEvidenceLease } = await import("../src/lib/evidence/offline-queue.mjs");
+  const first = transitionOfflineEvidenceLease(null, "tab-a", 1_000, 100);
+  assert.equal(first.acquired, true);
+  assert.equal(first.lease.fencingToken, 1);
+  const blocked = transitionOfflineEvidenceLease(first.lease, "tab-b", 1_050, 100);
+  assert.equal(blocked.acquired, false);
+  const second = transitionOfflineEvidenceLease(first.lease, "tab-b", 1_101, 100);
+  assert.equal(second.acquired, true);
+  assert.equal(second.lease.fencingToken, 2);
+  const staleHeartbeat = transitionOfflineEvidenceLease(second.lease, "tab-a", 1_102, 100, { fencingToken: 1 });
+  assert.equal(staleHeartbeat.acquired, false);
+  assert.equal(staleHeartbeat.lease.owner, "tab-b");
+  const staleRelease = transitionOfflineEvidenceLease(second.lease, "tab-a", 1_103, 100, { release: true, fencingToken: 1 });
+  assert.equal(staleRelease.acquired, false);
+  assert.equal(staleRelease.lease.owner, "tab-b");
+});
+
+test("offline sync lease fencing renews only the current live generation and preserves generations on release", async () => {
+  const { transitionOfflineEvidenceLease } = await import("../src/lib/evidence/offline-queue.mjs");
+  const acquired = transitionOfflineEvidenceLease(null, "tab-a", 10_000, 500);
+  const renewed = transitionOfflineEvidenceLease(acquired.lease, "tab-a", 10_200, 500, { fencingToken: 1 });
+  assert.equal(renewed.acquired, true);
+  assert.equal(renewed.lease.leaseUntil, 10_700);
+  const released = transitionOfflineEvidenceLease(renewed.lease, "tab-a", 10_300, 1, { release: true, fencingToken: 1 });
+  assert.equal(released.acquired, true);
+  assert.equal(released.lease.owner, null);
+  assert.equal(released.lease.fencingToken, 1);
+  const next = transitionOfflineEvidenceLease(released.lease, "tab-b", 10_301, 500);
+  assert.equal(next.lease.fencingToken, 2);
+  assert.throws(() => transitionOfflineEvidenceLease(null, "", 1, 1), /Invalid/);
+});

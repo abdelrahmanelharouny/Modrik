@@ -234,47 +234,108 @@ function withInProcessSyncLock(lockName, task) {
   });
 }
 
-async function updateSyncLease(name, owner, leaseUntil, { release = false } = {}) {
+/**
+ * Pure lease transition with a monotonically increasing fencing token.
+ * A released lease keeps its token so the next owner cannot reuse a generation.
+ */
+export function transitionOfflineEvidenceLease(current, owner, now, leaseMs, { release = false, fencingToken } = {}) {
+  if (typeof owner !== "string" || !owner || !Number.isFinite(now) || !Number.isSafeInteger(leaseMs) || leaseMs < 1) {
+    throw new TypeError("Invalid offline sync lease transition");
+  }
+  if (release) {
+    if (current?.owner !== owner || current?.fencingToken !== fencingToken) return { acquired: false, lease: current ?? null };
+    return { acquired: true, lease: { ...current, owner: null, leaseUntil: 0 } };
+  }
+  if (fencingToken !== undefined) {
+    if (current?.owner !== owner || current?.fencingToken !== fencingToken || !Number.isFinite(current.leaseUntil) || current.leaseUntil <= now) {
+      return { acquired: false, lease: current ?? null };
+    }
+    return { acquired: true, lease: { ...current, leaseUntil: now + leaseMs } };
+  }
+  if (current && current.owner !== owner && Number.isFinite(current.leaseUntil) && current.leaseUntil > now) {
+    return { acquired: false, lease: current };
+  }
+  if (current?.owner === owner && Number.isFinite(current.leaseUntil) && current.leaseUntil > now) {
+    return { acquired: true, lease: { ...current, leaseUntil: now + leaseMs } };
+  }
+  const nextToken = (Number.isSafeInteger(current?.fencingToken) && current.fencingToken >= 0 ? current.fencingToken : 0) + 1;
+  return { acquired: true, lease: { name: current?.name, owner, leaseUntil: now + leaseMs, fencingToken: nextToken } };
+}
+
+async function updateSyncLease(name, owner, leaseUntil, { release = false, fencingToken } = {}) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(LOCK_STORE, "readwrite");
     const store = tx.objectStore(LOCK_STORE);
     const request = store.get(name);
-    let acquired = false;
+    let result = null;
     request.onsuccess = () => {
-      const current = request.result;
-      if (release) {
-        if (current?.owner === owner) store.delete(name);
-        acquired = true;
-      } else if (!current || current.owner === owner || !Number.isFinite(current.leaseUntil) || current.leaseUntil <= Date.now()) {
-        store.put({ name, owner, leaseUntil });
-        acquired = true;
+      const current = request.result ?? null;
+      const transition = transitionOfflineEvidenceLease(current, owner, Date.now(), Math.max(1, Math.floor(leaseUntil - Date.now())), { release, fencingToken });
+      if (transition.acquired) {
+        const next = { ...(transition.lease ?? {}), name };
+        store.put(next);
+        result = next.fencingToken ?? fencingToken ?? true;
       }
     };
     request.onerror = () => tx.abort();
-    tx.oncomplete = () => { db.close(); resolve(acquired); };
+    tx.oncomplete = () => { db.close(); resolve(result); };
     tx.onerror = () => { db.close(); reject(tx.error ?? new Error("Could not update offline sync lease")); };
     tx.onabort = () => { db.close(); reject(tx.error ?? new Error("Offline sync lease transaction aborted")); };
   });
 }
 
+async function isSyncLeaseCurrent(name, owner, fencingToken) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCK_STORE, "readonly");
+    const request = tx.objectStore(LOCK_STORE).get(name);
+    let valid = false;
+    request.onsuccess = () => {
+      const lease = request.result;
+      valid = lease?.owner === owner && lease?.fencingToken === fencingToken &&
+        Number.isFinite(lease.leaseUntil) && lease.leaseUntil > Date.now();
+    };
+    request.onerror = () => tx.abort();
+    tx.oncomplete = () => { db.close(); resolve(valid); };
+    tx.onerror = () => { db.close(); reject(tx.error ?? new Error("Could not verify offline sync lease")); };
+    tx.onabort = () => { db.close(); reject(tx.error ?? new Error("Offline sync lease verification aborted")); };
+  });
+}
+
 async function withIndexedDbSyncLease(lockName, task) {
   const owner = globalThis.crypto?.randomUUID?.() ?? `lease-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  while (!(await updateSyncLease(lockName, owner, Date.now() + SYNC_LEASE_MS))) {
-    await new Promise((resolve) => setTimeout(resolve, 120));
+  let fencingToken = null;
+  while (fencingToken === null) {
+    fencingToken = await updateSyncLease(lockName, owner, Date.now() + SYNC_LEASE_MS);
+    if (fencingToken === null) await new Promise((resolve) => setTimeout(resolve, 120));
   }
   let heartbeatBusy = false;
+  let leaseLost = false;
   const heartbeat = setInterval(async () => {
-    if (heartbeatBusy) return;
+    if (heartbeatBusy || leaseLost) return;
     heartbeatBusy = true;
-    try { await updateSyncLease(lockName, owner, Date.now() + SYNC_LEASE_MS); }
-    catch { /* Lease expiry lets another tab recover if storage becomes unavailable. */ }
+    try {
+      const renewed = await updateSyncLease(lockName, owner, Date.now() + SYNC_LEASE_MS, { fencingToken });
+      if (renewed === null) leaseLost = true;
+    } catch { leaseLost = true; }
     finally { heartbeatBusy = false; }
   }, SYNC_HEARTBEAT_MS);
-  try { return await task(); }
-  finally {
+  const assertLease = async () => {
+    if (leaseLost || !(await isSyncLeaseCurrent(lockName, owner, fencingToken))) {
+      leaseLost = true;
+      const error = new Error("Offline sync lease was lost; stop processing and leave unconfirmed queue items intact");
+      error.code = "OFFLINE_SYNC_LEASE_LOST";
+      throw error;
+    }
+    return fencingToken;
+  };
+  try {
+    await assertLease();
+    return await task({ fencingToken, assertLease });
+  } finally {
     clearInterval(heartbeat);
-    await updateSyncLease(lockName, owner, 0, { release: true }).catch(() => {});
+    await updateSyncLease(lockName, owner, 0, { release: true, fencingToken }).catch(() => {});
   }
 }
 

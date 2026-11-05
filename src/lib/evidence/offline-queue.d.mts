@@ -9,7 +9,13 @@ export function putOfflineEvidenceOperation(operation: OfflineEvidenceOperation)
 export function listOfflineEvidenceOperations(projectId: string): Promise<OfflineEvidenceOperation[]>;
 export function removeOfflineEvidenceOperation(operationId: string): Promise<void>;
 export function updateOfflineEvidenceOperation(operation: OfflineEvidenceOperation): Promise<void>;
-export function withOfflineEvidenceSyncLock<T>(projectId: string, task: () => Promise<T> | T): Promise<T>;
+export function withOfflineEvidenceSyncLock<T>(projectId: string, task: (lease?: OfflineEvidenceSyncLeaseContext) => Promise<T> | T): Promise<T>;
 export function orderOfflineEvidenceOperation(existingOperations: OfflineEvidenceOperation[], operation: OfflineEvidenceOperation): OfflineEvidenceOperation;
 
 export function rebaseOfflineEvidenceUpdateOperation(operation: OfflineEvidenceOperation, latestRevisionVersion: number): OfflineEvidenceOperation;
+
+export interface OfflineEvidenceSyncLeaseContext {
+  fencingToken: number;
+  assertLease(): Promise<number>;
+}
+export function transitionOfflineEvidenceLease(current: { name?: string; owner: string | null; leaseUntil: number; fencingToken: number } | null, owner: string, now: number, leaseMs: number, options?: { release?: boolean; fencingToken?: number }): { acquired: boolean; lease: { name?: string; owner: string | null; leaseUntil: number; fencingToken: number } | null };
