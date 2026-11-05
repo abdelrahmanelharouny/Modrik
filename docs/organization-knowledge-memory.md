@@ -61,5 +61,5 @@ Transitions use compare-and-set status guards inside a database transaction. The
 - This is project-backed retrieval, not a separately persisted organization-memory entity.
 - Semantic/vector search is not enabled. Do not add vector retrieval until the vector provider, embedding lifecycle, deletion semantics and tenant pre-filter can be verified.
 - Governance is explicit; no bulk mutation, delete, or automatic promotion.
-- Live-database cross-tenant integration tests and concurrent reviewer stress tests remain required before production enablement.
+- PostgreSQL integration coverage now creates two isolated organizations and verifies accepted-memory and audit reads cannot cross tenant boundaries. It also races two compare-and-set governance transitions (exactly one may win) and injects an audit foreign-key failure to prove the knowledge-state and decision-journal writes roll back together. These tests run in the dedicated PostgreSQL CI job; they are a focused concurrency/atomicity gate, not a substitute for production load testing.
 - Real-world pilot recruitment, rater calibration and empirical H2 evaluation remain separate research gates.

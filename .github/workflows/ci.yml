@@ -127,4 +127,6 @@ jobs:
         run: bunx prisma generate --schema prisma/schema.postgres.prisma
       - name: Push schema to PostgreSQL 16
         run: bunx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
+      - name: PostgreSQL organization memory isolation and governance integration
+        run: node --test tests/organization-memory-postgres.integration.mjs
 
