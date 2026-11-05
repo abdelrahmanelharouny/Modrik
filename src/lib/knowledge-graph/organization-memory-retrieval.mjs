@@ -1,6 +1,32 @@
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const RRF_K = 60;
+const DEFAULT_SCAN_BATCH_SIZE = 250;
+const MAX_SCAN_BATCH_SIZE = 500;
+
+/** Read all authorized candidates in stable keyset pages; caller owns tenant/status filtering. */
+export async function scanOrganizationMemoryCandidates(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Organization memory scan input must be an object.");
+  if (!input.where || typeof input.where !== "object" || Array.isArray(input.where)) throw new TypeError("A pre-authorized candidate filter is required.");
+  if (typeof input.findMany !== "function") throw new TypeError("A database findMany adapter is required.");
+  const raw = Number(input.batchSize);
+  const batchSize = Number.isSafeInteger(raw) && raw > 0 ? Math.min(raw, MAX_SCAN_BATCH_SIZE) : DEFAULT_SCAN_BATCH_SIZE;
+  const rows = [], seen = new Set(); let pages = 0;
+  while (true) {
+    const where = pages === 0 ? input.where : { ...input.where, AND: [...(Array.isArray(input.where.AND) ? input.where.AND : []), { OR: [{ updatedAt: { lt: rows.at(-1).updatedAt } }, { updatedAt: rows.at(-1).updatedAt, id: { gt: rows.at(-1).id } }] }] };
+    const batch = await input.findMany({ where, take: batchSize, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], ...(input.include ? { include: input.include } : {}) });
+    if (!Array.isArray(batch)) throw new TypeError("Database scan adapter must return an array.");
+    pages += 1;
+    for (const row of batch) {
+      if (!row || typeof row.id !== "string" || !row.id || !(row.updatedAt instanceof Date) || Number.isNaN(row.updatedAt.getTime())) throw new TypeError("Database scan returned an invalid keyset anchor.");
+      if (seen.has(row.id)) throw new Error("Database scan returned a duplicate candidate.");
+      seen.add(row.id); rows.push(row);
+    }
+    if (batch.length < batchSize) break;
+    if (pages > 1_000_000) throw new Error("Database scan exceeded its safety page limit.");
+  }
+  return { rows, pages, batchSize, candidatesScanned: rows.length };
+}
 
 /** Normalize English, Arabic and code-switched text without transliterating it. */
 export function normalizeOrganizationMemoryText(value) {
