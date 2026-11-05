@@ -30,15 +30,20 @@ export function OrganizationKnowledgeReviewManager() {
   const [applied, setApplied] = useState({ query: "", kind: "" });
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (cursor?: string, append = false) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams({ view, limit: "100" });
+      if (cursor) params.set("cursor", cursor);
       if (applied.query) params.set("q", applied.query);
       if (applied.kind) params.set("kind", applied.kind);
       const response = await fetch("/api/organizations/knowledge-memory?" + params.toString(), {
@@ -49,16 +54,20 @@ export function OrganizationKnowledgeReviewManager() {
         if (response.status === 403) throw new Error(view === "accepted" ? "Your organization role does not include knowledge read access." : "Your organization role does not include knowledge review access.");
         throw new Error(payload.error || "Unable to load the review queue.");
       }
-      setItems(Array.isArray(payload.items) ? payload.items : []);
+      const receivedItems = Array.isArray(payload.items) ? payload.items : [];
+      setItems((current) => append ? [...current, ...receivedItems] : receivedItems);
+      setNextCursor(typeof payload.pagination?.nextCursor === "string" ? payload.pagination.nextCursor : null);
+      setHasMore(payload.pagination?.hasMore === true);
       setCapabilities(payload.capabilities ?? { canReview: false, canApprove: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load the review queue.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [applied, view]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setNextCursor(null); setHasMore(false); void load(); }, [load]);
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,7 +110,7 @@ export function OrganizationKnowledgeReviewManager() {
           <h1 className="mt-2 flex items-center gap-3 text-3xl font-semibold"><BookOpenCheck className="h-7 w-7 text-primary" /> Organization knowledge</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Explore trusted knowledge shared across active organization projects, or review submissions before they enter the accepted memory.</p>
         </div>
-        <button type="button" onClick={() => void load()} disabled={loading || !!busyId} className="inline-flex h-10 items-center gap-2 self-start rounded-lg border border-border px-3 text-sm hover:bg-secondary disabled:opacity-50">
+        <button type="button" onClick={() => { setNextCursor(null); setHasMore(false); void load(); }} disabled={loading || loadingMore || !!busyId} className="inline-flex h-10 items-center gap-2 self-start rounded-lg border border-border px-3 text-sm hover:bg-secondary disabled:opacity-50">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
@@ -143,6 +152,7 @@ export function OrganizationKnowledgeReviewManager() {
           ))}</div>
         )}
       </section>
+      {!loading && hasMore && nextCursor ? <div className="mt-5 flex justify-center"><button type="button" onClick={() => void load(nextCursor, true)} disabled={loadingMore || !!busyId} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-secondary disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`} /> {loadingMore ? "Loading more…" : "Load more"}</button></div> : null}
       {view === "review_queue" ? <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Review and approval are separate permissions. A rejected item remains out of accepted memory; approval is the only transition that promotes an item into shared retrieval.</p> : <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Trusted memory is read-only here. Governance changes remain restricted to the review queue and authorized approvers.</p>}
     </main>
   );
