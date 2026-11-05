@@ -251,10 +251,11 @@ export function ElicitationStage({
     setSyncingOffline(true);
     let changed = false;
     try {
-      await withOfflineEvidenceSyncLock(project.id, async () => {
+      await withOfflineEvidenceSyncLock(project.id, async (lease) => {
         const operations = await listOfflineEvidenceOperations(project.id);
         for (const operation of operations) {
           try {
+            await lease.assertLease();
             const endpoint = `/api/projects/${project.id}/evidence`;
             if (operation.kind === "delete") {
               await api(`${endpoint}?evidenceId=${encodeURIComponent(operation.evidenceId)}&expectedRevisionVersion=${operation.expectedRevisionVersion}&clientOperationId=${operation.operationId}`, { method: "DELETE" });
@@ -263,16 +264,15 @@ export function ElicitationStage({
             } else {
               await api(endpoint, { method: "POST", body: JSON.stringify({ ...operation.payload, clientOperationId: operation.operationId }) });
             }
-            await removeOfflineEvidenceOperation(operation.operationId);
-            changed = true;
+            if (await lease.acknowledge(operation)) changed = true;
+            else break;
           } catch (error) {
-            await updateOfflineEvidenceOperation({
+            if ((error as Error & { code?: string }).code === "OFFLINE_SYNC_LEASE_LOST") throw error;
+            await lease.recordFailure(operation, {
               ...operation,
               attempts: operation.attempts + 1,
               lastError: (error as Error).message.slice(0, 240),
             });
-            // Preserve order: a conflict or server error must not silently skip
-            // earlier evidence and make later operations appear fully synchronized.
             break;
           }
         }

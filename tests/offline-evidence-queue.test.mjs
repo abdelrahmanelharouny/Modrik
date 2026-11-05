@@ -184,3 +184,13 @@ test("all offline sync lock backends provide one consistent lease context", asyn
   assert.ok(observed);
   assert.equal(Number.isSafeInteger(observed.fencingToken), true);
 });
+
+
+test("sync lease context exposes guarded acknowledgement and retry settlement", async () => {
+  const { withOfflineEvidenceSyncLock } = await import("../src/lib/evidence/offline-queue.mjs");
+  await withOfflineEvidenceSyncLock("project-settlement-contract", async (lease) => {
+    assert.equal(typeof lease.acknowledge, "function");
+    assert.equal(typeof lease.recordFailure, "function");
+    assert.equal(await lease.assertLease(), lease.fencingToken);
+  });
+});

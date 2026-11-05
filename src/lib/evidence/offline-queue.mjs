@@ -220,13 +220,59 @@ export async function updateOfflineEvidenceOperation(operation) {
 // IndexedDB lease provides a cross-tab fallback for browsers without Web Locks.
 const inProcessSyncLocks = new Map();
 
+async function settleOfflineEvidenceOperation(operation, replacement, leaseGuard = null) {
+  if (replacement) validateOfflineEvidenceOperation(replacement);
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(leaseGuard ? [STORE, LOCK_STORE] : [STORE], "readwrite");
+    const queueStore = tx.objectStore(STORE);
+    const operationRequest = queueStore.get(operation.operationId);
+    const leaseRequest = leaseGuard ? tx.objectStore(LOCK_STORE).get(leaseGuard.name) : null;
+    let operationReady = false, leaseReady = !leaseGuard, result = false, failure = null;
+    const settle = () => {
+      if (!operationReady || !leaseReady || failure) return;
+      if (leaseGuard) {
+        const lease = leaseRequest.result;
+        if (lease?.owner !== leaseGuard.owner || lease?.fencingToken !== leaseGuard.fencingToken || !Number.isFinite(lease.leaseUntil) || lease.leaseUntil <= Date.now()) {
+          failure = new Error("Offline sync lease was lost; leave the queue item intact");
+          failure.code = "OFFLINE_SYNC_LEASE_LOST";
+          tx.abort();
+          return;
+        }
+      }
+      const current = operationRequest.result;
+      if (!current || JSON.stringify(current) !== JSON.stringify(operation)) return;
+      if (replacement) queueStore.put(replacement);
+      else queueStore.delete(operation.operationId);
+      result = true;
+    };
+    operationRequest.onsuccess = () => { operationReady = true; settle(); };
+    operationRequest.onerror = () => { failure = operationRequest.error ?? new Error("Could not read queued operation"); tx.abort(); };
+    if (leaseRequest) {
+      leaseRequest.onsuccess = () => { leaseReady = true; settle(); };
+      leaseRequest.onerror = () => { failure = leaseRequest.error ?? new Error("Could not read sync lease"); tx.abort(); };
+    }
+    tx.oncomplete = () => { db.close(); resolve(result); };
+    tx.onerror = () => { db.close(); reject(failure ?? tx.error ?? new Error("Could not settle offline queue operation")); };
+    tx.onabort = () => { db.close(); reject(failure ?? tx.error ?? new Error("Offline queue settlement aborted")); };
+  });
+}
+
+function createSyncLeaseContext(fencingToken, assertLease, leaseGuard = null) {
+  return {
+    fencingToken, assertLease,
+    acknowledge: (operation) => settleOfflineEvidenceOperation(operation, null, leaseGuard),
+    recordFailure: (operation, replacement) => settleOfflineEvidenceOperation(operation, replacement, leaseGuard),
+  };
+}
+
 function withInProcessSyncLock(lockName, task) {
   const previous = inProcessSyncLocks.get(lockName) ?? Promise.resolve();
   let release;
   const current = new Promise((resolve) => { release = resolve; });
   inProcessSyncLocks.set(lockName, current);
   return previous.then(async () => {
-    try { return await task({ fencingToken: 0, assertLease: async () => 0 }); }
+    try { return await task(createSyncLeaseContext(0, async () => 0)); }
     finally {
       release();
       if (inProcessSyncLocks.get(lockName) === current) inProcessSyncLocks.delete(lockName);
@@ -330,9 +376,10 @@ async function withIndexedDbSyncLease(lockName, task) {
     }
     return fencingToken;
   };
+  const leaseGuard = { name: lockName, owner, fencingToken };
   try {
     await assertLease();
-    return await task({ fencingToken, assertLease });
+    return await task(createSyncLeaseContext(fencingToken, assertLease, leaseGuard));
   } finally {
     clearInterval(heartbeat);
     await updateSyncLease(lockName, owner, 0, { release: true, fencingToken }).catch(() => {});
@@ -344,7 +391,7 @@ export async function withOfflineEvidenceSyncLock(projectId, task) {
   if (typeof task !== "function") throw new TypeError("A sync task is required");
   const lockName = `modrik:offline-evidence-sync:${projectId}`;
   const locks = globalThis.navigator?.locks;
-  if (locks?.request) return locks.request(lockName, { mode: "exclusive" }, () => task({ fencingToken: 0, assertLease: async () => 0 }));
+  if (locks?.request) return locks.request(lockName, { mode: "exclusive" }, () => task(createSyncLeaseContext(0, async () => 0)));
   if (typeof indexedDB !== "undefined") return withIndexedDbSyncLease(lockName, task);
   return withInProcessSyncLock(lockName, task);
 }

@@ -17,5 +17,7 @@ export function rebaseOfflineEvidenceUpdateOperation(operation: OfflineEvidenceO
 export interface OfflineEvidenceSyncLeaseContext {
   fencingToken: number;
   assertLease(): Promise<number>;
+  acknowledge(operation: OfflineEvidenceOperation): Promise<boolean>;
+  recordFailure(operation: OfflineEvidenceOperation, replacement: OfflineEvidenceOperation): Promise<boolean>;
 }
 export function transitionOfflineEvidenceLease(current: { name?: string; owner: string | null; leaseUntil: number; fencingToken: number } | null, owner: string, now: number, leaseMs: number, options?: { release?: boolean; fencingToken?: number }): { acquired: boolean; lease: { name?: string; owner: string | null; leaseUntil: number; fencingToken: number } | null };
