@@ -48,3 +48,8 @@ The retrieval module exposes a deterministic binary-relevance evaluator for offl
 
 
 The benchmark aggregator accepts per-query ranked IDs, judged relevant IDs, K, and an optional language label. It reports macro-averaged Precision@K, Recall@K, MRR and NDCG@K, plus micro precision/recall and separate language slices (for example Arabic, English, and code-switched). Queries without relevance judgments are counted and excluded from quality averages instead of being silently treated as retrieval failures. The benchmark remains offline and deterministic; it does not claim production latency or exhaustive corpus recall.
+
+
+## Persistent index backfill operations
+
+The backfill is project-scoped and resumable. Run `npm run db:backfill:organization-memory-index` after deploying the additive schema. It processes each project's KnowledgeNode rows in stable ID order, with a default batch size of 100 (override with `--batch-size=250`, maximum 500). Each batch writes documents/postings and advances its durable project cursor in one serializable transaction. Re-running the command resumes from the last committed cursor; completed projects at the current normalizer version are skipped. A normalizer-version change restarts that project's scan from the beginning. The readiness helper blocks indexed-read rollout while any requested project is missing, stale or incomplete. This command does not activate indexed retrieval; the streaming BM25 path remains authoritative until shadow parity and benchmark gates are met.
