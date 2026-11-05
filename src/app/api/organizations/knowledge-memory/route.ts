@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
         query.where, page, view === "review_queue" ? "asc" : "desc",
       );
     }
-    const scan = rankedSearch ? await scanOrganizationMemoryCandidates({ where: query.where, findMany: (args) => db.knowledgeNode.findMany(args), include: { project: { select: { name: true } } } }) : null;
+    const scan = rankedSearch ? await scanOrganizationMemoryCandidates({ where: query.where, findMany: (args) => db.knowledgeNode.findMany(args as Parameters<typeof db.knowledgeNode.findMany>[0]), include: { project: { select: { name: true } } } }) : null;
     const nodes = rankedSearch ? scan!.rows : await db.knowledgeNode.findMany({
       where: pageWhere,
       ...(page ? { take: page.take } : { take: query.take }),
