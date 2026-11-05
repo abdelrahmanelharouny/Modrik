@@ -46,7 +46,7 @@ export async function backfillOrganizationMemorySearchIndexBatch(tx, input = {})
     completedAt: done ? new Date() : null,
   };
   const changed = await tx.organizationMemorySearchIndexState.updateMany({
-    where: { projectId: input.projectId, cursorNodeId: state.cursorNodeId, normalizerVersion: state.normalizerVersion, status: { not: "completed" } },
+    where: { projectId: input.projectId, cursorNodeId: state.cursorNodeId, normalizerVersion: state.normalizerVersion, status: resetVersion ? "completed" : { not: "completed" } },
     data: nextData,
   });
   if (changed.count !== 1) throw new Error("Index backfill cursor changed concurrently; retry the transaction.");
