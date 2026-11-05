@@ -262,8 +262,9 @@ export async function rankOrganizationMemoryCandidatesStream(input = {}) {
     throw new TypeError("Streaming ranking requires an accepted-only, authorized project filter.");
   }
   if (typeof input.findMany !== "function") throw new TypeError("A database findMany adapter is required.");
+  const startedAt = Date.now();
   const queryTerms = [...new Set(tokenizeOrganizationMemoryText(input.query))];
-  if (!queryTerms.length) return { rows: [], candidatesScanned: 0, pages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, passes: 2 };
+  if (!queryTerms.length) return { rows: [], candidatesScanned: 0, rankingCandidatesScanned: 0, pages: 0, firstPassPages: 0, secondPassPages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, passes: 2, snapshotAt: new Date().toISOString(), durationMs: Date.now() - startedAt };
   const rawBatch = Number(input.batchSize);
   const batchSize = Number.isSafeInteger(rawBatch) && rawBatch > 0 ? Math.min(rawBatch, MAX_SCAN_BATCH_SIZE) : DEFAULT_SCAN_BATCH_SIZE;
   const limit = boundedLimit(input.limit);
@@ -356,8 +357,11 @@ export async function rankOrganizationMemoryCandidatesStream(input = {}) {
     candidatesScanned: first.count,
     rankingCandidatesScanned: second.count,
     pages: first.pages + second.pages,
+    firstPassPages: first.pages,
+    secondPassPages: second.pages,
     batchSize,
     passes: 2,
     snapshotAt: snapshotAt.toISOString(),
+    durationMs: Math.max(0, Date.now() - startedAt),
   };
 }
