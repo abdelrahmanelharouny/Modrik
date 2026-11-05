@@ -17,3 +17,16 @@ export function rankOrganizationMemoryCandidates(input?: {
   semanticScores?: Array<{ id: string; score: number }>;
   limit?: number;
 }): Array<OrganizationMemoryCandidate & { retrieval: { mode: string; score: number } }>;
+
+export interface OrganizationMemoryScanResult<T extends OrganizationMemoryCandidate = OrganizationMemoryCandidate> {
+  rows: T[];
+  pages: number;
+  batchSize: number;
+  candidatesScanned: number;
+}
+export function scanOrganizationMemoryCandidates<T extends OrganizationMemoryCandidate = OrganizationMemoryCandidate>(input: {
+  where: Record<string, unknown>;
+  findMany: (args: Record<string, unknown>) => Promise<T[]>;
+  include?: Record<string, unknown>;
+  batchSize?: number;
+}): Promise<OrganizationMemoryScanResult<T>>;
