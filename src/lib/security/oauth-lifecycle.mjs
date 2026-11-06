@@ -21,6 +21,15 @@ export function createOAuthTransaction({provider,projectId,userId,organizationId
   const signature=createHmac("sha256",keyFor(env)).update(encoded).digest("base64url");
   return {state,verifier,cookieValue:encoded+"."+signature,challenge:createHash("sha256").update(verifier).digest("base64url")};
 }
+export function oauthStateRecord(transaction) {
+  const stateHash = createHash("sha256").update(transaction.state).digest("hex");
+  return JSON.stringify({
+    stateHash,
+    expiresAt: transaction.exp,
+    userId: transaction.userId,
+    organizationId: transaction.organizationId,
+  });
+}
 export function verifyOAuthTransaction(cookieValue,suppliedState,provider,env=process.env,now=Date.now()) {
   if(typeof cookieValue!=="string"||cookieValue.length>4096||typeof suppliedState!=="string"||!providers.has(provider)) return null;
   const parts=cookieValue.split(".");
