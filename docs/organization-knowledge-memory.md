@@ -107,3 +107,18 @@ Ranked accepted-memory responses expose `indexedReadiness` without leaking proje
 ## Provider integration coverage
 
 The CI quality job now runs a real SQLite integration lifecycle after pushing the SQLite schema: write-through, bounded repair, clean reconciliation, readiness, out-of-band source drift, fail-closed readiness, canonical-source repair, and a second clean audit. PostgreSQL continues to exercise its own independent persisted reconciliation and tenant-isolation path. These tests validate both providers without treating in-memory benchmark timings as database performance measurements.
+
+
+## PostgreSQL-backed retrieval benchmark
+
+The PostgreSQL benchmark is a separate measurement path from the synthetic in-memory harness. Run it only against a disposable PostgreSQL database after applying the PostgreSQL Prisma schema:
+
+```bash
+npm run bench:organization-memory:postgres -- --sizes=1000,10000,50000 --repeats=5
+```
+
+The runner refuses non-PostgreSQL `DATABASE_URL` values, creates a uniquely named disposable project, seeds deterministic English/Arabic accepted and proposed knowledge nodes, builds the persistent index through the production write-through helper, and deletes the fixture project in a `finally` cleanup path. It compares the real Prisma/PostgreSQL adapters for indexed and streaming BM25 retrieval, including judged Precision@K, Recall@K, MRR, NDCG@K, top-K parity, exact rank match, score delta, p50/p95 latency, and candidate/posting scan counts. It also asserts that every returned row remains inside the benchmark project.
+
+The first measured query pass is reported separately and is **not** labelled a guaranteed cold-cache run; PostgreSQL and operating-system caches are not forcibly flushed. CI runs a bounded 1,000-node smoke benchmark and uploads the JSON report as an artifact. Larger corpus sizes are intended for an explicitly provisioned benchmark database, not production. All fixture data is synthetic; the runner does not change feature flags, perform a production backfill, or enable indexed reads.
+
+Keep PostgreSQL timings separate from `bench:organization-memory`, which uses synthetic in-memory adapters and is useful for algorithmic regression but is not a database performance measurement.

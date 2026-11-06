@@ -133,4 +133,11 @@ jobs:
         run: bunx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
       - name: PostgreSQL organization memory isolation and governance integration
         run: node --test tests/organization-memory-postgres.integration.mjs
+      - name: Benchmark PostgreSQL organization memory retrieval
+        run: node scripts/benchmark-organization-memory-postgres.mjs --sizes=1000 --repeats=2 --output=/tmp/organization-memory-postgres-benchmark.json
+      - name: Upload PostgreSQL retrieval benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: organization-memory-postgres-benchmark
+          path: /tmp/organization-memory-postgres-benchmark.json
 
