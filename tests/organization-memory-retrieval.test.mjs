@@ -283,3 +283,47 @@ test("indexed retrieval fails closed on invalid posting scope and malformed aggr
   await assert.rejects(()=>rankOrganizationMemoryCandidatesIndexed({...base,findPostings:async()=>[{documentId:"d",term:"policy",frequency:1,document:{nodeId:"n",projectId:"p2",status:"accepted",normalizerVersion:1,tokenCount:2}}]}),TypeError);
   await assert.rejects(()=>rankOrganizationMemoryCandidatesIndexed({...base,aggregateDocuments:async()=>({_count:{_all:-1},_sum:{tokenCount:2}}),findPostings:async()=>[]}),TypeError);
 });
+
+
+test("indexed retrieval finds a rare archived match beyond 1,000 recent records", async () => {
+  const { rankOrganizationMemoryCandidatesIndexed, rankOrganizationMemoryCandidatesStream } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const snapshotAt = new Date("2026-11-02T00:00:00Z");
+  const rows = Array.from({length: 1207}, (_, index) => {
+    const oldMatch = index === 1206;
+    return {
+      id: `n${String(index).padStart(4,"0")}`, projectId:"p1", status:"accepted",
+      kind:"decision", label:oldMatch?"Rare archived":"Common project note",
+      description:oldMatch?"old needle":"general notes",
+      updatedAt:new Date(snapshotAt.getTime()-index*1000), project:{name:"P1"},
+    };
+  });
+  const docs = rows.map((node,index)=>({
+    id:`d${String(index).padStart(4,"0")}`,nodeId:node.id,projectId:"p1",status:"accepted",
+    normalizerVersion:1,tokenCount:(node.label+" "+node.description+" "+node.kind).trim().split(/\\s+/).length,
+    updatedAt:node.updatedAt,
+  }));
+  const postings = [{documentId:"d1206",term:"needle",frequency:1,document:docs[1206]}];
+  const indexed = await rankOrganizationMemoryCandidatesIndexed({
+    projectIds:["p1"],query:"needle",limit:5,batchSize:25,snapshotAt,
+    aggregateDocuments:async()=>({_count:{_all:docs.length},_sum:{tokenCount:docs.reduce((sum,d)=>sum+d.tokenCount,0)}}),
+    findPostings:async({where,take})=>postings.filter(p=>where.term.in.includes(p.term)&&where.document.is.projectId.in.includes(p.document.projectId)&&p.document.status===where.document.is.status).slice(0,take),
+    findCandidates:async({where})=>rows.filter(row=>where.id.in.includes(row.id)&&where.projectId.in.includes(row.projectId)&&row.status===where.status),
+  });
+  const stream = await rankOrganizationMemoryCandidatesStream({
+    projectIds:["p1"],where:{projectId:{in:["p1"]},status:"accepted"},query:"needle",limit:5,batchSize:173,snapshotAt,withProject:true,
+    findMany:async({where,take})=>{
+      const boundary=where.AND?.find(clause=>clause.OR)?.OR;
+      return rows.filter(row=>{
+        if(row.projectId!=="p1"||row.status!=="accepted")return false;
+        if(!boundary)return true;
+        const [older,same]=boundary;
+        return row.updatedAt<older.updatedAt.lt||(row.updatedAt.getTime()===same.updatedAt.getTime()&&row.id>same.id.gt);
+      }).sort((a,b)=>b.updatedAt-a.updatedAt||a.id.localeCompare(b.id)).slice(0,take);
+    },
+  });
+  assert.equal(indexed.rows[0].id,"n1206");
+  assert.equal(stream.rows[0].id,"n1206");
+  assert.equal(indexed.candidatesScanned,1);
+  assert.equal(stream.candidatesScanned,1207);
+  assert.ok(Math.abs(indexed.rows[0].retrieval.score-stream.rows[0].retrieval.score)<1e-8);
+});

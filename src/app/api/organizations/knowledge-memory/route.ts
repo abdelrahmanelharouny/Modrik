@@ -17,7 +17,7 @@ import {
 } from "@/lib/knowledge-graph/organization-memory.mjs";
 import { rankOrganizationMemoryCandidatesStream, rankOrganizationMemoryCandidatesIndexed } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
 import { getOrganizationMemorySearchIndexReadiness } from "@/lib/knowledge-graph/organization-memory-search-backfill.mjs";
-import { replaceOrganizationMemorySearchDocument } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
+import { replaceOrganizationMemorySearchDocument, ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
             projectIds,
             query: search,
             limit: responseLimit,
-            normalizerVersion: 1,
+            normalizerVersion: ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,
             aggregateDocuments: (args) => tx.organizationMemorySearchDocument.aggregate(args as Parameters<typeof tx.organizationMemorySearchDocument.aggregate>[0]),
             findPostings: (args) => tx.organizationMemorySearchPosting.findMany(args as Parameters<typeof tx.organizationMemorySearchPosting.findMany>[0]),
             findCandidates: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
