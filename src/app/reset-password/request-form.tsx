@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useLang } from "@/lib/i18n";
 
 export function PasswordResetRequestForm() {
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

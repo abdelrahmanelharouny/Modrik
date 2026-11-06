@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useLang } from "@/lib/i18n";
 
 export function PasswordResetCompleteForm({ token }: { token: string }) {
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -14,7 +16,7 @@ export function PasswordResetCompleteForm({ token }: { token: string }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError("");
-    if (password !== confirm) { setError("{ar ? "كلمتا المرور غير متطابقتين" : "Passwords do not match"}"); return; }
+    if (password !== confirm) { setError(ar ? "كلمتا المرور غير متطابقتين" : "Passwords do not match"); return; }
     setBusy(true);
     try {
       const response = await fetch("/api/auth/password-reset/complete", {

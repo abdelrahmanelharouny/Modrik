@@ -22,7 +22,7 @@ export function InvitationAcceptForm({ token }: { token: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) {
-      setError("{ar ? "رابط الدعوة غير مكتمل. اطلب رابط دعوة جديدًا من مسؤول المؤسسة." : "This invitation link is missing its token. Ask the organization administrator for a new invitation."}");
+      setError(ar ? "رابط الدعوة غير مكتمل. اطلب رابط دعوة جديدًا من مسؤول المؤسسة." : "This invitation link is missing its token. Ask the organization administrator for a new invitation.");
       return;
     }
     setError("");

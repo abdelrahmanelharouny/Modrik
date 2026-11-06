@@ -4,11 +4,8 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useLang } from "@/lib/i18n";
 
 export function LoginForm() {
-  const { lang } = useLang();
-  const ar = lang === "ar";
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,7 +37,7 @@ export function LoginForm() {
   return (
     <form onSubmit={submit} className="grid gap-4">
       <label className="grid gap-2 text-sm">
-        <span>{ar ? "البريد الإلكتروني" : "Email"}</span>
+        <span>Email</span>
         <input
           type="email"
           autoComplete="username"
@@ -52,7 +49,7 @@ export function LoginForm() {
         />
       </label>
       <label className="grid gap-2 text-sm">
-        <span>{ar ? "كلمة المرور" : "Password"}</span>
+        <span>Password</span>
         <input
           type="password"
           autoComplete="current-password"
@@ -65,14 +62,14 @@ export function LoginForm() {
       </label>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       <div className="flex justify-end -mt-1">
-        <Link href="/reset-password" className="text-xs text-primary underline-offset-4 hover:underline">{ar ? "نسيت كلمة المرور؟" : "Forgot password?"}</Link>
+        <Link href="/reset-password" className="text-xs text-primary underline-offset-4 hover:underline">Forgot password?</Link>
       </div>
       <button
         type="submit"
         disabled={busy}
         className="mt-2 h-11 rounded-lg bg-primary px-4 font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {busy ? (ar ? "جارٍ تسجيل الدخول…" : "Signing in…") : (ar ? "تسجيل الدخول" : "Sign in")}
+        {busy ? "Signing in…" : "Sign in"}
       </button>
     </form>
   );
