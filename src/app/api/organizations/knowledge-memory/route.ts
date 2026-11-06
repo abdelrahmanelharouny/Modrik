@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
           : view === "archived"
             ? buildOrganizationMemoryArchiveQuery
             : buildOrganizationKnowledgeQuery)({ projectIds, kind, search, limit });
-    const capabilities = view === "review_queue" ? { canReview, canApprove } : undefined;
+    const capabilities = { canReview, canApprove };
     if (query.take === 0) {
       return NextResponse.json({
         items: [], total: 0, scope: "organization", view,
