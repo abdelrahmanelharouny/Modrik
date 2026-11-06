@@ -149,3 +149,18 @@ test("organization memory keyset boundary preserves filters and handles equal ti
   assert.deepEqual(ascending.AND[0].OR[0], { updatedAt: { gt: timestamp } });
   assert.throws(() => buildOrganizationMemoryCursorWhere(where, page, "invalid"), TypeError);
 });
+
+
+test("archive query is bounded, project-scoped and restricted to archived state", async () => {
+  const { buildOrganizationMemoryArchiveQuery, summarizeOrganizationArchivedKnowledgeNode } = await import("../src/lib/knowledge-graph/organization-memory.mjs");
+  const query = buildOrganizationMemoryArchiveQuery({ projectIds: ["p1", "p2", "p1"], kind: "policy", search: "retention", limit: 500 });
+  assert.deepEqual(query.where.projectId, { in: ["p1", "p2"] });
+  assert.equal(query.where.status, "archived");
+  assert.equal(query.where.kind, "policy");
+  assert.equal(query.take, 100);
+  assert.equal(query.where.OR[0].label.contains, "retention");
+  assert.equal(buildOrganizationMemoryArchiveQuery({ projectIds: [] }).take, 0);
+  const summary = summarizeOrganizationArchivedKnowledgeNode({ id: "n1", projectId: "p1", nodeRef: "KN-1", kind: "policy", label: "Retention", description: "x".repeat(1300), status: "archived" });
+  assert.equal(summary.description.length, 1200);
+  assert.equal(summarizeOrganizationArchivedKnowledgeNode({ id: "n2", status: "accepted" }), null);
+});
