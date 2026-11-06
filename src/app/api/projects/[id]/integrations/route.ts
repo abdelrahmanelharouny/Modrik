@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { oauthProviderConfig } from "@/lib/security/oauth-lifecycle.mjs";
+import { oauthActivationReady } from "@/lib/security/oauth-lifecycle.mjs";
 import {
   maskedStatus,
   saveConfig,
@@ -23,8 +23,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     status,
     maps,
     oauthAvailable: {
-      github: Boolean(oauthProviderConfig("github")),
-      jira: Boolean(oauthProviderConfig("jira")),
+      github: oauthActivationReady("github"),
+      jira: oauthActivationReady("jira"),
     },
   });
 }
