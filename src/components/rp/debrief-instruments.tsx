@@ -563,6 +563,14 @@ interface ReverseTraceDTO {
   };
 }
 
+interface ReverseModeDTO {
+  ok: boolean;
+  mode: "requirement_to_trackers";
+  requirement: { id: string; refId: string; text: string; status: string; priority: string };
+  trackerMappings: (SyncMapDTO & { decisions: ReverseTraceDTO["trace"]["decisions"] })[];
+  trace: ReverseTraceDTO["trace"];
+}
+
 export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const { lang } = useLang();
   const ar = lang === "ar";
@@ -575,6 +583,9 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const [pulled, setPulled] = useState<Record<string, PulledIssue[]>>({});
   const [reverseTrace, setReverseTrace] = useState<ReverseTraceDTO | null>(null);
   const [traceBusyId, setTraceBusyId] = useState("");
+  const [reverseRequirement, setReverseRequirement] = useState("");
+  const [reverseMode, setReverseMode] = useState<ReverseModeDTO | null>(null);
+  const [reverseModeBusy, setReverseModeBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -589,6 +600,21 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const inspectRequirement = async () => {
+    const reference = reverseRequirement.trim();
+    if (!reference) return;
+    setReverseModeBusy(true);
+    setReverseMode(null);
+    try {
+      const result = await api<ReverseModeDTO>(`/api/projects/${projectId}/traceability/reverse?requirementId=${encodeURIComponent(reference)}`);
+      setReverseMode(result);
+    } catch (e) {
+      toast({ title: ar ? "وضع التتبع العكسي غير متاح" : "Reverse Mode unavailable", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setReverseModeBusy(false);
+    }
+  };
 
   const inspectReverseTrace = async (mapping: SyncMapDTO) => {
     setTraceBusyId(mapping.id);
@@ -688,6 +714,46 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
           );
         })}
       </div>
+
+      <HudPanel className="space-y-3 p-4" as="section">
+        <div>
+          <Eyebrow className="mb-1 block">◉ {ar ? "الوضع العكسي — المتطلب إلى التغييرات الفعلية" : "REVERSE MODE — REQUIREMENT TO REAL-WORLD CHANGES"}</Eyebrow>
+          <p className="text-xs leading-relaxed text-muted-foreground">{ar ? "ابدأ بمرجع متطلب لتجميع روابط GitHub وJira، والأدلة والقصص والتبعيات المتأثرة، وسجل قرارات الربط. لا يُنشئ هذا الفحص أي روابط تلقائيًا." : "Start from a requirement reference to inspect linked GitHub/Jira records, evidence, stories, impacted dependencies and mapping decisions. Inspection never creates links automatically."}</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input value={reverseRequirement} onChange={(event) => setReverseRequirement(event.target.value)} maxLength={128} placeholder={ar ? "مرجع المتطلب مثل REQ-12" : "Requirement reference, e.g. REQ-12"} onKeyDown={(event) => { if (event.key === "Enter") void inspectRequirement(); }} />
+          <Button size="sm" disabled={reverseModeBusy || !reverseRequirement.trim()} onClick={() => void inspectRequirement()} className="shrink-0 bg-aura text-primary-foreground hover:bg-aura/85">
+            {reverseModeBusy ? <Loader2 className="me-2 h-3.5 w-3.5 animate-spin" /> : <GitBranch className="me-2 h-3.5 w-3.5" />}
+            {ar ? "فحص الأثر" : "Inspect impact"}
+          </Button>
+        </div>
+        {reverseMode && (
+          <div className="space-y-3 border-t border-border/70 pt-3">
+            <div className="rounded-md border border-aura/30 bg-aura/5 p-3">
+              <p className="font-mono text-[10px] text-aura">{reverseMode.requirement.refId} · {reverseMode.requirement.status} · {reverseMode.requirement.priority}</p>
+              <p className="mt-1 text-sm font-semibold" dir="auto">{reverseMode.requirement.text}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {[
+                [ar ? "روابط التتبع" : "Tracker links", reverseMode.trackerMappings.length],
+                [ar ? "الأدلة" : "Evidence", reverseMode.trace.direct.length],
+                [ar ? "الادعاءات" : "Claims", reverseMode.trace.linkedClaims.length],
+                [ar ? "القصص" : "Stories", reverseMode.trace.stories.length],
+                [ar ? "المتأثرة" : "Impacted", reverseMode.trace.impacted.length],
+              ].map(([label, value]) => <div key={String(label)} className="rounded border border-border/70 p-2 text-center"><p className="font-mono text-lg font-semibold tabular-nums">{value}</p><p className="text-[10px] text-muted-foreground">{label}</p></div>)}
+            </div>
+            <div>
+              <p className="mb-2 font-mono text-[10px] text-muted-foreground">{ar ? "التغييرات المرتبطة وسجل مراجعتها" : "LINKED CHANGES & REVIEW DECISIONS"}</p>
+              {reverseMode.trackerMappings.length === 0 ? <p className="text-xs text-muted-foreground">{ar ? "لا توجد روابط GitHub أو Jira مؤكدة لهذا المتطلب." : "No verified GitHub or Jira mappings exist for this requirement."}</p> : <ul className="space-y-2">{reverseMode.trackerMappings.map((mapping) => <li key={mapping.id} className="rounded border border-border/70 p-3">
+                <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{mapping.kind}</Badge><a href={mapping.externalUrl} target="_blank" rel="noreferrer" className="font-mono text-xs text-aura hover:underline">{mapping.externalKey}</a><span className="min-w-0 flex-1 text-xs" dir="auto">{mapping.title}</span><Button size="sm" variant="outline" disabled={traceBusyId !== ""} onClick={() => void inspectReverseTrace(mapping)} className="h-7 px-2 text-[10px]">{ar ? "تفاصيل التتبع" : "Trace details"}</Button></div>
+                <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-muted-foreground"><span>{mapping.direction}</span><span>·</span><span>{mapping.syncedAt ? new Date(mapping.syncedAt).toLocaleString() : (ar ? "وقت المزامنة غير متاح" : "sync time unavailable")}</span><span>·</span><span>{mapping.decisions.length} {ar ? "قرار ربط" : "mapping decisions"}</span></div>
+                {mapping.decisions.length > 0 ? <ul className="mt-2 space-y-1 border-s border-border ps-3">{mapping.decisions.map((decision) => <li key={decision.id} className="text-[10px] text-muted-foreground">{decision.action.replaceAll("_", " ")} · {decision.mappingMethod.replaceAll("_", " ")} · {decision.createdAt ? new Date(decision.createdAt).toLocaleString() : "time unavailable"}</li>)}</ul> : null}
+              </li>)}</ul>}
+            </div>
+            <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "هذه قراءة عكسية مجمعة من المتطلب إلى أنظمة التتبع والأدلة. أي ربط أو تعديل يظل قرارًا بشريًا منفصلًا ومسجلًا." : "This is a consolidated read from the requirement to tracker records and evidence. Any mapping or change remains a separate, human-reviewed and journaled decision."}</p>
+          </div>
+        )}
+      </HudPanel>
 
       {/* sync map */}
       <HudPanel className="p-4" as="div">
