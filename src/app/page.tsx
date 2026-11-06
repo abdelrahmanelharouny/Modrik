@@ -47,12 +47,6 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    void loadProjects();
-    const projectFromOAuth = new URLSearchParams(window.location.search).get("project");
-    if (projectFromOAuth) void openProject(projectFromOAuth);
-  }, [loadProjects, openProject]);
-
   const openProject = useCallback(
     async (id: string) => {
       setSelectedId(id);
@@ -62,6 +56,12 @@ export default function Home() {
     },
     [loadProject]
   );
+
+  useEffect(() => {
+    void loadProjects();
+    const projectFromOAuth = new URLSearchParams(window.location.search).get("project");
+    if (projectFromOAuth) void openProject(projectFromOAuth);
+  }, [loadProjects, openProject]);
 
   const backHome = useCallback(async () => {
     projectRequest.current += 1;
