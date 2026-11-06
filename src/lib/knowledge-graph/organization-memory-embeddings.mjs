@@ -138,13 +138,21 @@ export function rankTenantScopedOrganizationMemoryEmbeddings(input = {}) {
         record.status !== "ready" || record.model !== model || record.dimensions !== query.dimensions ||
         !candidates.has(record.nodeId)) continue;
     let vector;
+    const node = candidates.get(record.nodeId);
     try {
-      vector = validateOrganizationMemoryVector(record, { model, dimensions: query.dimensions }).vector;
+      const storedVector = typeof record.vector === "string" ? JSON.parse(record.vector) : record.vector;
+      vector = validateOrganizationMemoryVector({ ...record, vector: storedVector }, { model, dimensions: query.dimensions }).vector;
     } catch {
       continue;
     }
-    const node = candidates.get(record.nodeId);
-    if (record.projectId !== node.projectId || record.contentHash !== node.contentHash) continue;
+    if (record.projectId !== node.projectId) continue;
+    let currentContentHash;
+    try {
+      currentContentHash = buildOrganizationMemoryEmbeddingContent(node).contentHash;
+    } catch {
+      continue;
+    }
+    if (record.contentHash !== currentContentHash) continue;
     const score = cosineSimilarity(query.vector, vector);
     if (score !== null && score > 0) scored.push({ ...node, retrieval: { mode: "semantic", score: Number(score.toFixed(8)) } });
   }
