@@ -239,6 +239,6 @@ test("active root proxy stays aligned with the source proxy security policy", as
     readFile(new URL("../src/proxy.ts", import.meta.url), "utf8"),
   ]);
   assert.equal(activeProxy, sourceProxy, "root proxy and src proxy must remain identical");
-  assert.match(activeProxy, /route === "audit\\/export"/);
-  assert.match(activeProxy, /route === "traceability\\/reverse"/);
+  assert.ok(activeProxy.includes('route === "audit/export"'));
+  assert.ok(activeProxy.includes('route === "traceability/reverse"'));
 });
