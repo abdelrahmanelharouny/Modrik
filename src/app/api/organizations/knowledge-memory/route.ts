@@ -18,6 +18,8 @@ import {
   createOrganizationMemoryCursor,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
 import { rankOrganizationMemoryCandidatesStream, rankOrganizationMemoryCandidatesIndexed, compareOrganizationMemoryRetrievalParity } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
+import { searchTenantScopedOrganizationMemoryEmbeddings, fuseOrganizationMemoryRankings } from "@/lib/knowledge-graph/organization-memory-semantic-search.mjs";
+import { createOrganizationMemoryEmbeddingProvider } from "@/lib/knowledge-graph/organization-memory-embedding-provider.mjs";
 import { getOrganizationMemorySearchIndexReadiness } from "@/lib/knowledge-graph/organization-memory-search-backfill.mjs";
 import { replaceOrganizationMemorySearchDocument, ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
 
@@ -140,10 +142,32 @@ export async function GET(req: NextRequest) {
         limit: responseLimit,
         withProject: true,
         findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
-      });
+      });      const runHybrid = async (lexical: Awaited<ReturnType<typeof rankOrganizationMemoryCandidatesStream>>) => {
+        if (process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true" || !projectIds.length) return lexical;
+        try {
+          const provider = await createOrganizationMemoryEmbeddingProvider();
+          const queryEmbedding = await provider.embed(search!);
+          const semantic = await searchTenantScopedOrganizationMemoryEmbeddings({
+            organizationId: identity.organizationId, projectIds, model: provider.model, dimensions: provider.dimensions,
+            queryEmbedding, limit: responseLimit,
+            findEmbeddings: (args) => tx.organizationMemoryEmbedding.findMany(args as Parameters<typeof tx.organizationMemoryEmbedding.findMany>[0]),
+            findNodes: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
+          });
+          return {
+            ...lexical,
+            rows: fuseOrganizationMemoryRankings({ rankings: [lexical.rows, semantic.rows], projectIds, limit: responseLimit }),
+            retrievalMode: "hybrid_bm25_semantic_rrf",
+            semanticCandidatesScanned: semantic.candidatesScanned,
+            semanticCandidatePages: semantic.pages,
+            semanticDurationMs: semantic.durationMs,
+          };
+        } catch {
+          return { ...lexical, semanticFallbackReason: "semantic_unavailable_bm25_served" };
+        }
+      };
       if (!indexedEnabled && !shadowEnabled) {
         return {
-          ...(await runStreaming()),
+          ...(await runHybrid(await runStreaming())),
           indexReadiness: { checked: false, ready: false, projectCount: projectIds.length, readyProjectCount: 0 },
           indexedFallbackReason: "indexed_read_disabled",
         };
@@ -167,7 +191,7 @@ export async function GET(req: NextRequest) {
           readiness.reconciliationFailedProjectIds.length ? "reconciliation_failed" :
           "reconciliation_incomplete";
         return {
-          ...(await runStreaming()),
+          ...(await runHybrid(await runStreaming())),
           indexReadiness: readinessSummary,
           indexedFallbackReason: fallbackReason,
         };
@@ -182,11 +206,12 @@ export async function GET(req: NextRequest) {
         findPostings: (args) => tx.organizationMemorySearchPosting.findMany(args as Parameters<typeof tx.organizationMemorySearchPosting.findMany>[0]),
         findCandidates: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
       });
+      const indexedWithSemantic = await runHybrid(indexed);
       if (shadowEnabled) {
-        const streaming = await runStreaming();
+        const streaming = await runHybrid(await runStreaming());
         const parity = compareOrganizationMemoryRetrievalParity(streaming.rows, indexed.rows);
         return {
-          ...(indexedEnabled ? indexed : streaming),
+          ...(indexedEnabled ? indexedWithSemantic : streaming),
           shadowComparison: parity,
           indexedShadowPostingsScanned: indexed.postingsScanned,
           indexedShadowDurationMs: indexed.durationMs,
@@ -195,7 +220,7 @@ export async function GET(req: NextRequest) {
         };
       }
       return {
-        ...indexed,
+        ...indexedWithSemantic,
         indexReadiness: readinessSummary,
         indexedFallbackReason: null,
       };
@@ -251,6 +276,10 @@ export async function GET(req: NextRequest) {
         retrievalSnapshotAt: scan!.snapshotAt,
         indexedReadiness: scan!.indexReadiness,
         indexedFallbackReason: scan!.indexedFallbackReason,
+        semanticFallbackReason: "semanticFallbackReason" in scan! ? scan!.semanticFallbackReason : null,
+        semanticCandidatesScanned: "semanticCandidatesScanned" in scan! ? scan!.semanticCandidatesScanned : null,
+        semanticCandidatePages: "semanticCandidatePages" in scan! ? scan!.semanticCandidatePages : null,
+        semanticDurationMs: "semanticDurationMs" in scan! ? scan!.semanticDurationMs : null,
         ...(shadowMetrics ? {
           indexedShadowComparison: shadowMetrics.shadowComparison,
           indexedShadowPostingsScanned: shadowMetrics.indexedShadowPostingsScanned,
