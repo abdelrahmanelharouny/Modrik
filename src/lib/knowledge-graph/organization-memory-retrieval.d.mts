@@ -40,6 +40,7 @@ export interface OrganizationMemoryStreamingScanResult<T extends OrganizationMem
   secondPassPages: number;
   batchSize: number;
   passes: 2;
+  retrievalMode: "streaming_bm25_keyset";
   snapshotAt: string;
   durationMs: number;
 }
