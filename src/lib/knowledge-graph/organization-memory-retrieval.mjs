@@ -399,72 +399,78 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
   if (!Number.isSafeInteger(documentCount) || documentCount < 0 || !Number.isFinite(totalLength) || totalLength < 0) {
     throw new TypeError("Indexed corpus aggregate returned invalid statistics.");
   }
-  if (!documentCount) return { rows: [], candidatesScanned: 0, postingsScanned: 0, pages: 0, batchSize, retrievalMode: "persistent_inverted_index", documentCount, averageLength: 0, snapshotAt: snapshotAt.toISOString(), durationMs: Date.now() - startedAt };
+  if (!documentCount) return { rows: [], candidatesScanned: 0, rankingCandidatesScanned: 0, postingsScanned: 0, pages: 0, firstPassPages: 0, secondPassPages: 0, passes: 2, batchSize, retrievalMode: "persistent_inverted_index", documentCount, averageLength: 0, snapshotAt: snapshotAt.toISOString(), durationMs: Date.now() - startedAt };
 
   const averageLength = totalLength / documentCount;
   const documentFrequency = new Map(queryTerms.map((term) => [term, 0]));
-  const documents = new Map();
-  let pages = 0, postingsScanned = 0, cursor = null;
-  while (true) {
-    const where = {
-      term: { in: queryTerms },
-      document: { is: {
-        projectId: { in: projectIds },
-        status: "accepted",
-        normalizerVersion: input.normalizerVersion ?? 1,
-        updatedAt: { lte: snapshotAt },
-      } },
-      ...(cursor ? { AND: [{ OR: [
-        { documentId: { gt: cursor.documentId } },
-        { documentId: cursor.documentId, term: { gt: cursor.term } },
-      ] }] } : {}),
-    };
-    const batch = await input.findPostings({
-      where,
-      take: batchSize,
-      orderBy: [{ documentId: "asc" }, { term: "asc" }],
-      select: {
-        documentId: true, term: true, frequency: true,
-        document: { select: { nodeId: true, projectId: true, status: true, tokenCount: true, normalizerVersion: true, updatedAt: true } },
-      },
-    });
-    if (!Array.isArray(batch)) throw new TypeError("Indexed postings adapter must return an array.");
-    pages += 1;
-    let previous = cursor;
-    for (const posting of batch) {
-      if (!posting || typeof posting.documentId !== "string" || typeof posting.term !== "string" ||
-          !documentFrequency.has(posting.term) || !Number.isSafeInteger(posting.frequency) || posting.frequency < 1 ||
-          !posting.document || typeof posting.document.nodeId !== "string" ||
-          !projectIds.includes(posting.document.projectId) ||
-          posting.document.status !== "accepted" || posting.document.normalizerVersion !== (input.normalizerVersion ?? 1) ||
-          !Number.isSafeInteger(posting.document.tokenCount) || posting.document.tokenCount < 0) {
-        throw new TypeError("Indexed postings returned an invalid or unauthorized row.");
-      }
-      if (previous && (posting.documentId < previous.documentId ||
-          (posting.documentId === previous.documentId && posting.term <= previous.term))) {
-        throw new Error("Indexed postings violated stable keyset ordering.");
-      }
-      previous = { documentId: posting.documentId, term: posting.term };
-      documentFrequency.set(posting.term, documentFrequency.get(posting.term) + 1);
-      const current = documents.get(posting.documentId) ?? {
-        nodeId: posting.document.nodeId,
-        projectId: posting.document.projectId,
-        tokenCount: posting.document.tokenCount,
-        frequencies: new Map(),
+  const scanPostings = async (onPosting) => {
+    let pages = 0, count = 0, cursor = null, previous = null;
+    while (true) {
+      const where = {
+        term: { in: queryTerms },
+        document: { is: {
+          projectId: { in: projectIds },
+          status: "accepted",
+          normalizerVersion: input.normalizerVersion ?? 1,
+          updatedAt: { lte: snapshotAt },
+        } },
+        ...(cursor ? { AND: [{ OR: [
+          { documentId: { gt: cursor.documentId } },
+          { documentId: cursor.documentId, term: { gt: cursor.term } },
+        ] }] } : {}),
       };
-      current.frequencies.set(posting.term, posting.frequency);
-      documents.set(posting.documentId, current);
-      postingsScanned += 1;
+      const batch = await input.findPostings({
+        where,
+        take: batchSize,
+        orderBy: [{ documentId: "asc" }, { term: "asc" }],
+        select: {
+          documentId: true, term: true, frequency: true,
+          document: { select: { nodeId: true, projectId: true, status: true, tokenCount: true, normalizerVersion: true } },
+        },
+      });
+      if (!Array.isArray(batch)) throw new TypeError("Indexed postings adapter must return an array.");
+      pages += 1;
+      for (const posting of batch) {
+        if (!posting || typeof posting.documentId !== "string" || typeof posting.term !== "string" ||
+            !documentFrequency.has(posting.term) || !Number.isSafeInteger(posting.frequency) || posting.frequency < 1 ||
+            !posting.document || typeof posting.document.nodeId !== "string" ||
+            !projectIds.includes(posting.document.projectId) || posting.document.status !== "accepted" ||
+            posting.document.normalizerVersion !== (input.normalizerVersion ?? 1) ||
+            !Number.isSafeInteger(posting.document.tokenCount) || posting.document.tokenCount < 0) {
+          throw new TypeError("Indexed postings returned an invalid or unauthorized row.");
+        }
+        if (previous && (posting.documentId < previous.documentId ||
+            (posting.documentId === previous.documentId && posting.term <= previous.term))) {
+          throw new Error("Indexed postings violated stable keyset ordering.");
+        }
+        previous = { documentId: posting.documentId, term: posting.term };
+        count += 1;
+        await onPosting(posting);
+      }
+      if (batch.length < batchSize) break;
+      cursor = { documentId: batch[batch.length - 1].documentId, term: batch[batch.length - 1].term };
+      if (pages > 1_000_000) throw new Error("Indexed postings scan exceeded its safety page limit.");
     }
-    if (batch.length < batchSize) break;
-    const last = batch[batch.length - 1];
-    cursor = { documentId: last.documentId, term: last.term };
-    if (pages > 1_000_000) throw new Error("Indexed postings scan exceeded its safety page limit.");
-  }
+    return { pages, count };
+  };
 
+  // Pass one computes exact document frequency while retaining no corpus-sized map.
+  let candidatesScanned = 0, previousDocumentId = null;
+  const first = await scanPostings((posting) => {
+    if (posting.documentId !== previousDocumentId) {
+      candidatesScanned += 1;
+      previousDocumentId = posting.documentId;
+    }
+    documentFrequency.set(posting.term, documentFrequency.get(posting.term) + 1);
+  });
+
+  // Pass two streams document groups in stable order and retains only top-K.
   const k1 = 1.2, b = 0.75;
-  const scored = [];
-  for (const [documentId, document] of documents) {
+  const top = [];
+  let current = null, rankingCandidatesScanned = 0;
+  const retainCandidate = (document) => {
+    if (!document) return;
+    rankingCandidatesScanned += 1;
     let score = 0;
     for (const term of queryTerms) {
       const frequency = document.frequencies.get(term) ?? 0;
@@ -474,10 +480,35 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
       const denominator = frequency + k1 * (1 - b + b * (averageLength ? document.tokenCount / averageLength : 0));
       score += idf * (frequency * (k1 + 1)) / denominator;
     }
-    if (score > 0 && Number.isFinite(score)) scored.push({ documentId, nodeId: document.nodeId, projectId: document.projectId, score });
-  }
-  scored.sort((left, right) => right.score - left.score || left.nodeId.localeCompare(right.nodeId));
-  const top = scored.slice(0, limit);
+    if (!(score > 0) || !Number.isFinite(score)) return;
+    const candidate = { documentId: document.documentId, nodeId: document.nodeId, projectId: document.projectId, score };
+    let low = 0, high = top.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      const item = top[mid];
+      if (item.score > candidate.score || (item.score === candidate.score && item.nodeId.localeCompare(candidate.nodeId) < 0)) low = mid + 1;
+      else high = mid;
+    }
+    top.splice(low, 0, candidate);
+    if (top.length > limit) top.pop();
+  };
+  const second = await scanPostings((posting) => {
+    if (current && current.documentId !== posting.documentId) {
+      retainCandidate(current);
+      current = null;
+    }
+    if (!current) current = {
+      documentId: posting.documentId,
+      nodeId: posting.document.nodeId,
+      projectId: posting.document.projectId,
+      tokenCount: posting.document.tokenCount,
+      frequencies: new Map(),
+    };
+    current.frequencies.set(posting.term, posting.frequency);
+  });
+  retainCandidate(current);
+  const postingsScanned = first.count + second.count;
+  const pages = first.pages + second.pages;
   const nodes = top.length ? await input.findCandidates({
     where: { id: { in: top.map((item) => item.nodeId) }, projectId: { in: projectIds }, status: "accepted" },
     include: { project: { select: { name: true } } },
@@ -493,7 +524,8 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
     return node ? [{ ...node, retrieval: { mode: "indexed_bm25", score: Number(item.score.toFixed(8)) } }] : [];
   });
   return {
-    rows, candidatesScanned: documents.size, postingsScanned, pages, batchSize,
+    rows, candidatesScanned, rankingCandidatesScanned, postingsScanned, pages,
+    firstPassPages: first.pages, secondPassPages: second.pages, passes: 2, batchSize,
     retrievalMode: "persistent_inverted_index", documentCount, averageLength,
     snapshotAt: snapshotAt.toISOString(), durationMs: Math.max(0, Date.now() - startedAt),
   };
