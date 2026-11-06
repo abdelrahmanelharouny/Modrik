@@ -659,7 +659,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                     : `${st?.baseUrl} · project ${st?.projectKey} · email ${st?.email} · token ${st?.token} · webhook ${st?.webhookConfigured ? "configured" : "not configured"}`
                   : kind === "github"
                     ? "Provide a personal access token (repo scope), owner and repository. Stored server-side; responses always mask secrets."
-                    : "{ar ? "أدخل الرابط الأساسي للموقع والبريد الإلكتروني ورمز API ومفتاح المشروع. تُحفظ البيانات على الخادم وتُخفى الأسرار في جميع الاستجابات." : "Provide the site baseUrl, account email, API token and project key. Stored server-side; responses always mask secrets."}"}
+                    : (ar ? "أدخل الرابط الأساسي للموقع والبريد الإلكتروني ورمز API ومفتاح المشروع. تُحفظ البيانات على الخادم وتُخفى الأسرار في جميع الاستجابات." : "Provide the site baseUrl, account email, API token and project key. Stored server-side; responses always mask secrets.")}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => { setCfgKind(kind); setCfg({}); }} className="border-border">
