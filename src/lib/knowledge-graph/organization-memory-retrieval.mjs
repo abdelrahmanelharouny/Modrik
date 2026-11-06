@@ -256,7 +256,7 @@ function scoreMemoryDocument(queryTerms, tokens, documentFrequency, documentCoun
 export async function rankOrganizationMemoryCandidatesStream(input = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Streaming ranking input must be an object.");
   const projectIds = new Set(Array.isArray(input.projectIds) ? input.projectIds.filter((id) => typeof id === "string" && id.trim()) : []);
-  if (!projectIds.size) return { rows: [], candidatesScanned: 0, pages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, passes: 2, retrievalMode: "streaming_bm25_keyset" };
+  if (!projectIds.size) return { rows: [], candidatesScanned: 0, rankingCandidatesScanned: 0, pages: 0, firstPassPages: 0, secondPassPages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, passes: 2, retrievalMode: "streaming_bm25_keyset", snapshotAt: new Date().toISOString(), durationMs: 0 };
   if (!input.where || input.where.status !== "accepted" || !Array.isArray(input.where.projectId?.in) ||
       input.where.projectId.in.length === 0 || input.where.projectId.in.some((id) => !projectIds.has(id))) {
     throw new TypeError("Streaming ranking requires an accepted-only, authorized project filter.");
