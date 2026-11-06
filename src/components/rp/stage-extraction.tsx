@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { DraftingCompass, Pencil, Trash2, Link2, BadgeCheck, BadgeAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLang } from "@/lib/i18n";
 
 const PRIO_TONE: Record<string, Tone> = { Must: "coral", Should: "signal", Could: "aura", "Won't": "muted" };
 const VERIF_TONE: Record<string, Tone> = { supported: "verify", weak: "signal", unverified: "muted" };
@@ -40,6 +41,8 @@ export function ExtractionStage({
   refresh: () => Promise<void>;
 }) {
   const { toast } = useToast();
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [editing, setEditing] = useState<ProjectDTO["requirements"][number] | null>(null);
   const [draft, setDraft] = useState("");
   const [draftPriority, setDraftPriority] = useState("Should");
@@ -95,8 +98,8 @@ export function ExtractionStage({
   if (project.requirements.length === 0) {
     return (
       <HudPanel className="p-6">
-        <SectionHead icon={DraftingCompass} title="Extracted requirements" blurb="Atomic, evidence-grounded requirements." />
-        <EmptyBay>Run the Extraction Agent to pull atomic, evidence-grounded requirements from your sources.</EmptyBay>
+        <SectionHead icon={DraftingCompass} title={ar ? "المتطلبات المستخرجة" : "Extracted requirements"} blurb={ar ? "متطلبات ذرية تستند إلى الأدلة." : "Atomic, evidence-grounded requirements."} />
+        <EmptyBay>{ar ? "شغّل وكيل الاستخراج لاستخلاص متطلبات واضحة وموثقة من مصادرك." : "Run the Extraction Agent to pull atomic, evidence-grounded requirements from your sources."}</EmptyBay>
       </HudPanel>
     );
   }
@@ -105,12 +108,12 @@ export function ExtractionStage({
     <section className="space-y-4">
       <SectionHead
         icon={DraftingCompass}
-        title="Extracted requirements"
-        blurb="Proposer extracts, Critic verifies — confidence numbers included. You arbitrate every verdict."
+        title={ar ? "المتطلبات المستخرجة" : "Extracted requirements"}
+        blurb={ar ? "المستخرِج يقترح والناقد يتحقق مع إظهار درجة الثقة؛ وأنت صاحب القرار النهائي." : "Proposer extracts, Critic verifies — confidence numbers included. You arbitrate every verdict."}
         right={
           <>
             <Chip tone="aura">{project.requirements.length} items</Chip>
-            {weakCount > 0 && <Chip tone="signal">{weakCount} weak verification</Chip>}
+            {weakCount > 0 && <Chip tone="signal">{weakCount} {ar ? "تحققات ضعيفة" : "weak verification"}</Chip>}
           </>
         }
       />
@@ -130,21 +133,21 @@ export function ExtractionStage({
                 )}
                 {r.confidence >= 0 && (
                   <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                    conf <span className={r.confidence >= 70 ? "text-verify" : r.confidence >= 50 ? "text-signal" : "text-coral"}>{r.confidence}%</span>
+                    {ar ? "الثقة " : "conf "}<span className={r.confidence >= 70 ? "text-verify" : r.confidence >= 50 ? "text-signal" : "text-coral"}>{r.confidence}%</span>
                   </span>
                 )}
                 {r.verifyStatus !== "unverified" && (
                   <Chip tone={VERIF_TONE[r.verifyStatus] ?? "muted"}>
                     {r.verifyStatus === "supported" ? <BadgeCheck className="h-3 w-3" /> : <BadgeAlert className="h-3 w-3" />}
-                    {r.verifyStatus}
+                    {ar ? (r.verifyStatus === "supported" ? "مدعوم" : r.verifyStatus === "weak" ? "ضعيف" : "غير متحقق") : r.verifyStatus}
                   </Chip>
                 )}
                 {r.verificationSource === "human" && (
-                  <Chip tone="verify" mono={false}>Human reviewed</Chip>
+                  <Chip tone="verify" mono={false}>{ar ? "راجعه إنسان" : "Human reviewed"}</Chip>
                 )}
                 {r.driftStatus !== "none" && (
                   <Chip tone={r.driftStatus === "confirmed" ? "coral" : "signal"}>
-                    {r.driftStatus === "confirmed" ? "Drift confirmed" : "Drift suspected"}
+                    {ar ? (r.driftStatus === "confirmed" ? "تم تأكيد التغيّر" : "اشتباه في تغيّر") : (r.driftStatus === "confirmed" ? "Drift confirmed" : "Drift suspected")}
                   </Chip>
                 )}
               </div>
@@ -172,14 +175,14 @@ export function ExtractionStage({
 
             {r.verifyNote && (
               <p className="mt-2 rounded-md bg-secondary/50 px-3 py-1.5 text-xs italic text-muted-foreground" dir="auto">
-                Critic: {r.verifyNote}
+                {ar ? "ملاحظة الناقد: " : "Critic: "}{r.verifyNote}
               </p>
             )}
 
             {isCurrent && r.driftStatus === "suspected" && (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-signal/30 bg-signal/5 p-2">
-                <span className="mr-auto text-xs text-muted-foreground">
-                  Review the recorded change signal. Confirm impact or dismiss it after inspection.
+                <span className="me-auto text-xs text-muted-foreground">
+                  {ar ? "راجع إشارة التغيير المسجلة، ثم أكد أثرها أو تجاهلها بعد الفحص." : "Review the recorded change signal. Confirm impact or dismiss it after inspection."}
                 </span>
                 <Button
                   size="sm"
@@ -203,21 +206,21 @@ export function ExtractionStage({
             {isCurrent && project.evidences.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-secondary/20 p-2">
                 <span className="w-full text-xs text-muted-foreground">
-                  Add a source if the extractor missed a citation. This is a manual trace link; unchecked-consent content remains excluded from AI prompts.
+                  {ar ? "أضف مصدرًا إذا فات المستخرِج توثيق أحد الأدلة. هذا ربط يدوي، وتظل المواد غير المصرح بمشاركتها مستبعدة من مطالبات الذكاء الاصطناعي." : "Add a source if the extractor missed a citation. This is a manual trace link; unchecked-consent content remains excluded from AI prompts."}
                 </span>
                 <Select
                   value={evidenceSelections[r.id]}
                   onValueChange={(value) => setEvidenceSelections((current) => ({ ...current, [r.id]: value }))}
                 >
                   <SelectTrigger className="min-w-[220px] flex-1" aria-label={`Evidence source for ${r.refId}`}>
-                    <SelectValue placeholder="Choose an evidence source" />
+                    <SelectValue placeholder={ar ? "اختر مصدر دليل" : "Choose an evidence source"} />
                   </SelectTrigger>
                   <SelectContent>
                     {project.evidences
                       .filter((evidence) => !r.links.some((link) => link.evidenceId === evidence.id))
                       .map((evidence) => (
                         <SelectItem key={evidence.id} value={evidence.id}>
-                          {evidence.code} · {evidence.title.slice(0, 70)}{evidence.consent ? "" : " (not AI-shared)"}
+                          {evidence.code} · {evidence.title.slice(0, 70)}{evidence.consent ? "" : " {ar ? " (غير مشارك مع الذكاء الاصطناعي)" : " (not AI-shared)"}"}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -229,7 +232,7 @@ export function ExtractionStage({
                   disabled={!evidenceSelections[r.id]}
                   onClick={() => attachEvidence(r.id)}
                 >
-                  <Link2 className="mr-1 h-3.5 w-3.5" />
+                  <Link2 className="me-1 h-3.5 w-3.5" />
                   Attach source
                 </Button>
               </div>
@@ -237,8 +240,8 @@ export function ExtractionStage({
 
             {isCurrent && r.links.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-secondary/20 p-2">
-                <span className="mr-auto text-xs text-muted-foreground">
-                  Review the linked evidence independently:
+                <span className="me-auto text-xs text-muted-foreground">
+                  {ar ? "راجع الأدلة المرتبطة بشكل مستقل:" : "Review the linked evidence independently:"}
                 </span>
                 <Button
                   size="sm"
@@ -247,7 +250,7 @@ export function ExtractionStage({
                   onClick={() => patch(r.id, { verificationDecision: "supported" })}
                   disabled={r.verificationSource === "human" && r.verifyStatus === "supported"}
                 >
-                  <BadgeCheck className="mr-1 h-3.5 w-3.5" />
+                  <BadgeCheck className="me-1 h-3.5 w-3.5" />
                   Human: supported
                 </Button>
                 <Button
@@ -257,7 +260,7 @@ export function ExtractionStage({
                   onClick={() => patch(r.id, { verificationDecision: "weak" })}
                   disabled={r.verificationSource === "human" && r.verifyStatus === "weak"}
                 >
-                  <BadgeAlert className="mr-1 h-3.5 w-3.5" />
+                  <BadgeAlert className="me-1 h-3.5 w-3.5" />
                   Human: weak
                 </Button>
               </div>
@@ -285,13 +288,13 @@ export function ExtractionStage({
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-display">Edit {editing?.refId}</DialogTitle>
+            <DialogTitle className="font-display">{ar ? `تعديل ${editing?.refId}` : `Edit ${editing?.refId}`}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <Textarea rows={4} dir="auto" value={draft} onChange={(e) => setDraft(e.target.value)} />
             <div className="grid grid-cols-2 gap-3">
               <Select value={draftPriority} onValueChange={setDraftPriority}>
-                <SelectTrigger aria-label="Priority">
+                <SelectTrigger aria-label={ar ? "الأولوية" : "Priority"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -302,7 +305,7 @@ export function ExtractionStage({
                 </SelectContent>
               </Select>
               <Select value={draftType} onValueChange={setDraftType}>
-                <SelectTrigger aria-label="Type">
+                <SelectTrigger aria-label={ar ? "النوع" : "Type"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
