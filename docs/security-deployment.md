@@ -2,7 +2,7 @@
 
 ## Identity, sessions, and organization access
 
-The Next.js 16 `src/proxy.ts` gate protects application APIs and pages by default. Public API exemptions are method-specific:
+The root-level Next.js 16 `proxy.ts` gate protects application APIs and pages by default; `src/proxy.ts` is kept in sync as the source-side mirror. Public API exemptions are method-specific:
 
 - `POST /api/auth/login`
 - `POST /api/auth/invitations/accept`
