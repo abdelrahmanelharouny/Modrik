@@ -42,7 +42,7 @@ Research execution remains separate from implementation completion. Full benchma
 
 ### P0 — MVP quality and release confidence
 - Broader Playwright journeys across all six product stages, including Arabic/RTL and responsive/mobile workflows.
-- Dedicated browser-level multi-tab tests for IndexedDB lease expiry/recovery, tab suspension, interrupted synchronization and stale-owner fencing. Unit-level lease transition tests exist; they do not prove browser concurrency.
+- Browser-level two-tab integration now exercises the IndexedDB lease fallback: same-project serialization, strictly increasing fencing tokens, and concurrent work for independent projects. Lease expiry after tab termination, suspended-tab recovery and interrupted network synchronization remain additional stress cases.
 - Accessibility regression for keyboard navigation, focus management, labels, contrast and screen-reader semantics.
 - User-facing failure-state review: onboarding, organization/project creation, Briefing→Debrief, Human Gates, loading/empty/error states and recovery.
 - API/database load and concurrency tests for critical project, evidence, graph and retrieval flows.

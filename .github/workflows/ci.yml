@@ -69,6 +69,8 @@ jobs:
         run: |
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
           npx playwright install --with-deps chromium
+      - name: Browser multi-tab offline evidence lease integration
+        run: node scripts/test-offline-evidence-multitab-browser.mjs
       - name: Prepare standalone static assets for browser E2E
         run: |
           mkdir -p .next/standalone/.next
