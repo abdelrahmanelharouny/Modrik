@@ -9,7 +9,7 @@ export function buildOrganizationMemoryEmbeddingRetry(input: {
   baseDelayMs?: number; error?: string;
 }): {
   status: "pending" | "dead"; attempts: number; availableAt: Date;
-  lockedAt: null; lockedBy: null; lastError: string; delayMs: number;
+  lockedAt: null; leaseExpiresAt: null; lockedBy: null; lastError: string; delayMs: number;
 };
 export function buildOrganizationMemoryEmbeddingCompletion(input: {
   jobId: string; workerId: string; lockedAt: Date;
