@@ -151,3 +151,10 @@ The project Knowledge Graph API now writes the embedding outbox row inside the s
 Accepted nodes enqueue upserts; non-accepted transitions enqueue delete tombstones. The worker must re-read the canonical node before acting: a stale upsert is skipped when the source hash changed, and a stale delete is skipped if the node has since been re-accepted. The outbox uses unique hashed idempotency keys and resets failed/retried jobs without storing provider credentials or raw source text.
 
 The request transaction now guarantees source-node + BM25 + outbox atomicity when the opt-in queue is configured. A scheduled/continuous worker, provider adapter, durable embedding write transaction and production activation remain separate release gates.
+
+
+### Tenant-verified vector persistence
+
+A persistence adapter now revalidates the project’s `organizationId`, project lifecycle and accepted source node inside the caller's transaction before writing a vector. It recomputes the canonical content hash and refuses stale results. Vectors are stored as JSON number arrays with model/dimension identity, norm and source hash; deletion predicates always include organization, project, node, model and dimensions. The semantic ranker now reads this persisted JSON representation and derives freshness from canonical node content rather than requiring a synthetic hash field on the KnowledgeNode model.
+
+The persistence adapter is covered by deterministic fake-transaction tests. A production worker still needs to call the configured provider and execute persistence/deletion plus lease-owned outbox completion in one orchestrated job flow. No live provider or semantic API route has been activated.
