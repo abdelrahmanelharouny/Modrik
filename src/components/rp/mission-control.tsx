@@ -469,23 +469,17 @@ export function MissionControl({
                 const chipTone = p.status === "complete" ? "verify" : "aura";
                 return (
                   <Reveal key={p.id} delay={Math.min(i, 5) * 0.05} className="min-w-0">
-                    <li
-                      className="group relative min-w-0 cursor-pointer"
-                      role="button"
-                      tabIndex={0}
-                      aria-label={ar ? `افتح المهمة ${p.name}` : `Open mission ${p.name}`}
-                      onClick={() => onOpen(p.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          void onOpen(p.id);
-                        }
-                      }}
-                    >
+                    <li className="group relative min-w-0">
                       <HudPanel
                         className="h-full p-5 transition-all duration-300 group-hover:-translate-y-1 group-hover:border-aura/40 group-hover:hud-glow"
                         as="div"
                       >
+                        <button
+                          type="button"
+                          className="absolute inset-0 z-10 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          aria-label={ar ? `افتح المهمة ${p.name}` : `Open mission ${p.name}`}
+                          onClick={() => void onOpen(p.id)}
+                        />
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -499,7 +493,7 @@ export function MissionControl({
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Mission menu">
+                              <Button variant="ghost" size="icon" className="relative z-20 h-7 w-7 shrink-0" aria-label={ar ? "قائمة المهمة" : "Mission menu"}>
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
