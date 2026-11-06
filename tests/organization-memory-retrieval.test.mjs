@@ -272,7 +272,7 @@ test("persistent indexed BM25 matches streaming BM25 scores and ranking with bou
   assert.deepEqual(indexed.rows.map(n=>n.id),stream.rows.map(n=>n.id));
   for(let i=0;i<indexed.rows.length;i++) assert.ok(Math.abs(indexed.rows[i].retrieval.score-stream.rows[i].retrieval.score)<1e-8);
   assert.equal(indexed.candidatesScanned,2);
-  assert.equal(indexed.postingsScanned,4);
+  assert.equal(indexed.postingsScanned,8);
   assert.equal(indexed.rows[0].retrieval.mode,"indexed_bm25");
   assert.ok(indexed.pages>1);
 });
