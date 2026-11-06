@@ -80,3 +80,12 @@ The indexed adapter uses two bounded-memory passes over matching postings. Pass 
 - Any source/index write invalidates the reconciliation marker in the same transaction. A completed audit is therefore a point-in-time integrity attestation, not a permanent guarantee against future changes.
 - Run `npm run db:reconcile:organization-memory-index` after backfill and after repair. Use `--restart` to deliberately restart an audit. The command reports mismatch categories and never mutates source documents or postings.
 - A mismatch leaves the project unreconciled and blocks indexed reads. Repair remains an explicit backfill/reindex operation; reconciliation is read-only.
+
+
+## Persistent index repair operations
+
+- Repair is a separate, explicit operation: `npm run db:repair:organization-memory-index`. It never writes to KnowledgeNode or changes governance status; canonical source rows are read-only inputs.
+- Each bounded batch rechecks that the project still exists and is not archived inside a Serializable transaction. Source nodes are keyset-paged by ID and their derived document/postings are rebuilt through the same transactional writer used by normal source mutations.
+- A second keyset pass removes orphan search documents only after confirming that no source node exists in the same project. Their postings are deleted before the orphan document, and the reconciliation certificate is invalidated in the same transaction.
+- The command is idempotent and safe to restart from the beginning after interruption. It retries serialization/deadlock conflicts up to three times and reports per-batch progress. It does not claim readiness when it finishes.
+- Always run `npm run db:reconcile:organization-memory-index` after repair. The index remains fail-closed for reads until a full current-version audit completes with zero mismatches. Do not run repair against production until the additive schema is deployed, a backup/rollback plan exists, and the operator has approved the maintenance window.
