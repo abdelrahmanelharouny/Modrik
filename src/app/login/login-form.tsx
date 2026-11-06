@@ -38,8 +38,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4">
-      <div className="flex justify-end"><button type="button" onClick={toggle} aria-label={ar ? "تغيير اللغة إلى الإنجليزية" : "Switch language to Arabic"} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary">{ar ? "English" : "العربية"}</button></div>
+    <form onSubmit={submit} dir={ar ? "rtl" : "ltr"} lang={ar ? "ar" : "en"} className="grid gap-4">
       <div className="flex justify-end"><button type="button" onClick={toggle} aria-label={ar ? "تغيير اللغة إلى الإنجليزية" : "Switch language to Arabic"} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary">{ar ? "English" : "العربية"}</button></div>
       <label className="grid gap-2 text-sm">
         <span>{ar ? "البريد الإلكتروني" : "Email"}</span>
