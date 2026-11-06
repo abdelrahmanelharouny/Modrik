@@ -6,6 +6,7 @@ OAuth provider activation is intentionally deferred until deployment credentials
 - Authenticated, organization-scoped OAuth start route for GitHub and Jira Cloud.
 - Project-update permission check on start and callback.
 - Signed, provider-bound, project/user/organization-bound state with a 10-minute expiry and constant-time comparisons.
+- A database-backed one-time state ledger stores only a SHA-256 state hash and transaction ownership metadata; callback consumption uses an atomic delete so a replay cannot exchange the same code twice.
 - PKCE S256 challenge/verifier.
 - HttpOnly, SameSite=Lax, Secure-in-production transaction cookie scoped to the callback path; cookie cleared on success and failure.
 - No-store and no-referrer response headers.
