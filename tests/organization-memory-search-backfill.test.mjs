@@ -90,3 +90,12 @@ test("readiness classifies reconciliation mismatch, stale attestation and failed
  assert.deepEqual(result.reconciliationIncompleteProjectIds,["running"]);
  assert.equal(result.ready,false);
 });
+
+
+test("empty organization scope returns a complete, consistent ready-state diagnostic", async () => {
+ const result=await getOrganizationMemorySearchIndexReadiness({projectIds:[],findMany:async()=>[]});
+ assert.equal(result.ready,true);
+ assert.equal(result.projectCount,0);
+ assert.deepEqual(result.reconciliationMismatchProjectIds,[]);
+ assert.deepEqual(result.reconciliationIncompleteProjectIds,[]);
+});

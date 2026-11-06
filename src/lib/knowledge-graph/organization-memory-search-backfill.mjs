@@ -58,7 +58,12 @@ export async function getOrganizationMemorySearchIndexReadiness(input = {}) {
   const projectIds = [...new Set(Array.isArray(input.projectIds)
     ? input.projectIds.filter((id) => typeof id === "string" && id.trim()) : [])];
   if (typeof input.findMany !== "function") throw new TypeError("A project-scoped index-state adapter is required.");
-  if (!projectIds.length) return { ready: true, projectCount: 0, readyProjectCount: 0, missingProjectIds: [], staleProjectIds: [], incompleteProjectIds: [] };
+  const emptyReadiness = {
+    missingProjectIds: [], staleProjectIds: [], incompleteProjectIds: [], unreconciledProjectIds: [],
+    reconciliationMismatchProjectIds: [], reconciliationNormalizerStaleProjectIds: [],
+    reconciliationFailedProjectIds: [], reconciliationIncompleteProjectIds: [],
+  };
+  if (!projectIds.length) return { ready: true, projectCount: 0, readyProjectCount: 0, ...emptyReadiness };
   const states = await input.findMany({
     where: { projectId: { in: projectIds } },
     select: { projectId: true, status: true, normalizerVersion: true, reconciliationStatus: true, reconciliationMismatchCount: true, reconciliationNormalizerVersion: true },
