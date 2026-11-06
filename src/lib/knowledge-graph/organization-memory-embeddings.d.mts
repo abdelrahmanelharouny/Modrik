@@ -19,7 +19,7 @@ export function buildOrganizationMemoryEmbeddingWork(input: {
   normalizerVersion: number; model: string; dimensions: number; idempotencyKey: string;
 });
 export function rankTenantScopedOrganizationMemoryEmbeddings<T extends {
-  id: string; projectId: string; organizationId: string; status: string; contentHash: string;
+  id: string; projectId: string; organizationId: string; status: string; kind: string; label: string; description?: string;
 }>(input: {
   organizationId: string; projectIds: string[]; model: string; dimensions: number; limit?: number;
   queryEmbedding: OrganizationMemoryEmbeddingVector; candidates: T[];
