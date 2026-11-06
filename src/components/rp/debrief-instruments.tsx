@@ -526,8 +526,19 @@ interface SyncMapDTO {
   title: string;
   syncedAt: string;
 }
+interface OAuthTrackerStatus {
+  connected: boolean;
+  pendingTarget: boolean;
+  account: string;
+  scopes: string[];
+  expiresAt: string | null;
+  needsReauthorization: boolean;
+  connectedAt: string | null;
+  cloudId?: string;
+}
 interface TrackerStatus {
   configured: boolean;
+  oauth?: OAuthTrackerStatus | null;
   owner?: string;
   repo?: string;
   token?: string;
@@ -586,12 +597,16 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const [reverseRequirement, setReverseRequirement] = useState("");
   const [reverseMode, setReverseMode] = useState<ReverseModeDTO | null>(null);
   const [reverseModeBusy, setReverseModeBusy] = useState(false);
+  const [targetValues, setTargetValues] = useState<Record<string, string>>({});
+  const [targetBusy, setTargetBusy] = useState<string | null>(null);
+  const [oauthAvailable, setOauthAvailable] = useState({ github: false, jira: false });
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ status: IntegrationStatus; maps: SyncMapDTO[] }>(`/api/projects/${projectId}/integrations`);
+      const d = await api<{ status: IntegrationStatus; maps: SyncMapDTO[]; oauthAvailable?: { github: boolean; jira: boolean } }>(`/api/projects/${projectId}/integrations`);
       setStatus(d.status);
       setMaps(d.maps);
+      setOauthAvailable(d.oauthAvailable ?? { github: false, jira: false });
     } catch {
       /* ignore */
     }
@@ -648,6 +663,40 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
     }
   };
 
+  const chooseOAuthTarget = async (kind: "github" | "jira") => {
+    const value = (targetValues[kind] ?? "").trim();
+    if (!value) return;
+    setTargetBusy(kind);
+    try {
+      await api(`/api/projects/${projectId}/integrations/oauth/${kind}/target`, {
+        method: "POST",
+        body: JSON.stringify(kind === "github"
+          ? { owner: status?.github.oauth?.account, repo: value }
+          : { projectKey: value }),
+      });
+      toast({ title: ar ? "تم اعتماد وجهة المزامنة" : "Sync target verified", description: ar ? "تم التحقق من صلاحية الوصول لدى المزود." : "Provider access to the selected target was verified." });
+      setTargetValues((current) => ({ ...current, [kind]: "" }));
+      await load();
+    } catch (error) {
+      toast({ title: ar ? "تعذر اعتماد الوجهة" : "Target verification failed", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setTargetBusy(null);
+    }
+  };
+
+  const disconnectOAuth = async (kind: "github" | "jira") => {
+    setTargetBusy(kind);
+    try {
+      await api(`/api/projects/${projectId}/integrations/oauth/${kind}/target`, { method: "DELETE" });
+      toast({ title: ar ? "تم فصل الاتصال" : "Provider disconnected", description: ar ? "تم إبطال الاتصال وإزالة بياناته المحلية." : "Provider authorization was revoked and the local connection removed." });
+      await load();
+    } catch (error) {
+      toast({ title: ar ? "تعذر فصل الاتصال" : "Disconnect failed", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setTargetBusy(null);
+    }
+  };
+
   const saveCfg = async () => {
     if (!cfgKind) return;
     const d = await act(cfgKind, "save-config", { config: cfg }, ar ? "تم حفظ بيانات الاعتماد على الخادم مع إخفاء الأسرار" : "Credentials saved (server-side, masked)");
@@ -682,6 +731,37 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                     ? "Provide a personal access token (repo scope), owner and repository. Stored server-side; responses always mask secrets."
                     : (ar ? "أدخل الرابط الأساسي للموقع والبريد الإلكتروني ورمز API ومفتاح المشروع. تُحفظ البيانات على الخادم وتُخفى الأسرار في جميع الاستجابات." : "Provide the site baseUrl, account email, API token and project key. Stored server-side; responses always mask secrets.")}
               </p>
+              {st?.oauth?.connected ? (
+                <div className="mb-3 w-full rounded-lg border border-aura/25 bg-aura/5 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold">{ar ? "اتصال OAuth" : "OAuth authorization"} · {st.oauth.account || (ar ? "حساب موثق" : "Verified account")}</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">{st.oauth.scopes.join(" · ") || (ar ? "النطاقات غير متاحة" : "Scopes unavailable")} {st.oauth.expiresAt ? " · " + (ar ? "ينتهي" : "expires") + " " + new Date(st.oauth.expiresAt).toLocaleString() : ""}</p>
+                    </div>
+                    <Chip tone={st.oauth.needsReauthorization ? "signal" : st.oauth.pendingTarget ? "plasma" : "verify"}>{st.oauth.needsReauthorization ? (ar ? "يحتاج إعادة تفويض" : "reauthorization needed") : st.oauth.pendingTarget ? (ar ? "اختر وجهة" : "target required") : (ar ? "مفعّل" : "active")}</Chip>
+                  </div>
+                  {st.oauth.pendingTarget && (
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Input aria-label={kind === "github" ? "GitHub repository" : "Jira project key"} value={targetValues[kind] ?? ""} onChange={(event) => setTargetValues((current) => ({ ...current, [kind]: event.target.value }))} placeholder={kind === "github" ? (ar ? "اسم المستودع" : "Repository name") : (ar ? "مفتاح مشروع Jira" : "Jira project key")} />
+                      <Button size="sm" disabled={targetBusy !== null || !targetValues[kind]?.trim()} onClick={() => void chooseOAuthTarget(kind)} className="shrink-0 bg-aura text-primary-foreground hover:bg-aura/85">
+                        {targetBusy === kind ? <Loader2 className="me-2 h-3.5 w-3.5 animate-spin" /> : null}{ar ? "تحقق واعتماد" : "Verify target"}
+                      </Button>
+                    </div>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" disabled={!oauthAvailable[kind]} onClick={() => { window.location.href = `/api/projects/${projectId}/integrations/oauth/${kind}`; }}>{ar ? "إعادة التفويض" : "Reauthorize"}</Button>
+                    <Button size="sm" variant="outline" disabled={targetBusy !== null} onClick={() => void disconnectOAuth(kind)}>{ar ? "فصل الاتصال" : "Disconnect"}</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-3 w-full rounded-lg border border-border/70 bg-secondary/20 p-3">
+                  <p className="text-xs font-medium">{ar ? "الربط الآمن عبر OAuth" : "Secure OAuth connection"}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">{oauthAvailable[kind] ? (ar ? "اربط حسابك دون إدخال Personal Access Token." : "Authorize your account without entering a personal access token.") : (ar ? "الربط الخارجي مؤجل حتى إعداد بيانات تطبيق المزود في بيئة النشر." : "External activation is deferred until provider application credentials are configured in the deployment environment.")}</p>
+                  <Button size="sm" className="mt-2 bg-aura text-primary-foreground hover:bg-aura/85" disabled={!oauthAvailable[kind]} onClick={() => { window.location.href = `/api/projects/${projectId}/integrations/oauth/${kind}`; }}>
+                    <Plug className="me-1.5 h-3.5 w-3.5" />{ar ? "ربط الحساب" : `Connect ${kind === "github" ? "GitHub" : "Jira"}`}
+                  </Button>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => { setCfgKind(kind); setCfg({}); }} className="border-border">
                   <Plug className="me-1.5 h-3.5 w-3.5" /> {configured ? (ar ? "تحديث" : "Update") : (ar ? "إعداد" : "Configure")}
