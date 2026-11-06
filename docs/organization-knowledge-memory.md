@@ -131,3 +131,14 @@ The server-side embedding module now defines canonical Arabic/English retrieval 
 The database adapter must use `buildTenantScopedEmbeddingFilter` as part of the vector-store query **before** nearest-neighbor top-K. The in-process checks are defense in depth; they do not make a global vector query safe. Empty project scope returns no filter and no results. Unsupported or stale embeddings are misses.
 
 This is a contract and deterministic test foundation only. It does not yet persist embedding records or an outbox, call a live embedding provider, or enable semantic/hybrid retrieval in the API. The next implementation gate is additive SQLite/PostgreSQL embedding + outbox schema, transactional lifecycle hooks, bounded retry worker, provider selection and tenant-filtered adapters. BM25 remains the only production retrieval mode.
+
+
+## Durable semantic embedding storage and worker contracts
+
+The additive Prisma schema now includes:
+- `OrganizationMemoryEmbedding`: tenant/project/node identity, model and dimensions, JSON vector payload, norm, source content hash, normalizer version, status and timestamps. Composite node/project relation and tenant/project/model/dimension/status indexes keep records scoped.
+- `OrganizationMemoryEmbeddingJob`: durable upsert/delete outbox rows with unique idempotency key, bounded attempts, availability time, worker ownership and explicit lease expiry. The node identifier intentionally has no foreign key so delete tombstones survive node deletion; project deletion cascades the work.
+
+SQLite remains the canonical schema and the generated PostgreSQL schema is kept in parity. Vectors use JSON storage for cross-database compatibility at this stage; this is not a claim of indexed ANN performance. A production vector adapter must push organization, authorized project IDs, model, dimensions and ready status into the database predicate before candidate selection.
+
+The worker module provides claim predicates, bounded leases, compare-and-swap completion, capped exponential retry/dead-letter behavior, error credential redaction, and stale-upsert classification. These helpers are not yet a running background worker and do not enqueue jobs automatically. Transactional hooks, actual provider invocation, persistence adapters, operational metrics and end-to-end worker execution remain the next gate.
