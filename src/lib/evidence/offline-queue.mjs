@@ -5,7 +5,6 @@ const LOCK_STORE = "sync-leases";
 const SYNC_LEASE_MS = 60_000;
 const SYNC_HEARTBEAT_MS = 15_000;
 const MAX_PENDING = 100;
-const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function validateOfflineEvidenceOperation(operation) {
   if (!operation || typeof operation !== "object" || Array.isArray(operation)) throw new TypeError("Offline evidence operation is required");
@@ -150,14 +149,11 @@ export async function putOfflineEvidenceOperation(operation) {
     let queueFull = false;
     let duplicateMutation = false;
     request.onsuccess = () => {
-      const now = Date.now();
+      // Pending user work must never disappear merely because the browser
+      // stayed closed for a month. The queue is bounded by count and payload
+      // size; only explicit acknowledgement or user discard removes an item.
       const existing = request.result ?? [];
-      for (const item of existing) {
-        if (!Number.isFinite(Date.parse(item.createdAt)) || now - Date.parse(item.createdAt) > MAX_AGE_MS) {
-          store.delete(item.operationId);
-        }
-      }
-      const fresh = existing.filter((item) => Number.isFinite(Date.parse(item.createdAt)) && now - Date.parse(item.createdAt) <= MAX_AGE_MS);
+      const fresh = existing;
       const duplicateTarget = operation.kind && operation.kind !== "create"
         ? fresh.find((item) => item.operationId !== operation.operationId && item.kind !== "create" && item.evidenceId === operation.evidenceId)
         : null;
@@ -188,16 +184,15 @@ export async function listOfflineEvidenceOperations(projectId) {
     const request = store.index("projectId").getAll(projectId);
     let items = [];
     request.onsuccess = () => {
-      const now = Date.now();
-      const all = request.result ?? [];
-      for (const item of all) {
-        if (!Number.isFinite(Date.parse(item.createdAt)) || now - Date.parse(item.createdAt) > MAX_AGE_MS) {
-          store.delete(item.operationId);
-        } else {
-          items.push(item);
-        }
-      }
-      items.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      // Preserve queued operations across long browser shutdowns. Invalid
+      // legacy timestamps sort last and remain visible for deliberate review.
+      items = request.result ?? [];
+      items.sort((a, b) => {
+        const left = Date.parse(a.createdAt), right = Date.parse(b.createdAt);
+        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : 0;
+        if (!Number.isFinite(right)) return -1;
+        return left - right || a.operationId.localeCompare(b.operationId);
+      });
     };
     request.onerror = () => { tx.abort(); };
     tx.oncomplete = () => { db.close(); resolve(items); };
