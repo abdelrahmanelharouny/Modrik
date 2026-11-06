@@ -50,15 +50,7 @@ export async function enqueueOrganizationMemoryEmbeddingWork(tx, input = {}) {
   await tx.organizationMemoryEmbeddingJob.upsert({
     where: { idempotencyKey },
     create: data,
-    update: {
-      status: "pending",
-      attempts: 0,
-      availableAt: data.availableAt,
-      lockedAt: null,
-      leaseExpiresAt: null,
-      lockedBy: null,
-      lastError: null,
-    },
+    update: { updatedAt: data.availableAt },
   });
   return { queued: true, operation: work.operation, idempotencyKey };
 }
