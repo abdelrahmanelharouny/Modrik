@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
+import { replaceOrganizationMemorySearchDocument, ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION } from "../src/lib/knowledge-graph/organization-memory-search-index.mjs";
+import { reconcileOrganizationMemorySearchIndexBatch } from "../src/lib/knowledge-graph/organization-memory-search-reconciliation.mjs";
+import { getOrganizationMemorySearchIndexReadiness } from "../src/lib/knowledge-graph/organization-memory-search-backfill.mjs";
 import {
   buildOrganizationMemoryPage,
   buildOrganizationMemoryCursorWhere,
@@ -9,7 +12,7 @@ import {
 
 const db = new PrismaClient();
 const suffix = `org-memory-${process.pid}-${Date.now()}`;
-let orgA, orgB, user, projectA, projectB, nodeA;
+let orgA, orgB, user, projectA, projectB, nodeA, auditProject;
 
 test("PostgreSQL organization memory is tenant-isolated and governance writes are atomic", async (t) => {
   t.after(async () => {
@@ -17,6 +20,7 @@ test("PostgreSQL organization memory is tenant-isolated and governance writes ar
     if (orgB) await db.organizationAuditEvent.deleteMany({ where: { organizationId: orgB.id } });
     if (projectA) await db.project.deleteMany({ where: { id: projectA.id } });
     if (projectB) await db.project.deleteMany({ where: { id: projectB.id } });
+    if (auditProject) await db.project.deleteMany({ where: { id: auditProject.id } });
     if (user) await db.user.deleteMany({ where: { id: user.id } });
     if (orgA) await db.organization.deleteMany({ where: { id: orgA.id } });
     if (orgB) await db.organization.deleteMany({ where: { id: orgB.id } });
@@ -34,6 +38,52 @@ test("PostgreSQL organization memory is tenant-isolated and governance writes ar
   await db.knowledgeNode.create({ data: {
     projectId: projectB.id, nodeRef: "KM-B", kind: "decision", label: "Tenant B accepted memory", status: "accepted",
   } });
+
+  // Exercise the complete, persisted reconciliation lifecycle on real PostgreSQL.
+  // A dedicated project keeps this audit independent from the tenant fixtures below.
+  auditProject = await db.project.create({ data: {
+    name: "Index reconciliation", brief: "PostgreSQL integrity audit fixture", organizationId: orgA.id,
+  } });
+  const auditNode = await db.knowledgeNode.create({ data: {
+    projectId: auditProject.id, nodeRef: "AUDIT-1", kind: "policy",
+    label: "Data retention policy", description: "Keep records safely", status: "accepted",
+  } });
+  await db.$transaction(async (tx) => {
+    await tx.organizationMemorySearchIndexState.create({ data: {
+      projectId: auditProject.id, normalizerVersion: ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,
+      status: "completed", reconciliationStatus: "pending",
+    } });
+    await replaceOrganizationMemorySearchDocument(tx, auditNode);
+  });
+  const reconcile = (restart = false) => db.$transaction(
+    (tx) => reconcileOrganizationMemorySearchIndexBatch(tx, {
+      projectId: auditProject.id, batchSize: 10, restart,
+    }),
+    { isolationLevel: "Serializable" },
+  );
+  const auditFirstBatch = await reconcile();
+  assert.equal(auditFirstBatch.status, "running");
+  assert.equal(auditFirstBatch.phase, "documents");
+  const auditComplete = await reconcile();
+  assert.equal(auditComplete.status, "completed");
+  assert.equal(auditComplete.mismatchCount, 0);
+  const readiness = () => getOrganizationMemorySearchIndexReadiness({
+    projectIds: [auditProject.id],
+    findMany: (args) => db.organizationMemorySearchIndexState.findMany(args),
+  });
+  assert.equal((await readiness()).ready, true);
+
+  // A transactional write-through must revoke the previous integrity attestation.
+  await db.$transaction((tx) => replaceOrganizationMemorySearchDocument(tx, auditNode));
+  assert.equal((await readiness()).ready, false);
+  assert.equal((await reconcile(true)).phase, "documents");
+  assert.equal((await reconcile()).status, "completed");
+  await db.knowledgeNode.update({ where: { id: auditNode.id }, data: { label: "Silently changed source" } });
+  assert.equal((await reconcile(true)).phase, "documents");
+  const dirtyAudit = await reconcile();
+  assert.equal(dirtyAudit.status, "failed");
+  assert.ok(dirtyAudit.mismatchCount > 0);
+  assert.equal((await readiness()).ready, false);
   await db.organizationAuditEvent.create({ data: {
     organizationId: orgA.id, actorUserId: user.id, eventType: "fixture.created",
     resourceType: "knowledge_node", resourceId: nodeA.id, projectId: projectA.id,
