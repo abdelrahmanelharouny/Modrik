@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { ProjectDTO, ProjectSummary } from "@/lib/rp";
 import { Workspace } from "@/components/rp/workspace";
@@ -20,6 +20,7 @@ export default function Home() {
   const [project, setProject] = useState<ProjectDTO | null>(null);
   const [busy, setBusy] = useState(false);
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+  const projectRequest = useRef(0);
 
   const loadProjects = useCallback(async () => {
     setProjectsLoadError(null);
@@ -33,9 +34,17 @@ export default function Home() {
   }, []);
 
   const loadProject = useCallback(async (id: string) => {
+    const requestId = ++projectRequest.current;
     setProjectLoadError(null);
-    const data = await api<{ project: ProjectDTO }>(`/api/projects/${id}`);
-    setProject(data.project);
+    try {
+      const data = await api<{ project: ProjectDTO }>(`/api/projects/${id}`);
+      if (requestId === projectRequest.current) setProject(data.project);
+    } catch (error) {
+      if (requestId === projectRequest.current) {
+        setProjectLoadError(error instanceof Error ? error.message : "The project could not be loaded.");
+      }
+      throw error;
+    }
   }, []);
 
   useEffect(() => {
@@ -47,14 +56,13 @@ export default function Home() {
       setSelectedId(id);
       setProject(null);
       setProjectLoadError(null);
-      await loadProject(id).catch((error: unknown) => {
-        setProjectLoadError(error instanceof Error ? error.message : "The project could not be loaded.");
-      });
+      await loadProject(id).catch(() => undefined);
     },
     [loadProject]
   );
 
   const backHome = useCallback(async () => {
+    projectRequest.current += 1;
     setSelectedId(null);
     setProject(null);
     setProjectLoadError(null);
