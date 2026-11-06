@@ -44,6 +44,9 @@ test("completion is compare-and-swap scoped to the worker lease owner", () => {
 
 test("upserts are discarded when source content changed; delete tombstones survive source deletion", () => {
   assert.deepEqual(classifyOrganizationMemoryEmbeddingWork({ operation: "delete", nodeId: "n1" }), { action: "delete", nodeId: "n1" });
+  assert.deepEqual(classifyOrganizationMemoryEmbeddingWork({ operation: "delete", nodeId: "n1", currentNodeStatus: "accepted" }), {
+    action: "superseded", reason: "node_was_reaccepted",
+  });
   assert.deepEqual(classifyOrganizationMemoryEmbeddingWork({
     operation: "upsert", nodeId: "n1", contentHash: "old", currentContentHash: "new", currentNodeStatus: "accepted",
   }), { action: "superseded", reason: "source_changed_or_not_accepted" });
