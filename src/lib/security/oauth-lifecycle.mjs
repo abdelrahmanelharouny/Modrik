@@ -57,6 +57,19 @@ export function oauthProviderConfig(provider,env=process.env) {
   }
   return null;
 }
+export function oauthActivationReady(provider,env=process.env) {
+  try {
+    if (!oauthProviderConfig(provider,env)) return false;
+    keyFor(env);
+    oauthCallbackUrl(provider,env.MODRIK_APP_URL);
+    const raw=env.MODRIK_ENCRYPTION_KEY;
+    if (!raw) return false;
+    const bytes=/^[a-f0-9]{64}$/i.test(raw) ? Buffer.from(raw,"hex") : Buffer.from(raw,"base64");
+    return bytes.length===32;
+  } catch {
+    return false;
+  }
+}
 export function oauthCallbackUrl(provider,appUrl=process.env.MODRIK_APP_URL) {
   if(!providers.has(provider)||!appUrl) throw new Error("OAuth callback URL configuration is missing");
   const base=new URL(appUrl);
