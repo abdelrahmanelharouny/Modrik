@@ -12,6 +12,10 @@ OAuth provider activation is intentionally deferred until deployment credentials
 - GitHub account verification and Atlassian identity + accessible Jira Cloud site verification.
 - Access and refresh token encryption at rest using the existing AES-256-GCM secret box.
 - Pending OAuth connections appear in the existing masked integration status but are not loadable by sync adapters until a human selects a target.
+- Explicit target-selection endpoint verifies the selected GitHub repository or Jira project against the provider before enabling sync.
+- Provider-specific refresh-token handling is implemented with a compare-and-swap database update to avoid overwriting a concurrently rotated token.
+- Explicit disconnect attempts provider-side token revocation before deleting the local encrypted connection; failed revocation retains the local record.
+- Connection, target-selection, and disconnect actions are recorded in the project decision journal.
 - Static-token integration behavior remains supported.
 
 ## Routes
@@ -30,10 +34,8 @@ OAuth provider activation is intentionally deferred until deployment credentials
 Register exact callback URLs under /api/integrations/oauth/{github|jira}/callback.
 
 ## Deferred before production activation
-- Repository and Jira-project selection UI/API.
-- OAuth-backed tracker adapter activation after target selection.
-- Provider-specific access-token refresh and refresh-token rotation.
-- Explicit provider revocation/disconnect and reauthorization UX.
+- Repository and Jira-project selection UI and reauthorization UX.
+- Live end-to-end tests using dedicated provider test applications.
 - Webhook registration and live provider health checks.
 - Live end-to-end tests using dedicated provider test applications.
 
