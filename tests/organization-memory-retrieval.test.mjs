@@ -327,3 +327,23 @@ test("indexed retrieval finds a rare archived match beyond 1,000 recent records"
   assert.equal(stream.candidatesScanned,1207);
   assert.ok(Math.abs(indexed.rows[0].retrieval.score-stream.rows[0].retrieval.score)<1e-8);
 });
+
+
+test("shadow parity telemetry reports exact ordering, overlap and maximum score delta", async () => {
+  const { compareOrganizationMemoryRetrievalParity } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const exact = compareOrganizationMemoryRetrievalParity(
+    [{id:"a",retrieval:{score:0.8}},{id:"b",retrieval:{score:0.4}}],
+    [{id:"a",retrieval:{score:0.80000001}},{id:"b",retrieval:{score:0.4}}],
+  );
+  assert.equal(exact.exactRankMatch,true);
+  assert.equal(exact.topKRecall,1);
+  assert.equal(exact.comparedScores,2);
+  assert.ok(Math.abs(exact.maxAbsoluteScoreDelta-0.00000001)<1e-10);
+  const drift = compareOrganizationMemoryRetrievalParity(
+    [{id:"a",retrieval:{score:0.8}},{id:"b",retrieval:{score:0.4}}],
+    [{id:"b",retrieval:{score:0.4}},{id:"c",retrieval:{score:0.3}}],
+  );
+  assert.equal(drift.exactRankMatch,false);
+  assert.equal(drift.overlapCount,1);
+  assert.equal(drift.topKRecall,0.5);
+});

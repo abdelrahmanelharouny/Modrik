@@ -160,6 +160,13 @@ export async function GET(req: NextRequest) {
       }
       return runStreaming();
     }, { isolationLevel: "Serializable" }) : null;
+    const shadowMetrics = scan && "shadowComparison" in scan
+      ? scan as typeof scan & {
+          shadowComparison: ReturnType<typeof compareOrganizationMemoryRetrievalParity>;
+          indexedShadowPostingsScanned: number;
+          indexedShadowDurationMs: number;
+        }
+      : null;
     const nodes = rankedSearch ? scan!.rows : await db.knowledgeNode.findMany({
       where: pageWhere,
       ...(page ? { take: page.take } : { take: query.take }),
@@ -199,10 +206,10 @@ export async function GET(req: NextRequest) {
         candidateWindowTruncated: false,
         retrievalMode: scan!.retrievalMode ?? "streaming_bm25_keyset",
         retrievalSnapshotAt: scan!.snapshotAt,
-        ...("shadowComparison" in scan! ? {
-          indexedShadowComparison: scan!.shadowComparison,
-          indexedShadowPostingsScanned: scan!.indexedShadowPostingsScanned,
-          indexedShadowDurationMs: scan!.indexedShadowDurationMs,
+        ...(shadowMetrics ? {
+          indexedShadowComparison: shadowMetrics.shadowComparison,
+          indexedShadowPostingsScanned: shadowMetrics.indexedShadowPostingsScanned,
+          indexedShadowDurationMs: shadowMetrics.indexedShadowDurationMs,
         } : {}),
       } : {}),
       scope: "organization",
