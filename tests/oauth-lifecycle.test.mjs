@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {createOAuthTransaction,verifyOAuthTransaction,oauthCookieName,oauthCallbackUrl} from "../src/lib/security/oauth-lifecycle.mjs";
+import {createOAuthTransaction,verifyOAuthTransaction,oauthCookieName,oauthCallbackUrl,oauthStateRecord} from "../src/lib/security/oauth-lifecycle.mjs";
 const env={MODRIK_AUTH_SECRET:"s".repeat(48),MODRIK_APP_URL:"https://modrik.example"};
 test("OAuth transaction binds identity, project, provider and PKCE verifier",()=>{
  const tx=createOAuthTransaction({provider:"github",projectId:"p",userId:"u",organizationId:"o"},env,1800000000000);
  const value=verifyOAuthTransaction(tx.cookieValue,tx.state,"github",env,1800000001000);
  assert.equal(value.projectId,"p"); assert.equal(value.userId,"u"); assert.equal(value.organizationId,"o");
  assert.equal(value.verifier,tx.verifier); assert.equal(tx.challenge.length,43);
+ const record=oauthStateRecord(value);
+ assert.equal(record.includes(tx.state),false);
+ assert.equal(JSON.parse(record).userId,"u");
 });
 test("OAuth transaction rejects wrong provider, state, signature and expiry",()=>{
  const tx=createOAuthTransaction({provider:"jira",projectId:"p",userId:"u",organizationId:"o"},env,1800000000000);
