@@ -124,7 +124,7 @@ export function PlannerLab({ projectId }: { projectId: string }) {
           Utility = ( InformationGain × DownstreamImpact × Uncertainty × Risk ) ÷ AskCost
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          {ar ? "تُقيّم الأسئلة حسب الإشارة وتُختار ضمن ميزانية تكلفة السؤال. شغّل أي مسار — وتُقيّم جميع المسارات" : "Signal-scored per question, selected under an ask-cost budget. Run any arm — every arm&apos;s final set is judged by the same scorer and judge, so the comparison is fair (single-shot still gets signal-scored post-hoc).
+          {ar ? "تُقيّم الأسئلة حسب الإشارة وتُختار ضمن ميزانية تكلفة السؤال. شغّل أي مسار — وتُقيّم جميع المسارات النهائية بواسطة أداة التقييم والمُحكّم نفسيهما لضمان عدالة المقارنة." : "Signal-scored per question, selected under an ask-cost budget. Run any arm — every arm’s final set is judged by the same scorer and judge, so the comparison is fair (single-shot still gets signal-scored post-hoc)."}
         </p>
       </HudPanel>
 
@@ -659,7 +659,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                     : `${st?.baseUrl} · project ${st?.projectKey} · email ${st?.email} · token ${st?.token} · webhook ${st?.webhookConfigured ? "configured" : "not configured"}`
                   : kind === "github"
                     ? "Provide a personal access token (repo scope), owner and repository. Stored server-side; responses always mask secrets."
-                    : "Provide the site baseUrl, account email, {ar ? "رمز API" : "API token"} and project key. Stored server-side; responses always mask secrets."}
+                    : "{ar ? "أدخل الرابط الأساسي للموقع والبريد الإلكتروني ورمز API ومفتاح المشروع. تُحفظ البيانات على الخادم وتُخفى الأسرار في جميع الاستجابات." : "Provide the site baseUrl, account email, API token and project key. Stored server-side; responses always mask secrets."}"}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => { setCfgKind(kind); setCfg({}); }} className="border-border">
