@@ -123,7 +123,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
           <Chip tone={stageStatusTone} className="hidden sm:inline-flex">
             <LiveDot tone={stageStatusTone} /> {stageStatusChip.label}
           </Chip>
-          <Button variant="outline" size="sm" onClick={toggle} aria-label={ar ? "تغيير اللغة إلى الإنجليزية" : "Switch language to Arabic"} className="px-2">
+          <Button variant="outline" size="sm" onClick={toggle} aria-label={ar ? "Toggle language — تغيير اللغة إلى الإنجليزية" : "Toggle language — Switch language to Arabic"} className="px-2">
             <span className="font-mono text-xs">{ar ? "EN" : "ع"}</span>
           </Button>
           <SignOutButton />
