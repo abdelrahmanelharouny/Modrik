@@ -19,7 +19,7 @@ export function createOAuthTransaction({provider,projectId,userId,organizationId
   const payload={v:1,provider,projectId,userId,organizationId,state,verifier,iat:Math.floor(now/1000),exp:Math.floor(now/1000)+OAUTH_STATE_TTL_SECONDS};
   const encoded=Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature=createHmac("sha256",keyFor(env)).update(encoded).digest("base64url");
-  return {state,verifier,cookieValue:encoded+"."+signature,challenge:createHash("sha256").update(verifier).digest("base64url")};
+  return {...payload,cookieValue:encoded+"."+signature,challenge:createHash("sha256").update(verifier).digest("base64url")};
 }
 export function oauthStateRecord(transaction) {
   const stateHash = createHash("sha256").update(transaction.state).digest("hex");
