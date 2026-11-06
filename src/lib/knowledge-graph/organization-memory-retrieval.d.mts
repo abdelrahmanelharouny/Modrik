@@ -58,8 +58,12 @@ export function rankOrganizationMemoryCandidatesStream<T extends OrganizationMem
 export interface OrganizationMemoryIndexedScanResult<T extends OrganizationMemoryCandidate = OrganizationMemoryCandidate> {
   rows: Array<T & { retrieval: { mode: "indexed_bm25"; score: number } }>;
   candidatesScanned: number;
+  rankingCandidatesScanned: number;
   postingsScanned: number;
   pages: number;
+  firstPassPages: number;
+  secondPassPages: number;
+  passes: 2;
   batchSize: number;
   retrievalMode: "persistent_inverted_index";
   documentCount?: number;

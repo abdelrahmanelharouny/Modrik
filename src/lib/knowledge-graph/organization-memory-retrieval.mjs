@@ -376,7 +376,7 @@ export async function rankOrganizationMemoryCandidatesStream(input = {}) {
 export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Indexed ranking input must be an object.");
   const projectIds = [...new Set(Array.isArray(input.projectIds) ? input.projectIds.filter((id) => typeof id === "string" && id.trim()) : [])];
-  if (!projectIds.length) return { rows: [], candidatesScanned: 0, postingsScanned: 0, pages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, retrievalMode: "persistent_inverted_index", snapshotAt: new Date().toISOString(), durationMs: 0 };
+  if (!projectIds.length) return { rows: [], candidatesScanned: 0, rankingCandidatesScanned: 0, postingsScanned: 0, pages: 0, firstPassPages: 0, secondPassPages: 0, passes: 2, batchSize: DEFAULT_SCAN_BATCH_SIZE, retrievalMode: "persistent_inverted_index", snapshotAt: new Date().toISOString(), durationMs: 0 };
   for (const name of ["aggregateDocuments", "findPostings", "findCandidates"]) {
     if (typeof input[name] !== "function") throw new TypeError(`Indexed ranking requires the ${name} adapter.`);
   }
@@ -386,7 +386,7 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
   const rawBatch = Number(input.batchSize);
   const batchSize = Number.isSafeInteger(rawBatch) && rawBatch > 0 ? Math.min(rawBatch, MAX_SCAN_BATCH_SIZE) : DEFAULT_SCAN_BATCH_SIZE;
   const snapshotAt = input.snapshotAt instanceof Date && Number.isFinite(input.snapshotAt.getTime()) ? input.snapshotAt : new Date();
-  if (!queryTerms.length) return { rows: [], candidatesScanned: 0, postingsScanned: 0, pages: 0, batchSize, retrievalMode: "persistent_inverted_index", snapshotAt: snapshotAt.toISOString(), durationMs: Date.now() - startedAt };
+  if (!queryTerms.length) return { rows: [], candidatesScanned: 0, rankingCandidatesScanned: 0, postingsScanned: 0, pages: 0, firstPassPages: 0, secondPassPages: 0, passes: 2, batchSize, retrievalMode: "persistent_inverted_index", snapshotAt: snapshotAt.toISOString(), durationMs: Date.now() - startedAt };
 
   const documentWhere = { projectId: { in: projectIds }, status: "accepted", normalizerVersion: input.normalizerVersion ?? 1, updatedAt: { lte: snapshotAt } };
   const corpus = await input.aggregateDocuments({
