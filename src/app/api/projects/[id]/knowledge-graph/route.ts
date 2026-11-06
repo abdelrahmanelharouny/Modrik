@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 import { replaceOrganizationMemorySearchDocument } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
+import { enqueueOrganizationMemoryEmbeddingWork } from "@/lib/knowledge-graph/organization-memory-embedding-outbox.mjs";
 import {
   CLAIM_NODE_RELATIONSHIPS, KNOWLEDGE_EDGE_STATUSES,
   NODE_REQUIREMENT_ROLES, normalizeEdgeInput, normalizeNodeInput, parseNodeAttributes,
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid graph payload." }, { status: 400 });
-  const project = await db.project.findUnique({ where: { id }, select: { id: true, stageStatus: true } });
+  const project = await db.project.findUnique({ where: { id }, select: { id: true, stageStatus: true, organizationId: true } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
   if (["agent_running", "approving"].includes(project.stageStatus)) return NextResponse.json({ error: "Knowledge graph is locked while the project pipeline is processing." }, { status: 409 });
 
@@ -70,6 +71,13 @@ export async function POST(req: NextRequest, { params }: Params) {
           data: { projectId: id, nodeRef, ...nodeInput, status: "proposed", origin: "human" },
         });
         await replaceOrganizationMemorySearchDocument(tx, created);
+        await enqueueOrganizationMemoryEmbeddingWork(tx, {
+          enabled: process.env.ORGANIZATION_MEMORY_EMBEDDINGS_ENABLED === "true",
+          organizationId: project.organizationId,
+          model: process.env.ORGANIZATION_MEMORY_EMBEDDING_MODEL,
+          dimensions: Number(process.env.ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS),
+          node: created,
+        });
         return created;
       });
       await logDecision(id, "GRAPH", "human", "created_knowledge_node", `Created ${nodeRef} (${node.kind}): ${node.label}`);
@@ -102,6 +110,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       const node = await db.$transaction(async (tx) => {
         const updated = await tx.knowledgeNode.update({ where: { id: existing.id }, data });
         await replaceOrganizationMemorySearchDocument(tx, updated);
+        await enqueueOrganizationMemoryEmbeddingWork(tx, {
+          enabled: process.env.ORGANIZATION_MEMORY_EMBEDDINGS_ENABLED === "true",
+          organizationId: project.organizationId,
+          model: process.env.ORGANIZATION_MEMORY_EMBEDDING_MODEL,
+          dimensions: Number(process.env.ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS),
+          node: updated,
+        });
         return updated;
       });
       await logDecision(id, "GRAPH", "human", "updated_knowledge_node", `Updated ${node.nodeRef}: ${Object.keys(data).join(", ") || "no fields"}`);
