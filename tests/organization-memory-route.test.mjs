@@ -70,3 +70,12 @@ test("archive view is separately gated by approval permission and uses archived-
   assert.match(source, /buildOrganizationMemoryArchiveQuery/);
   assert.match(source, /summarizeOrganizationArchivedKnowledgeNode/);
 });
+
+
+test("organization knowledge UI exposes archive only to approvers and keeps archived records read-only", () => {
+  const source = fs.readFileSync(path.join(root, "src", "app", "settings", "knowledge-memory", "review-manager.tsx"), "utf8");
+  assert.match(source, /capabilities\.canApprove \? <button[^]*?view === "archived"/);
+  assert.match(source, /decide\(item, "archive"\)/);
+  assert.match(source, /view === "accepted" && capabilities\.canApprove/);
+  assert.match(source, /Archived record · Read only/);
+});
