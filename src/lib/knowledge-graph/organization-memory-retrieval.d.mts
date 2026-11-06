@@ -74,7 +74,7 @@ export function rankOrganizationMemoryCandidatesIndexed<T extends OrganizationMe
   batchSize?: number;
   snapshotAt?: Date;
   normalizerVersion?: number;
-  aggregateDocuments: (args: Record<string, unknown>) => Promise<Record<string, any>>;
-  findPostings: (args: Record<string, unknown>) => Promise<Array<Record<string, any>>>;
+  aggregateDocuments: (args: Record<string, unknown>) => Promise<{ _count?: { _all?: number }; _sum?: { tokenCount?: number | null } }>;
+  findPostings: (args: Record<string, unknown>) => Promise<Array<Record<string, unknown>>>;
   findCandidates: (args: Record<string, unknown>) => Promise<T[]>;
 }): Promise<OrganizationMemoryIndexedScanResult<T>>;

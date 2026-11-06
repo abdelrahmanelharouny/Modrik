@@ -408,9 +408,12 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
   while (true) {
     const where = {
       term: { in: queryTerms },
-      projectId: { in: projectIds },
-      status: "accepted",
-      normalizerVersion: input.normalizerVersion ?? 1,
+      document: { is: {
+        projectId: { in: projectIds },
+        status: "accepted",
+        normalizerVersion: input.normalizerVersion ?? 1,
+        updatedAt: { lte: snapshotAt },
+      } },
       ...(cursor ? { AND: [{ OR: [
         { documentId: { gt: cursor.documentId } },
         { documentId: cursor.documentId, term: { gt: cursor.term } },
@@ -420,7 +423,7 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
       where,
       take: batchSize,
       orderBy: [{ documentId: "asc" }, { term: "asc" }],
-      select: { documentId: true, term: true, frequency: true, projectId: true, status: true, normalizerVersion: true },
+      select: { documentId: true, term: true, frequency: true },
       include: { document: { select: { nodeId: true, projectId: true, status: true, tokenCount: true, normalizerVersion: true, updatedAt: true } } },
     });
     if (!Array.isArray(batch)) throw new TypeError("Indexed postings adapter must return an array.");
@@ -429,10 +432,8 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
     for (const posting of batch) {
       if (!posting || typeof posting.documentId !== "string" || typeof posting.term !== "string" ||
           !documentFrequency.has(posting.term) || !Number.isSafeInteger(posting.frequency) || posting.frequency < 1 ||
-          posting.projectId === undefined || posting.status !== "accepted" ||
-          posting.normalizerVersion !== (input.normalizerVersion ?? 1) ||
           !posting.document || typeof posting.document.nodeId !== "string" ||
-          !projectIds.includes(posting.projectId) || posting.document.projectId !== posting.projectId ||
+          !projectIds.includes(posting.document.projectId) ||
           posting.document.status !== "accepted" || posting.document.normalizerVersion !== (input.normalizerVersion ?? 1) ||
           !Number.isSafeInteger(posting.document.tokenCount) || posting.document.tokenCount < 0) {
         throw new TypeError("Indexed postings returned an invalid or unauthorized row.");
@@ -442,7 +443,6 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
         throw new Error("Indexed postings violated stable keyset ordering.");
       }
       previous = { documentId: posting.documentId, term: posting.term };
-      if (posting.document.updatedAt instanceof Date && posting.document.updatedAt > snapshotAt) continue;
       documentFrequency.set(posting.term, documentFrequency.get(posting.term) + 1);
       const current = documents.get(posting.documentId) ?? {
         nodeId: posting.document.nodeId,
