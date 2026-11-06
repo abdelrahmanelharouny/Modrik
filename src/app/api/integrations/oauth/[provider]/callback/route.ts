@@ -14,7 +14,7 @@ function clearCookie(response:NextResponse,provider:string){
  return response;
 }
 function fail(req:NextRequest,provider:string,message:string){
- const response=NextResponse.redirect(new URL("/settings/integrations?oauth="+provider+"&status=error&message="+encodeURIComponent(message),req.url));
+ const response=NextResponse.redirect(new URL("/?oauth="+provider+"&status=error&message="+encodeURIComponent(message),req.url));
  return clearCookie(response,provider);
 }
 export async function GET(req:NextRequest,{params}:Context){
@@ -69,7 +69,7 @@ export async function GET(req:NextRequest,{params}:Context){
    await db.integration.update({where:{id:existing.id},data:{config:JSON.stringify(saved)}});
   } else await db.integration.create({data:{projectId:tx.projectId,kind:provider,config:JSON.stringify(saved)}});
   await logDecision(tx.projectId,"LIFECYCLE","human","oauth_connected",provider+" account connected; target selection is still required.");
-  const response=NextResponse.redirect(new URL("/settings/integrations?oauth="+provider+"&status=connected&target=required",req.url));
+  const response=NextResponse.redirect(new URL("/?oauth="+provider+"&status=connected&target=required",req.url));
   return clearCookie(response,provider);
  }catch{return fail(req,provider,"OAuth exchange failed. Credential details were not exposed; reconnect and retry.");}
 }
