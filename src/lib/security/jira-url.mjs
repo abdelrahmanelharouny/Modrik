@@ -29,9 +29,13 @@ export function validateJiraBaseUrl(raw, env = process.env) {
   }
 
   const origin = url.origin.toLowerCase();
-  const isAtlassianCloud = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.atlassian\.net$/.test(hostname);
+  const isAtlassianCloud = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.atlassian\\.net$/.test(hostname);
+  // Atlassian 3LO uses the shared API gateway with a tenant-specific cloud ID.
+  // Accept only the exact Jira Cloud resource path, never arbitrary api.atlassian.com URLs.
+  const isAtlassianOAuthApi = hostname === "api.atlassian.com" &&
+    /^\\/ex\\/jira\\/[A-Za-z0-9-]+\\/?$/.test(url.pathname);
   const isExplicitlyAllowed = allowedOrigins(env).has(origin);
-  if (!isAtlassianCloud && !isExplicitlyAllowed) {
+  if (!isAtlassianCloud && !isAtlassianOAuthApi && !isExplicitlyAllowed) {
     throw new Error("Jira host is not allowlisted. Use an *.atlassian.net tenant or add its exact HTTPS origin to MODRIK_JIRA_ALLOWED_ORIGINS");
   }
 
