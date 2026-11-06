@@ -39,7 +39,8 @@
     "bench:organization-memory": "node scripts/benchmark-organization-memory-retrieval.mjs",
     "bench:organization-memory:postgres": "node scripts/benchmark-organization-memory-postgres.mjs",
     "worker:organization-memory-embeddings": "node scripts/run-organization-memory-embedding-worker.mjs",
-    "db:backfill:organization-memory-embeddings": "node scripts/backfill-organization-memory-embeddings.mjs"
+    "db:backfill:organization-memory-embeddings": "node scripts/backfill-organization-memory-embeddings.mjs",
+    "eval:organization-memory": "node scripts/evaluate-organization-memory-retrieval.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
