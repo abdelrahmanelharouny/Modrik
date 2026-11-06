@@ -50,6 +50,7 @@ export function buildOrganizationMemoryEmbeddingRetry(input = {}) {
     attempts,
     availableAt: dead ? now : new Date(now.getTime() + delay),
     lockedAt: null,
+    leaseExpiresAt: null,
     lockedBy: null,
     lastError: safeError,
     delayMs: dead ? 0 : delay,
@@ -68,6 +69,7 @@ export function buildOrganizationMemoryEmbeddingCompletion(input = {}) {
     data: {
       status: "completed",
       lockedAt: null,
+      leaseExpiresAt: null,
       lockedBy: null,
       lastError: null,
     },
