@@ -609,7 +609,7 @@ try {
     await guestPage.goto(`${baseUrl}/invite/accept`, { waitUntil: "networkidle" });
     await guestPage.getByRole("heading", { name: "انضم إلى مؤسستك" }).waitFor();
     assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "invitation shell must inherit Arabic RTL");
-    await guestPage.getByRole("alert").waitFor();
+    await guestPage.getByText("رابط الدعوة غير مكتمل. اطلب من مسؤول المؤسسة إصدار دعوة جديدة", { exact: true }).waitFor();
     assert.ok((await guestPage.locator("body").innerText()).includes("رابط الدعوة غير مكتمل"), "invalid invitation must explain recovery in Arabic");
     await guestPage.goto(`${baseUrl}/reset-password`, { waitUntil: "networkidle" });
     await guestPage.getByRole("heading", { name: "استعادة حسابك" }).waitFor();
