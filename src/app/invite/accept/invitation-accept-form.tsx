@@ -35,18 +35,18 @@ export function InvitationAcceptForm({ token }: { token: string }) {
         body: JSON.stringify({ token, password, displayName }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "This invitation could not be accepted");
+      if (!response.ok) throw new Error(ar ? "تعذر قبول الدعوة. تحقق من صلاحيتها أو اطلب رابطًا جديدًا من المسؤول." : payload.error || "This invitation could not be accepted");
       router.replace("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "This invitation could not be accepted");
+      setError(err instanceof Error ? err.message : (ar ? "تعذر قبول الدعوة" : "This invitation could not be accepted"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4">
+    <form onSubmit={submit} dir={ar ? "rtl" : "ltr"} lang={ar ? "ar" : "en"} className="grid gap-4">
       <div className="flex justify-end"><button type="button" onClick={toggle} aria-label={ar ? "تغيير اللغة إلى الإنجليزية" : "Switch language to Arabic"} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary">{ar ? "English" : "العربية"}</button></div>
       <label className="grid gap-2 text-sm">
         <span>{ar ? "الاسم الظاهر " : "Display name "}<span className="text-muted-foreground">{ar ? "(اختياري)" : "(optional)"}</span></span>
