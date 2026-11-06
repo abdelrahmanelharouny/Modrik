@@ -234,6 +234,7 @@ export async function GET(req: NextRequest) {
         candidateFirstPassPages: "firstPassPages" in scan! ? scan!.firstPassPages : null,
         candidateSecondPassPages: "secondPassPages" in scan! ? scan!.secondPassPages : null,
         candidatePasses: "passes" in scan! ? scan!.passes : 1,
+        retrievalPostingsScanned: "postingsScanned" in scan! ? scan!.postingsScanned : null,
         candidateBatchSize: scan!.batchSize,
         retrievalDurationMs: scan!.durationMs,
         candidateWindowTruncated: false,

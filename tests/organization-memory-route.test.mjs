@@ -53,3 +53,11 @@ test("ranked retrieval exposes indexed readiness and an actionable streaming fal
   assert.match(source, /"reconciliation_mismatch"/);
   assert.match(source, /indexedReadiness: scan!\.indexReadiness/);
 });
+
+
+test("indexed retrieval diagnostics include posting work as well as readiness and fallback", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /retrievalPostingsScanned: "postingsScanned" in scan!/);
+  assert.match(source, /candidateFirstPassPages/);
+  assert.match(source, /candidateSecondPassPages/);
+});
