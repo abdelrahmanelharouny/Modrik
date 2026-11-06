@@ -17,6 +17,16 @@ import { useLang } from "@/lib/i18n";
 
 const KIND_TONE: Record<string, Tone> = { contradiction: "coral", duplication: "signal", overlap: "aura" };
 const SEV_TONE: Record<string, Tone> = { high: "coral", medium: "signal", low: "muted" };
+const KIND_LABEL_AR: Record<string, string> = {
+  contradiction: "تناقض",
+  duplication: "تكرار",
+  overlap: "تداخل",
+};
+const SEVERITY_LABEL_AR: Record<string, string> = {
+  high: "مرتفع",
+  medium: "متوسط",
+  low: "منخفض",
+};
 const TAX_LABEL: Record<string, string> = {
   value: "تعارض في القيمة",
   terminology: "تعارض مصطلحات",
@@ -107,7 +117,7 @@ export function ConflictsStage({
           return (
             <li key={c.id} className={`hud-panel rounded-lg p-5 transition-all ${resolved ? "opacity-70" : "hover:border-aura/30"}`}>
               <div className="flex flex-wrap items-center gap-2">
-                <Chip tone={KIND_TONE[c.kind] ?? "muted"}>{ar ? ({ contradiction: "تناقض", duplication: "تكرار", overlap: "تداخل" }[c.kind] ?? c.kind) : c.kind}</Chip>
+                <Chip tone={KIND_TONE[c.kind] ?? "muted"}>{ar ? (KIND_LABEL_AR[c.kind] ?? c.kind) : c.kind}</Chip>
                 {c.taxonomy && (
                   <Chip tone="plasma" mono={false}>
                     <Scale className="h-3 w-3" /> {TAX_LABEL[c.taxonomy] ?? c.taxonomy}
