@@ -38,7 +38,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const detail = row.detail as { estimate?: Record<string, unknown>; rootRef?: string; modelVersion?: string };
     return { id: estimateId, rootRef: detail.rootRef ?? null, estimate: detail.estimate ?? null, modelVersion: detail.modelVersion ?? CHANGE_COST_MODEL_VERSION, createdAt: row.createdAt, outcome: outcomes.get(estimateId) ?? null };
   });
-  return NextResponse.json({ records, calibration: summarizeChangeCostCalibration(records), truncated: rows.length === 2000 }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+  return NextResponse.json({ records, calibration: summarizeChangeCostCalibration(records as Array<{ estimate?: { effortPoints?: number }; outcome?: { actualHours?: number } }>), truncated: rows.length === 2000 }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -72,8 +72,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
     const estimate = await db.decisionEntry.findFirst({ where: { id: estimateId, projectId, stage: "DEBRIEF", action: ESTIMATE_ACTION } });
     if (!estimate || parseDetail(estimate.detail)?.schema !== "modrik.change-cost.v1") return NextResponse.json({ error: "Estimate not found in this project." }, { status: 404 });
-    const existing = await db.decisionEntry.findFirst({ where: { projectId, stage: "DEBRIEF", action: OUTCOME_ACTION, detail: { contains: estimateId } }, select: { id: true } });
-    if (existing) return NextResponse.json({ error: "An outcome is already recorded for this estimate." }, { status: 409 });
+    const outcomeRows = await db.decisionEntry.findMany({ where: { projectId, stage: "DEBRIEF", action: OUTCOME_ACTION }, select: { id: true, detail: true } });
+    const alreadyRecorded = outcomeRows.some((row) => parseDetail(row.detail)?.estimateId === estimateId);
+    if (alreadyRecorded) return NextResponse.json({ error: "An outcome is already recorded for this estimate." }, { status: 409 });
     const entry = await db.decisionEntry.create({ data: {
       projectId, stage: "DEBRIEF", actor: "human", action: OUTCOME_ACTION,
       detail: JSON.stringify({ schema: "modrik.change-cost.v1", estimateId, actualHours, note }),
