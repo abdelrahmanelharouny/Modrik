@@ -395,7 +395,7 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
     _count: { _all: true },
     _sum: { tokenCount: true },
   });
-  const documentCount = Number(corpus?._count?._all ?? 0);
+  const documentCount = Number(typeof corpus?._count === "object" ? corpus._count?._all ?? 0 : 0);
   const totalLength = Number(corpus?._sum?.tokenCount ?? 0);
   if (!Number.isSafeInteger(documentCount) || documentCount < 0 || !Number.isFinite(totalLength) || totalLength < 0) {
     throw new TypeError("Indexed corpus aggregate returned invalid statistics.");

@@ -191,7 +191,7 @@ export async function GET(req: NextRequest) {
       ...(page ? {
         pagination: {
           hasMore: nodes.length > page.limit,
-          nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(nodes[page.limit - 1]!) : null,
+          nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(nodes[page.limit - 1]! as { id: string; updatedAt: Date }) : null,
         },
       } : { pagination: { hasMore: false, nextCursor: null } }),
       ...(rankedSearch ? {
