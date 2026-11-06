@@ -138,6 +138,9 @@ async function loadConfig(projectId: string, kind: "github" | "jira"): Promise<G
     } catch {
       throw new Error(`Saved ${kind} configuration is corrupt. Re-save the integration before retrying.`);
     }
+    // OAuth may be connected before a human selects a repository or Jira project.
+    // Pending connections are visible in status but are never usable by sync adapters.
+    if (config.authMode === "oauth" && config.oauthPending === true) return null;
     // Do not silently fall back to deployment credentials when ciphertext is
     // corrupt or the encryption key is wrong; that would target another account.
     if (typeof config.token === "string") config.token = decryptSecret(config.token);
@@ -180,14 +183,38 @@ function mask(v: string): string {
   return v.length <= 6 ? "••••" : `${v.slice(0, 3)}••••${v.slice(-3)}`;
 }
 
+async function oauthConnectionSummary(projectId: string, kind: "github" | "jira") {
+  const row = await db.integration.findFirst({ where: { projectId, kind }, orderBy: { createdAt: "desc" } });
+  if (!row) return null;
+  try {
+    const config = JSON.parse(row.config) as Record<string, unknown>;
+    if (config.authMode !== "oauth") return null;
+    return {
+      connected: true,
+      pendingTarget: config.oauthPending === true,
+      account: typeof config.account === "string" ? config.account : "",
+      scopes: Array.isArray(config.scopes) ? config.scopes.filter((scope): scope is string => typeof scope === "string") : [],
+      expiresAt: typeof config.expiresAt === "string" ? config.expiresAt : null,
+      connectedAt: typeof config.connectedAt === "string" ? config.connectedAt : null,
+      cloudId: typeof config.cloudId === "string" ? config.cloudId : undefined,
+    };
+  } catch {
+    throw new Error("Saved " + kind + " OAuth connection is corrupt. Reconnect the provider before retrying.");
+  }
+}
+
 export async function maskedStatus(projectId: string) {
-  const gh = await loadConfig(projectId, "github");
-  const jr = await loadConfig(projectId, "jira");
+  const [gh, jr, ghOAuth, jrOAuth] = await Promise.all([
+    loadConfig(projectId, "github"),
+    loadConfig(projectId, "jira"),
+    oauthConnectionSummary(projectId, "github"),
+    oauthConnectionSummary(projectId, "jira"),
+  ]);
   return {
     github: gh
       ? { configured: true, owner: (gh as GithubConfig).owner, repo: (gh as GithubConfig).repo, token: mask((gh as GithubConfig).token),
-          webhookConfigured: Boolean(await getGitHubWebhookConfig(projectId)) }
-      : { configured: false, webhookConfigured: false },
+          webhookConfigured: Boolean(await getGitHubWebhookConfig(projectId)), oauth: ghOAuth }
+      : { configured: false, webhookConfigured: false, oauth: ghOAuth },
     jira: jr
       ? {
           configured: true,
@@ -196,8 +223,9 @@ export async function maskedStatus(projectId: string) {
           email: mask((jr as JiraConfig).email),
           token: mask((jr as JiraConfig).token),
           webhookConfigured: Boolean(await getJiraWebhookConfig(projectId)),
+          oauth: jrOAuth,
         }
-      : { configured: false, webhookConfigured: false },
+      : { configured: false, webhookConfigured: false, oauth: jrOAuth },
   };
 }
 
