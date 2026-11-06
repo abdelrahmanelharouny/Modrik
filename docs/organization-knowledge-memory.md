@@ -142,3 +142,12 @@ The additive Prisma schema now includes:
 SQLite remains the canonical schema and the generated PostgreSQL schema is kept in parity. Vectors use JSON storage for cross-database compatibility at this stage; this is not a claim of indexed ANN performance. A production vector adapter must push organization, authorized project IDs, model, dimensions and ready status into the database predicate before candidate selection.
 
 The worker module provides claim predicates, bounded leases, compare-and-swap completion, capped exponential retry/dead-letter behavior, error credential redaction, and stale-upsert classification. These helpers are not yet a running background worker and do not enqueue jobs automatically. Transactional hooks, actual provider invocation, persistence adapters, operational metrics and end-to-end worker execution remain the next gate.
+
+
+### Transactional source lifecycle hook
+
+The project Knowledge Graph API now writes the embedding outbox row inside the same Prisma transaction as node creation/update and the existing BM25 document replacement. Queueing is opt-in via `ORGANIZATION_MEMORY_EMBEDDINGS_ENABLED=true` plus `ORGANIZATION_MEMORY_EMBEDDING_MODEL` and `ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS`; projects without an organization owner remain a no-op. No embedding provider is called from the request path.
+
+Accepted nodes enqueue upserts; non-accepted transitions enqueue delete tombstones. The worker must re-read the canonical node before acting: a stale upsert is skipped when the source hash changed, and a stale delete is skipped if the node has since been re-accepted. The outbox uses unique hashed idempotency keys and resets failed/retried jobs without storing provider credentials or raw source text.
+
+The request transaction now guarantees source-node + BM25 + outbox atomicity when the opt-in queue is configured. A scheduled/continuous worker, provider adapter, durable embedding write transaction and production activation remain separate release gates.
