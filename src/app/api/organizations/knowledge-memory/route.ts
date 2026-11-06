@@ -142,7 +142,8 @@ export async function GET(req: NextRequest) {
         limit: responseLimit,
         withProject: true,
         findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
-      });      const runHybrid = async (lexical: Awaited<ReturnType<typeof rankOrganizationMemoryCandidatesStream>>) => {
+      });
+      const runHybrid = async (lexical: Awaited<ReturnType<typeof rankOrganizationMemoryCandidatesStream>>) => {
         if (process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true" || !projectIds.length) return lexical;
         try {
           const provider = await createOrganizationMemoryEmbeddingProvider();
@@ -206,10 +207,11 @@ export async function GET(req: NextRequest) {
         findPostings: (args) => tx.organizationMemorySearchPosting.findMany(args as Parameters<typeof tx.organizationMemorySearchPosting.findMany>[0]),
         findCandidates: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
       });
-      const indexedWithSemantic = await runHybrid(indexed);
+      const indexedWithSemantic = indexedEnabled ? await runHybrid(indexed) : indexed;
       if (shadowEnabled) {
-        const streaming = await runHybrid(await runStreaming());
-        const parity = compareOrganizationMemoryRetrievalParity(streaming.rows, indexed.rows);
+        const streamingBase = await runStreaming();
+        const streaming = await runHybrid(streamingBase);
+        const parity = compareOrganizationMemoryRetrievalParity(streamingBase.rows, indexed.rows);
         return {
           ...(indexedEnabled ? indexedWithSemantic : streaming),
           shadowComparison: parity,
