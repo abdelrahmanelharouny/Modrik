@@ -117,11 +117,12 @@ async function processJob(job) {
 }
 
 async function retry(job, error) {
-  const { delayMs: _delayMs, ...retryData } = buildOrganizationMemoryEmbeddingRetry({
+  const retryData = buildOrganizationMemoryEmbeddingRetry({
     attempts: job.attempts,
     maxAttempts: job.maxAttempts,
     error: error instanceof Error ? error.message : "Embedding worker failed.",
   });
+  delete retryData.delayMs;
   await prisma.organizationMemoryEmbeddingJob.updateMany({
     where: { id: job.id, status: "processing", lockedBy: workerId, lockedAt: job.lockedAt },
     data: retryData,
