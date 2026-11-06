@@ -55,17 +55,18 @@ test("accepted nodes create deterministic idempotent upsert work; non-accepted n
 });
 
 test("semantic retrieval rechecks tenant, project, accepted status, model, dimensions and content freshness", () => {
+  const currentHash = buildOrganizationMemoryEmbeddingContent(node).contentHash;
   const results = rankTenantScopedOrganizationMemoryEmbeddings({
     organizationId: "o1", projectIds: ["p1"], model: "embed-v1", dimensions: 3,
     queryEmbedding: { model: "embed-v1", dimensions: 3, vector: [1, 0, 0] },
     candidates: [
       node,
-      { ...node, id: "n2", contentHash: "hash-current" },
+      { ...node, id: "n2" },
       { ...node, id: "cross-org", organizationId: "o2" },
       { ...node, id: "draft", status: "proposed" },
     ],
     embeddingRecords: [
-      { organizationId: "o1", projectId: "p1", nodeId: "n1", status: "ready", contentHash: "hash-current", model: "embed-v1", dimensions: 3, vector: [1, 0, 0] },
+      { organizationId: "o1", projectId: "p1", nodeId: "n1", status: "ready", contentHash: currentHash, model: "embed-v1", dimensions: 3, vector: JSON.stringify([1, 0, 0]) },
       { organizationId: "o1", projectId: "p1", nodeId: "n2", status: "ready", contentHash: "stale-hash", model: "embed-v1", dimensions: 3, vector: [0.8, 0.2, 0] },
       { organizationId: "o2", projectId: "p1", nodeId: "cross-org", status: "ready", contentHash: "hash-current", model: "embed-v1", dimensions: 3, vector: [1, 0, 0] },
       { organizationId: "o1", projectId: "p1", nodeId: "draft", status: "ready", contentHash: "hash-current", model: "embed-v1", dimensions: 3, vector: [1, 0, 0] },
