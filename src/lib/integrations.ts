@@ -127,6 +127,60 @@ export interface JiraConfig {
   email: string;
   token: string;
   projectKey: string;
+  authType?: "basic" | "bearer";
+}
+
+async function refreshOAuthIntegration(
+  row: { id: string; config: string },
+  config: Record<string, unknown>,
+  kind: "github" | "jira"
+): Promise<Record<string, unknown>> {
+  const expiresAt = typeof config.expiresAt === "string" ? Date.parse(config.expiresAt) : NaN;
+  if (!Number.isFinite(expiresAt) || expiresAt > Date.now() + 120_000) return config;
+  const encryptedRefresh = typeof config.refreshToken === "string" ? config.refreshToken : "";
+  const refreshToken = encryptedRefresh ? decryptSecret(encryptedRefresh) : "";
+  const clientId = kind === "github" ? process.env.MODRIK_GITHUB_CLIENT_ID : process.env.MODRIK_ATLASSIAN_CLIENT_ID;
+  const clientSecret = kind === "github" ? process.env.MODRIK_GITHUB_CLIENT_SECRET : process.env.MODRIK_ATLASSIAN_CLIENT_SECRET;
+  if (!refreshToken || !clientId || !clientSecret) {
+    throw new Error(kind + " OAuth access token expired. Reconnect the provider to continue.");
+  }
+  const endpoint = kind === "github"
+    ? "https://github.com/login/oauth/access_token"
+    : "https://auth.atlassian.com/oauth/token";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: clientId, client_secret: clientSecret,
+      grant_type: "refresh_token", refresh_token: refreshToken,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const data = await response.json().catch(() => ({})) as {
+    access_token?: string; refresh_token?: string; expires_in?: number;
+  };
+  if (!response.ok || !data.access_token) {
+    throw new Error(kind + " OAuth refresh failed. Reauthorization is required.");
+  }
+  const next = {
+    ...config,
+    token: encryptSecret(data.access_token),
+    refreshToken: data.refresh_token ? encryptSecret(data.refresh_token) : encryptedRefresh,
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000).toISOString() : null,
+    refreshedAt: new Date().toISOString(),
+  };
+  const updated = await db.integration.updateMany({
+    where: { id: row.id, config: row.config },
+    data: { config: JSON.stringify(next) },
+  });
+  if (updated.count === 1) return next;
+  const latest = await db.integration.findUnique({ where: { id: row.id }, select: { config: true } });
+  if (!latest) throw new Error("OAuth connection was removed during token refresh.");
+  try {
+    return JSON.parse(latest.config) as Record<string, unknown>;
+  } catch {
+    throw new Error("OAuth connection changed during refresh and is unreadable.");
+  }
 }
 
 async function loadConfig(projectId: string, kind: "github" | "jira"): Promise<GithubConfig | JiraConfig | null> {
@@ -141,6 +195,7 @@ async function loadConfig(projectId: string, kind: "github" | "jira"): Promise<G
     // OAuth may be connected before a human selects a repository or Jira project.
     // Pending connections are visible in status but are never usable by sync adapters.
     if (config.authMode === "oauth" && config.oauthPending === true) return null;
+    if (config.authMode === "oauth") config = await refreshOAuthIntegration(row, config, kind);
     // Do not silently fall back to deployment credentials when ciphertext is
     // corrupt or the encryption key is wrong; that would target another account.
     if (typeof config.token === "string") config.token = decryptSecret(config.token);
@@ -377,7 +432,9 @@ export async function githubPull(projectId: string, limit = 20): Promise<{ issue
 // ── Jira adapter (Cloud REST v3) ─────────────────────────────
 
 function jiraAuth(cfg: JiraConfig): string {
-  return Buffer.from(`${cfg.email}:${cfg.token}`).toString("base64");
+  return cfg.authType === "bearer"
+    ? `Bearer ${cfg.token}`
+    : `Basic ${Buffer.from(`${cfg.email}:${cfg.token}`).toString("base64")}`;
 }
 
 function jiraDescription(r: { refId: string; text: string; priority: string; verifyStatus: string; links: { evidenceCode: string }[]; acceptance?: string }): object {
@@ -437,7 +494,7 @@ export async function jiraPush(projectId: string): Promise<{ pushed: { label: st
       const searchResponse = await fetch(buildJiraUrl(cfg.baseUrl, "rest/api/3/search"), {
         method: "POST",
         headers: {
-          Authorization: `Basic ${jiraAuth(cfg)}`,
+          Authorization: jiraAuth(cfg),
           Accept: "application/json",
           "Content-Type": "application/json",
         },
@@ -459,7 +516,7 @@ export async function jiraPush(projectId: string): Promise<{ pushed: { label: st
         const response = await fetch(buildJiraUrl(cfg.baseUrl, "rest/api/3/issue"), {
           method: "POST",
           headers: {
-            Authorization: `Basic ${jiraAuth(cfg)}`,
+            Authorization: jiraAuth(cfg),
             Accept: "application/json",
             "Content-Type": "application/json",
           },
@@ -513,7 +570,7 @@ export async function jiraPull(projectId: string, limit = 20): Promise<{ issues:
   const res = await fetch(buildJiraUrl(cfg.baseUrl, `rest/api/3/search?maxResults=${encodeURIComponent(String(limit))}`), {
     method: "POST",
     headers: {
-      Authorization: `Basic ${jiraAuth(cfg)}`,
+      Authorization: jiraAuth(cfg),
       Accept: "application/json",
       "Content-Type": "application/json",
     },
