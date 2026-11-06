@@ -6,7 +6,7 @@ import { createOAuthTransaction, oauthCallbackUrl, oauthCookieName, oauthProvide
 import { db } from "@/lib/db";
 export const runtime="nodejs";
 type Context={params:Promise<{id:string;provider:string}>};
-export async function GET(req:NextRequest,{params}:Context) {
+export async function GET(_req:NextRequest,{params}:Context) {
  const {id:projectId,provider}=await params;
  if(provider!=="github"&&provider!=="jira") return NextResponse.json({error:"Unsupported OAuth provider"},{status:404});
  const identity=await resolveIdentitySession(req.cookies.get(SESSION_COOKIE)?.value);
@@ -24,7 +24,7 @@ export async function GET(req:NextRequest,{params}:Context) {
   url.searchParams.set("client_id",config.clientId); url.searchParams.set("redirect_uri",oauthCallbackUrl(provider));
   url.searchParams.set("response_type","code"); url.searchParams.set("state",tx.state);
   url.searchParams.set("code_challenge",tx.challenge); url.searchParams.set("code_challenge_method","S256");
-  url.searchParams.set("scope",config.scopes.join(provider==="github"?" ":" "));
+  url.searchParams.set("scope",config.scopes.join(" "));
   if(provider==="jira"){url.searchParams.set("audience","api.atlassian.com");url.searchParams.set("prompt","consent");}
   const response=NextResponse.redirect(url);
   response.cookies.set(oauthCookieName(provider),tx.cookieValue,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/api/integrations/oauth/"+provider+"/callback",maxAge:600});
