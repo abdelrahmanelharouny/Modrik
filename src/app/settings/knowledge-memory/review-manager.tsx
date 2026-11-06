@@ -22,6 +22,11 @@ type ReviewItem = {
 };
 type Capabilities = { canReview: boolean; canApprove: boolean };
 
+const KNOWLEDGE_KIND_AR: Record<string, string> = {
+  stakeholder: "صاحب مصلحة", goal: "هدف", assumption: "افتراض", constraint: "قيد", decision: "قرار",
+  risk: "مخاطر", metric: "مقياس", system: "نظام", domain_concept: "مفهوم نطاق", process: "عملية", policy: "سياسة",
+};
+
 export function OrganizationKnowledgeReviewManager() {
   const { lang } = useLang();
   const ar = lang === "ar";
