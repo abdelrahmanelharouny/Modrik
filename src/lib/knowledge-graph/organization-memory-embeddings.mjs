@@ -54,10 +54,13 @@ export function buildOrganizationMemoryEmbeddingIdentity(input) {
     nodeId: requiredString(input.nodeId, "nodeId"),
     contentHash: requiredString(input.contentHash, "contentHash", 64),
     model: requiredString(input.model, "model", 160),
-    dimensions: validateOrganizationMemoryVector({
-      model: input.model, dimensions: input.dimensions,
-      vector: input.validationVector,
-    }, { model: input.model, dimensions: input.dimensions }).dimensions,
+    dimensions: (() => {
+      const dimensions = Number(input.dimensions);
+      if (!Number.isSafeInteger(dimensions) || dimensions < 2 || dimensions > MAX_EMBEDDING_DIMENSIONS) {
+        throw new RangeError("Embedding dimensions are invalid.");
+      }
+      return dimensions;
+    })(),
   };
 }
 
