@@ -25,7 +25,9 @@ export function verifyOAuthTransaction(cookieValue,suppliedState,provider,env=pr
   if(typeof cookieValue!=="string"||cookieValue.length>4096||typeof suppliedState!=="string"||!providers.has(provider)) return null;
   const parts=cookieValue.split(".");
   if(parts.length!==2) return null;
-  const expected=createHmac("sha256",keyFor(env)).update(parts[0]).digest("base64url");
+  let expected;
+  try { expected=createHmac("sha256",keyFor(env)).update(parts[0]).digest("base64url"); }
+  catch { return null; }
   if(!equal(parts[1],expected)) return null;
   try {
     const p=JSON.parse(Buffer.from(parts[0],"base64url").toString("utf8")), seconds=Math.floor(now/1000);
