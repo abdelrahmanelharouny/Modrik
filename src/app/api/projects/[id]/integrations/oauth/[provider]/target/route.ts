@@ -5,6 +5,7 @@ import { SESSION_COOKIE } from "@/lib/security/session.mjs";
 import { decryptSecret } from "@/lib/security/secret-box.mjs";
 import { logDecision } from "@/lib/journal";
 import { db } from "@/lib/db";
+import { buildJiraUrl, validateJiraBaseUrl } from "@/lib/security/jira-url.mjs";
 export const runtime="nodejs";
 type Context={params:Promise<{id:string;provider:string}>};
 async function authorized(req:NextRequest,projectId:string){
@@ -41,8 +42,10 @@ export async function POST(req:NextRequest,{params}:Context){
   const projectKey=String(body.projectKey??"").trim().toUpperCase();
   if(!/^[A-Z][A-Z0-9_]{0,9}$/.test(projectKey)) return NextResponse.json({error:"A valid Jira project key is required"},{status:400});
   const baseUrl=String(config.baseUrl??"");
-  if(!baseUrl.startsWith("https://api.atlassian.com/ex/jira/")) return NextResponse.json({error:"The connected Jira Cloud site is invalid"},{status:409});
-  const check=await fetch(baseUrl+"rest/api/3/project/"+encodeURIComponent(projectKey),{headers:{Authorization:"Bearer "+token,Accept:"application/json"},signal:AbortSignal.timeout(15000)});
+  let safeBase: URL;
+  try { safeBase=validateJiraBaseUrl(baseUrl); } catch { return NextResponse.json({error:"The connected Jira Cloud site is invalid"},{status:409}); }
+  if(safeBase.hostname!=="api.atlassian.com"||!safeBase.pathname.startsWith("/ex/jira/")) return NextResponse.json({error:"The connected Jira Cloud site is invalid"},{status:409});
+  const check=await fetch(buildJiraUrl(baseUrl,"rest/api/3/project/"+encodeURIComponent(projectKey)),{headers:{Authorization:"Bearer "+token,Accept:"application/json"},signal:AbortSignal.timeout(15000)});
   if(!check.ok) return NextResponse.json({error:"The selected Jira project is not accessible to this account"},{status:422});
   config={...config,projectKey,oauthPending:false,authType:"bearer"};
  }
