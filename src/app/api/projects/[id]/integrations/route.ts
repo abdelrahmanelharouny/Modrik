@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { oauthProviderConfig } from "@/lib/security/oauth-lifecycle.mjs";
 import {
   maskedStatus,
   saveConfig,
@@ -18,7 +19,14 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const [status, maps] = await Promise.all([maskedStatus(id), listSyncMaps(id)]);
-  return NextResponse.json({ status, maps });
+  return NextResponse.json({
+    status,
+    maps,
+    oauthAvailable: {
+      github: Boolean(oauthProviderConfig("github")),
+      jira: Boolean(oauthProviderConfig("jira")),
+    },
+  });
 }
 
 // POST { kind, action, config? }
