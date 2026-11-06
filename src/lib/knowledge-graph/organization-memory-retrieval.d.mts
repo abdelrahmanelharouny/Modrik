@@ -53,3 +53,28 @@ export function rankOrganizationMemoryCandidatesStream<T extends OrganizationMem
   withProject?: boolean;
   findMany: (args: Record<string, unknown>) => Promise<T[]>;
 }): Promise<OrganizationMemoryStreamingScanResult<T>>;
+
+
+export interface OrganizationMemoryIndexedScanResult<T extends OrganizationMemoryCandidate = OrganizationMemoryCandidate> {
+  rows: Array<T & { retrieval: { mode: "indexed_bm25"; score: number } }>;
+  candidatesScanned: number;
+  postingsScanned: number;
+  pages: number;
+  batchSize: number;
+  retrievalMode: "persistent_inverted_index";
+  documentCount?: number;
+  averageLength?: number;
+  snapshotAt: string;
+  durationMs: number;
+}
+export function rankOrganizationMemoryCandidatesIndexed<T extends OrganizationMemoryCandidate = OrganizationMemoryCandidate>(input: {
+  projectIds: string[];
+  query: string;
+  limit?: number;
+  batchSize?: number;
+  snapshotAt?: Date;
+  normalizerVersion?: number;
+  aggregateDocuments: (args: Record<string, unknown>) => Promise<Record<string, any>>;
+  findPostings: (args: Record<string, unknown>) => Promise<Array<Record<string, any>>>;
+  findCandidates: (args: Record<string, unknown>) => Promise<T[]>;
+}): Promise<OrganizationMemoryIndexedScanResult<T>>;

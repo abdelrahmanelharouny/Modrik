@@ -365,3 +365,134 @@ export async function rankOrganizationMemoryCandidatesStream(input = {}) {
     durationMs: Math.max(0, Date.now() - startedAt),
   };
 }
+
+
+/**
+ * Exact BM25 retrieval from the persistent provider-neutral inverted index.
+ * The adapter contract is deliberately Prisma-shaped but injectable for tests.
+ * Execute all adapters in one serializable transaction and only after the
+ * caller has checked per-project index completeness.
+ */
+export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Indexed ranking input must be an object.");
+  const projectIds = [...new Set(Array.isArray(input.projectIds) ? input.projectIds.filter((id) => typeof id === "string" && id.trim()) : [])];
+  if (!projectIds.length) return { rows: [], candidatesScanned: 0, postingsScanned: 0, pages: 0, batchSize: DEFAULT_SCAN_BATCH_SIZE, retrievalMode: "persistent_inverted_index", snapshotAt: new Date().toISOString(), durationMs: 0 };
+  for (const name of ["aggregateDocuments", "findPostings", "findCandidates"]) {
+    if (typeof input[name] !== "function") throw new TypeError(`Indexed ranking requires the ${name} adapter.`);
+  }
+  const startedAt = Date.now();
+  const queryTerms = [...new Set(tokenizeOrganizationMemoryText(input.query))];
+  const limit = boundedLimit(input.limit);
+  const rawBatch = Number(input.batchSize);
+  const batchSize = Number.isSafeInteger(rawBatch) && rawBatch > 0 ? Math.min(rawBatch, MAX_SCAN_BATCH_SIZE) : DEFAULT_SCAN_BATCH_SIZE;
+  const snapshotAt = input.snapshotAt instanceof Date && Number.isFinite(input.snapshotAt.getTime()) ? input.snapshotAt : new Date();
+  if (!queryTerms.length) return { rows: [], candidatesScanned: 0, postingsScanned: 0, pages: 0, batchSize, retrievalMode: "persistent_inverted_index", snapshotAt: snapshotAt.toISOString(), durationMs: Date.now() - startedAt };
+
+  const documentWhere = { projectId: { in: projectIds }, status: "accepted", normalizerVersion: input.normalizerVersion ?? 1, updatedAt: { lte: snapshotAt } };
+  const corpus = await input.aggregateDocuments({
+    where: documentWhere,
+    _count: { _all: true },
+    _sum: { tokenCount: true },
+  });
+  const documentCount = Number(corpus?._count?._all ?? 0);
+  const totalLength = Number(corpus?._sum?.tokenCount ?? 0);
+  if (!Number.isSafeInteger(documentCount) || documentCount < 0 || !Number.isFinite(totalLength) || totalLength < 0) {
+    throw new TypeError("Indexed corpus aggregate returned invalid statistics.");
+  }
+  if (!documentCount) return { rows: [], candidatesScanned: 0, postingsScanned: 0, pages: 0, batchSize, retrievalMode: "persistent_inverted_index", documentCount, averageLength: 0, snapshotAt: snapshotAt.toISOString(), durationMs: Date.now() - startedAt };
+
+  const averageLength = totalLength / documentCount;
+  const documentFrequency = new Map(queryTerms.map((term) => [term, 0]));
+  const documents = new Map();
+  let pages = 0, postingsScanned = 0, cursor = null;
+  while (true) {
+    const where = {
+      term: { in: queryTerms },
+      projectId: { in: projectIds },
+      status: "accepted",
+      normalizerVersion: input.normalizerVersion ?? 1,
+      ...(cursor ? { AND: [{ OR: [
+        { documentId: { gt: cursor.documentId } },
+        { documentId: cursor.documentId, term: { gt: cursor.term } },
+      ] }] } : {}),
+    };
+    const batch = await input.findPostings({
+      where,
+      take: batchSize,
+      orderBy: [{ documentId: "asc" }, { term: "asc" }],
+      select: { documentId: true, term: true, frequency: true, projectId: true, status: true, normalizerVersion: true },
+      include: { document: { select: { nodeId: true, projectId: true, status: true, tokenCount: true, normalizerVersion: true, updatedAt: true } } },
+    });
+    if (!Array.isArray(batch)) throw new TypeError("Indexed postings adapter must return an array.");
+    pages += 1;
+    let previous = cursor;
+    for (const posting of batch) {
+      if (!posting || typeof posting.documentId !== "string" || typeof posting.term !== "string" ||
+          !documentFrequency.has(posting.term) || !Number.isSafeInteger(posting.frequency) || posting.frequency < 1 ||
+          posting.projectId === undefined || posting.status !== "accepted" ||
+          posting.normalizerVersion !== (input.normalizerVersion ?? 1) ||
+          !posting.document || typeof posting.document.nodeId !== "string" ||
+          !projectIds.includes(posting.projectId) || posting.document.projectId !== posting.projectId ||
+          posting.document.status !== "accepted" || posting.document.normalizerVersion !== (input.normalizerVersion ?? 1) ||
+          !Number.isSafeInteger(posting.document.tokenCount) || posting.document.tokenCount < 0) {
+        throw new TypeError("Indexed postings returned an invalid or unauthorized row.");
+      }
+      if (previous && (posting.documentId < previous.documentId ||
+          (posting.documentId === previous.documentId && posting.term <= previous.term))) {
+        throw new Error("Indexed postings violated stable keyset ordering.");
+      }
+      previous = { documentId: posting.documentId, term: posting.term };
+      if (posting.document.updatedAt instanceof Date && posting.document.updatedAt > snapshotAt) continue;
+      documentFrequency.set(posting.term, documentFrequency.get(posting.term) + 1);
+      const current = documents.get(posting.documentId) ?? {
+        nodeId: posting.document.nodeId,
+        projectId: posting.document.projectId,
+        tokenCount: posting.document.tokenCount,
+        frequencies: new Map(),
+      };
+      current.frequencies.set(posting.term, posting.frequency);
+      documents.set(posting.documentId, current);
+      postingsScanned += 1;
+    }
+    if (batch.length < batchSize) break;
+    const last = batch[batch.length - 1];
+    cursor = { documentId: last.documentId, term: last.term };
+    if (pages > 1_000_000) throw new Error("Indexed postings scan exceeded its safety page limit.");
+  }
+
+  const k1 = 1.2, b = 0.75;
+  const scored = [];
+  for (const [documentId, document] of documents) {
+    let score = 0;
+    for (const term of queryTerms) {
+      const frequency = document.frequencies.get(term) ?? 0;
+      if (!frequency) continue;
+      const df = documentFrequency.get(term) ?? 0;
+      const idf = Math.log(1 + (documentCount - df + 0.5) / (df + 0.5));
+      const denominator = frequency + k1 * (1 - b + b * (averageLength ? document.tokenCount / averageLength : 0));
+      score += idf * (frequency * (k1 + 1)) / denominator;
+    }
+    if (score > 0 && Number.isFinite(score)) scored.push({ documentId, nodeId: document.nodeId, projectId: document.projectId, score });
+  }
+  scored.sort((left, right) => right.score - left.score || left.nodeId.localeCompare(right.nodeId));
+  const top = scored.slice(0, limit);
+  const nodes = top.length ? await input.findCandidates({
+    where: { id: { in: top.map((item) => item.nodeId) }, projectId: { in: projectIds }, status: "accepted" },
+    include: { project: { select: { name: true } } },
+  }) : [];
+  if (!Array.isArray(nodes)) throw new TypeError("Indexed candidate adapter must return an array.");
+  const byId = new Map();
+  for (const node of nodes) {
+    if (!node || typeof node.id !== "string" || !projectIds.includes(node.projectId) || node.status !== "accepted") continue;
+    byId.set(node.id, node);
+  }
+  const rows = top.flatMap((item) => {
+    const node = byId.get(item.nodeId);
+    return node ? [{ ...node, retrieval: { mode: "indexed_bm25", score: Number(item.score.toFixed(8)) } }] : [];
+  });
+  return {
+    rows, candidatesScanned: documents.size, postingsScanned, pages, batchSize,
+    retrievalMode: "persistent_inverted_index", documentCount, averageLength,
+    snapshotAt: snapshotAt.toISOString(), durationMs: Math.max(0, Date.now() - startedAt),
+  };
+}

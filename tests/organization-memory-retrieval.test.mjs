@@ -241,3 +241,45 @@ test("streaming BM25 scores and tie-breaks match the in-memory BM25 reference", 
   assert.deepEqual(actual.rows.map((row) => row.id), expected.map((row) => row.id));
   assert.deepEqual(actual.rows.map((row) => row.retrieval.score), expected.map((row) => row.retrieval.score));
 });
+
+
+test("persistent indexed BM25 matches streaming BM25 scores and ranking with bounded posting pages", async () => {
+  const { rankOrganizationMemoryCandidatesIndexed, rankOrganizationMemoryCandidatesStream } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const docs = [
+    { id: "d1", nodeId: "n1", projectId: "p1", status: "accepted", normalizerVersion: 1, tokenCount: 5, updatedAt: new Date("2026-11-01T00:00:00Z") },
+    { id: "d2", nodeId: "n2", projectId: "p1", status: "accepted", normalizerVersion: 1, tokenCount: 4, updatedAt: new Date("2026-11-01T00:00:00Z") },
+    { id: "d3", nodeId: "n3", projectId: "p2", status: "accepted", normalizerVersion: 1, tokenCount: 3, updatedAt: new Date("2026-11-01T00:00:00Z") },
+    { id: "d4", nodeId: "n4", projectId: "p1", status: "rejected", normalizerVersion: 1, tokenCount: 2, updatedAt: new Date("2026-11-01T00:00:00Z") },
+  ];
+  const raw = [
+    ["d1","data",2],["d1","retention",1],["d1","policy",2],
+    ["d2","data",1],["d2","retention",2],["d2","policy",1],
+    ["d3","data",1],["d3","retention",1],
+    ["d4","data",1],["d4","retention",1],
+  ].map(([documentId,term,frequency]) => ({ documentId, term, frequency, projectId: documentId==="d3"?"p2":"p1", status: documentId==="d4"?"rejected":"accepted", normalizerVersion:1, document: docs.find(d=>d.id===documentId) }));
+  const nodeRows = [
+    { id:"n1", projectId:"p1", status:"accepted", kind:"policy", label:"data data retention", description:"policy policy", updatedAt:docs[0].updatedAt, project:{name:"P1"} },
+    { id:"n2", projectId:"p1", status:"accepted", kind:"policy", label:"data retention retention", description:"policy", updatedAt:docs[1].updatedAt, project:{name:"P1"} },
+  ];
+  const aggregateDocuments = async ({where}) => {
+    const selected=docs.filter(d=>where.projectId.in.includes(d.projectId)&&d.status===where.status&&d.normalizerVersion===where.normalizerVersion);
+    return {_count:{_all:selected.length},_sum:{tokenCount:selected.reduce((s,d)=>s+d.tokenCount,0)}};
+  };
+  const findPostings = async ({where,take}) => raw.filter(p=>where.projectId.in.includes(p.projectId)&&p.status===where.status&&p.normalizerVersion===where.normalizerVersion&&where.term.in.includes(p.term)&&(!where.AND||p.documentId>where.AND[0].OR[0].documentId.gt||(p.documentId===where.AND[0].OR[1].documentId&&p.term>where.AND[0].OR[1].term.gt))).sort((a,b)=>a.documentId.localeCompare(b.documentId)||a.term.localeCompare(b.term)).slice(0,take);
+  const findCandidates = async ({where}) => nodeRows.filter(n=>where.id.in.includes(n.id)&&where.projectId.in.includes(n.projectId)&&n.status===where.status);
+  const indexed=await rankOrganizationMemoryCandidatesIndexed({projectIds:["p1"],query:"data retention",limit:10,batchSize:2,aggregateDocuments,findPostings,findCandidates,snapshotAt:new Date("2026-11-02T00:00:00Z")});
+  const stream=await rankOrganizationMemoryCandidatesStream({projectIds:["p1"],where:{projectId:{in:["p1"]},status:"accepted"},query:"data retention",limit:10,batchSize:2,snapshotAt:new Date("2026-11-02T00:00:00Z"),withProject:true,findMany:async ({where,take})=>nodeRows.filter(n=>where.projectId.in.includes(n.projectId)&&n.status===where.status).slice(0,take)});
+  assert.deepEqual(indexed.rows.map(n=>n.id),stream.rows.map(n=>n.id));
+  for(let i=0;i<indexed.rows.length;i++) assert.ok(Math.abs(indexed.rows[i].retrieval.score-stream.rows[i].retrieval.score)<1e-8);
+  assert.equal(indexed.candidatesScanned,2);
+  assert.equal(indexed.postingsScanned,6);
+  assert.equal(indexed.rows[0].retrieval.mode,"indexed_bm25");
+  assert.ok(indexed.pages>1);
+});
+
+test("indexed retrieval fails closed on invalid posting scope and malformed aggregate statistics", async () => {
+  const { rankOrganizationMemoryCandidatesIndexed } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
+  const base={projectIds:["p1"],query:"policy",aggregateDocuments:async()=>({_count:{_all:1},_sum:{tokenCount:2}}),findCandidates:async()=>[]};
+  await assert.rejects(()=>rankOrganizationMemoryCandidatesIndexed({...base,findPostings:async()=>[{documentId:"d",term:"policy",frequency:1,projectId:"p2",status:"accepted",normalizerVersion:1,document:{nodeId:"n",projectId:"p2",status:"accepted",normalizerVersion:1,tokenCount:2}}]}),TypeError);
+  await assert.rejects(()=>rankOrganizationMemoryCandidatesIndexed({...base,aggregateDocuments:async()=>({_count:{_all:-1},_sum:{tokenCount:2}}),findPostings:async()=>[]}),TypeError);
+});
