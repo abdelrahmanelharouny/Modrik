@@ -35,7 +35,7 @@ function makeTx(sourceNodes, options = {}) {
         if (where.id?.gt) rows = rows.filter((node) => node.id > where.id.gt);
         if (where.id?.in) rows = rows.filter((node) => where.id.in.includes(node.id));
         rows.sort((a,b) => a.id.localeCompare(b.id));
-        return rows.slice(0, take ?? rows.length).map(node => select?.id ? {id:node.id} : node);
+        return rows.slice(0, take ?? rows.length).map(node => Object.keys(select ?? {}).length === 1 ? {id:node.id} : node);
       },
     },
     organizationMemorySearchDocument: {
@@ -101,12 +101,14 @@ test("reconciliation detects missing/stale documents, missing/unexpected posting
   const post=tx.postings.get(doc.id);
   post[0].frequency += 4;
   post.push({id:"rogue",documentId:doc.id,term:"not-in-source",frequency:1});
+  post.push({id:"duplicate",documentId:doc.id,term:post[0].term,frequency:post[0].frequency});
   const a=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:10});
   assert.equal(a.findings.missingDocuments,1);
   assert.equal(a.findings.staleDocuments,1);
   assert.ok(a.findings.missingPostings>0);
   assert.ok(a.findings.unexpectedPostings>0);
   assert.ok(a.findings.incorrectFrequencies>0);
+  assert.ok(a.findings.duplicatePostings>0);
   const b=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:10});
   assert.equal(b.status,"failed");
   assert.ok(b.mismatchCount>0);
@@ -115,10 +117,12 @@ test("reconciliation detects missing/stale documents, missing/unexpected posting
 test("reconciliation detects orphan documents in the independent document pass", async () => {
   const tx=makeTx(nodes); await indexAll(tx);
   tx.docs.set("orphan",{id:"doc-orphan",nodeId:"deleted-node",projectId:"p1",status:"accepted"});
+  tx.postings.set("doc-orphan",[{id:"orphan-post",documentId:"doc-orphan",term:"ghost",frequency:1}]);
   const a=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:10});
   assert.equal(a.phase,"documents");
   const b=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:10});
   assert.equal(b.findings.orphanDocuments,1);
+  assert.equal(b.findings.orphanPostings,1);
   assert.equal(b.status,"failed");
 });
 
