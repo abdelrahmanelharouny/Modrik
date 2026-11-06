@@ -107,8 +107,8 @@ function WorkspaceShell({
   return project ? (
     <Workspace project={project} busy={busy} setBusy={setBusy} refresh={refresh} backHome={backHome} />
   ) : projectLoadError ? (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <HudPanel className="w-full max-w-lg p-8" as="section" role="alert" aria-live="assertive">
+    <div className="flex min-h-screen items-center justify-center p-6" role="alert" aria-live="assertive">
+      <HudPanel className="w-full max-w-lg p-8" as="section">
         <div className="mb-4 flex items-center gap-2 text-signal">
           <AlertTriangle className="h-5 w-5" />
           <Eyebrow>PROJECT CONNECTION INTERRUPTED</Eyebrow>
