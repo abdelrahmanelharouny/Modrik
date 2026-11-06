@@ -71,6 +71,8 @@ export function PlannerLab({ projectId }: { projectId: string }) {
   const { lang } = useLang();
   const ar = lang === "ar";
   const { toast } = useToast();
+  const armLabel = (arm: string) => ar ? ({ impact_aware: "◆ واعٍ بالأثر", single_shot: "استدعاء واحد", random: "اختيار عشوائي", llm: "اختيار النموذج" } as Record<string, string>)[arm] ?? arm : ARM_META[arm]?.label ?? arm;
+  const armDescription = (arm: string) => ar ? ({ impact_aware: "اختيار حسب المنفعة وتكلفة السؤال", single_shot: "استدعاء تقليدي واحد للنموذج", random: "اختيار عشوائي للأسئلة", llm: "النموذج يختار الأسئلة بنفسه" } as Record<string, string>)[arm] ?? "" : ARM_META[arm]?.desc ?? "";
   const [runs, setRuns] = useState<PlannerRunDTO[]>([]);
   const [busyArm, setBusyArm] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -98,12 +100,12 @@ export function PlannerLab({ projectId }: { projectId: string }) {
         body: JSON.stringify({ arm }),
       });
       toast({
-        title: `${ARM_META[arm]?.label ?? arm} executed`,
-        description: `avgUtility ${d.metrics.avgUtility} · coverage ${d.metrics.evidenceCoverage}% · redundancy ${d.metrics.redundancyRate}% · dialect fit ${d.metrics.dialectFit}%`,
+        title: `${armLabel(arm)} ${ar ? "تم التنفيذ" : "executed"}`,
+        description: ar ? `المنفعة ${d.metrics.avgUtility} · التغطية ${d.metrics.evidenceCoverage}% · التكرار ${d.metrics.redundancyRate}% · ملاءمة اللهجة ${d.metrics.dialectFit}%` : `avgUtility ${d.metrics.avgUtility} · coverage ${d.metrics.evidenceCoverage}% · redundancy ${d.metrics.redundancyRate}% · dialect fit ${d.metrics.dialectFit}%`,
       });
       await load();
     } catch (e) {
-      toast({ title: "Planner run failed", description: (e as Error).message, variant: "destructive" });
+      toast({ title: ar ? "فشل تشغيل المخطط" : "Planner run failed", description: (e as Error).message, variant: "destructive" });
     } finally {
       setBusyArm(null);
     }
@@ -242,9 +244,7 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
   if (cal.verdict === "insufficient-data") {
     return (
       <EmptyBay>
-        {ar ? `لا توجد متطلبات موثقة كفاية بعد (نحتاج 3 على الأقل بدرجة ثقة وحكم الناقد؛ المتاح حاليًا ${cal.n}).` : `Not enough {ar ? "متطلبات موثقة" : "verified requirements"} yet (need ≥ 3 with confidence + critic verdicts; currently ${cal.n}).`}
-        {ar ? "شغّل مرحلتي الاستخراج والغموض أولًا — فالمعايرة تتحقق من توافق الثقة مع" : "Run the Extraction and Ambiguity phases first — calibration validates confidence against the"}
-        critic&apos;s evidence verdicts.
+        {ar ? `لا توجد متطلبات موثقة كفاية بعد (نحتاج 3 على الأقل بدرجة ثقة وحكم الناقد؛ المتاح حاليًا ${cal.n}). شغّل مرحلتي الاستخراج والغموض أولًا، فالمعايرة تتحقق من توافق الثقة مع أحكام الناقد على الأدلة.` : `Not enough verified requirements yet (need ≥ 3 with confidence + critic verdicts; currently ${cal.n}). Run the Extraction and Ambiguity phases first — calibration validates confidence against the critic’s evidence verdicts.`}
       </EmptyBay>
     );
   }
@@ -363,7 +363,7 @@ export function ExecutabilitySim({ projectId }: { projectId: string }) {
       const d = await api<{ scenarios: number; undefinedCount: number }>(`/api/projects/${projectId}/executability`, { method: "POST" });
       toast({
         title: ar ? "اكتملت المحاكاة" : "Simulation complete",
-        description: `${d.scenarios} scenario(s) — ${d.undefinedCount} UNDEFINED recorded as discoveries.`,
+        description: ar ? `${d.scenarios} سيناريو — تم تسجيل ${d.undefinedCount} حالة غير محددة كاكتشافات.` : `${d.scenarios} scenario(s) — ${d.undefinedCount} UNDEFINED recorded as discoveries.`,
       });
       await load();
     } catch (e) {

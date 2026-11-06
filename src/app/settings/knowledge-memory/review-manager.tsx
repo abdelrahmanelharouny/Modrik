@@ -137,7 +137,7 @@ export function OrganizationKnowledgeReviewManager() {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{ar ? "استكشف المعرفة الموثوقة المشتركة بين مشروعات المؤسسة، أو راجع الإضافات قبل اعتمادها في الذاكرة المؤسسية." : "Explore trusted knowledge shared across active organization projects, or review submissions before they enter the accepted memory."}</p>
         </div>
         <button type="button" onClick={() => { setNextCursor(null); setHasMore(false); void load(); }} disabled={loading || loadingMore || !!busyId} className="inline-flex h-10 items-center gap-2 self-start rounded-lg border border-border px-3 text-sm hover:bg-secondary disabled:opacity-50">
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> {ar ? "تحديث" : "Refresh"}
         </button>
       </div>
 

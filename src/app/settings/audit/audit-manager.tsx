@@ -69,7 +69,7 @@ export function OrganizationAuditManager() {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{ar ? "سجل زمني لأنشطة الحوكمة داخل المؤسسة. يخضع الوصول إلى صلاحية التدقيق." : "A chronological, organization-scoped record of governance activity. Access is controlled by the audit permission."}</p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading || loadingMore} className="inline-flex h-10 items-center gap-2 self-start rounded-lg border border-border px-3 text-sm hover:bg-secondary disabled:opacity-50">
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> {ar ? "تحديث" : "Refresh"}
         </button>
       </div>
 
