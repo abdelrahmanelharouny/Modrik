@@ -122,3 +122,12 @@ The runner refuses non-PostgreSQL `DATABASE_URL` values, creates a uniquely name
 The first measured query pass is reported separately and is **not** labelled a guaranteed cold-cache run; PostgreSQL and operating-system caches are not forcibly flushed. CI runs a bounded 1,000-node smoke benchmark and uploads the JSON report as an artifact. Larger corpus sizes are intended for an explicitly provisioned benchmark database, not production. All fixture data is synthetic; the runner does not change feature flags, perform a production backfill, or enable indexed reads.
 
 Keep PostgreSQL timings separate from `bench:organization-memory`, which uses synthetic in-memory adapters and is useful for algorithmic regression but is not a database performance measurement.
+
+
+## Semantic embedding foundation (provider-neutral, not enabled)
+
+The server-side embedding module now defines canonical Arabic/English retrieval text, a versioned SHA-256 content identity, strict provider-vector validation, model/dimension pinning, idempotent upsert/delete work descriptions, and exact cosine ranking over a pre-authorized candidate set. The ranking helper intersects records with accepted source nodes and rechecks organization, project, model, dimensions and content hash before scoring.
+
+The database adapter must use `buildTenantScopedEmbeddingFilter` as part of the vector-store query **before** nearest-neighbor top-K. The in-process checks are defense in depth; they do not make a global vector query safe. Empty project scope returns no filter and no results. Unsupported or stale embeddings are misses.
+
+This is a contract and deterministic test foundation only. It does not yet persist embedding records or an outbox, call a live embedding provider, or enable semantic/hybrid retrieval in the API. The next implementation gate is additive SQLite/PostgreSQL embedding + outbox schema, transactional lifecycle hooks, bounded retry worker, provider selection and tenant-filtered adapters. BM25 remains the only production retrieval mode.
