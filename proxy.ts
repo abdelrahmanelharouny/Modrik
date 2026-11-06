@@ -39,6 +39,9 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
     if (method === "PATCH" || method === "PUT") return "projects:update";
     return "projects:update";
   }
+  if (route.startsWith("integrations/oauth/")) {
+    return "projects:update";
+  }
   if (route === "integrations") {
     return method === "GET" ? "projects:read" : "members:manage";
   }
