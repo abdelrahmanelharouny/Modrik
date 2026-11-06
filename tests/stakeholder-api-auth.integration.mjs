@@ -611,7 +611,8 @@ try {
     assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "invitation shell must inherit Arabic RTL");
     await guestPage.getByText("رابط الدعوة غير مكتمل. اطلب من مسؤول المؤسسة إصدار دعوة جديدة.", { exact: true }).waitFor();
     assert.ok((await guestPage.locator("body").innerText()).includes("رابط الدعوة غير مكتمل"), "invalid invitation must explain recovery in Arabic");
-    await guestPage.goto(`${baseUrl}/reset-password`, { waitUntil: "networkidle" });
+    const recoveryResponse = await guestPage.goto(`${baseUrl}/reset-password`, { waitUntil: "networkidle" });
+    console.log("Password recovery navigation:", JSON.stringify({ status: recoveryResponse?.status(), url: guestPage.url(), title: await guestPage.title(), body: (await guestPage.locator("body").innerText().catch(() => "")).slice(0, 500) }));
     await guestPage.getByRole("heading", { name: "استعادة حسابك" }).waitFor();
     assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "password recovery shell must inherit Arabic RTL");
     await guestPage.getByText("البريد الإلكتروني", { exact: true }).waitFor();
