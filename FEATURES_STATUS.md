@@ -1,6 +1,6 @@
 # Modrik feature and release status
 
-**Snapshot:** `codex/modrik-h2-2-full-stack-reconciled`, updated 2026-11-06 at `99d871be8a551db9da2d1e1616ffec31239aa40a`. This is repository status; it does not claim external providers or a production deployment have been verified.
+**Snapshot:** `codex/modrik-h2-2-full-stack-reconciled`, updated 2026-11-06 at `2f23b173c7ef9b26b816eeb314ef5d68bc7938d0`. This is repository status; it does not claim external providers or a production deployment have been verified.
 
 ## Completed implementation phases
 
@@ -35,7 +35,7 @@ Research execution remains separate from implementation completion. Full benchma
 - Offline evidence create/update/delete queue with IndexedDB persistence, stable operation UUIDs, idempotent server intake, FIFO synchronization, retry/recovery, revision conflict review, explicit rebase/discard controls, Web Locks and IndexedDB lease fallback with fencing tokens.
 - Atomic compare-and-swap evidence updates/deletes and server-side idempotency ledger.
 - Organization knowledge-memory lexical retrieval, persistent inverted index write-through, resumable backfill, reconciliation/repair, fail-closed readiness, streaming BM25 fallback and PostgreSQL benchmark. Indexed reads remain gated by completeness/reconciliation and are not represented as generally enabled.
-- Organization governance/review queue and organization audit stream with tenant-scoped access.
+- Organization governance/review queue and organization audit stream with tenant-scoped access; approver-only archive lifecycle and archive reader now preserve decision history while excluding archived knowledge from active retrieval.\n- Requirement-first Reverse Mode: inspect a requirement reference to list linked GitHub/Jira changes, evidence, claims, stories, impacted requirements and exact mapping decision trails; detailed tracker inspection remains human-reviewed and read-only.
 - CI for regression, benchmark corpus, release configuration shape, SQLite/PostgreSQL schema parity, PostgreSQL schema validation and integration, TypeScript, lint, production build, stakeholder API/browser E2E and PostgreSQL retrieval benchmark.
 
 ## Remaining product and research work
@@ -51,7 +51,7 @@ Research execution remains separate from implementation completion. Full benchma
 - Semantic/vector retrieval is not enabled or connected to an embedding provider. ADR-018 requires provider selection, tenant-filtered storage, embedding lifecycle/outbox, deletion/re-embedding and multilingual quality evaluation before rollout.
 - Indexed organization-memory serving needs a production-shaped backfill/reconciliation run, shadow parity observation and measured database-scale benefit before promotion. Streaming BM25 remains the correctness fallback.
 - Calibrate the requirement-level change-effort heuristic against observed engineering work.
-- Advanced organization governance and audit lifecycle beyond current RBAC, review queue and audit primitives.
+- Further organization governance beyond the now-implemented explicit approve/reject/archive lifecycle: retention policy, controlled bulk operations (only if explicitly authorized), and advanced audit review workflows.
 - GitHub/Jira OAuth and provider-side token lifecycle management; current integration uses static tokens and signed webhooks.
 - Offline file/audio blobs, cross-device queue replication and service-worker background sync are unsupported. IndexedDB is browser-local and not separately encrypted; avoid highly sensitive evidence on shared devices.
 - Egyptian Arabic ASR quality remains provider-dependent; script checks and human review are guardrails, not a full upstream accuracy solution.
