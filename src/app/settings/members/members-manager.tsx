@@ -19,7 +19,10 @@ type Invitation = {
 
 const roles = ["viewer", "reviewer", "approver", "engineer", "admin"];
 
-export function MembersManager() {\n  const { lang, toggle } = useLang();\n  const ar = lang === "ar";\n  const tx = (en: string, arabic: string) => ar ? arabic : en;
+export function MembersManager() {
+  const { lang, toggle } = useLang();
+  const ar = lang === "ar";
+  const tx = (en: string, arabic: string) => ar ? arabic : en;
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("viewer");
@@ -104,7 +107,8 @@ export function MembersManager() {\n  const { lang, toggle } = useLang();\n  con
 
   return (
     <main dir={ar ? "rtl" : "ltr"} lang={ar ? "ar" : "en"} className="mx-auto min-h-screen w-full max-w-5xl px-4 py-10 text-foreground sm:px-6">
-      <div className="mb-8 flex items-center justify-between gap-4">\n        <button type="button" onClick={toggle} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">{ar ? "English" : "العربية"}</button>
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <button type="button" onClick={toggle} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">{ar ? "English" : "العربية"}</button>
         <div>
           <Link href="/" className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-primary">
             <ArrowLeft className="h-4 w-4" /> {tx("Mission Control","مركز التحكم")}
