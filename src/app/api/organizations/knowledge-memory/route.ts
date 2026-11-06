@@ -10,6 +10,8 @@ import {
   summarizeOrganizationKnowledgeNode,
   buildOrganizationReviewQueueQuery,
   summarizeOrganizationReviewQueueNode,
+  buildOrganizationMemoryArchiveQuery,
+  summarizeOrganizationArchivedKnowledgeNode,
   hasVerifiedOrganizationMemoryIdentity,
   buildOrganizationMemoryPage,
   buildOrganizationMemoryCursorWhere,
@@ -74,13 +76,16 @@ export async function GET(req: NextRequest) {
     return errorResponse("cursor must be a non-empty record cursor of at most 512 characters", 400);
   }
   const view = params.get("view") ?? "accepted";
-  if (view !== "accepted" && view !== "review_queue") {
-    return errorResponse("view must be accepted or review_queue", 400);
+  if (view !== "accepted" && view !== "review_queue" && view !== "archived") {
+    return errorResponse("view must be accepted, review_queue or archived", 400);
   }
   const canReview = hasOrganizationPermission(permissions, "requirements:review");
   const canApprove = hasOrganizationPermission(permissions, "requirements:approve");
   if (view === "review_queue" && !canReview && !canApprove) {
     return errorResponse("Review permission required", 403);
+  }
+  if (view === "archived" && !canApprove) {
+    return errorResponse("Knowledge archive access requires approval permission", 403);
   }
 
   try {
@@ -96,9 +101,11 @@ export async function GET(req: NextRequest) {
     }
     const query = rankedSearch
       ? buildOrganizationKnowledgeCandidateQuery({ projectIds, kind })
-      : (view === "review_queue" ? buildOrganizationReviewQueueQuery : buildOrganizationKnowledgeQuery)({
-          projectIds, kind, search, limit,
-        });
+      : (view === "review_queue"
+          ? buildOrganizationReviewQueueQuery
+          : view === "archived"
+            ? buildOrganizationMemoryArchiveQuery
+            : buildOrganizationKnowledgeQuery)({ projectIds, kind, search, limit });
     const capabilities = view === "review_queue" ? { canReview, canApprove } : undefined;
     if (query.take === 0) {
       return NextResponse.json({
@@ -208,7 +215,9 @@ export async function GET(req: NextRequest) {
     });
     const summarize = view === "review_queue"
       ? summarizeOrganizationReviewQueueNode
-      : summarizeOrganizationKnowledgeNode;
+      : view === "archived"
+        ? summarizeOrganizationArchivedKnowledgeNode
+        : summarizeOrganizationKnowledgeNode;
     const rankedNodes = nodes;
     const pageNodes = page ? rankedNodes.slice(0, page.limit) : rankedNodes;
     const items = pageNodes.map((node) => {
