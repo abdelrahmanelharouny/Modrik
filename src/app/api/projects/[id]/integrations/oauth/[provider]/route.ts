@@ -6,7 +6,7 @@ import { createOAuthTransaction, oauthCallbackUrl, oauthCookieName, oauthProvide
 import { db } from "@/lib/db";
 export const runtime="nodejs";
 type Context={params:Promise<{id:string;provider:string}>};
-export async function GET(_req:NextRequest,{params}:Context) {
+export async function GET(req:NextRequest,{params}:Context) {
  const {id:projectId,provider}=await params;
  if(provider!=="github"&&provider!=="jira") return NextResponse.json({error:"Unsupported OAuth provider"},{status:404});
  const identity=await resolveIdentitySession(req.cookies.get(SESSION_COOKIE)?.value);
