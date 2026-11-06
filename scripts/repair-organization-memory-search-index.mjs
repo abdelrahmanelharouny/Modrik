@@ -33,7 +33,8 @@ async function main() {
       console.log(JSON.stringify(result));
       if (result.status === "blocked") { blockedProjects += 1; blocked = true; break; }
       repairedNodes += result.repairedNodes ?? 0;
-      removedOrphanDocuments += result.removedOrphanDocuments ?? 0;\n      removedOrphanPostings += result.removedOrphanPostings ?? 0;
+      removedOrphanDocuments += result.removedOrphanDocuments ?? 0;
+      removedOrphanPostings += result.removedOrphanPostings ?? 0;
       phase = result.nextPhase;
       cursor = result.nextCursor;
       done = result.done;
