@@ -238,6 +238,7 @@ export function ElicitationStage({
   // worker per mounted project so queue rows are never concurrently acked or
   // have their retry counters overwritten by this component instance.
   const offlineSyncInFlightRef = useRef(false);
+  const offlineRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deleteOperationIdsRef = useRef(new Map<string, string>());
 
   const loadOfflineQueue = useCallback(async () => {
@@ -247,6 +248,10 @@ export function ElicitationStage({
 
   const syncOfflineEvidence = useCallback(async () => {
     if (offlineSyncInFlightRef.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+    if (offlineRetryTimerRef.current) {
+      clearTimeout(offlineRetryTimerRef.current);
+      offlineRetryTimerRef.current = null;
+    }
     offlineSyncInFlightRef.current = true;
     setSyncingOffline(true);
     let changed = false;
@@ -268,11 +273,23 @@ export function ElicitationStage({
             else break;
           } catch (error) {
             if ((error as Error & { code?: string }).code === "OFFLINE_SYNC_LEASE_LOST") throw error;
+            const message = (error as Error).message;
+            const attempts = operation.attempts + 1;
             await lease.recordFailure(operation, {
               ...operation,
-              attempts: operation.attempts + 1,
-              lastError: (error as Error).message.slice(0, 240),
+              attempts,
+              lastError: message.slice(0, 240),
             });
+            // Revision/authorization/validation failures need human action.
+            // Network and service failures retry with capped exponential backoff.
+            const requiresReview = /conflict|changed in another session|not found|forbidden|unauthorized|validation|permission/i.test(message);
+            if (!requiresReview && typeof window !== "undefined" && navigator.onLine) {
+              const delay = Math.min(5 * 60_000, 5_000 * (2 ** Math.min(attempts - 1, 6)));
+              offlineRetryTimerRef.current = setTimeout(() => {
+                offlineRetryTimerRef.current = null;
+                void syncOfflineEvidence();
+              }, delay);
+            }
             break;
           }
         }
@@ -288,11 +305,30 @@ export function ElicitationStage({
   }, [project.id, loadOfflineQueue, refresh, toast]);
 
   useEffect(() => {
+    let disposed = false;
+    const recover = () => {
+      if (disposed || document.visibilityState === "hidden" || !navigator.onLine) return;
+      void loadOfflineQueue();
+      void syncOfflineEvidence();
+    };
     void loadOfflineQueue();
     void syncOfflineEvidence();
-    const onOnline = () => { void syncOfflineEvidence(); };
-    window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
+    window.addEventListener("online", recover);
+    window.addEventListener("focus", recover);
+    window.addEventListener("pageshow", recover);
+    document.addEventListener("visibilitychange", recover);
+    // A suspended tab may miss its online/focus event; this bounded heartbeat
+    // rechecks persisted work without keeping an always-running sync loop.
+    const recoveryInterval = window.setInterval(recover, 60_000);
+    return () => {
+      disposed = true;
+      window.removeEventListener("online", recover);
+      window.removeEventListener("focus", recover);
+      window.removeEventListener("pageshow", recover);
+      document.removeEventListener("visibilitychange", recover);
+      window.clearInterval(recoveryInterval);
+      if (offlineRetryTimerRef.current) clearTimeout(offlineRetryTimerRef.current);
+    };
   }, [loadOfflineQueue, syncOfflineEvidence]);
 
   const addEvidence = async () => {
