@@ -79,3 +79,12 @@ test("organization knowledge UI exposes archive only to approvers and keeps arch
   assert.match(source, /view === "accepted" && capabilities\.canApprove/);
   assert.match(source, /Archived record · Read only/);
 });
+
+
+test("semantic hybrid retrieval is opt-in and reports BM25 fallback diagnostics", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true"/);
+  assert.match(source, /semantic_unavailable_bm25_served/);
+  assert.match(source, /semanticFallbackReason/);
+  assert.match(source, /fuseOrganizationMemoryRankings/);
+});
