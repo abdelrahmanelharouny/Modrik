@@ -60,8 +60,8 @@ export function ConflictsStage({
     const resolution = resolutions[itemId];
     if (!resolution?.trim()) {
       toast({
-        title: "Resolution required",
-        description: "The system presents implications — the verdict must be yours. Write the resolution first.",
+        title: ar ? "الحل مطلوب" : "Resolution required",
+        description: ar ? "النظام يعرض الآثار فقط؛ القرار النهائي لك. اكتب الحل أولًا." : "The system presents implications — the verdict must be yours. Write the resolution first.",
         variant: "destructive",
       });
       return;
@@ -72,9 +72,9 @@ export function ConflictsStage({
         body: JSON.stringify({ kind: "conflict", itemId, data: { resolution } }),
       });
       await refresh();
-      toast({ title: "Conflict resolved", description: "Verdict recorded in the decision journal." });
+      toast({ title: ar ? "تم حل التعارض" : "Conflict resolved", description: ar ? "تم تسجيل القرار في سجل القرارات." : "Verdict recorded in the decision journal." });
     } catch (e) {
-      toast({ title: "Could not resolve", description: (e as Error).message, variant: "destructive" });
+      toast({ title: ar ? "تعذر حل التعارض" : "Could not resolve", description: (e as Error).message, variant: "destructive" });
     }
   };
 
@@ -157,7 +157,7 @@ export function ConflictsStage({
                 ))}
                 <div className="hidden items-center md:flex">
                   <span className="rounded-full border border-coral/40 bg-coral/10 px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-coral">
-                    vs
+                    {ar ? "مقابل" : "vs"}
                   </span>
                 </div>
               </div>

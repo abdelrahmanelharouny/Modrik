@@ -220,7 +220,7 @@ export function ExtractionStage({
                       .filter((evidence) => !r.links.some((link) => link.evidenceId === evidence.id))
                       .map((evidence) => (
                         <SelectItem key={evidence.id} value={evidence.id}>
-                          {evidence.code} · {evidence.title.slice(0, 70)}{evidence.consent ? "" : " {ar ? " (غير مشارك مع الذكاء الاصطناعي)" : " (not AI-shared)"}"}
+                          {evidence.code} · {evidence.title.slice(0, 70)}{evidence.consent ? "" : ar ? " (غير مشارك مع الذكاء الاصطناعي)" : " (not AI-shared)"}
                         </SelectItem>
                       ))}
                   </SelectContent>
