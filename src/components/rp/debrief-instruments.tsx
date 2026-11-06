@@ -38,6 +38,7 @@ import {
   GitBranch,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLang } from "@/lib/i18n";
 
 // ── Planner Lab ──────────────────────────────────────────────
 
@@ -67,6 +68,8 @@ const ARM_META: Record<string, { label: string; tone: Tone; desc: string }> = {
 };
 
 export function PlannerLab({ projectId }: { projectId: string }) {
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const { toast } = useToast();
   const [runs, setRuns] = useState<PlannerRunDTO[]>([]);
   const [busyArm, setBusyArm] = useState<string | null>(null);
@@ -116,12 +119,12 @@ export function PlannerLab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <HudPanel className="p-4" as="div">
-        <Eyebrow className="mb-2 block">◉ THE UTILITY FORMULA (deterministic)</Eyebrow>
+        <Eyebrow className="mb-2 block">◉ {ar ? "معادلة المنفعة (حتمية)" : "THE UTILITY FORMULA (deterministic)"}</Eyebrow>
         <p className="font-mono text-xs leading-relaxed text-aura">
           Utility = ( InformationGain × DownstreamImpact × Uncertainty × Risk ) ÷ AskCost
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Signal-scored per question, selected under an ask-cost budget. Run any arm — every arm&apos;s
+          {ar ? "تُقيّم الأسئلة حسب الإشارة وتُختار ضمن ميزانية تكلفة السؤال. شغّل أي مسار — وتُقيّم جميع المسارات" : "Signal-scored per question, selected under an ask-cost budget. Run any arm — every arm&apos;s}
           final set is judged by the <span className="text-foreground">same scorer and judge</span>, so the
           comparison is fair (single-shot still gets signal-scored post-hoc).
         </p>
@@ -152,12 +155,12 @@ export function PlannerLab({ projectId }: { projectId: string }) {
             <thead className="bg-secondary/50 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">arm</th>
-                <th className="px-3 py-2">avg utility ↑</th>
-                <th className="px-3 py-2">utility / cost ↑</th>
-                <th className="px-3 py-2">coverage ↑</th>
-                <th className="px-3 py-2">redundancy ↓</th>
-                <th className="px-3 py-2">dialect fit ↑</th>
-                <th className="px-3 py-2">n runs</th>
+                <th className="px-3 py-2">{ar ? "متوسط المنفعة ↑" : "avg utility ↑"}</th>
+                <th className="px-3 py-2">{ar ? "المنفعة / التكلفة ↑" : "utility / cost ↑"}</th>
+                <th className="px-3 py-2">{ar ? "التغطية ↑" : "coverage ↑"}</th>
+                <th className="px-3 py-2">{ar ? "التكرار ↓" : "redundancy ↓"}</th>
+                <th className="px-3 py-2">{ar ? "ملاءمة اللهجة ↑" : "dialect fit ↑"}</th>
+                <th className="px-3 py-2">{ar ? "عدد التشغيلات" : "n runs"}</th>
               </tr>
             </thead>
             <tbody>
@@ -185,7 +188,7 @@ export function PlannerLab({ projectId }: { projectId: string }) {
 
       {loaded && runs.length === 0 && (
         <EmptyBay>
-          No ablation runs yet. Pick an arm above — each run materialises its question set into the
+          No ablatio{ar ? "عدد التشغيلات" : "n runs"} yet. Pick an arm above — each run materialises its question set into the
           Briefing queue with the utility breakdown stamped on every question.
         </EmptyBay>
       )}
@@ -223,6 +226,8 @@ interface CalibrationDTO {
 }
 
 export function CalibrationPanel({ projectId }: { projectId: string }) {
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [cal, setCal] = useState<CalibrationDTO | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -234,14 +239,14 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
       .finally(() => setBusy(false));
   }, [projectId]);
 
-  if (busy) return <EmptyBay><Loader2 className="mr-2 inline h-4 w-4 animate-spin text-aura" />computing reliability bins…</EmptyBay>;
-  if (!cal) return <EmptyBay>Calibration data unavailable.</EmptyBay>;
+  if (busy) return <EmptyBay><Loader2 className="me-2 inline h-4 w-4 animate-spin text-aura" />{ar ? "جارٍ حساب شرائح موثوقية التقديرات…" : "computing reliability bins…"}</EmptyBay>;
+  if (!cal) return <EmptyBay>{ar ? "بيانات المعايرة غير متاحة." : "Calibration data unavailable."}</EmptyBay>;
 
   if (cal.verdict === "insufficient-data") {
     return (
       <EmptyBay>
-        Not enough verified requirements yet (need ≥ 3 with confidence + critic verdicts; currently {cal.n}).
-        Run the Extraction and Ambiguity phases first — calibration validates confidence against the
+        {ar ? `لا توجد متطلبات موثقة كفاية بعد (نحتاج 3 على الأقل بدرجة ثقة وحكم الناقد؛ المتاح حاليًا ${cal.n}).` : `Not enough {ar ? "متطلبات موثقة" : "verified requirements"} yet (need ≥ 3 with confidence + critic verdicts; currently ${cal.n}).`}
+        {ar ? "شغّل مرحلتي الاستخراج والغموض أولًا — فالمعايرة تتحقق من توافق الثقة مع" : "Run the Extraction and Ambiguity phases first — calibration validates confidence against the"}
         critic&apos;s evidence verdicts.
       </EmptyBay>
     );
@@ -255,11 +260,11 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
         <HudPanel className="p-4 text-center" as="div">
           <Scale className="mx-auto h-4 w-4 text-aura" />
           <div className="mt-1.5 font-display text-xl font-bold tabular-nums">{cal.brier}</div>
-          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Brier score</div>
+          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{ar ? "درجة Brier" : "Brier score"}</div>
         </HudPanel>
         <HudPanel className="p-4 text-center" as="div">
           <div className="font-display text-xl font-bold tabular-nums">{cal.ece}</div>
-          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Calibration error (ECE)</div>
+          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{ar ? "خطأ المعايرة (ECE)" : "Calibration error (ECE)"}</div>
         </HudPanel>
         <HudPanel className="p-4 text-center" as="div">
           <Chip tone={verdictTone} className="mx-auto">{cal.verdict}</Chip>
@@ -267,18 +272,18 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
         </HudPanel>
         <HudPanel className="p-4 text-center" as="div">
           <div className="font-display text-xl font-bold tabular-nums">{cal.n}</div>
-          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">verified requirements</div>
+          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{ar ? "متطلبات موثقة" : "verified requirements"}</div>
         </HudPanel>
       </div>
 
       <HudPanel className="p-4" as="div">
-        <Eyebrow className="mb-3 block">◉ RELIABILITY BINS — claimed vs empirical</Eyebrow>
+        <Eyebrow className="mb-3 block">◉ {ar ? "شرائح الموثوقية — الثقة المقدرة مقابل الفعلية" : "RELIABILITY BINS — claimed vs empirical"}</Eyebrow>
         <div className="space-y-3">
           {cal.bins.map((b) => (
             <div key={b.range}>
               <div className="mb-1 flex items-center justify-between font-mono text-[10px] text-muted-foreground">
                 <span>
-                  confidence {b.range} <span className="text-foreground/70">· n={b.n}</span>
+                  {ar ? "الثقة" : "confidence"} {b.range} <span className="text-foreground/70">· n={b.n}</span>
                 </span>
                 <span className={b.delta > 0.1 ? "text-coral" : b.delta < -0.1 ? "text-signal" : "text-verify"}>
                   {b.delta > 0 ? "over" : b.delta < 0 ? "under" : "cal"} {Math.abs(Math.round(b.delta * 100))}pt
@@ -293,7 +298,7 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
                 />
               </div>
               <div className="mt-0.5 font-mono text-[9px] text-muted-foreground">
-                claimed {b.avgConfidence}% · empirical {Math.round(b.empirical * 100)}% supported
+                {ar ? `المقدرة ${b.avgConfidence}% · المدعومة فعليًا ${Math.round(b.empirical * 100)}%` : `claimed ${b.avgConfidence}% · empirical ${Math.round(b.empirical * 100)}% supported`}
               </div>
             </div>
           ))}
@@ -333,6 +338,8 @@ interface ExecSummary {
 }
 
 export function ExecutabilitySim({ projectId }: { projectId: string }) {
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const { toast } = useToast();
   const [scenarios, setScenarios] = useState<ExecScenarioDTO[]>([]);
   const [summary, setSummary] = useState<ExecSummary | null>(null);
@@ -360,12 +367,12 @@ export function ExecutabilitySim({ projectId }: { projectId: string }) {
     try {
       const d = await api<{ scenarios: number; undefinedCount: number }>(`/api/projects/${projectId}/executability`, { method: "POST" });
       toast({
-        title: "Simulation complete",
+        title: "{ar ? "اكتملت المحاكاة" : "Simulation complete"}",
         description: `${d.scenarios} scenario(s) — ${d.undefinedCount} UNDEFINED recorded as discoveries.`,
       });
       await load();
     } catch (e) {
-      toast({ title: "Simulation failed", description: (e as Error).message, variant: "destructive" });
+      toast({ title: "{ar ? "فشلت المحاكاة" : "Simulation failed"}", description: (e as Error).message, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -375,14 +382,14 @@ export function ExecutabilitySim({ projectId }: { projectId: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={run} disabled={busy} className="bg-aura font-semibold text-primary-foreground hover:bg-aura/85">
-          {busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="mr-2 h-3.5 w-3.5" />}
-          {summary ? "Re-simulate" : "Run simulator"}
+          {busy ? <Loader2 className="me-2 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="me-2 h-3.5 w-3.5" />}
+          {summary ? (ar ? "إعادة المحاكاة" : "Re-simulate") : (ar ? "تشغيل المحاكي" : "Run simulator")}
         </Button>
         {summary && (
           <>
-            <Chip tone="aura">{summary.total} scenarios</Chip>
-            <Chip tone="verify">{summary.defined} defined</Chip>
-            <Chip tone="coral">{summary.undefined} UNDEFINED → discoveries</Chip>
+            <Chip tone="aura">{summary.total} {ar ? "سيناريو" : "scenarios"}</Chip>
+            <Chip tone="verify">{summary.defined} {ar ? "محدد" : "defined"}</Chip>
+            <Chip tone="coral">{summary.undefined} {ar ? "غير محدد ← اكتشافات" : "UNDEFINED → discoveries"}</Chip>
           </>
         )}
       </div>
@@ -451,6 +458,8 @@ const PACK_LABEL: Record<string, string> = {
 };
 
 export function SelfAuditPanel() {
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -470,8 +479,8 @@ export function SelfAuditPanel() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" onClick={load} disabled={busy} className="border-aura/40 text-aura hover:bg-aura/10">
-          {busy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-2 h-3.5 w-3.5" />}
-          Re-audit platform
+          {busy ? <Loader2 className="me-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="me-2 h-3.5 w-3.5" />}
+          {ar ? "إعادة تدقيق المنصة" : "Re-audit platform"}
         </Button>
         {audit && (
           <>
@@ -484,7 +493,7 @@ export function SelfAuditPanel() {
           </>
         )}
       </div>
-      {!audit && !busy && <EmptyBay>The platform audits itself: WCAG 2.2 contrast math on live design tokens, performance budgets from telemetry, PDPL structure from the data.</EmptyBay>}
+      {!audit && !busy && <EmptyBay>{ar ? "تدقق المنصة نفسها: حساب تباين WCAG 2.2 وفق رموز التصميم الفعلية، وميزانيات الأداء من القياسات، وبنية حماية البيانات وفق PDPL." : "The platform audits itself: WCAG 2.2 contrast math on live design tokens, performance budgets from telemetry, PDPL structure from the data."}</EmptyBay>}
       {audit && (
         <ul className="space-y-1.5">
           {audit.checks.map((c) => (
@@ -562,6 +571,8 @@ interface ReverseTraceDTO {
 }
 
 export function IntegrationsConsole({ projectId }: { projectId: string }) {
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const { toast } = useToast();
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
   const [maps, setMaps] = useState<SyncMapDTO[]>([]);
@@ -641,7 +652,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
             <HudPanel key={kind} className="flex h-full flex-col p-4" as="article">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h4 className="font-display text-sm font-bold">{kind === "github" ? "GitHub Issues" : "Jira (Cloud)"}</h4>
-                <Chip tone={configured ? "verify" : "signal"}>{configured ? "connected" : "needs credentials"}</Chip>
+                <Chip tone={configured ? "verify" : "signal"}>{configured ? (ar ? "متصل" : "connected") : (ar ? "يحتاج بيانات اعتماد" : "needs credentials")}</Chip>
               </div>
               <p className="mb-3 flex-1 text-xs leading-relaxed text-muted-foreground">
                 {configured
@@ -650,31 +661,31 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                     : `${st?.baseUrl} · project ${st?.projectKey} · email ${st?.email} · token ${st?.token} · webhook ${st?.webhookConfigured ? "configured" : "not configured"}`
                   : kind === "github"
                     ? "Provide a personal access token (repo scope), owner and repository. Stored server-side; responses always mask secrets."
-                    : "Provide the site baseUrl, account email, API token and project key. Stored server-side; responses always mask secrets."}
+                    : "Provide the site baseUrl, account email, {ar ? "رمز API" : "API token"} and project key. Stored server-side; responses always mask secrets."}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => { setCfgKind(kind); setCfg({}); }} className="border-border">
-                  <Plug className="mr-1.5 h-3.5 w-3.5" /> {configured ? "Update" : "Configure"}
+                  <Plug className="me-1.5 h-3.5 w-3.5" /> {configured ? (ar ? "تحديث" : "Update") : (ar ? "إعداد" : "Configure")}
                 </Button>
                 <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "test", {}, "Connection test")} className="border-border">
-                  {busy === `${kind}:test` ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <GitBranch className="mr-1.5 h-3.5 w-3.5" />} Test
+                  {busy === `${kind}:test` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <GitBranch className="me-1.5 h-3.5 w-3.5" />} Test
                 </Button>
                 <Button size="sm" disabled={!configured || busy !== null} onClick={() => act(kind, "push", {}, `${kind} push complete`)} className="bg-aura font-semibold text-primary-foreground hover:bg-aura/85">
-                  {busy === `${kind}:push` ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />} Push
+                  {busy === `${kind}:push` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="me-1.5 h-3.5 w-3.5" />} Push
                 </Button>
                 <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "pull", {}, `${kind} pull complete`)} className="border-border">
-                  {busy === `${kind}:pull` ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />} Pull
+                  {busy === `${kind}:pull` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="me-1.5 h-3.5 w-3.5" />} Pull
                 </Button>
               </div>
               {pulled[kind] && pulled[kind].length > 0 && (
                 <div className="mt-3 border-t border-border/70 pt-3">
-                  <Eyebrow className="mb-1.5 block">◉ PULLED — your call what to do with these</Eyebrow>
+                  <Eyebrow className="mb-1.5 block">◉ {ar ? "تم الاستيراد — القرار لك فيما ستفعله بها" : "PULLED — your call what to do with these"}</Eyebrow>
                   <ul className="max-h-32 space-y-1 overflow-y-auto pr-1">
                     {pulled[kind].map((i) => (
                       <li key={i.key} className="flex items-center gap-2 rounded bg-secondary/30 px-2 py-1 text-[11px]">
                         <Badge variant="outline" className="border-border font-mono text-[9px]">{i.key}</Badge>
                         <a href={i.url} target="_blank" rel="noreferrer" className="truncate text-muted-foreground hover:text-aura">{i.title}</a>
-                        <span className="ml-auto shrink-0 font-mono text-[9px] text-muted-foreground">{i.state}</span>
+                        <span className="ms-auto shrink-0 font-mono text-[9px] text-muted-foreground">{i.state}</span>
                       </li>
                     ))}
                   </ul>
@@ -687,11 +698,11 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
 
       {/* sync map */}
       <HudPanel className="p-4" as="div">
-        <Eyebrow className="mb-2 block">◉ SYNC MAP — bidirectional trace ({maps.length})</Eyebrow>
+        <Eyebrow className="mb-2 block">◉ {ar ? `خريطة المزامنة — تتبع ثنائي الاتجاه (${maps.length})` : `SYNC MAP — bidirectional trace (${maps.length})`}</Eyebrow>
         {maps.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            Nothing synced yet. Push sends approved requirements (GitHub) or stories (Jira) out; pull brings
-            tracker issues back for human curation. Every hop lands here.
+            {ar ? "لم تتم أي مزامنة بعد. يرسل Push المتطلبات المعتمدة إلى GitHub أو القصص إلى Jira، بينما يجلب" : "Nothing synced yet. Push sends approved requirements (GitHub) or stories (Jira) out; pull brings"
+            {ar ? "قضايا أنظمة التتبع لمراجعتها بشريًا. كل خطوة تظهر هنا." : "tracker issues back for human curation. Every hop lands here."}
           </p>
         ) : (
           <ul className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
@@ -706,7 +717,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                   {m.externalKey}
                 </a>
                 <span className="truncate text-muted-foreground" dir="auto">{m.title}</span>
-                <span className="ml-auto shrink-0 font-mono text-[9px] text-muted-foreground">{m.direction}</span>
+                <span className="ms-auto shrink-0 font-mono text-[9px] text-muted-foreground">{m.direction}</span>
                 <Button size="sm" variant="outline" disabled={traceBusyId !== ""} onClick={() => void inspectReverseTrace(m)} className="h-7 px-2 text-[10px]">
                   {traceBusyId === m.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null} Inspect trace
                 </Button>
@@ -720,7 +731,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
         <HudPanel className="space-y-3 p-4" as="section">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <Eyebrow className="mb-1 block">◉ REVERSE TRACE · HUMAN-REVIEWED PROVENANCE</Eyebrow>
+              <Eyebrow className="mb-1 block">◉ {ar ? "التتبع العكسي · مصدر راجعه إنسان" : "REVERSE TRACE · HUMAN-REVIEWED PROVENANCE"}</Eyebrow>
               <h4 className="text-sm font-semibold">{reverseTrace.tracker.externalKey} · {reverseTrace.tracker.title}</h4>
               <p className="mt-1 text-[10px] text-muted-foreground">Resolution: <span className="font-mono text-foreground">{reverseTrace.resolution.replaceAll("_", " ")}</span></p>
             </div>
@@ -731,14 +742,14 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
           ) : (
             <>
               <div className="rounded-md border border-aura/30 bg-aura/5 p-3">
-                <p className="font-mono text-[10px] text-aura">TRACKER → REQUIREMENT</p>
+                <p className="font-mono text-[10px] text-aura">{ar ? "نظام التتبع ← المتطلب" : "TRACKER → REQUIREMENT"}</p>
                 <p className="mt-1 text-sm font-semibold">{reverseTrace.requirement.refId} · {reverseTrace.requirement.text}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5"><Badge variant="outline">{reverseTrace.requirement.status}</Badge><Badge variant="outline">{reverseTrace.requirement.priority}</Badge><Badge variant="outline">Human-reviewed mapping</Badge></div>
+                <div className="mt-2 flex flex-wrap gap-1.5"><Badge variant="outline">{reverseTrace.requirement.status}</Badge><Badge variant="outline">{reverseTrace.requirement.priority}</Badge><Badge variant="outline">{ar ? "ربط راجعه إنسان" : "Human-reviewed mapping"}</Badge></div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-md border border-border/70 p-3">
                   <p className="mb-2 font-mono text-[10px] text-muted-foreground">SOURCE → EVIDENCE REVISION ({reverseTrace.trace.direct.length})</p>
-                  {reverseTrace.trace.direct.length === 0 ? <p className="text-xs text-muted-foreground">No direct evidence links.</p> : <ul className="space-y-2">{reverseTrace.trace.direct.map((item) => <li key={item.evidenceCode} className="text-xs">
+                  {reverseTrace.trace.direct.length === 0 ? <p className="text-xs text-muted-foreground">{ar ? "لا توجد روابط أدلة مباشرة." : "No direct evidence links."}</p> : <ul className="space-y-2">{reverseTrace.trace.direct.map((item) => <li key={item.evidenceCode} className="text-xs">
                     <p className="font-mono text-aura">{item.evidenceCode}</p><p>{item.source?.title ?? "Source metadata unavailable"}</p>
                     {item.source?.latestRevision && <p className="mt-1 text-[10px] text-muted-foreground">v{item.source.latestRevision.version} · {item.source.latestRevision.changeNote ?? "No revision note"} · {item.source.latestRevision.createdBy ?? "unknown actor"}</p>}
                     {item.source && <p className="text-[10px] text-muted-foreground">{item.source.sourceType} · {item.source.language} · consent {item.source.consent ? "recorded" : "not recorded"}</p>}
@@ -746,18 +757,18 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                 </div>
                 <div className="rounded-md border border-border/70 p-3">
                   <p className="mb-2 font-mono text-[10px] text-muted-foreground">DECISION TRAIL ({reverseTrace.trace.decisions.length})</p>
-                  {reverseTrace.trace.decisions.length === 0 ? <p className="text-xs text-muted-foreground">No structured mapping decision recorded.</p> : <ul className="space-y-2">{reverseTrace.trace.decisions.map((decision) => <li key={decision.id} className="text-xs">
+                  {reverseTrace.trace.decisions.length === 0 ? <p className="text-xs text-muted-foreground">{ar ? "لم يُسجل قرار ربط منظم." : "No structured mapping decision recorded."}</p> : <ul className="space-y-2">{reverseTrace.trace.decisions.map((decision) => <li key={decision.id} className="text-xs">
                     <p className="font-medium">{decision.action.replaceAll("_", " ")}</p><p className="text-[10px] text-muted-foreground">{decision.actor} · {decision.mappingMethod.replaceAll("_", " ")} · {decision.createdAt ? new Date(decision.createdAt).toLocaleString() : "time unavailable"}</p>
                   </li>)}</ul>}
                 </div>
               </div>
               <div className="rounded-md border border-border/70 p-3">
                 <p className="mb-2 font-mono text-[10px] text-muted-foreground">IMPACTED REQUIREMENTS ({reverseTrace.trace.impacted.length})</p>
-                {reverseTrace.trace.impacted.length === 0 ? <p className="text-xs text-muted-foreground">No downstream impact was returned.</p> : <div className="space-y-2">{reverseTrace.trace.impacted.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 pb-2 text-xs last:border-0 last:pb-0">
+                {reverseTrace.trace.impacted.length === 0 ? <p className="text-xs text-muted-foreground">{ar ? "لم تُرجع بيانات التأثير اللاحق." : "No downstream impact was returned."}</p> : <div className="space-y-2">{reverseTrace.trace.impacted.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 pb-2 text-xs last:border-0 last:pb-0">
                   <span className="font-mono text-aura">{item.refId ?? item.id}</span><Badge variant="outline">hop {item.depth}</Badge><span>{item.priority ?? "priority unknown"}</span><span className="text-muted-foreground">verify: {item.verifyStatus ?? "unknown"} · drift: {item.driftStatus ?? "unknown"} · evidence: {item.evidenceCount}</span>
                 </div>)}</div>}
               </div>
-              <p className="text-[10px] leading-relaxed text-muted-foreground">Read-only inspection. Mapping changes remain a separate human action; this view never creates or changes a tracker-to-requirement link automatically.</p>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">{ar ? "هذه شاشة فحص للقراءة فقط. تظل تغييرات الربط قرارًا بشريًا منفصلًا؛ ولا تنشئ هذه الشاشة روابط بين نظام التتبع والمتطلبات أو تعدلها تلقائيًا." : "Read-only inspection. Mapping changes remain a separate human action; this view never creates or changes a tracker-to-requirement link automatically."}</p>
             </>
           )}
         </HudPanel>
@@ -768,28 +779,28 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display">
-              {cfgKind === "github" ? "GitHub" : "Jira"} credentials — stored server-side
+              {cfgKind === "github" ? "GitHub" : "Jira"} {ar ? "بيانات الاعتماد — تُحفظ على الخادم" : "credentials — stored server-side"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             {cfgKind === "github" ? (
               <>
                 <div>
-                  <Label htmlFor="gh-token" className="text-xs text-muted-foreground">Personal access token (repo scope)</Label>
+                  <Label htmlFor="gh-token" className="text-xs text-muted-foreground">{ar ? "رمز وصول شخصي (نطاق المستودع)" : "Personal access token (repo scope)"}</Label>
                   <Input id="gh-token" type="password" value={cfg.token ?? ""} onChange={(e) => setCfg((c) => ({ ...c, token: e.target.value }))} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="gh-owner" className="text-xs text-muted-foreground">Owner / org</Label>
+                    <Label htmlFor="gh-owner" className="text-xs text-muted-foreground">{ar ? "المالك / المؤسسة" : "Owner / org"}</Label>
                     <Input id="gh-owner" value={cfg.owner ?? ""} onChange={(e) => setCfg((c) => ({ ...c, owner: e.target.value }))} />
                   </div>
                   <div>
-                    <Label htmlFor="gh-repo" className="text-xs text-muted-foreground">Repository</Label>
+                    <Label htmlFor="gh-repo" className="text-xs text-muted-foreground">{ar ? "المستودع" : "Repository"}</Label>
                     <Input id="gh-repo" value={cfg.repo ?? ""} onChange={(e) => setCfg((c) => ({ ...c, repo: e.target.value }))} />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="gh-webhook-secret" className="text-xs text-muted-foreground">Webhook secret (min. 32 characters)</Label>
+                  <Label htmlFor="gh-webhook-secret" className="text-xs text-muted-foreground">{ar ? "سر Webhook (32 حرفًا على الأقل)" : "Webhook secret (min. 32 characters)"}</Label>
                   <Input id="gh-webhook-secret" type="password" autoComplete="new-password" value={cfg.webhookSecret ?? ""} onChange={(e) => setCfg((c) => ({ ...c, webhookSecret: e.target.value }))} placeholder="Set or rotate the GitHub webhook secret" />
                   <p className="mt-1 text-[10px] text-muted-foreground">Optional. Stored encrypted; never returned. Configure GitHub to send Issues and Push events to /api/webhooks/github/{projectId}.</p>
                 </div>
@@ -797,19 +808,19 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
             ) : (
               <>
                 <div>
-                  <Label htmlFor="j-base" className="text-xs text-muted-foreground">Site base URL</Label>
+                  <Label htmlFor="j-base" className="text-xs text-muted-foreground">{ar ? "الرابط الأساسي للموقع" : "Site base URL"}</Label>
                   <Input id="j-base" placeholder="https://yourorg.atlassian.net" value={cfg.baseUrl ?? ""} onChange={(e) => setCfg((c) => ({ ...c, baseUrl: e.target.value }))} />
                 </div>
                 <div>
-                  <Label htmlFor="j-email" className="text-xs text-muted-foreground">Account email</Label>
+                  <Label htmlFor="j-email" className="text-xs text-muted-foreground">{ar ? "البريد الإلكتروني للحساب" : "Account email"}</Label>
                   <Input id="j-email" type="email" value={cfg.email ?? ""} onChange={(e) => setCfg((c) => ({ ...c, email: e.target.value }))} />
                 </div>
                 <div>
-                  <Label htmlFor="j-token" className="text-xs text-muted-foreground">API token</Label>
+                  <Label htmlFor="j-token" className="text-xs text-muted-foreground">{ar ? "رمز API" : "API token"}</Label>
                   <Input id="j-token" type="password" value={cfg.token ?? ""} onChange={(e) => setCfg((c) => ({ ...c, token: e.target.value }))} />
                 </div>
                 <div>
-                  <Label htmlFor="j-key" className="text-xs text-muted-foreground">Project key</Label>
+                  <Label htmlFor="j-key" className="text-xs text-muted-foreground">{ar ? "مفتاح المشروع" : "Project key"}</Label>
                   <Input id="j-key" placeholder="RP" value={cfg.projectKey ?? ""} onChange={(e) => setCfg((c) => ({ ...c, projectKey: e.target.value }))} />
                 </div>
                 <div>
@@ -825,8 +836,8 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCfgKind(null)}>Cancel</Button>
-            <Button onClick={saveCfg} className="bg-aura text-primary-foreground hover:bg-aura/85">Save</Button>
+            <Button variant="outline" onClick={() => setCfgKind(null)}>{ar ? "إلغاء" : "Cancel"}</Button>
+            <Button onClick={saveCfg} className="bg-aura text-primary-foreground hover:bg-aura/85">{ar ? "حفظ" : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
