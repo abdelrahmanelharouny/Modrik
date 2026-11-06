@@ -124,9 +124,7 @@ export function PlannerLab({ projectId }: { projectId: string }) {
           Utility = ( InformationGain × DownstreamImpact × Uncertainty × Risk ) ÷ AskCost
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          {ar ? "تُقيّم الأسئلة حسب الإشارة وتُختار ضمن ميزانية تكلفة السؤال. شغّل أي مسار — وتُقيّم جميع المسارات" : "Signal-scored per question, selected under an ask-cost budget. Run any arm — every arm&apos;s}
-          final set is judged by the <span className="text-foreground">same scorer and judge</span>, so the
-          comparison is fair (single-shot still gets signal-scored post-hoc).
+          {ar ? "تُقيّم الأسئلة حسب الإشارة وتُختار ضمن ميزانية تكلفة السؤال. شغّل أي مسار — وتُقيّم جميع المسارات" : "Signal-scored per question, selected under an ask-cost budget. Run any arm — every arm&apos;s final set is judged by the same scorer and judge, so the comparison is fair (single-shot still gets signal-scored post-hoc).
         </p>
       </HudPanel>
 
@@ -367,12 +365,12 @@ export function ExecutabilitySim({ projectId }: { projectId: string }) {
     try {
       const d = await api<{ scenarios: number; undefinedCount: number }>(`/api/projects/${projectId}/executability`, { method: "POST" });
       toast({
-        title: "{ar ? "اكتملت المحاكاة" : "Simulation complete"}",
+        title: ar ? "اكتملت المحاكاة" : "Simulation complete",
         description: `${d.scenarios} scenario(s) — ${d.undefinedCount} UNDEFINED recorded as discoveries.`,
       });
       await load();
     } catch (e) {
-      toast({ title: "{ar ? "فشلت المحاكاة" : "Simulation failed"}", description: (e as Error).message, variant: "destructive" });
+      toast({ title: ar ? "فشلت المحاكاة" : "Simulation failed", description: (e as Error).message, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -701,8 +699,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
         <Eyebrow className="mb-2 block">◉ {ar ? `خريطة المزامنة — تتبع ثنائي الاتجاه (${maps.length})` : `SYNC MAP — bidirectional trace (${maps.length})`}</Eyebrow>
         {maps.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            {ar ? "لم تتم أي مزامنة بعد. يرسل Push المتطلبات المعتمدة إلى GitHub أو القصص إلى Jira، بينما يجلب" : "Nothing synced yet. Push sends approved requirements (GitHub) or stories (Jira) out; pull brings"
-            {ar ? "قضايا أنظمة التتبع لمراجعتها بشريًا. كل خطوة تظهر هنا." : "tracker issues back for human curation. Every hop lands here."}
+            {ar ? "لم تتم أي مزامنة بعد. يرسل Push المتطلبات المعتمدة إلى GitHub أو القصص إلى Jira، بينما يجلب قضايا أنظمة التتبع لمراجعتها بشريًا. كل خطوة تظهر هنا." : "Nothing synced yet. Push sends approved requirements (GitHub) or stories (Jira) out; pull brings tracker issues back for human curation. Every hop lands here."}
           </p>
         ) : (
           <ul className="max-h-44 space-y-1.5 overflow-y-auto pr-1">

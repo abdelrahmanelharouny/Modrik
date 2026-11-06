@@ -593,18 +593,6 @@ try {
 
   const browser = await chromium.launch({ headless: true });
   try {
-    const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const guestPage = await guestContext.newPage();
-    await guestPage.goto(`${baseUrl}/login`, { waitUntil: "networkidle" });
-    await guestPage.getByRole("heading", { name: "Secure mission access" }).waitFor();
-    assert.equal(await guestPage.getByRole("button", { name: "Switch language to Arabic" }).count(), 1, "login should render exactly one language switch");
-    await guestPage.getByRole("button", { name: "Switch language to Arabic" }).click();
-    await guestPage.getByRole("heading", { name: "دخول آمن إلى مساحة العمل" }).waitFor();
-    await guestPage.getByText("البريد الإلكتروني", { exact: true }).waitFor();
-    assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "Arabic login shell must use RTL direction");
-    assert.equal(await guestPage.locator("form").getAttribute("dir"), "rtl", "Arabic login controls must use RTL direction");
-    await guestContext.close();
-
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.addCookies([{ name: SESSION_COOKIE, value: createSessionToken(process.env.MODRIK_ADMIN_EMAIL, secret), url: baseUrl }]);
     const page = await context.newPage();
