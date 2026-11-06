@@ -100,6 +100,7 @@ test("reconciliation detects missing/stale documents, missing/unexpected posting
   doc.contentHash="wrong";
   const post=tx.postings.get(doc.id);
   post[0].frequency += 4;
+  post.splice(1,1);
   post.push({id:"rogue",documentId:doc.id,term:"not-in-source",frequency:1});
   post.push({id:"duplicate",documentId:doc.id,term:post[0].term,frequency:post[0].frequency});
   const a=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:10});
