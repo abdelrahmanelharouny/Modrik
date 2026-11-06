@@ -140,9 +140,9 @@ export function PlannerLab({ projectId }: { projectId: string }) {
           >
             <span className="flex items-center gap-1.5 font-mono text-[11px]">
               {busyArm === arm ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3 text-aura" />}
-              {meta.label}
+              {armLabel(arm)}
             </span>
-            <span className="text-[9px] normal-case tracking-normal text-muted-foreground">{meta.desc}</span>
+            <span className="text-[9px] normal-case tracking-normal text-muted-foreground">{armDescription(arm)}</span>
           </Button>
         ))}
       </div>
@@ -152,7 +152,7 @@ export function PlannerLab({ projectId }: { projectId: string }) {
           <table className="w-full min-w-[640px] text-left text-xs">
             <thead className="bg-secondary/50 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">arm</th>
+                <th className="px-3 py-2">{ar ? "المسار" : "arm"}</th>
                 <th className="px-3 py-2">{ar ? "متوسط المنفعة ↑" : "avg utility ↑"}</th>
                 <th className="px-3 py-2">{ar ? "المنفعة / التكلفة ↑" : "utility / cost ↑"}</th>
                 <th className="px-3 py-2">{ar ? "التغطية ↑" : "coverage ↑"}</th>
@@ -168,7 +168,7 @@ export function PlannerLab({ projectId }: { projectId: string }) {
                 return (
                   <tr key={arm} className={`border-t border-border/60 ${arm === "impact_aware" ? "bg-aura/5" : ""}`}>
                     <td className="px-3 py-2 font-mono">
-                      <Chip tone={ARM_META[arm].tone}>{ARM_META[arm].label}</Chip>
+                      <Chip tone={ARM_META[arm].tone}>{armLabel(arm)}</Chip>
                     </td>
                     <td className="px-3 py-2 font-mono tabular-nums">{m.avgUtility}</td>
                     <td className="px-3 py-2 font-mono tabular-nums">{m.utilityPerCost}</td>
@@ -186,8 +186,7 @@ export function PlannerLab({ projectId }: { projectId: string }) {
 
       {loaded && runs.length === 0 && (
         <EmptyBay>
-          No ablatio{ar ? "عدد التشغيلات" : "n runs"} yet. Pick an arm above — each run materialises its question set into the
-          Briefing queue with the utility breakdown stamped on every question.
+          {ar ? "لا توجد تجارب مقارنة بعد. اختر مسارًا بالأعلى — سيضيف كل تشغيل أسئلته إلى قائمة الإحاطة مع تسجيل تفاصيل المنفعة لكل سؤال." : "No ablation runs yet. Pick an arm above — each run materialises its question set into the Briefing queue with the utility breakdown stamped on every question."}
         </EmptyBay>
       )}
       {runs.length > 0 && (
@@ -195,7 +194,7 @@ export function PlannerLab({ projectId }: { projectId: string }) {
           {runs.slice(0, 6).map((r) => (
             <li key={r.id} className="rounded border border-border/60 bg-secondary/20 px-3 py-2 text-xs">
               <div className="flex flex-wrap items-center gap-2">
-                <Chip tone={ARM_META[r.arm]?.tone ?? "muted"}>{ARM_META[r.arm]?.label ?? r.arm}</Chip>
+                <Chip tone={ARM_META[r.arm]?.tone ?? "muted"}>{armLabel(r.arm)}</Chip>
                 <span className="font-mono text-[10px] text-muted-foreground">
                   {new Date(r.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {r.candidates} candidates ·{" "}
                   {r.latencyMs ? `${(r.latencyMs / 1000).toFixed(1)}s` : "—"}
@@ -265,8 +264,8 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
           <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{ar ? "خطأ المعايرة (ECE)" : "Calibration error (ECE)"}</div>
         </HudPanel>
         <HudPanel className="p-4 text-center" as="div">
-          <Chip tone={verdictTone} className="mx-auto">{cal.verdict}</Chip>
-          <div className="mt-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">verdict</div>
+          <Chip tone={verdictTone} className="mx-auto">{ar ? (cal.verdict === "well-calibrated" ? "معايرة جيدة" : cal.verdict === "overconfident" ? "ثقة مفرطة" : cal.verdict === "underconfident" ? "ثقة أقل من اللازم" : cal.verdict) : cal.verdict}</Chip>
+          <div className="mt-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{ar ? "التقييم" : "verdict"}</div>
         </HudPanel>
         <HudPanel className="p-4 text-center" as="div">
           <div className="font-display text-xl font-bold tabular-nums">{cal.n}</div>
@@ -284,7 +283,7 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
                   {ar ? "الثقة" : "confidence"} {b.range} <span className="text-foreground/70">· n={b.n}</span>
                 </span>
                 <span className={b.delta > 0.1 ? "text-coral" : b.delta < -0.1 ? "text-signal" : "text-verify"}>
-                  {b.delta > 0 ? "over" : b.delta < 0 ? "under" : "cal"} {Math.abs(Math.round(b.delta * 100))}pt
+                  {ar ? (b.delta > 0 ? "مبالغة" : b.delta < 0 ? "أقل من الفعلي" : "متوازن") : (b.delta > 0 ? "over" : b.delta < 0 ? "under" : "cal")} {Math.abs(Math.round(b.delta * 100))}pt
                 </span>
               </div>
               <div className="relative h-5 overflow-hidden rounded bg-secondary/70">
@@ -302,12 +301,10 @@ export function CalibrationPanel({ projectId }: { projectId: string }) {
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Solid bar = claimed confidence · dashed marker = how often the critic actually found the
-          requirement supported. A dashed marker left of the bar end means the agent is overconfident in that bin.
+          {ar ? "الشريط المتصل يمثل الثقة المقدرة، والعلامة المتقطعة توضح معدل دعم الناقد الفعلي للمتطلب. إذا ظهرت العلامة قبل نهاية الشريط فهذا يعني أن الوكيل يبالغ في تقدير ثقته ضمن هذه الشريحة." : "Solid bar = claimed confidence · dashed marker = how often the critic actually found the requirement supported. A dashed marker left of the bar end means the agent is overconfident in that bin."}
           {cal.spread.supportedAvg !== null && cal.spread.weakAvg !== null && (
             <span className="block mt-1">
-              Spread: supported requirements average <span className="text-foreground">{cal.spread.supportedAvg}%</span> confidence vs{" "}
-              <span className="text-foreground">{cal.spread.weakAvg}%</span> for weak ones.
+              {ar ? "متوسط الثقة في المتطلبات المدعومة " : "Spread: supported requirements average "}<span className="text-foreground">{cal.spread.supportedAvg}%</span>{ar ? " مقابل " : " confidence vs "}<span className="text-foreground">{cal.spread.weakAvg}%</span>{ar ? " للمتطلبات الضعيفة." : " for weak ones."}
             </span>
           )}
         </p>
@@ -394,9 +391,7 @@ export function ExecutabilitySim({ projectId }: { projectId: string }) {
 
       {loaded && scenarios.length === 0 && (
         <EmptyBay>
-          No simulations yet. The simulator writes concrete Given/When/Then scenarios against your
-          baseline; wherever the baseline is silent, the scenario lands as UNDEFINED — a requirement
-          discovery with the clarifying question that would define it.
+          {ar ? "لا توجد محاكاة بعد. ينشئ المحاكي سيناريوهات محددة بصيغة (المعطيات/عندما/إذن) وفق خط الأساس. وعندما لا يقدم خط الأساس إجابة، يسجل السيناريو كحالة غير محددة ويحولها إلى اكتشاف مع سؤال توضيحي." : "No simulations yet. The simulator writes concrete Given/When/Then scenarios against your baseline; wherever the baseline is silent, the scenario lands as UNDEFINED — a requirement discovery with the clarifying question that would define it."}
         </EmptyBay>
       )}
 
@@ -410,19 +405,19 @@ export function ExecutabilitySim({ projectId }: { projectId: string }) {
                   {s.refId}
                 </Badge>
                 <Chip tone={undef ? "coral" : "verify"}>{s.resolution}</Chip>
-                {s.requirement && <span className="font-mono text-[10px] text-muted-foreground">owner {s.requirement.refId}</span>}
+                {s.requirement && <span className="font-mono text-[10px] text-muted-foreground">{ar ? "المالك" : "owner"} {s.requirement.refId}</span>}
               </div>
               <div className="space-y-1 text-sm" dir="auto">
-                <p><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">given · </span>{s.given}</p>
-                <p><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">when · </span>{s.when}</p>
-                <p><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">then · </span>{s.then}</p>
+                <p><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{ar ? "المعطيات · " : "given · "}</span>{s.given}</p>
+                <p><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{ar ? "عندما · " : "when · "}</span>{s.when}</p>
+                <p><span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{ar ? "إذن · " : "then · "}</span>{s.then}</p>
               </div>
               {undef && s.undefinedReason && (
-                <p className="mt-2 text-xs text-coral/90" dir="auto">WHY UNDEFINED: {s.undefinedReason}</p>
+                <p className="mt-2 text-xs text-coral/90" dir="auto">{ar ? "سبب عدم التحديد:" : "WHY UNDEFINED:"} {s.undefinedReason}</p>
               )}
               {undef && s.discovery && (
                 <p className="mt-1.5 rounded border border-signal/30 bg-signal/10 px-3 py-1.5 font-mono text-[11px] text-signal" dir="auto">
-                  DISCOVERY — ask / define next: {s.discovery}
+                  {ar ? "اكتشاف — السؤال أو التعريف التالي:" : "DISCOVERY — ask / define next:"} {s.discovery}
                 </p>
               )}
             </li>
@@ -482,11 +477,11 @@ export function SelfAuditPanel() {
         </Button>
         {audit && (
           <>
-            <Chip tone="verify">{audit.summary.pass} pass</Chip>
-            {audit.summary.warn > 0 && <Chip tone="signal">{audit.summary.warn} warn</Chip>}
-            {audit.summary.fail > 0 && <Chip tone="coral">{audit.summary.fail} fail</Chip>}
+            <Chip tone="verify">{audit.summary.pass} {ar ? "ناجح" : "pass"}</Chip>
+            {audit.summary.warn > 0 && <Chip tone="signal">{audit.summary.warn} {ar ? "تحذير" : "warn"}</Chip>}
+            {audit.summary.fail > 0 && <Chip tone="coral">{audit.summary.fail} {ar ? "فشل" : "fail"}</Chip>}
             <span className="font-mono text-[9px] text-muted-foreground">
-              recomputed {new Date(audit.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {ar ? "أعيد الحساب" : "recomputed"} {new Date(audit.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
           </>
         )}
@@ -505,7 +500,7 @@ export function SelfAuditPanel() {
               )}
               <div className="min-w-0 flex-1">
                 <span className="font-medium">{c.label}</span>
-                {c.value && <span className="ml-1.5 font-mono text-[10px] text-aura">{c.value}</span>}
+                {c.value && <span className="ms-1.5 font-mono text-[10px] text-aura">{c.value}</span>}
                 <span className="block text-muted-foreground">{c.detail}</span>
               </div>
               <Badge variant="outline" className="shrink-0 border-border font-mono text-[9px] text-muted-foreground">
@@ -602,7 +597,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
       const result = await api<ReverseTraceDTO>(`/api/projects/${projectId}/traceability/reverse?syncMapId=${encodeURIComponent(mapping.id)}`);
       setReverseTrace(result);
     } catch (e) {
-      toast({ title: "Reverse trace unavailable", description: (e as Error).message, variant: "destructive" });
+      toast({ title: ar ? "التتبع العكسي غير متاح" : "Reverse trace unavailable", description: (e as Error).message, variant: "destructive" });
     } finally {
       setTraceBusyId("");
     }
@@ -629,11 +624,11 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
 
   const saveCfg = async () => {
     if (!cfgKind) return;
-    const d = await act(cfgKind, "save-config", { config: cfg }, "Credentials saved (server-side, masked)");
+    const d = await act(cfgKind, "save-config", { config: cfg }, ar ? "تم حفظ بيانات الاعتماد على الخادم مع إخفاء الأسرار" : "Credentials saved (server-side, masked)");
     if (!d) return;
     if (cfg.webhookSecret?.trim()) {
       const webhook = await act(cfgKind, "save-webhook-secret", { secret: cfg.webhookSecret },
-        cfgKind === "github" ? "GitHub webhook secret saved" : "Jira webhook secret saved");
+        cfgKind === "github" ? ar ? "تم حفظ سر Webhook الخاص بـGitHub" : "GitHub webhook secret saved" : ar ? "تم حفظ سر Webhook الخاص بـJira" : "Jira webhook secret saved");
       if (!webhook) return;
     }
     setCfgKind(null);
@@ -665,13 +660,13 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                 <Button size="sm" variant="outline" onClick={() => { setCfgKind(kind); setCfg({}); }} className="border-border">
                   <Plug className="me-1.5 h-3.5 w-3.5" /> {configured ? (ar ? "تحديث" : "Update") : (ar ? "إعداد" : "Configure")}
                 </Button>
-                <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "test", {}, "Connection test")} className="border-border">
+                <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "test", {}, ar ? "اختبار الاتصال" : ar ? "اختبار الاتصال" : "Connection test")} className="border-border">
                   {busy === `${kind}:test` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <GitBranch className="me-1.5 h-3.5 w-3.5" />} Test
                 </Button>
-                <Button size="sm" disabled={!configured || busy !== null} onClick={() => act(kind, "push", {}, `${kind} push complete`)} className="bg-aura font-semibold text-primary-foreground hover:bg-aura/85">
+                <Button size="sm" disabled={!configured || busy !== null} onClick={() => act(kind, "push", {}, ar ? `اكتمل الإرسال إلى ${kind === "github" ? "GitHub" : "Jira"}` : `${kind} push complete`)} className="bg-aura font-semibold text-primary-foreground hover:bg-aura/85">
                   {busy === `${kind}:push` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="me-1.5 h-3.5 w-3.5" />} Push
                 </Button>
-                <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "pull", {}, `${kind} pull complete`)} className="border-border">
+                <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "pull", {}, ar ? `اكتمل الاستيراد من ${kind === "github" ? "GitHub" : "Jira"}` : `${kind} pull complete`)} className="border-border">
                   {busy === `${kind}:pull` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="me-1.5 h-3.5 w-3.5" />} Pull
                 </Button>
               </div>
@@ -730,7 +725,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
             <div>
               <Eyebrow className="mb-1 block">◉ {ar ? "التتبع العكسي · مصدر راجعه إنسان" : "REVERSE TRACE · HUMAN-REVIEWED PROVENANCE"}</Eyebrow>
               <h4 className="text-sm font-semibold">{reverseTrace.tracker.externalKey} · {reverseTrace.tracker.title}</h4>
-              <p className="mt-1 text-[10px] text-muted-foreground">Resolution: <span className="font-mono text-foreground">{reverseTrace.resolution.replaceAll("_", " ")}</span></p>
+              <p className="mt-1 text-[10px] text-muted-foreground">{ar ? "نتيجة المعالجة:" : "Resolution:"} <span className="font-mono text-foreground">{reverseTrace.resolution.replaceAll("_", " ")}</span></p>
             </div>
             <Button size="sm" variant="ghost" onClick={() => setReverseTrace(null)} className="h-7 px-2">Close</Button>
           </div>
@@ -745,7 +740,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-md border border-border/70 p-3">
-                  <p className="mb-2 font-mono text-[10px] text-muted-foreground">SOURCE → EVIDENCE REVISION ({reverseTrace.trace.direct.length})</p>
+                  <p className="mb-2 font-mono text-[10px] text-muted-foreground">{ar ? "المصدر ← إصدار الدليل" : "SOURCE → EVIDENCE REVISION"} ({reverseTrace.trace.direct.length})</p>
                   {reverseTrace.trace.direct.length === 0 ? <p className="text-xs text-muted-foreground">{ar ? "لا توجد روابط أدلة مباشرة." : "No direct evidence links."}</p> : <ul className="space-y-2">{reverseTrace.trace.direct.map((item) => <li key={item.evidenceCode} className="text-xs">
                     <p className="font-mono text-aura">{item.evidenceCode}</p><p>{item.source?.title ?? "Source metadata unavailable"}</p>
                     {item.source?.latestRevision && <p className="mt-1 text-[10px] text-muted-foreground">v{item.source.latestRevision.version} · {item.source.latestRevision.changeNote ?? "No revision note"} · {item.source.latestRevision.createdBy ?? "unknown actor"}</p>}
@@ -753,14 +748,14 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                   </li>)}</ul>}
                 </div>
                 <div className="rounded-md border border-border/70 p-3">
-                  <p className="mb-2 font-mono text-[10px] text-muted-foreground">DECISION TRAIL ({reverseTrace.trace.decisions.length})</p>
+                  <p className="mb-2 font-mono text-[10px] text-muted-foreground">{ar ? "سجل القرارات" : "DECISION TRAIL"} ({reverseTrace.trace.decisions.length})</p>
                   {reverseTrace.trace.decisions.length === 0 ? <p className="text-xs text-muted-foreground">{ar ? "لم يُسجل قرار ربط منظم." : "No structured mapping decision recorded."}</p> : <ul className="space-y-2">{reverseTrace.trace.decisions.map((decision) => <li key={decision.id} className="text-xs">
                     <p className="font-medium">{decision.action.replaceAll("_", " ")}</p><p className="text-[10px] text-muted-foreground">{decision.actor} · {decision.mappingMethod.replaceAll("_", " ")} · {decision.createdAt ? new Date(decision.createdAt).toLocaleString() : "time unavailable"}</p>
                   </li>)}</ul>}
                 </div>
               </div>
               <div className="rounded-md border border-border/70 p-3">
-                <p className="mb-2 font-mono text-[10px] text-muted-foreground">IMPACTED REQUIREMENTS ({reverseTrace.trace.impacted.length})</p>
+                <p className="mb-2 font-mono text-[10px] text-muted-foreground">{ar ? "المتطلبات المتأثرة" : "IMPACTED REQUIREMENTS"} ({reverseTrace.trace.impacted.length})</p>
                 {reverseTrace.trace.impacted.length === 0 ? <p className="text-xs text-muted-foreground">{ar ? "لم تُرجع بيانات التأثير اللاحق." : "No downstream impact was returned."}</p> : <div className="space-y-2">{reverseTrace.trace.impacted.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 pb-2 text-xs last:border-0 last:pb-0">
                   <span className="font-mono text-aura">{item.refId ?? item.id}</span><Badge variant="outline">hop {item.depth}</Badge><span>{item.priority ?? "priority unknown"}</span><span className="text-muted-foreground">verify: {item.verifyStatus ?? "unknown"} · drift: {item.driftStatus ?? "unknown"} · evidence: {item.evidenceCount}</span>
                 </div>)}</div>}
@@ -828,8 +823,8 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
               </>
             )}
             <p className="text-[10px] text-muted-foreground">
-              Secrets never return to the browser (masked in every response). For public demos prefer
-              environment fallbacks (RP_GITHUB_* / RP_JIRA_*) so no per-project credentials persist.
+              {ar ? "لا تعود الأسرار إلى المتصفح مطلقًا، وتُخفى في جميع الاستجابات. في العروض العامة، يفضل استخدام" : "Secrets never return to the browser (masked in every response). For public demos prefer"}
+              {ar ? "متغيرات البيئة البديلة (RP_GITHUB_* / RP_JIRA_*) حتى لا تُحفظ بيانات اعتماد لكل مشروع." : "environment fallbacks (RP_GITHUB_* / RP_JIRA_*) so no per-project credentials persist."}
             </p>
           </div>
           <DialogFooter>
