@@ -102,3 +102,8 @@ Ranked accepted-memory responses expose `indexedReadiness` without leaking proje
 - The harness runs the real streaming and persistent-indexed BM25 ranking functions against deterministic, provider-shaped in-memory adapters; it reports macro/micro Precision@K, Recall@K, MRR, NDCG@K, per-language quality, exact rank parity, top-K overlap, score delta, p50/p95/mean latency and candidate/posting scan counts.
 - The generated report labels its environment as `synthetic-in-memory-adapters`. Timings are algorithm/adapter comparisons only; they are not database latency, production recall, or a release gate. Use a seeded, consented, judged corpus and real PostgreSQL/SQLite load tests before rollout decisions.
 - The benchmark includes English and Arabic queries, multiple project scopes, accepted-only relevance judgments, and deterministic IDs/timestamps. Proposed nodes are deliberately excluded from the authorized corpus.
+
+
+## Provider integration coverage
+
+The CI quality job now runs a real SQLite integration lifecycle after pushing the SQLite schema: write-through, bounded repair, clean reconciliation, readiness, out-of-band source drift, fail-closed readiness, canonical-source repair, and a second clean audit. PostgreSQL continues to exercise its own independent persisted reconciliation and tenant-isolation path. These tests validate both providers without treating in-memory benchmark timings as database performance measurements.
