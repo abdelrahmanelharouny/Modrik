@@ -473,9 +473,14 @@ export function MissionControl({
                       className="group relative min-w-0 cursor-pointer"
                       role="button"
                       tabIndex={0}
-                      aria-label={`Open mission ${p.name}`}
+                      aria-label={ar ? `افتح المهمة ${p.name}` : `Open mission ${p.name}`}
                       onClick={() => onOpen(p.id)}
-                      onKeyDown={(e) => e.key === "Enter" && onOpen(p.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          void onOpen(p.id);
+                        }
+                      }}
                     >
                       <HudPanel
                         className="h-full p-5 transition-all duration-300 group-hover:-translate-y-1 group-hover:border-aura/40 group-hover:hud-glow"

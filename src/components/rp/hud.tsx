@@ -221,8 +221,8 @@ export function RadarSweep({
     t === "verify" ? "#3ddc97" : t === "signal" ? "#ffb454" : t === "plasma" ? "#a78bfa" : t === "coral" ? "#ff6b7a" : "#2ce8c8";
 
   return (
-    <div className={cn("relative", className)} style={{ width: size, height: size }} role="img" aria-label="Fleet radar">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0">
+    <div className={cn("relative", className)} style={{ width: size, maxWidth: "100%", aspectRatio: "1" }} role="img" aria-label="Fleet radar">
+      <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} className="absolute inset-0">
         <defs>
           <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#2ce8c8" stopOpacity="0.5" />
