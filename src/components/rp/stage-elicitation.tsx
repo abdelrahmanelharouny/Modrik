@@ -52,6 +52,7 @@ import {
   Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLang } from "@/lib/i18n";
 
 interface PlannerExperimentView {
   experimentId: string;
@@ -221,6 +222,8 @@ export function ElicitationStage({
   refresh: () => Promise<void>;
 }) {
   const { toast } = useToast();
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [sourceType, setSourceType] = useState("interview");
@@ -455,8 +458,8 @@ export function ElicitationStage({
       <HudPanel className="p-6">
         <SectionHead
           icon={FileText}
-          title="Evidence library"
-          blurb="Interviews, documents, meeting notes and voice notes — the ground truth every agent must cite."
+          title={ar ? "مكتبة الأدلة" : "Evidence library"}
+          blurb={ar ? "مقابلات ومستندات وملاحظات اجتماعات وتسجيلات صوتية — مصادر الحقيقة التي يجب على كل وكيل الاستشهاد بها." : "Interviews, documents, meeting notes and voice notes — the ground truth every agent must cite."}
           right={
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
@@ -466,37 +469,37 @@ export function ElicitationStage({
               </DialogTrigger>
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle className="font-display">Log an evidence source</DialogTitle>
+                  <DialogTitle className="font-display">{ar ? "تسجيل مصدر دليل" : "Log an evidence source"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3 py-2">
                   <Input
-                    placeholder="Source title (e.g. Interview with Um Karim)"
+                    placeholder={ar ? "عنوان المصدر (مثال: مقابلة مع أم كريم)" : "Source title (e.g. Interview with Um Karim)"}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
                   <div className="grid grid-cols-2 gap-3">
                     <Select value={sourceType} onValueChange={setSourceType}>
-                      <SelectTrigger aria-label="Source type">
+                      <SelectTrigger aria-label={ar ? "نوع المصدر" : "Source type"}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="interview">Interview</SelectItem>
-                        <SelectItem value="document">Document</SelectItem>
-                        <SelectItem value="meeting">Meeting</SelectItem>
-                        <SelectItem value="survey">Survey</SelectItem>
-                        <SelectItem value="observation">Observation</SelectItem>
-                        <SelectItem value="transcript">Transcript</SelectItem>
-                        <SelectItem value="whiteboard_ocr">Whiteboard OCR</SelectItem>
+                        <SelectItem value="interview">{ar ? "مقابلة" : "Interview"}</SelectItem>
+                        <SelectItem value="document">{ar ? "مستند" : "Document"}</SelectItem>
+                        <SelectItem value="meeting">{ar ? "اجتماع" : "Meeting"}</SelectItem>
+                        <SelectItem value="survey">{ar ? "استبيان" : "Survey"}</SelectItem>
+                        <SelectItem value="observation">{ar ? "ملاحظة ميدانية" : "Observation"}</SelectItem>
+                        <SelectItem value="transcript">{ar ? "تفريغ نصي" : "Transcript"}</SelectItem>
+                        <SelectItem value="whiteboard_ocr">{ar ? "استخراج من السبورة" : "Whiteboard OCR"}</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select value={language} onValueChange={setLanguage}>
-                      <SelectTrigger aria-label="Language">
+                      <SelectTrigger aria-label={ar ? "لغة المصدر" : "Language"}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="ar-EG">Egyptian Arabic</SelectItem>
-                        <SelectItem value="codeswitch">Code-switched</SelectItem>
+                        <SelectItem value="en">{ar ? "الإنجليزية" : "English"}</SelectItem>
+                        <SelectItem value="ar-EG">{ar ? "العربية المصرية" : "Egyptian Arabic"}</SelectItem>
+                        <SelectItem value="codeswitch">{ar ? "مزيج لغوي" : "Code-switched"}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -504,7 +507,7 @@ export function ElicitationStage({
                   <Textarea
                     rows={6}
                     dir="auto"
-                    placeholder="Paste transcript, notes or document excerpt… (Arabic and code-switched text are welcome)"
+                    placeholder={ar ? "الصق التفريغ أو الملاحظات أو مقتطف المستند… العربية والمزيج اللغوي مدعومان" : "Paste transcript, notes or document excerpt… (Arabic and code-switched text are welcome)"}
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                   />
@@ -539,14 +542,14 @@ export function ElicitationStage({
           <section className="mb-4 rounded-md border border-aura/30 bg-aura/5 p-3" aria-label="Offline evidence outbox">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold">{pendingOffline.length} pending evidence operation(s)</p>
+                <p className="text-xs font-semibold">{pendingOffline.length} {ar ? "عملية دليل معلقة" : "pending evidence operation(s)"}</p>
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   FIFO outbox · {pendingOffline.reduce((sum, item) => sum + item.attempts, 0)} total retry attempt(s) · IndexedDB is not separately encrypted
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={syncOfflineEvidence} disabled={syncingOffline || (typeof navigator !== "undefined" && !navigator.onLine)}>
                 {syncingOffline ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Undo2 className="mr-1.5 h-3.5 w-3.5" />}
-                {syncingOffline ? "Syncing…" : "Retry queue"}
+                {syncingOffline ? (ar ? "جارٍ المزامنة…" : "Syncing…") : (ar ? "إعادة المحاولة" : "Retry queue")}
               </Button>
             </div>
             <ol className="mt-3 space-y-2">
@@ -592,7 +595,7 @@ export function ElicitationStage({
                           await removeOfflineEvidenceOperation(operation.operationId);
                           await loadOfflineQueue();
                           toast({ title: "Queued operation discarded", description: "The local operation was removed; the server source was not changed." });
-                        }}>Discard</Button>
+                        }}>{ar ? "تجاهل" : "Discard"}</Button>
                       </div>
                     </div>
                     {operation.lastError && <p className="mt-2 break-words text-xs text-coral" role="alert">{operation.lastError}</p>}
@@ -629,22 +632,22 @@ export function ElicitationStage({
               <Input
                 value={evidenceQuery}
                 onChange={(event) => setEvidenceQuery(event.target.value)}
-                placeholder="Search source title, ID or transcript…"
-                aria-label="Search evidence sources"
+                placeholder={ar ? "ابحث بعنوان المصدر أو المعرّف أو التفريغ…" : "Search source title, ID or transcript…"}
+                aria-label={ar ? "البحث في مصادر الأدلة" : "Search evidence sources"}
                 className="pl-9"
               />
             </div>
             <Select value={evidenceTypeFilter} onValueChange={setEvidenceTypeFilter}>
-              <SelectTrigger aria-label="Filter evidence by source type"><SelectValue placeholder="All source types" /></SelectTrigger>
+              <SelectTrigger aria-label={ar ? "تصفية الأدلة حسب نوع المصدر" : "Filter evidence by source type"}><SelectValue placeholder={ar ? "كل أنواع المصادر" : "All source types"} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All source types</SelectItem>
-                <SelectItem value="interview">Interview</SelectItem>
-                <SelectItem value="document">Document</SelectItem>
-                <SelectItem value="meeting">Meeting</SelectItem>
-                <SelectItem value="survey">Survey</SelectItem>
-                <SelectItem value="observation">Observation</SelectItem>
-                <SelectItem value="transcript">Transcript</SelectItem>
-                <SelectItem value="whiteboard_ocr">Whiteboard OCR</SelectItem>
+                <SelectItem value="all">{ar ? "كل أنواع المصادر" : "All source types"}</SelectItem>
+                <SelectItem value="interview">{ar ? "مقابلة" : "Interview"}</SelectItem>
+                <SelectItem value="document">{ar ? "مستند" : "Document"}</SelectItem>
+                <SelectItem value="meeting">{ar ? "اجتماع" : "Meeting"}</SelectItem>
+                <SelectItem value="survey">{ar ? "استبيان" : "Survey"}</SelectItem>
+                <SelectItem value="observation">{ar ? "ملاحظة ميدانية" : "Observation"}</SelectItem>
+                <SelectItem value="transcript">{ar ? "تفريغ نصي" : "Transcript"}</SelectItem>
+                <SelectItem value="whiteboard_ocr">{ar ? "استخراج من السبورة" : "Whiteboard OCR"}</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-[10px] text-muted-foreground sm:col-span-2" aria-live="polite">
@@ -654,10 +657,10 @@ export function ElicitationStage({
         )}
         {project.evidences.length === 0 ? (
           <EmptyBay>
-            No evidence yet. Add at least one source — agents refuse to fly without grounding.
+            {ar ? "لا توجد أدلة بعد. أضف مصدرًا واحدًا على الأقل — لا تعمل الوكلاء دون مصادر موثوقة." : "No evidence yet. Add at least one source — agents refuse to fly without grounding."}
           </EmptyBay>
         ) : filteredEvidence.length === 0 ? (
-          <EmptyBay>No sources match this search. Try another term or source type.</EmptyBay>
+          <EmptyBay>{ar ? "لا توجد مصادر تطابق البحث. جرّب كلمة أو نوع مصدر آخر." : "No sources match this search. Try another term or source type."}</EmptyBay>
         ) : (
           <ul className="max-h-[min(70vh,760px)] space-y-3 overflow-y-auto pr-1">
             {filteredEvidence.map((ev) => (
@@ -714,8 +717,8 @@ export function ElicitationStage({
       <HudPanel className="p-6">
         <SectionHead
           icon={MessageCircleQuestion}
-          title="Interrogation queue"
-          blurb="Every question carries an ask-cost and a fallback assumption — you decide what is worth asking, and what you are willing to assume."
+          title={ar ? "قائمة أسئلة الاستيضاح" : "Interrogation queue"}
+          blurb={ar ? "لكل سؤال تكلفة طرح وافتراض بديل — أنت من يقرر ما يستحق السؤال وما يمكن قبوله كافتراض." : "Every question carries an ask-cost and a fallback assumption — you decide what is worth asking, and what you are willing to assume."}
           right={
             <>
               {isCurrent && (
@@ -729,11 +732,11 @@ export function ElicitationStage({
                   {experimenting
                     ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     : <FlaskConical className="mr-1.5 h-3.5 w-3.5" />}
-                  {experimenting ? "Running study…" : "4-arm experiment"}
+                  {experimenting ? (ar ? "جارٍ تشغيل الدراسة…" : "Running study…") : (ar ? "تجربة بأربعة مسارات" : "4-arm experiment")}
                 </Button>
               )}
               <Chip tone={answered === project.questions.length && project.questions.length > 0 ? "verify" : "signal"}>
-                {answered}/{project.questions.length} answered
+                {answered}/{project.questions.length} {ar ? "تمت الإجابة" : "answered"}
               </Chip>
               {carried > 0 && (
                 <Chip tone="plasma">
@@ -748,7 +751,7 @@ export function ElicitationStage({
           <div className="mb-5 rounded-md border border-aura/30 bg-aura/5 p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold">Research comparison completed</p>
+                <p className="text-sm font-semibold">{ar ? "اكتملت مقارنة البحث" : "Research comparison completed"}</p>
                 <p className="mt-1 font-mono text-[10px] text-muted-foreground">
                   {experimentResult.experimentId} · seed {experimentResult.seed} · pool {experimentResult.candidatePoolHash.slice(0, 12)}
                 </p>
@@ -763,11 +766,11 @@ export function ElicitationStage({
                 <thead className="text-muted-foreground">
                   <tr>
                     <th className="pb-2 pr-3">Arm</th>
-                    <th className="pb-2 pr-3">Avg utility</th>
-                    <th className="pb-2 pr-3">Coverage</th>
-                    <th className="pb-2 pr-3">Redundancy</th>
-                    <th className="pb-2 pr-3">Dialect fit</th>
-                    <th className="pb-2">Est. tokens</th>
+                    <th className="pb-2 pr-3">{ar ? "متوسط المنفعة" : "Avg utility"}</th>
+                    <th className="pb-2 pr-3">{ar ? "التغطية" : "Coverage"}</th>
+                    <th className="pb-2 pr-3">{ar ? "التكرار" : "Redundancy"}</th>
+                    <th className="pb-2 pr-3">{ar ? "ملاءمة اللهجة" : "Dialect fit"}</th>
+                    <th className="pb-2">{ar ? "الرموز المقدّرة" : "Est. tokens"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -789,7 +792,7 @@ export function ElicitationStage({
 
         {project.questions.length === 0 ? (
           <EmptyBay>
-            Run the Questioner Agent to generate the interrogation queue from your brief and evidence.
+            {ar ? "شغّل وكيل الاستيضاح لتوليد الأسئلة من موجز المشروع والأدلة." : "Run the Questioner Agent to generate the interrogation queue from your brief and evidence."}
           </EmptyBay>
         ) : (
           <ul className="space-y-4">
@@ -818,11 +821,11 @@ export function ElicitationStage({
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground">Q{i + 1}</span>
                     <Chip tone={q.priority === "high" ? "coral" : q.priority === "low" ? "muted" : "signal"}>
-                      {q.priority} priority
+                      {ar ? (q.priority === "high" ? "أولوية مرتفعة" : q.priority === "low" ? "أولوية منخفضة" : "أولوية متوسطة") : `${q.priority} priority`}
                     </Chip>
                     {typeof q.askCost === "number" && (
                       <span className="flex items-center gap-2" title={`Ask cost ${q.askCost}/5`}>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">ask cost</span>
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{ar ? "تكلفة السؤال" : "ask cost"}</span>
                         <Meter value={q.askCost} max={5} tone={q.askCost >= 4 ? "coral" : q.askCost >= 3 ? "signal" : "verify"} className="w-16" />
                       </span>
                     )}
@@ -837,12 +840,12 @@ export function ElicitationStage({
                     )}
                     {q.answered && !uncertainty && (
                       <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-verify">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> answered
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {ar ? "تمت الإجابة" : "answered"}
                       </span>
                     )}
                     {uncertainty && (
                       <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-plasma">
-                        <Waves className="h-3.5 w-3.5" /> uncertainty carried
+                        <Waves className="h-3.5 w-3.5" /> {ar ? "تم اعتماد عدم اليقين" : "uncertainty carried"}
                       </span>
                     )}
                   </div>
@@ -851,12 +854,12 @@ export function ElicitationStage({
                   </p>
                   {q.rationale && (
                     <p className="mt-1 text-xs italic text-muted-foreground" dir="auto">
-                      Why this matters: {q.rationale}
+                      {ar ? "أهمية السؤال:" : "Why this matters:"} {q.rationale}
                     </p>
                   )}
                   {q.fallbackAssumption && (
                     <p className="mt-2 rounded-md border border-plasma/25 bg-plasma/5 px-3 py-1.5 font-mono text-[11px] text-plasma" dir="auto">
-                      IF SKIPPED, ASSUME: {q.fallbackAssumption}
+                      {ar ? "في حالة التخطي، الافتراض:" : "IF SKIPPED, ASSUME:"} {q.fallbackAssumption}
                     </p>
                   )}
 
@@ -875,7 +878,7 @@ export function ElicitationStage({
                         rows={2}
                         className="mt-3"
                         dir="auto"
-                        placeholder="Your answer (the agent reads this in later stages)…"
+                        placeholder={ar ? "إجابتك (سيستخدمها الوكيل في المراحل التالية)…" : "Your answer (the agent reads this in later stages)…"}
                         defaultValue={q.answer ?? ""}
                         disabled={!isCurrent}
                         onBlur={(e) => {
@@ -898,7 +901,7 @@ export function ElicitationStage({
                               onClick={() => proceedWithUncertainty(q.id)}
                               className="border-plasma/40 text-plasma hover:bg-plasma/10"
                             >
-                              <Waves className="mr-1.5 h-3.5 w-3.5" /> Proceed with uncertainty
+                              <Waves className="mr-1.5 h-3.5 w-3.5" /> {ar ? "المتابعة مع تسجيل عدم اليقين" : "Proceed with uncertainty"}
                             </Button>
                           )}
                         </div>
@@ -911,7 +914,7 @@ export function ElicitationStage({
           </ul>
         )}
         <div className="mt-4">
-          <Eyebrow tone="muted">◉ the agent proceeds only when you approve the gate above — assumptions stay visible forever</Eyebrow>
+          <Eyebrow tone="muted">◉ {ar ? "لا يتابع الوكيل إلا بعد موافقتك — وتظل الافتراضات ظاهرة دائمًا" : "the agent proceeds only when you approve the gate above — assumptions stay visible forever"}</Eyebrow>
         </div>
       </HudPanel>
     </div>

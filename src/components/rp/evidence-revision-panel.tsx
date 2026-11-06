@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useLang } from "@/lib/i18n";
 import { History, Pencil, X, Save, ShieldCheck, ShieldAlert } from "lucide-react";
 
 export function EvidenceRevisionPanel({
@@ -22,6 +23,8 @@ export function EvidenceRevisionPanel({
   onQueueOffline?: (operation: ReturnType<typeof createOfflineEvidenceMutationOperation>) => Promise<void>;
 }) {
   const { toast } = useToast();
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState(evidence.title);
@@ -100,32 +103,32 @@ export function EvidenceRevisionPanel({
       {editing ? (
         <div className="space-y-3 rounded-md border border-aura/30 bg-aura/5 p-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold">Create a new evidence revision</p>
+            <p className="text-xs font-semibold">{ar ? "إنشاء إصدار جديد من الدليل" : "Create a new evidence revision"}</p>
             <span className="font-mono text-[10px] text-muted-foreground">current v{evidence.revisions?.[0]?.version ?? 1}</span>
           </div>
-          <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} aria-label="Evidence title" />
-          <Textarea value={content} onChange={(event) => { const next = event.target.value; setContent(next); if (next !== evidence.content) setConsent(false); }} rows={6} maxLength={8000} dir="auto" aria-label="Evidence content" />
-          <Input value={changeNote} onChange={(event) => setChangeNote(event.target.value)} maxLength={500} placeholder="Why is this source changing? (optional)" aria-label="Revision note" />
+          <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} aria-label={ar ? "عنوان الدليل" : "Evidence title"} />
+          <Textarea value={content} onChange={(event) => { const next = event.target.value; setContent(next); if (next !== evidence.content) setConsent(false); }} rows={6} maxLength={8000} dir="auto" aria-label={ar ? "محتوى الدليل" : "Evidence content"} />
+          <Input value={changeNote} onChange={(event) => setChangeNote(event.target.value)} maxLength={500} placeholder={ar ? "لماذا يتم تعديل هذا المصدر؟ (اختياري)" : "Why is this source changing? (optional)"} aria-label={ar ? "ملاحظة الإصدار" : "Revision note"} />
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-            I explicitly confirm permission to process this revision with the configured AI provider
+            {ar ? "أؤكد صراحةً وجود إذن لمعالجة هذا الإصدار باستخدام مزود الذكاء الاصطناعي المُعدّ" : "I explicitly confirm permission to process this revision with the configured AI provider"}
           </label>
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={busy}><X className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
-            <Button size="sm" onClick={save} disabled={busy || !title.trim() || !content.trim()}><Save className="mr-1 h-3.5 w-3.5" /> {busy ? "Saving…" : "Save revision"}</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={busy}><X className="mr-1 h-3.5 w-3.5" /> {ar ? "إلغاء" : "Cancel"}</Button>
+            <Button size="sm" onClick={save} disabled={busy || !title.trim() || !content.trim()}><Save className="mr-1 h-3.5 w-3.5" /> {busy ? (ar ? "جارٍ الحفظ…" : "Saving…") : (ar ? "حفظ الإصدار" : "Save revision")}</Button>
           </div>
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <History className="h-3.5 w-3.5" />
-            <span>{evidence.revisions?.length ?? 0} revision snapshot(s)</span>
+            <span>{evidence.revisions?.length ?? 0} {ar ? "لقطة إصدار" : "revision snapshot(s)"}</span>
             <span>·</span>
             <span>SHA-256 provenance</span>
             {evidence.consent ? <ShieldCheck className="h-3.5 w-3.5 text-verify" aria-label="AI processing permission recorded" /> : <ShieldAlert className="h-3.5 w-3.5 text-signal" aria-label="AI processing permission not recorded" />}
           </div>
           <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(true)}>
-            <Pencil className="mr-1 h-3.5 w-3.5" /> Edit source
+            <Pencil className="mr-1 h-3.5 w-3.5" /> {ar ? "تعديل المصدر" : "Edit source"}
           </Button>
         </div>
       )}
@@ -143,7 +146,7 @@ export function EvidenceRevisionPanel({
                 <p className="mt-0.5 text-xs text-foreground/80">{revision.changeNote || "No change note"}</p>
                 <p className="mt-0.5 break-all font-mono text-[9px] text-muted-foreground">SHA-256 {revision.contentHash.slice(0, 24)}…</p>
                 <details className="mt-1">
-                  <summary className="cursor-pointer text-[10px] text-aura">View preserved source snapshot</summary>
+                  <summary className="cursor-pointer text-[10px] text-aura">{ar ? "عرض نسخة المصدر المحفوظة" : "View preserved source snapshot"}</summary>
                   <p className="mt-2 whitespace-pre-wrap rounded bg-background/50 p-2 text-xs leading-relaxed" dir="auto">{revision.content}</p>
                 </details>
               </li>
