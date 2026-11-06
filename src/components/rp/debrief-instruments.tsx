@@ -598,6 +598,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const [reverseMode, setReverseMode] = useState<ReverseModeDTO | null>(null);
   const [reverseModeBusy, setReverseModeBusy] = useState(false);
   const [targetValues, setTargetValues] = useState<Record<string, string>>({});
+  const [targetOwners, setTargetOwners] = useState<Record<string, string>>({});
   const [targetBusy, setTargetBusy] = useState<string | null>(null);
   const [oauthAvailable, setOauthAvailable] = useState({ github: false, jira: false });
 
@@ -671,7 +672,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
       await api(`/api/projects/${projectId}/integrations/oauth/${kind}/target`, {
         method: "POST",
         body: JSON.stringify(kind === "github"
-          ? { owner: status?.github.oauth?.account, repo: value }
+          ? { owner: targetOwners.github?.trim() || status?.github.oauth?.account, repo: value }
           : { projectKey: value }),
       });
       toast({ title: ar ? "تم اعتماد وجهة المزامنة" : "Sync target verified", description: ar ? "تم التحقق من صلاحية الوصول لدى المزود." : "Provider access to the selected target was verified." });
@@ -742,8 +743,9 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                   </div>
                   {st.oauth.pendingTarget && (
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      {kind === "github" ? <Input aria-label="GitHub owner or organization" value={targetOwners.github ?? st.oauth.account} onChange={(event) => setTargetOwners((current) => ({ ...current, github: event.target.value }))} placeholder="Owner / organization" /> : null}
                       <Input aria-label={kind === "github" ? "GitHub repository" : "Jira project key"} value={targetValues[kind] ?? ""} onChange={(event) => setTargetValues((current) => ({ ...current, [kind]: event.target.value }))} placeholder={kind === "github" ? (ar ? "اسم المستودع" : "Repository name") : (ar ? "مفتاح مشروع Jira" : "Jira project key")} />
-                      <Button size="sm" disabled={targetBusy !== null || !targetValues[kind]?.trim()} onClick={() => void chooseOAuthTarget(kind)} className="shrink-0 bg-aura text-primary-foreground hover:bg-aura/85">
+                      <Button size="sm" disabled={targetBusy !== null || !targetValues[kind]?.trim() || (kind === "github" && !(targetOwners.github ?? st.oauth.account).trim())} onClick={() => void chooseOAuthTarget(kind)} className="shrink-0 bg-aura text-primary-foreground hover:bg-aura/85">
                         {targetBusy === kind ? <Loader2 className="me-2 h-3.5 w-3.5 animate-spin" /> : null}{ar ? "تحقق واعتماد" : "Verify target"}
                       </Button>
                     </div>
