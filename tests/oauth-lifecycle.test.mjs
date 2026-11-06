@@ -8,6 +8,7 @@ test("OAuth transaction binds identity, project, provider and PKCE verifier",()=
  assert.equal(value.projectId,"p"); assert.equal(value.userId,"u"); assert.equal(value.organizationId,"o");
  assert.equal(value.verifier,tx.verifier); assert.equal(tx.challenge.length,43);
  const record=oauthStateRecord(value);
+ assert.equal(oauthStateRecord(tx),record);
  assert.equal(record.includes(tx.state),false);
  assert.equal(JSON.parse(record).userId,"u");
 });
