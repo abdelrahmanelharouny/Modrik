@@ -12,7 +12,7 @@ export function buildOrganizationMemoryEmbeddingClaimFilter(now = new Date()) {
   return {
     OR: [
       { status: "pending", availableAt: { lte: now } },
-      { status: "processing", lockedAt: { lte: new Date(now.getTime() - DEFAULT_LEASE_MS) } },
+      { status: "processing", leaseExpiresAt: { lte: now } },
     ],
   };
 }
