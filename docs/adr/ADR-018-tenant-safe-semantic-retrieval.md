@@ -69,3 +69,8 @@ Embedding providers are separate from LlmProvider; chat completion compatibility
 ## Consequences
 
 This commit improves the lexical baseline and establishes safe ranking primitives, but does not claim semantic search is active. The HTTP endpoint remains BM25 lexical-only until all semantic rollout gates pass. The current candidate window is capped at 1,000 most-recent accepted nodes per authorized organization query; this is a bounded baseline, not a complete recall guarantee for very large organizations.
+
+
+## Implementation checkpoint (2026-11-06)
+
+A provider-neutral server module now implements canonical content hashing, strict vector/model/dimension validation, stable embedding identity, idempotent upsert/delete work descriptions, an explicit tenant/project/model/status filter contract, and exact cosine ranking with a final accepted-node/content-hash intersection. These are deterministic primitives only: no provider call, persistent embedding table, durable outbox, or API semantic mode is active yet. The store adapter must apply the filter in its query before top-K; post-filtering a global nearest-neighbor result remains prohibited.
