@@ -26,6 +26,7 @@ Research execution remains separate from implementation completion. Full benchma
 - Six-gate human-in-the-loop requirements workflow and twelve agent roles.
 - Evidence revisioning, exact-quote claim provenance, requirement-quality assessment, decision journal and typed knowledge graph with impact traversal.
 - Explainable requirement change-effort heuristic, explicitly not a validated cost/time forecast.
+- Observed-work change-cost calibration: server-recomputed immutable estimate snapshots, append-only actual-hours outcomes, project-scoped journal history, transparent descriptive fit/error/rank metrics and explicit sample-readiness caveats.
 - Executability simulation, ambiguity/conflict/health/calibration/drift/compliance/wind-tunnel instruments.
 - Arabic-first elicitation, bilingual UI metadata, RTL switching and guarded voice intake/transcription.
 - Stakeholder registry, positions, evidence links, negotiation quorum and immutable participant responses.
@@ -50,7 +51,7 @@ Research execution remains separate from implementation completion. Full benchma
 ### P1 — H3 capability scale-up (not required to call the MVP functionally complete)
 - Semantic/vector retrieval is not enabled or connected to an embedding provider. ADR-018 requires provider selection, tenant-filtered storage, embedding lifecycle/outbox, deletion/re-embedding and multilingual quality evaluation before rollout.
 - Indexed organization-memory serving needs a production-shaped backfill/reconciliation run, shadow parity observation and measured database-scale benefit before promotion. Streaming BM25 remains the correctness fallback.
-- Calibrate the requirement-level change-effort heuristic against observed engineering work.
+- Extend change-cost calibration with representative held-out validation, project/change-type segmentation and operator review; current metrics are descriptive in-sample only.
 - Further organization governance beyond the now-implemented explicit approve/reject/archive lifecycle: retention policy, controlled bulk operations (only if explicitly authorized), and advanced audit review workflows.
 - GitHub/Jira OAuth and provider-side token lifecycle management; current integration uses static tokens and signed webhooks.
 - Offline file/audio blobs, cross-device queue replication and service-worker background sync are unsupported. IndexedDB is browser-local and not separately encrypted; avoid highly sensitive evidence on shared devices.
