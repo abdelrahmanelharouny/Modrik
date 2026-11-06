@@ -61,3 +61,12 @@ test("indexed retrieval diagnostics include posting work as well as readiness an
   assert.match(source, /candidateFirstPassPages/);
   assert.match(source, /candidateSecondPassPages/);
 });
+
+
+test("archive view is separately gated by approval permission and uses archived-only query", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /view !== "accepted" && view !== "review_queue" && view !== "archived"/);
+  assert.match(source, /view === "archived" && !canApprove/);
+  assert.match(source, /buildOrganizationMemoryArchiveQuery/);
+  assert.match(source, /summarizeOrganizationArchivedKnowledgeNode/);
+});
