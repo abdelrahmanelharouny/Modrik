@@ -130,7 +130,7 @@ The server-side embedding module now defines canonical Arabic/English retrieval 
 
 The database adapter must use `buildTenantScopedEmbeddingFilter` as part of the vector-store query **before** nearest-neighbor top-K. The in-process checks are defense in depth; they do not make a global vector query safe. Empty project scope returns no filter and no results. Unsupported or stale embeddings are misses.
 
-This is a contract and deterministic test foundation only. It does not yet persist embedding records or an outbox, call a live embedding provider, or enable semantic/hybrid retrieval in the API. The next implementation gate is additive SQLite/PostgreSQL embedding + outbox schema, transactional lifecycle hooks, bounded retry worker, provider selection and tenant-filtered adapters. BM25 remains the only production retrieval mode.
+This is now the provider-neutral contract layer beneath the persisted embedding/outbox lifecycle, bounded worker, tenant-scoped semantic adapter and opt-in hybrid API described below. A live provider has not been configured or verified in this repository environment, so semantic reads remain disabled by default and BM25 remains the production-safe default. The vector payload is JSON and exact cosine scanning is bounded; this is not an ANN/vector-index implementation.
 
 
 ## Durable semantic embedding storage and worker contracts
@@ -166,6 +166,18 @@ The persistence adapter is covered by deterministic fake-transaction tests. The 
 - The organization memory GET route enables hybrid retrieval only with ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED=true. It embeds the query with the same configured model and dimensions, then fuses independently ranked BM25 and semantic lists using reciprocal-rank fusion. Provider or semantic-scan failures preserve the BM25 response and expose semanticFallbackReason; diagnostics include semantic candidate count, page count and duration.
 - Keep the flag disabled until a real provider is configured, accepted-node embedding coverage is backfilled, multilingual judged evaluation is reviewed, and operational cost/latency limits are accepted. Identity and project scope continue to come exclusively from the verified session.
 
+
+### Judged multilingual BM25 versus hybrid evaluation
+
+Capture a judged query snapshot as JSON and run:
+
+```bash
+npm run eval:organization-memory -- --input=./organization-memory-judgments.json --k=10 --output=./organization-memory-eval-report.json
+```
+
+The input object contains optional `name`, `version`, and `provenance`, plus a `queries` array. Each query requires `id`, `language` (for example `ar`, `en`, or `ar-en`), `projectId`, non-empty `relevantIds` from human-reviewed judgments, and `bm25RankedIds`; `semanticRankedIds` may be empty when no semantic candidates were returned. The runner applies the same reciprocal-rank fusion implementation as the API and reports Precision@K, Recall@K, MRR and NDCG@K overall and by language, with per-query rankings.
+
+The evaluator deliberately consumes captured rankings rather than inventing vectors or calling a provider. Capture BM25 and semantic results for the same authorized query/project snapshot, preserve dataset provenance, and have relevance labels reviewed independently. Synthetic test fixtures validate metric wiring only; they are not evidence of Arabic retrieval quality. Do not enable semantic reads based on a fixture report.
 
 ### Semantic embedding backfill operations
 
