@@ -42,6 +42,8 @@ test("accepted node mutation enqueues an idempotent upsert inside caller transac
   assert.equal(tx.calls[0].create.contentHash.length, 64);
   assert.equal(tx.calls[0].create.status, "pending");
   assert.equal(tx.calls[0].where.idempotencyKey, first.idempotencyKey);
+  assert.deepEqual(tx.calls[0].update, { updatedAt: tx.calls[0].create.availableAt });
+  assert.equal(Object.hasOwn(tx.calls[0].update, "status"), false, "duplicate enqueue must not reopen completed jobs");
 });
 
 test("non-accepted transitions enqueue durable delete tombstones", async () => {
