@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
         withProject: true,
         findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
       });
-      const runHybrid = async (lexical: Awaited<ReturnType<typeof rankOrganizationMemoryCandidatesStream>>) => {
+      const runHybrid = async <T extends { rows: Array<{ id: string; projectId: string; status: string }> }>(lexical: T) => {
         if (process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true" || !projectIds.length) return lexical;
         try {
           const provider = await createOrganizationMemoryEmbeddingProvider();
