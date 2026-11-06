@@ -42,7 +42,7 @@ export async function backfillOrganizationMemorySearchIndexBatch(tx, input = {})
     normalizerVersion: ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,
     status: done ? "completed" : "running",
     lastError: null,
-    ...(state.startedAt ? {} : { startedAt: new Date() }),
+    startedAt: resetVersion || !state.startedAt ? new Date() : state.startedAt,
     completedAt: done ? new Date() : null,
   };
   const changed = await tx.organizationMemorySearchIndexState.updateMany({

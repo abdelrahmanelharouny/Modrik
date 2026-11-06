@@ -7,7 +7,7 @@ const rawBatch = Number(process.argv.find((arg) => arg.startsWith("--batch-size=
 const batchSize = Number.isSafeInteger(rawBatch) && rawBatch > 0 ? Math.min(rawBatch, 500) : 100;
 
 async function main() {
-  const projects = await prisma.project.findMany({ orderBy: { id: "asc" }, select: { id: true } });
+  const projects = await prisma.project.findMany({ where: { status: { not: "archived" } }, orderBy: { id: "asc" }, select: { id: true } });
   let projectsCompleted = 0;
   let totalIndexed = 0;
   for (const project of projects) {
