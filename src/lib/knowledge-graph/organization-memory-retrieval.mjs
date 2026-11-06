@@ -423,8 +423,10 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
       where,
       take: batchSize,
       orderBy: [{ documentId: "asc" }, { term: "asc" }],
-      select: { documentId: true, term: true, frequency: true },
-      include: { document: { select: { nodeId: true, projectId: true, status: true, tokenCount: true, normalizerVersion: true, updatedAt: true } } },
+      select: {
+        documentId: true, term: true, frequency: true,
+        document: { select: { nodeId: true, projectId: true, status: true, tokenCount: true, normalizerVersion: true, updatedAt: true } },
+      },
     });
     if (!Array.isArray(batch)) throw new TypeError("Indexed postings adapter must return an array.");
     pages += 1;

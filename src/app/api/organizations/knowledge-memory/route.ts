@@ -15,7 +15,8 @@ import {
   buildOrganizationMemoryCursorWhere,
   createOrganizationMemoryCursor,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
-import { rankOrganizationMemoryCandidatesStream } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
+import { rankOrganizationMemoryCandidatesStream, rankOrganizationMemoryCandidatesIndexed } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
+import { getOrganizationMemorySearchIndexReadiness } from "@/lib/knowledge-graph/organization-memory-search-backfill.mjs";
 import { replaceOrganizationMemorySearchDocument } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
 
 export const runtime = "nodejs";
@@ -122,17 +123,34 @@ export async function GET(req: NextRequest) {
         query.where, page, view === "review_queue" ? "asc" : "desc",
       );
     }
-    const scan = rankedSearch ? await db.$transaction(
-      (tx) => rankOrganizationMemoryCandidatesStream({
+    const scan = rankedSearch ? await db.$transaction(async (tx) => {
+      const indexedEnabled = process.env.ORGANIZATION_MEMORY_INDEXED_READ_ENABLED === "true";
+      if (indexedEnabled) {
+        const readiness = await getOrganizationMemorySearchIndexReadiness({
+          projectIds,
+          findMany: (args) => tx.organizationMemorySearchIndexState.findMany(args as Parameters<typeof tx.organizationMemorySearchIndexState.findMany>[0]),
+        });
+        if (readiness.ready) {
+          return rankOrganizationMemoryCandidatesIndexed({
+            projectIds,
+            query: search,
+            limit: responseLimit,
+            normalizerVersion: 1,
+            aggregateDocuments: (args) => tx.organizationMemorySearchDocument.aggregate(args as Parameters<typeof tx.organizationMemorySearchDocument.aggregate>[0]),
+            findPostings: (args) => tx.organizationMemorySearchPosting.findMany(args as Parameters<typeof tx.organizationMemorySearchPosting.findMany>[0]),
+            findCandidates: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
+          });
+        }
+      }
+      return rankOrganizationMemoryCandidatesStream({
         where: query.where,
         projectIds,
         query: search,
         limit: responseLimit,
         withProject: true,
         findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
-      }),
-      { isolationLevel: "Serializable" },
-    ) : null;
+      });
+    }, { isolationLevel: "Serializable" }) : null;
     const nodes = rankedSearch ? scan!.rows : await db.knowledgeNode.findMany({
       where: pageWhere,
       ...(page ? { take: page.take } : { take: query.take }),
@@ -160,7 +178,19 @@ export async function GET(req: NextRequest) {
           nextCursor: nodes.length > page.limit ? createOrganizationMemoryCursor(nodes[page.limit - 1]!) : null,
         },
       } : { pagination: { hasMore: false, nextCursor: null } }),
-      ...(rankedSearch ? { candidatesScanned: scan!.candidatesScanned, rankingCandidatesScanned: scan!.rankingCandidatesScanned, candidatePages: scan!.pages, candidateFirstPassPages: scan!.firstPassPages, candidateSecondPassPages: scan!.secondPassPages, candidatePasses: scan!.passes, candidateBatchSize: scan!.batchSize, retrievalDurationMs: scan!.durationMs, candidateWindowTruncated: false, retrievalMode: "streaming_bm25_keyset", retrievalSnapshotAt: scan!.snapshotAt } : {}),
+      ...(rankedSearch ? {
+        candidatesScanned: scan!.candidatesScanned,
+        rankingCandidatesScanned: scan!.rankingCandidatesScanned ?? scan!.candidatesScanned,
+        candidatePages: scan!.pages,
+        candidateFirstPassPages: "firstPassPages" in scan! ? scan!.firstPassPages : null,
+        candidateSecondPassPages: "secondPassPages" in scan! ? scan!.secondPassPages : null,
+        candidatePasses: "passes" in scan! ? scan!.passes : 1,
+        candidateBatchSize: scan!.batchSize,
+        retrievalDurationMs: scan!.durationMs,
+        candidateWindowTruncated: false,
+        retrievalMode: scan!.retrievalMode ?? "streaming_bm25_keyset",
+        retrievalSnapshotAt: scan!.snapshotAt,
+      } : {}),
       scope: "organization",
       view,
       ...(capabilities ? { capabilities } : {}),
