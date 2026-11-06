@@ -77,7 +77,13 @@ export function buildOrganizationMemoryEmbeddingCompletion(input = {}) {
 /** Delete jobs are tombstones; upserts are discarded when their source hash is no longer current. */
 export function classifyOrganizationMemoryEmbeddingWork(input = {}) {
   const operation = required(input.operation, "operation");
-  if (operation === "delete") return { action: "delete", nodeId: required(input.nodeId, "nodeId") };
+  if (operation === "delete") {
+    const nodeId = required(input.nodeId, "nodeId");
+    if (input.currentNodeStatus === "accepted") {
+      return { action: "superseded", reason: "node_was_reaccepted" };
+    }
+    return { action: "delete", nodeId };
+  }
   if (operation !== "upsert") throw new TypeError("Unsupported embedding operation.");
   const queuedHash = required(input.contentHash, "contentHash");
   const currentHash = typeof input.currentContentHash === "string" ? input.currentContentHash : null;
