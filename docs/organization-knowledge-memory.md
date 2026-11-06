@@ -28,9 +28,9 @@ Semantic retrieval architecture is recorded in ADR-018. The implementation adds 
 
 ## Governance and audit
 
-Governance transitions use compare-and-set status guards inside a database transaction. The project decision-journal row and organization audit event are written in that same transaction, so a failed audit write rolls back the state change. Conflicts return HTTP 409 rather than overwriting another reviewer's decision.
+Governance transitions use compare-and-set status guards inside a database transaction. The project decision-journal row and organization audit event are written in that same transaction, so a failed audit write rolls back the state change. Conflicts return HTTP 409 rather than overwriting another reviewer's decision. The review UI supports explicit rejection and approval; approvers can also archive accepted knowledge with a bounded rationale. An approver-only archived view preserves source attribution and lifecycle visibility while archived records remain excluded from accepted-memory retrieval. Archive transitions update the lexical index in the same transaction and retain the immutable decision/audit trail.
 
-The review reader is /settings/knowledge-memory. The audit reader is /settings/audit and uses a dedicated organization audit stream scoped by verified session organization. Actor email and session secrets are never serialized. Project ID is a scalar snapshot, preserving audit history if a project is deleted.
+The review reader is /settings/knowledge-memory. Its accepted, review-queue and archived views are all scoped to active projects in the verified organization; the archived view requires requirements:approve. The audit reader is /settings/audit and uses a dedicated organization audit stream scoped by verified session organization. Actor email and session secrets are never serialized. Project ID is a scalar snapshot, preserving audit history if a project is deleted.
 
 ## Known boundaries and next gates
 
