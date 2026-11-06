@@ -48,7 +48,8 @@ async function complete(tx, job) {
     jobId: job.id, workerId, lockedAt: job.lockedAt,
   });
   const result = await tx.organizationMemoryEmbeddingJob.updateMany(completion);
-  return result.count === 1;
+  if (result.count !== 1) throw new Error("Embedding job lease ownership was lost before completion.");
+  return true;
 }
 
 async function processJob(job) {
@@ -85,12 +86,14 @@ async function processJob(job) {
         select: { status: true },
       });
       if (latest?.status !== "accepted") {
+        await complete(tx, job);
         await deleteOrganizationMemoryEmbedding(tx, {
           organizationId: job.organizationId, projectId: job.projectId, nodeId: job.nodeId,
           model: job.model, dimensions: job.dimensions,
         });
+      } else {
+        await complete(tx, job);
       }
-      await complete(tx, job);
     }, { isolationLevel: "Serializable" });
     return "deleted";
   }
@@ -114,7 +117,7 @@ async function processJob(job) {
 }
 
 async function retry(job, error) {
-  const retryData = buildOrganizationMemoryEmbeddingRetry({
+  const { delayMs: _delayMs, ...retryData } = buildOrganizationMemoryEmbeddingRetry({
     attempts: job.attempts,
     maxAttempts: job.maxAttempts,
     error: error instanceof Error ? error.message : "Embedding worker failed.",
