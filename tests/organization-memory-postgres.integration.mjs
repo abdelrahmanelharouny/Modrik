@@ -46,7 +46,7 @@ test("PostgreSQL organization memory is tenant-isolated and governance writes ar
   } });
   const auditNode = await db.knowledgeNode.create({ data: {
     projectId: auditProject.id, nodeRef: "AUDIT-1", kind: "policy",
-    label: "Data retention policy", description: "Keep records safely", status: "accepted",
+    label: "Data retention policy", description: "Keep records safely", status: "proposed",
   } });
   await db.$transaction(async (tx) => {
     await tx.organizationMemorySearchIndexState.create({ data: {
