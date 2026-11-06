@@ -90,7 +90,23 @@ export function PlannerLab({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const params = new URLSearchParams(window.location.search);
+    const provider = params.get("oauth");
+    const result = params.get("status");
+    if ((provider === "github" || provider === "jira") && result) {
+      const message = params.get("message");
+      toast({
+        title: result === "connected"
+          ? (ar ? "تم ربط الحساب" : `${provider} account authorized`)
+          : (ar ? "لم يكتمل الربط" : `${provider} authorization did not complete`),
+        description: message || (result === "connected"
+          ? (ar ? "اختر المستودع أو مشروع Jira لتفعيل المزامنة." : "Select a repository or Jira project to enable sync.")
+          : (ar ? "يمكنك المحاولة مرة أخرى من لوحة التكاملات." : "You can retry from the integrations console.")),
+        variant: result === "connected" ? "default" : "destructive",
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [load, toast, ar]);
 
   const runArm = async (arm: string) => {
     setBusyArm(arm);
