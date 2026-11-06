@@ -49,7 +49,9 @@ export default function Home() {
 
   useEffect(() => {
     void loadProjects();
-  }, [loadProjects]);
+    const projectFromOAuth = new URLSearchParams(window.location.search).get("project");
+    if (projectFromOAuth) void openProject(projectFromOAuth);
+  }, [loadProjects, openProject]);
 
   const openProject = useCallback(
     async (id: string) => {
