@@ -5,6 +5,7 @@ import { encryptSecret } from "@/lib/security/secret-box.mjs";
 import { SESSION_COOKIE } from "@/lib/security/session.mjs";
 import { oauthCallbackUrl,oauthCookieName,oauthProviderConfig,verifyOAuthTransaction } from "@/lib/security/oauth-lifecycle.mjs";
 import { db } from "@/lib/db";
+import { logDecision } from "@/lib/journal";
 export const runtime="nodejs";
 type Context={params:Promise<{provider:string}>};
 function clearCookie(response:NextResponse,provider:string){
@@ -60,8 +61,14 @@ export async function GET(req:NextRequest,{params}:Context){
    connectedAt:new Date().toISOString(),connectedByUserId:identity.userId,organizationId:identity.organizationId,
   };
   const existing=await db.integration.findFirst({where:{projectId:tx.projectId,kind:provider},orderBy:{createdAt:"desc"}});
-  if(existing) await db.integration.update({where:{id:existing.id},data:{config:JSON.stringify(saved)}});
-  else await db.integration.create({data:{projectId:tx.projectId,kind:provider,config:JSON.stringify(saved)}});
+  if(existing) {
+   // Preserve the independently encrypted webhook secret when credentials are reconnected.
+   let webhookSecret:unknown;
+   try { const old=JSON.parse(existing.config) as Record<string,unknown>; webhookSecret=old.webhookSecret; } catch { webhookSecret=undefined; }
+   if(typeof webhookSecret==="string") saved.webhookSecret=webhookSecret;
+   await db.integration.update({where:{id:existing.id},data:{config:JSON.stringify(saved)}});
+  } else await db.integration.create({data:{projectId:tx.projectId,kind:provider,config:JSON.stringify(saved)}});
+  await logDecision(tx.projectId,"LIFECYCLE","human","oauth_connected",provider+" account connected; target selection is still required.");
   const response=NextResponse.redirect(new URL("/settings/integrations?oauth="+provider+"&status=connected&target=required",req.url));
   return clearCookie(response,provider);
  }catch{return fail(req,provider,"OAuth exchange failed. Credential details were not exposed; reconnect and retry.",502);}
