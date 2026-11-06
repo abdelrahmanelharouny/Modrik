@@ -19,6 +19,7 @@ import { HudPanel, Eyebrow, Chip, CountUp, Meter, SectionHead, EmptyBay, Reveal,
 import { ICONS } from "@/components/rp/icons";
 import { PlannerLab, CalibrationPanel, ExecutabilitySim, SelfAuditPanel, IntegrationsConsole } from "@/components/rp/debrief-instruments";
 import { KnowledgeGraphExplorer } from "@/components/rp/knowledge-graph-explorer";
+import { ChangeCostCalibration } from "@/components/rp/change-cost-calibration";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -418,6 +419,7 @@ function Constellation({ project }: { project: ProjectDTO }) {
                 </div>}
               </details>
               <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">{ar ? "النقاط نسبية وليست ساعات أو تكلفة مالية أو توقعًا معتمدًا. هامش التخطيط يتسع من 20% إلى 50% وفق اكتمال الإشارات، وليس فترة ثقة إحصائية." : changeCost.caveat} {ar ? "المنهجية: وزن أثر العلاقات حسب العمق مضروبًا في عوامل مخاطر المتطلب." : changeCost.methodology + "."}</p>
+              {selectedReq && <ChangeCostCalibration projectId={project.id} requirementId={selectedReq.id} />}
             </div>
           )}
         </HudPanel>
