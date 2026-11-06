@@ -52,7 +52,7 @@ export async function GET(req:NextRequest,{params}:Context){
    cloudId=site.id; baseUrl="https://api.atlassian.com/ex/jira/"+encodeURIComponent(cloudId)+"/";
    if(site.scopes?.length) scopes=site.scopes;
   }
-  const saved={
+  const saved: Record<string, unknown> = {
    authMode:"oauth",oauthPending:true,token:encryptSecret(token.access_token),
    refreshToken:token.refresh_token?encryptSecret(token.refresh_token):"",
    owner:provider==="github"?account:"",repo:"",baseUrl,email:provider==="jira"?account:"",
