@@ -603,6 +603,20 @@ try {
     await guestPage.getByText("البريد الإلكتروني", { exact: true }).waitFor();
     assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "Arabic login shell must use RTL direction");
     assert.equal(await guestPage.locator("form").getAttribute("dir"), "rtl", "Arabic login controls must use RTL direction");
+
+    // Public invitation and recovery shells must preserve native Arabic/RTL
+    // direction at the narrow mobile breakpoint, including invalid-link states.
+    await guestPage.goto(`${baseUrl}/invite/accept`, { waitUntil: "networkidle" });
+    await guestPage.getByRole("heading", { name: "انضم إلى مؤسستك" }).waitFor();
+    assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "invitation shell must inherit Arabic RTL");
+    await guestPage.getByRole("alert").waitFor();
+    assert.ok((await guestPage.locator("body").innerText()).includes("رابط الدعوة غير مكتمل"), "invalid invitation must explain recovery in Arabic");
+    await guestPage.goto(`${baseUrl}/reset-password`, { waitUntil: "networkidle" });
+    await guestPage.getByRole("heading", { name: "استعادة حسابك" }).waitFor();
+    assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "password recovery shell must inherit Arabic RTL");
+    await guestPage.getByText("البريد الإلكتروني", { exact: true }).waitFor();
+    assert.equal(await guestPage.locator("form").getAttribute("dir"), "rtl", "password recovery controls must use RTL direction");
+    assert.equal(await guestPage.locator("body").evaluate(el => el.scrollWidth <= window.innerWidth), true, "public auth routes must not overflow horizontally at 390px");
     await guestContext.close();
 
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
