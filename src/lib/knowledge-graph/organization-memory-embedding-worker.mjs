@@ -42,7 +42,7 @@ export function buildOrganizationMemoryEmbeddingRetry(input = {}) {
   const delay = Math.min(MAX_BACKOFF_MS, base * (2 ** Math.min(attempts - 1, 20)));
   const rawError = typeof input.error === "string" ? input.error : "Embedding job failed.";
   const safeError = rawError.replace(/(?:bearer\s+)[^\s]+/giu, "Bearer [redacted]")
-    .replace(/(?:api[_-]?key|token|secret)\s*[:=]\s*[^\s,;]+/giu, "$1=[redacted]")
+    .replace(/(api[_-]?key|token|secret)\s*[:=]\s*[^\s,;]+/giu, "$1=[redacted]")
     .slice(0, 500);
   const dead = attempts >= maxAttempts;
   return {
