@@ -132,6 +132,9 @@ function WorkspaceShell({
   refresh: () => Promise<void>;
   backHome: () => Promise<void>;
 }) {
+  const { lang } = useLang();
+  const ar = lang === "ar";
+
   return project ? (
     <Workspace project={project} busy={busy} setBusy={setBusy} refresh={refresh} backHome={backHome} />
   ) : projectLoadError ? (
@@ -145,7 +148,7 @@ function WorkspaceShell({
         <p className="mt-2 break-words text-sm leading-relaxed text-muted-foreground">{projectLoadError}</p>
         <div className="mt-6 flex flex-wrap gap-2">
           <Button onClick={() => void retry()} className="bg-aura text-primary-foreground hover:bg-aura/85">
-            <RefreshCw className="mr-2 h-4 w-4" /> Retry
+            <RefreshCw className="mr-2 h-4 w-4" /> {ar ? "إعادة المحاولة" : "Retry"}
           </Button>
           <Button variant="outline" onClick={() => void backHome()}>{ar ? "العودة لمركز التحكم" : "Back to Mission Control"}</Button>
         </div>
@@ -155,7 +158,7 @@ function WorkspaceShell({
     <div className="flex min-h-screen items-center justify-center p-6">
       <HudPanel className="w-full max-w-md p-8" as="div">
         <Eyebrow className="mb-4 flex items-center gap-2">
-          <LiveDot tone="aura" /> PREPARING FLIGHT DECK
+          <LiveDot tone="aura" /> {ar ? "جارٍ تجهيز مساحة العمل" : "PREPARING FLIGHT DECK"}
         </Eyebrow>
         <Skeleton className="h-8 w-64 bg-secondary/70" />
         <Skeleton className="mt-3 h-4 w-80 bg-secondary/70" />
