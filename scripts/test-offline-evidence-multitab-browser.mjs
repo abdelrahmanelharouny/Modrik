@@ -85,7 +85,20 @@ try {
   await Promise.all([first.evaluate(() => window.releaseSync()), second.evaluate(() => window.releaseSync())]);
   await Promise.all([first.evaluate(() => window.syncTask), second.evaluate(() => window.syncTask)]);
 
-  console.log("PASS: IndexedDB fallback serializes same-project tabs, advances fencing tokens, and allows independent projects concurrently.");
+  // A long-closed browser must not silently expire user-authored work.
+  const retained = await first.evaluate(async () => {
+    const { createOfflineEvidenceOperation, putOfflineEvidenceOperation, listOfflineEvidenceOperations } = await import("/offline-queue.mjs");
+    const operation = createOfflineEvidenceOperation("browser-project-retention", {
+      title: "Long-lived draft", content: "Must survive a month away", consent: false,
+    }, "123e4567-e89b-42d3-a456-426614174099");
+    operation.createdAt = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString();
+    await putOfflineEvidenceOperation(operation);
+    const queue = await listOfflineEvidenceOperations("browser-project-retention");
+    return queue.some((item) => item.operationId === operation.operationId);
+  });
+  assert.equal(retained, true, "queued work older than 30 days must remain until explicit sync or discard");
+
+  console.log("PASS: IndexedDB fallback and durable queue serializes same-project tabs, advances fencing tokens, and allows independent projects concurrently.");
   await context.close();
 } finally {
   await browser?.close();
