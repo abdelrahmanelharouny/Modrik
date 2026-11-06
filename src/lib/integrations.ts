@@ -250,6 +250,7 @@ async function oauthConnectionSummary(projectId: string, kind: "github" | "jira"
       account: typeof config.account === "string" ? config.account : "",
       scopes: Array.isArray(config.scopes) ? config.scopes.filter((scope): scope is string => typeof scope === "string") : [],
       expiresAt: typeof config.expiresAt === "string" ? config.expiresAt : null,
+      needsReauthorization: typeof config.expiresAt === "string" && Date.parse(config.expiresAt) <= Date.now(),
       connectedAt: typeof config.connectedAt === "string" ? config.connectedAt : null,
       cloudId: typeof config.cloudId === "string" ? config.cloudId : undefined,
     };
@@ -259,11 +260,16 @@ async function oauthConnectionSummary(projectId: string, kind: "github" | "jira"
 }
 
 export async function maskedStatus(projectId: string) {
-  const [gh, jr, ghOAuth, jrOAuth] = await Promise.all([
-    loadConfig(projectId, "github"),
-    loadConfig(projectId, "jira"),
+  const [ghOAuth, jrOAuth] = await Promise.all([
     oauthConnectionSummary(projectId, "github"),
     oauthConnectionSummary(projectId, "jira"),
+  ]);
+  // A provider outage or expired refresh token should be visible as a
+  // reconnect-needed state, not turn the entire integrations status endpoint
+  // into a 500. Non-OAuth configuration errors still surface normally.
+  const [gh, jr] = await Promise.all([
+    loadConfig(projectId, "github").catch((error) => { if (ghOAuth) return null; throw error; }),
+    loadConfig(projectId, "jira").catch((error) => { if (jrOAuth) return null; throw error; }),
   ]);
   return {
     github: gh
