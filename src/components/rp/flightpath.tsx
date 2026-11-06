@@ -33,7 +33,7 @@ export function FlightPath({
   const phases = FLIGHT_PLAN.slice(0, totalStages + (complete ? 1 : 0));
 
   return (
-    <nav aria-label={ar ? "خطة الرحلة" : "Flight plan"} className="w-full">
+    <nav aria-label={ar ? "خطة الرحلة" : "Flight plan"} className="relative w-full">
       {/* desktop rail */}
       <ol className="relative hidden items-start lg:flex" role="list">
         <svg className="pointer-events-none absolute left-0 right-0 top-[22px] h-1 w-full" aria-hidden preserveAspectRatio="none" viewBox="0 0 100 2">
@@ -103,7 +103,7 @@ export function FlightPath({
                 disabled={!clickable}
                 onClick={() => clickable && onSelect(i)}
                 aria-current={viewingIdx === i ? "step" : undefined}
-                aria-label={`${ph.title}${done ? " — completed" : current ? " — current phase" : locked ? " — locked" : ""}`}
+                aria-label={`${ar ? ph.titleAr : ph.title}${done ? (ar ? " — مكتملة" : " — completed") : current ? (ar ? " — المرحلة الحالية" : " — current phase") : locked ? (ar ? " — مقفولة" : " — locked") : ""}`}
                 className={cn(
                   "flex min-w-[76px] flex-col items-center gap-1 rounded-md border px-2 py-2 text-center",
                   done && "border-verify/40 bg-verify/5 text-verify",
@@ -113,7 +113,7 @@ export function FlightPath({
                 )}
               >
                 <span className="font-mono text-[9px] tracking-widest">{ph.num}</span>
-                <span className="font-display text-[11px] font-semibold leading-none">{ph.title}</span>
+                <span className="font-display text-[11px] font-semibold leading-tight">{ar ? ph.titleAr : ph.title}</span>
               </button>
             </li>
           );
@@ -125,7 +125,7 @@ export function FlightPath({
         <motion.div
           className="pointer-events-none absolute -top-1 hidden lg:block"
           initial={false}
-          animate={{ left: `${((currentIdx + 0.5) / phases.length) * 100}%` }}
+          animate={ar ? { right: `${((currentIdx + 0.5) / phases.length) * 100}%` } : { left: `${((currentIdx + 0.5) / phases.length) * 100}%` }}
           transition={{ type: "spring", stiffness: 120, damping: 20 }}
           aria-hidden
         >

@@ -59,7 +59,7 @@ export function HudPanel({
   children,
   className,
   glow = false,
-  corners = true,
+  corners = false,
   as: Tag = "section",
 }: {
   children: ReactNode;
@@ -87,7 +87,7 @@ export function Eyebrow({ children, className, tone = "aura" }: { children: Reac
   return (
     <span
       className={cn(
-        "font-mono text-[10px] font-medium uppercase tracking-[0.28em]",
+        "font-mono text-[11px] font-medium uppercase tracking-[0.16em]",
         TONE_TEXT[tone],
         className
       )}
@@ -191,7 +191,7 @@ export function Chip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold tracking-wider",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-normal",
         mono && "font-mono uppercase",
         TONE_BORDER[tone],
         TONE_BG[tone],

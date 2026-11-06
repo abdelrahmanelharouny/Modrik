@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Geist, Space_Grotesk, JetBrains_Mono, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { LanguageProvider } from "@/lib/i18n";
@@ -13,6 +13,12 @@ const geistSans = Geist({
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space",
   subsets: ["latin"],
+});
+
+const notoArabic = Noto_Sans_Arabic({
+  variable: "--font-arabic",
+  subsets: ["arabic"],
+  display: "swap",
 });
 
 const jbMono = JetBrains_Mono({
@@ -49,7 +55,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${spaceGrotesk.variable} ${jbMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${spaceGrotesk.variable} ${jbMono.variable} ${notoArabic.variable} antialiased bg-background text-foreground`}
       >
         <LanguageProvider>{children}</LanguageProvider>
         <Toaster />
