@@ -30,6 +30,12 @@ export async function GET(req:NextRequest,{params}:Context){
  if(!project||project.organizationId!==identity.organizationId||!hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"projects:update"))
   return fail(req,provider,"You no longer have permission to connect this project.");
  const config=oauthProviderConfig(provider); if(!config) return fail(req,provider,"OAuth provider credentials are not configured.");
+ // Atomically consume the server-side state ledger before exchanging the code.
+ // The exact serialized record includes only the SHA-256 state hash and owner metadata.
+ const consumed=await db.integration.deleteMany({
+  where:{projectId:tx.projectId,kind:"oauth_state_"+provider,config:oauthStateRecord(tx)},
+ });
+ if(consumed.count!==1) return fail(req,provider,"OAuth transaction was already used or has expired. Start again.");
  try{
   const tokenResponse=await fetch(config.tokenUrl,{method:"POST",headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify({grant_type:"authorization_code",client_id:config.clientId,client_secret:config.clientSecret,code,redirect_uri:oauthCallbackUrl(provider),code_verifier:tx.verifier}),signal:AbortSignal.timeout(20000)});
   const token=await tokenResponse.json().catch(()=>({})) as {access_token?:string;refresh_token?:string;expires_in?:number;scope?:string};
