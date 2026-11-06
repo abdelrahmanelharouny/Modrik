@@ -951,6 +951,7 @@ model OrganizationMemoryEmbeddingJob {
   maxAttempts    Int      @default(8)
   availableAt    DateTime @default(now())
   lockedAt       DateTime?
+  leaseExpiresAt DateTime?
   lockedBy       String?
   lastError      String?
   createdAt      DateTime @default(now())
