@@ -75,6 +75,7 @@ export async function getOrganizationMemorySearchIndexReadiness(input = {}) {
     (byProject.get(id).reconciliationStatus !== "completed" ||
      byProject.get(id).reconciliationMismatchCount !== 0 ||
      byProject.get(id).reconciliationNormalizerVersion !== ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION));
-  const readyProjectCount = projectIds.length - missingProjectIds.length - staleProjectIds.length - incompleteProjectIds.length - unreconciledProjectIds.length;
+  const blocked = new Set([...missingProjectIds, ...staleProjectIds, ...incompleteProjectIds, ...unreconciledProjectIds]);
+  const readyProjectCount = projectIds.length - blocked.size;
   return { ready: readyProjectCount === projectIds.length, projectCount: projectIds.length, readyProjectCount, missingProjectIds, staleProjectIds, incompleteProjectIds, unreconciledProjectIds };
 }

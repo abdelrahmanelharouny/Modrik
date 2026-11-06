@@ -81,7 +81,9 @@ export async function reconcileOrganizationMemorySearchIndexBatch(tx, input = {}
     missingPostings: 0,
     unexpectedPostings: 0,
     incorrectFrequencies: 0,
+    duplicatePostings: 0,
     orphanDocuments: 0,
+    orphanPostings: 0,
   };
   let processed = 0;
   let nextPhase = phase;
@@ -129,6 +131,7 @@ export async function reconcileOrganizationMemorySearchIndexBatch(tx, input = {}
           findings.incorrectFrequencies += 1;
           continue;
         }
+        if (actual.has(posting.term)) findings.duplicatePostings += 1;
         actual.set(posting.term, posting.frequency);
       }
       for (const [term, frequency] of expected) {
@@ -156,7 +159,12 @@ export async function reconcileOrganizationMemorySearchIndexBatch(tx, input = {}
       select: { id: true },
     }) : [];
     const sourceIds = new Set(nodes.map((node) => node.id));
-    for (const document of documents) if (!sourceIds.has(document.nodeId)) findings.orphanDocuments += 1;
+    const orphanDocumentIds = new Set();
+    for (const document of documents) if (!sourceIds.has(document.nodeId)) { findings.orphanDocuments += 1; orphanDocumentIds.add(document.id); }
+    if (orphanDocumentIds.size) {
+      const orphanPostings = await tx.organizationMemorySearchPosting.findMany({ where: { documentId: { in: [...orphanDocumentIds] } }, select: { id: true } });
+      findings.orphanPostings += orphanPostings.length;
+    }
     if (documents.length) nextDocumentCursor = documents[documents.length - 1].id;
     if (documents.length < batchSize) {
       nextPhase = "completed";

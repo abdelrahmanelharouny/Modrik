@@ -85,7 +85,9 @@ test("full reconciliation audits document fields and exact term-frequency postin
   const b=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:2});
   assert.equal(b.status,"running");assert.equal(b.phase,"documents");
   const c=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:2});
-  assert.equal(c.status,"completed");assert.equal(c.mismatchCount,0);
+  assert.equal(c.status,"running");assert.equal(c.phase,"documents");
+  const d=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1",batchSize:2});
+  assert.equal(d.status,"completed");assert.equal(d.mismatchCount,0);
   assert.equal(tx.state.reconciliationNormalizerVersion,ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION);
   const done=await reconcileOrganizationMemorySearchIndexBatch(tx,{projectId:"p1"});
   assert.equal(done.processed,0);assert.equal(done.status,"completed");
