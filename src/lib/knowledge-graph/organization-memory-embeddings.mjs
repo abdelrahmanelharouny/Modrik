@@ -48,11 +48,13 @@ export function validateOrganizationMemoryVector(input, expected = {}) {
 /** Stable identity prevents stale content or model versions from being mistaken for current embeddings. */
 export function buildOrganizationMemoryEmbeddingIdentity(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Embedding identity input is required.");
+  const contentHash = requiredString(input.contentHash, "contentHash", 64);
+  if (!/^[a-f0-9]{64}$/u.test(contentHash)) throw new TypeError("contentHash must be a SHA-256 hex digest.");
   return {
     organizationId: requiredString(input.organizationId, "organizationId"),
     projectId: requiredString(input.projectId, "projectId"),
     nodeId: requiredString(input.nodeId, "nodeId"),
-    contentHash: requiredString(input.contentHash, "contentHash", 64),
+    contentHash,
     model: requiredString(input.model, "model", 160),
     dimensions: (() => {
       const dimensions = Number(input.dimensions);
@@ -94,7 +96,9 @@ export function buildOrganizationMemoryEmbeddingWork(input = {}) {
     normalizerVersion: canonical.normalizerVersion,
     model,
     dimensions,
-    idempotencyKey: [scope.organizationId, scope.projectId, scope.nodeId, canonical.contentHash, model, dimensions].join(":"),
+    idempotencyKey: createHash("sha256").update(JSON.stringify([
+      scope.organizationId, scope.projectId, scope.nodeId, canonical.contentHash, model, dimensions,
+    ])).digest("hex"),
   };
 }
 
