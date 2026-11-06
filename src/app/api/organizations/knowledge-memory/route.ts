@@ -15,7 +15,7 @@ import {
   buildOrganizationMemoryCursorWhere,
   createOrganizationMemoryCursor,
 } from "@/lib/knowledge-graph/organization-memory.mjs";
-import { rankOrganizationMemoryCandidatesStream, rankOrganizationMemoryCandidatesIndexed } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
+import { rankOrganizationMemoryCandidatesStream, rankOrganizationMemoryCandidatesIndexed, compareOrganizationMemoryRetrievalParity } from "@/lib/knowledge-graph/organization-memory-retrieval.mjs";
 import { getOrganizationMemorySearchIndexReadiness } from "@/lib/knowledge-graph/organization-memory-search-backfill.mjs";
 import { replaceOrganizationMemorySearchDocument, ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION } from "@/lib/knowledge-graph/organization-memory-search-index.mjs";
 
@@ -125,13 +125,22 @@ export async function GET(req: NextRequest) {
     }
     const scan = rankedSearch ? await db.$transaction(async (tx) => {
       const indexedEnabled = process.env.ORGANIZATION_MEMORY_INDEXED_READ_ENABLED === "true";
-      if (indexedEnabled) {
+      const shadowEnabled = process.env.ORGANIZATION_MEMORY_INDEXED_SHADOW_ENABLED === "true";
+      const runStreaming = () => rankOrganizationMemoryCandidatesStream({
+        where: query.where,
+        projectIds,
+        query: search,
+        limit: responseLimit,
+        withProject: true,
+        findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
+      });
+      if (indexedEnabled || shadowEnabled) {
         const readiness = await getOrganizationMemorySearchIndexReadiness({
           projectIds,
           findMany: (args) => tx.organizationMemorySearchIndexState.findMany(args as Parameters<typeof tx.organizationMemorySearchIndexState.findMany>[0]),
         });
         if (readiness.ready) {
-          return rankOrganizationMemoryCandidatesIndexed({
+          const indexed = await rankOrganizationMemoryCandidatesIndexed({
             projectIds,
             query: search,
             limit: responseLimit,
@@ -140,16 +149,16 @@ export async function GET(req: NextRequest) {
             findPostings: (args) => tx.organizationMemorySearchPosting.findMany(args as Parameters<typeof tx.organizationMemorySearchPosting.findMany>[0]),
             findCandidates: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
           });
+          if (shadowEnabled) {
+            const streaming = await runStreaming();
+            const parity = compareOrganizationMemoryRetrievalParity(streaming.rows, indexed.rows);
+            if (indexedEnabled) return { ...indexed, shadowComparison: parity, indexedShadowPostingsScanned: indexed.postingsScanned, indexedShadowDurationMs: indexed.durationMs };
+            return { ...streaming, shadowComparison: parity, indexedShadowPostingsScanned: indexed.postingsScanned, indexedShadowDurationMs: indexed.durationMs };
+          }
+          if (indexedEnabled) return indexed;
         }
       }
-      return rankOrganizationMemoryCandidatesStream({
-        where: query.where,
-        projectIds,
-        query: search,
-        limit: responseLimit,
-        withProject: true,
-        findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
-      });
+      return runStreaming();
     }, { isolationLevel: "Serializable" }) : null;
     const nodes = rankedSearch ? scan!.rows : await db.knowledgeNode.findMany({
       where: pageWhere,
@@ -190,6 +199,11 @@ export async function GET(req: NextRequest) {
         candidateWindowTruncated: false,
         retrievalMode: scan!.retrievalMode ?? "streaming_bm25_keyset",
         retrievalSnapshotAt: scan!.snapshotAt,
+        ...("shadowComparison" in scan! ? {
+          indexedShadowComparison: scan!.shadowComparison,
+          indexedShadowPostingsScanned: scan!.indexedShadowPostingsScanned,
+          indexedShadowDurationMs: scan!.indexedShadowDurationMs,
+        } : {}),
       } : {}),
       scope: "organization",
       view,

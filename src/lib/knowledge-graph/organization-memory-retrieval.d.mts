@@ -78,3 +78,16 @@ export function rankOrganizationMemoryCandidatesIndexed<T extends OrganizationMe
   findPostings: (args: Record<string, unknown>) => Promise<Array<Record<string, unknown>>>;
   findCandidates: (args: Record<string, unknown>) => Promise<T[]>;
 }): Promise<OrganizationMemoryIndexedScanResult<T>>;
+
+export function compareOrganizationMemoryRetrievalParity(
+  referenceRows: Array<{ id: string; retrieval?: { score?: number } }>,
+  indexedRows: Array<{ id: string; retrieval?: { score?: number } }>,
+): {
+  referenceCount: number;
+  indexedCount: number;
+  overlapCount: number;
+  topKRecall: number;
+  exactRankMatch: boolean;
+  comparedScores: number;
+  maxAbsoluteScoreDelta: number;
+};

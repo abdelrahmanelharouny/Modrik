@@ -498,3 +498,35 @@ export async function rankOrganizationMemoryCandidatesIndexed(input = {}) {
     snapshotAt: snapshotAt.toISOString(), durationMs: Math.max(0, Date.now() - startedAt),
   };
 }
+
+
+/** Compare top-K ordering and rounded BM25 scores for shadow-rollout telemetry. */
+export function compareOrganizationMemoryRetrievalParity(referenceRows = [], indexedRows = []) {
+  if (!Array.isArray(referenceRows) || !Array.isArray(indexedRows)) throw new TypeError("Retrieval parity inputs must be arrays.");
+  const reference = referenceRows.filter((row) => row && typeof row.id === "string");
+  const indexed = indexedRows.filter((row) => row && typeof row.id === "string");
+  const referenceIds = reference.map((row) => row.id);
+  const indexedIds = indexed.map((row) => row.id);
+  const indexedSet = new Set(indexedIds);
+  const overlapCount = referenceIds.filter((id) => indexedSet.has(id)).length;
+  const indexedById = new Map(indexed.map((row) => [row.id, row]));
+  let maxAbsoluteScoreDelta = 0;
+  let comparedScores = 0;
+  for (const row of reference) {
+    const candidate = indexedById.get(row.id);
+    const left = row.retrieval?.score;
+    const right = candidate?.retrieval?.score;
+    if (!candidate || !Number.isFinite(left) || !Number.isFinite(right)) continue;
+    maxAbsoluteScoreDelta = Math.max(maxAbsoluteScoreDelta, Math.abs(left - right));
+    comparedScores += 1;
+  }
+  return {
+    referenceCount: referenceIds.length,
+    indexedCount: indexedIds.length,
+    overlapCount,
+    topKRecall: referenceIds.length ? overlapCount / referenceIds.length : (indexedIds.length ? 0 : 1),
+    exactRankMatch: referenceIds.length === indexedIds.length && referenceIds.every((id, index) => id === indexedIds[index]),
+    comparedScores,
+    maxAbsoluteScoreDelta,
+  };
+}
