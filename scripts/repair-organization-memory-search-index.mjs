@@ -25,7 +25,7 @@ async function main() {
   const projects = await prisma.project.findMany({
     where: { status: { not: "archived" } }, orderBy: { id: "asc" }, select: { id: true },
   });
-  let repairedNodes = 0, removedOrphanDocuments = 0, blockedProjects = 0, projectsCompleted = 0;
+  let repairedNodes = 0, removedOrphanDocuments = 0, removedOrphanPostings = 0, blockedProjects = 0, projectsCompleted = 0;
   for (const project of projects) {
     let phase = "nodes", cursor = null, done = false, blocked = false;
     while (!done) {
@@ -33,7 +33,7 @@ async function main() {
       console.log(JSON.stringify(result));
       if (result.status === "blocked") { blockedProjects += 1; blocked = true; break; }
       repairedNodes += result.repairedNodes ?? 0;
-      removedOrphanDocuments += result.removedOrphanDocuments ?? 0;
+      removedOrphanDocuments += result.removedOrphanDocuments ?? 0;\n      removedOrphanPostings += result.removedOrphanPostings ?? 0;
       phase = result.nextPhase;
       cursor = result.nextCursor;
       done = result.done;
@@ -42,7 +42,7 @@ async function main() {
   }
   console.log(JSON.stringify({
     projects: projects.length, projectsCompleted, blockedProjects, repairedNodes,
-    removedOrphanDocuments, batchSize, status: blockedProjects ? "attention_required" : "completed",
+    removedOrphanDocuments, removedOrphanPostings, batchSize, status: blockedProjects ? "attention_required" : "completed",
     nextStep: "Run db:reconcile:organization-memory-index; indexed reads remain blocked until a clean audit completes.",
   }));
   if (blockedProjects) process.exitCode = 1;

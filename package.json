@@ -35,7 +35,8 @@
     "research:human-analyze": "node scripts/analyze-human-ratings.mjs",
     "db:backfill:organization-memory-index": "node scripts/backfill-organization-memory-search-index.mjs",
     "db:reconcile:organization-memory-index": "node scripts/reconcile-organization-memory-search-index.mjs",
-    "db:repair:organization-memory-index": "node scripts/repair-organization-memory-search-index.mjs"
+    "db:repair:organization-memory-index": "node scripts/repair-organization-memory-search-index.mjs",
+    "bench:organization-memory": "node scripts/benchmark-organization-memory-retrieval.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -116,4 +117,4 @@
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
   }
-}
+}\n

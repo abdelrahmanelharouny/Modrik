@@ -94,3 +94,11 @@ The indexed adapter uses two bounded-memory passes over matching postings. Pass 
 ## Retrieval readiness and fallback telemetry
 
 Ranked accepted-memory responses expose `indexedReadiness` without leaking project identifiers: whether the gate was checked, whether it is ready, and the total/ready project counts. `indexedFallbackReason` explains why streaming BM25 remained authoritative, with distinct reasons for disabled indexed reads, missing index state, stale backfill normalizer, incomplete backfill, reconciliation mismatch, stale reconciliation normalizer, failed reconciliation and an in-progress reconciliation. In shadow-only mode the response explicitly reports that streaming remains authoritative by design. Shadow parity, posting scan count and indexed duration remain separately reported when a comparison actually ran. Indexed serving also exposes its two posting-pass page counts and total postings scanned through the retrieval diagnostics. These fields are diagnostics, not authorization inputs and not a claim that indexed retrieval is enabled.
+
+
+## Retrieval benchmark harness
+
+- Run `npm run bench:organization-memory` for the default 1k/10k synthetic corpus comparison, or pass `-- --sizes=1000,10000,50000 --repeats=5` to vary corpus size and repetitions.
+- The harness runs the real streaming and persistent-indexed BM25 ranking functions against deterministic, provider-shaped in-memory adapters; it reports macro/micro Precision@K, Recall@K, MRR, NDCG@K, per-language quality, exact rank parity, top-K overlap, score delta, p50/p95/mean latency and candidate/posting scan counts.
+- The generated report labels its environment as `synthetic-in-memory-adapters`. Timings are algorithm/adapter comparisons only; they are not database latency, production recall, or a release gate. Use a seeded, consented, judged corpus and real PostgreSQL/SQLite load tests before rollout decisions.
+- The benchmark includes English and Arabic queries, multiple project scopes, accepted-only relevance judgments, and deterministic IDs/timestamps. Proposed nodes are deliberately excluded from the authorized corpus.
