@@ -23,6 +23,9 @@ OAuth provider activation is intentionally deferred until deployment credentials
 - GET /api/projects/:id/integrations/oauth/jira
 - GET /api/integrations/oauth/github/callback
 - GET /api/integrations/oauth/jira/callback
+- POST /api/projects/:id/integrations/oauth/github/target
+- POST /api/projects/:id/integrations/oauth/jira/target
+- DELETE /api/projects/:id/integrations/oauth/{github|jira}/target
 
 ## Activation variables
 - MODRIK_APP_URL (canonical HTTPS origin)
@@ -35,8 +38,8 @@ Register exact callback URLs under /api/integrations/oauth/{github|jira}/callbac
 
 ## Deferred before production activation
 - Repository and Jira-project selection UI and reauthorization UX.
+- A dedicated integration settings UI for authorization, target selection, reauthorization and disconnect.
 - Live end-to-end tests using dedicated provider test applications.
 - Webhook registration and live provider health checks.
-- Live end-to-end tests using dedicated provider test applications.
 
 GitHub and Atlassian token lifecycles differ. Never assume one provider's refresh semantics apply to the other. No client secret or provider token is committed to this repository.
