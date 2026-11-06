@@ -230,3 +230,15 @@ test("audit exports require the explicit audit:read permission and an active ten
  assert.equal(hasOrganizationPermission({...base,role:"owner",status:"suspended"},"audit:read"),false);
  assert.equal(hasOrganizationPermission({...base,role:"reviewer",organizationStatus:"suspended"},"audit:read"),false);
 });
+
+
+test("active root proxy stays aligned with the source proxy security policy", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const [activeProxy, sourceProxy] = await Promise.all([
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/proxy.ts", import.meta.url), "utf8"),
+  ]);
+  assert.equal(activeProxy, sourceProxy, "root proxy and src proxy must remain identical");
+  assert.match(activeProxy, /route === "audit\\/export"/);
+  assert.match(activeProxy, /route === "traceability\\/reverse"/);
+});
