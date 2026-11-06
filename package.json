@@ -38,7 +38,8 @@
     "db:repair:organization-memory-index": "node scripts/repair-organization-memory-search-index.mjs",
     "bench:organization-memory": "node scripts/benchmark-organization-memory-retrieval.mjs",
     "bench:organization-memory:postgres": "node scripts/benchmark-organization-memory-postgres.mjs",
-    "worker:organization-memory-embeddings": "node scripts/run-organization-memory-embedding-worker.mjs"
+    "worker:organization-memory-embeddings": "node scripts/run-organization-memory-embedding-worker.mjs",
+    "db:backfill:organization-memory-embeddings": "node scripts/backfill-organization-memory-embeddings.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
