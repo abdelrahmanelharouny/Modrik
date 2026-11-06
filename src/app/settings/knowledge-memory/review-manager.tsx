@@ -54,6 +54,7 @@ export function OrganizationKnowledgeReviewManager() {
     const messages: Record<string, string> = {
       "Your organization role does not include knowledge read access.": "دورك في المؤسسة لا يتيح قراءة المعرفة المشتركة.",
       "Your organization role does not include knowledge review access.": "دورك في المؤسسة لا يتيح مراجعة المعرفة.",
+      "Knowledge archive access requires approval permission.": "عرض الأرشيف يتطلب صلاحية اعتماد المعرفة.",
       "Unable to load the review queue.": "تعذر تحميل قائمة المراجعة.",
       "This item changed while you were reviewing it. The queue has been refreshed.": "تغير هذا العنصر أثناء مراجعته. تم تحديث قائمة المراجعة.",
       "The governance decision could not be saved.": "تعذر حفظ قرار الحوكمة.",
@@ -78,7 +79,7 @@ export function OrganizationKnowledgeReviewManager() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (response.status === 403) throw new Error(view === "accepted" ? "Your organization role does not include knowledge read access." : "Your organization role does not include knowledge review access.");
+        if (response.status === 403) throw new Error(view === "accepted" ? "Your organization role does not include knowledge read access." : view === "archived" ? "Knowledge archive access requires approval permission." : "Your organization role does not include knowledge review access.");
         throw new Error(payload.error || "Unable to load the review queue.");
       }
       const receivedItems = Array.isArray(payload.items) ? payload.items : [];
