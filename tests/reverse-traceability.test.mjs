@@ -127,3 +127,30 @@ test("reverse decision trail accepts only exact structured tracker and requireme
     createdAt: new Date("2026-10-03T10:00:00.000Z"), mappingMethod: "human_review", requirementRef: "REQ-01",
   }]);
 });
+
+
+test("Reverse Mode resolves a requirement reference only inside the active project and returns linked tracker mappings", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const route = fs.readFileSync(path.join(root, "src", "app", "api", "projects", "[id]", "traceability", "reverse", "route.ts"), "utf8");
+  assert.ok(route.includes('const requirementRef = request.nextUrl.searchParams.get("requirementId")'));
+  assert.ok(route.includes('where: { projectId, OR: [{ id: requirementRef }, { refId: requirementRef }] }'));
+  assert.ok(route.includes("db.syncMap.findMany({"));
+  assert.ok(route.includes("summarizeReverseDecisions(decisionEntries, requirement.id, mapping.id)"));
+  assert.ok(route.includes('mode: "requirement_to_trackers"'));
+});
+
+test("Reverse Mode UI connects requirement-first inspection to the existing human-reviewed trace detail", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const ui = fs.readFileSync(path.join(root, "src", "components", "rp", "debrief-instruments.tsx"), "utf8");
+  assert.ok(ui.includes("REVERSE MODE — REQUIREMENT TO REAL-WORLD CHANGES"));
+  assert.ok(ui.includes("inspectRequirement"));
+  assert.ok(ui.includes("requirementId="));
+  assert.ok(ui.includes('inspectReverseTrace(mapping)'));
+  assert.ok(ui.includes("mapping.decisions"));
+});
