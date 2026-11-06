@@ -3,7 +3,7 @@ import { resolveIdentitySession } from "@/lib/security/identity";
 import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import { encryptSecret } from "@/lib/security/secret-box.mjs";
 import { SESSION_COOKIE } from "@/lib/security/session.mjs";
-import { oauthCallbackUrl,oauthCookieName,oauthProviderConfig,verifyOAuthTransaction } from "@/lib/security/oauth-lifecycle.mjs";
+import { oauthCallbackUrl,oauthCookieName,oauthProviderConfig,oauthStateRecord,verifyOAuthTransaction } from "@/lib/security/oauth-lifecycle.mjs";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
 export const runtime="nodejs";
