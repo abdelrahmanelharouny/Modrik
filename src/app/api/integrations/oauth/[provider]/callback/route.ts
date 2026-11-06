@@ -13,7 +13,7 @@ function clearCookie(response:NextResponse,provider:string){
  response.headers.set("Cache-Control","no-store"); response.headers.set("Referrer-Policy","no-referrer");
  return response;
 }
-function fail(req:NextRequest,provider:string,message:string,status=400){
+function fail(req:NextRequest,provider:string,message:string){
  const response=NextResponse.redirect(new URL("/settings/integrations?oauth="+provider+"&status=error&message="+encodeURIComponent(message),req.url));
  return clearCookie(response,provider);
 }
@@ -25,30 +25,30 @@ export async function GET(req:NextRequest,{params}:Context){
  const tx=verifyOAuthTransaction(req.cookies.get(oauthCookieName(provider))?.value,query.get("state")??"",provider);
  if(!code||!tx) return fail(req,provider,"OAuth state is invalid, expired, or already consumed.");
  const identity=await resolveIdentitySession(req.cookies.get(SESSION_COOKIE)?.value);
- if(!identity||identity.userId!==tx.userId||identity.organizationId!==tx.organizationId) return fail(req,provider,"Modrik session changed during authorization. Start again.",401);
+ if(!identity||identity.userId!==tx.userId||identity.organizationId!==tx.organizationId) return fail(req,provider,"Modrik session changed during authorization. Start again.");
  const project=await db.project.findUnique({where:{id:tx.projectId},select:{id:true,organizationId:true}});
  if(!project||project.organizationId!==identity.organizationId||!hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"projects:update"))
-  return fail(req,provider,"You no longer have permission to connect this project.",403);
- const config=oauthProviderConfig(provider); if(!config) return fail(req,provider,"OAuth provider credentials are not configured.",503);
+  return fail(req,provider,"You no longer have permission to connect this project.");
+ const config=oauthProviderConfig(provider); if(!config) return fail(req,provider,"OAuth provider credentials are not configured.");
  try{
   const tokenResponse=await fetch(config.tokenUrl,{method:"POST",headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify({grant_type:"authorization_code",client_id:config.clientId,client_secret:config.clientSecret,code,redirect_uri:oauthCallbackUrl(provider),code_verifier:tx.verifier}),signal:AbortSignal.timeout(20000)});
   const token=await tokenResponse.json().catch(()=>({})) as {access_token?:string;refresh_token?:string;expires_in?:number;scope?:string};
-  if(!tokenResponse.ok||!token.access_token) return fail(req,provider,"Provider rejected the authorization code. Reconnect and retry.",502);
+  if(!tokenResponse.ok||!token.access_token) return fail(req,provider,"Provider rejected the authorization code. Reconnect and retry.");
   let account="",baseUrl="",cloudId="",scopes=(token.scope??"").split(/[ ,]+/).filter(Boolean);
   if(provider==="github"){
    const response=await fetch("https://api.github.com/user",{headers:{Authorization:"Bearer "+token.access_token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},signal:AbortSignal.timeout(15000)});
-   if(!response.ok) return fail(req,provider,"GitHub account verification failed.",502);
+   if(!response.ok) return fail(req,provider,"GitHub account verification failed.");
    const user=await response.json() as {login?:string}; account=user.login??"";
-   if(!account) return fail(req,provider,"GitHub did not return an account identity.",502);
+   if(!account) return fail(req,provider,"GitHub did not return an account identity.");
    if(!scopes.length) scopes=(response.headers.get("x-oauth-scopes")??"").split(",").map(s=>s.trim()).filter(Boolean);
   }else{
    const meResponse=await fetch("https://api.atlassian.com/me",{headers:{Authorization:"Bearer "+token.access_token,Accept:"application/json"},signal:AbortSignal.timeout(15000)});
-   if(!meResponse.ok) return fail(req,provider,"Atlassian account verification failed.",502);
+   if(!meResponse.ok) return fail(req,provider,"Atlassian account verification failed.");
    const me=await meResponse.json() as {name?:string;email?:string;account_id?:string}; account=me.email??me.name??me.account_id??"Atlassian account";
    const sitesResponse=await fetch("https://api.atlassian.com/oauth/token/accessible-resources",{headers:{Authorization:"Bearer "+token.access_token,Accept:"application/json"},signal:AbortSignal.timeout(15000)});
-   if(!sitesResponse.ok) return fail(req,provider,"No accessible Jira site could be verified.",502);
+   if(!sitesResponse.ok) return fail(req,provider,"No accessible Jira site could be verified.");
    const sites=await sitesResponse.json() as {id:string;url:string;scopes?:string[]}[];
-   const site=sites.find(s=>s.id&&s.url); if(!site) return fail(req,provider,"No accessible Jira Cloud site was returned.",422);
+   const site=sites.find(s=>s.id&&s.url); if(!site) return fail(req,provider,"No accessible Jira Cloud site was returned.");
    cloudId=site.id; baseUrl="https://api.atlassian.com/ex/jira/"+encodeURIComponent(cloudId)+"/";
    if(site.scopes?.length) scopes=site.scopes;
   }
@@ -71,5 +71,5 @@ export async function GET(req:NextRequest,{params}:Context){
   await logDecision(tx.projectId,"LIFECYCLE","human","oauth_connected",provider+" account connected; target selection is still required.");
   const response=NextResponse.redirect(new URL("/settings/integrations?oauth="+provider+"&status=connected&target=required",req.url));
   return clearCookie(response,provider);
- }catch{return fail(req,provider,"OAuth exchange failed. Credential details were not exposed; reconnect and retry.",502);}
+ }catch{return fail(req,provider,"OAuth exchange failed. Credential details were not exposed; reconnect and retry.");}
 }
