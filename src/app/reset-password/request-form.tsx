@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useLang } from "@/lib/i18n";
 
 export function PasswordResetRequestForm() {
-  const { lang } = useLang();
+  const { lang, toggle } = useLang();
   const ar = lang === "ar";
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,6 +28,7 @@ export function PasswordResetRequestForm() {
   }
 
   return <form onSubmit={submit} className="grid gap-4">
+    <div className="flex justify-end"><button type="button" onClick={toggle} aria-label={ar ? "تغيير اللغة إلى الإنجليزية" : "Switch language to Arabic"} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary">{ar ? "English" : "العربية"}</button></div>
     <label className="grid gap-2 text-sm"><span>{ar ? "البريد الإلكتروني" : "Email address"}</span><input type="email" required maxLength={254} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="h-11 rounded-lg border border-border bg-background px-3 outline-none focus-visible:ring-2 focus-visible:ring-primary" /></label>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {sent ? <p role="status" className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">{ar ? "إذا كان هناك حساب نشط بهذا البريد، فستُرسل إليه تعليمات الاستعادة." : "If an active account matches that address, recovery instructions will be sent."}</p> : null}

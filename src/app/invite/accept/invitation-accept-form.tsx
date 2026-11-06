@@ -7,7 +7,7 @@ import { useLang } from "@/lib/i18n";
 import { useRouter } from "next/navigation";
 
 export function InvitationAcceptForm({ token }: { token: string }) {
-  const { lang } = useLang();
+  const { lang, toggle } = useLang();
   const ar = lang === "ar";
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -47,6 +47,7 @@ export function InvitationAcceptForm({ token }: { token: string }) {
 
   return (
     <form onSubmit={submit} className="grid gap-4">
+      <div className="flex justify-end"><button type="button" onClick={toggle} aria-label={ar ? "تغيير اللغة إلى الإنجليزية" : "Switch language to Arabic"} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary">{ar ? "English" : "العربية"}</button></div>
       <label className="grid gap-2 text-sm">
         <span>{ar ? "الاسم الظاهر " : "Display name "}<span className="text-muted-foreground">{ar ? "(اختياري)" : "(optional)"}</span></span>
         <input
