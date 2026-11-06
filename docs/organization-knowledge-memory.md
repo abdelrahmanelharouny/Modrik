@@ -70,3 +70,13 @@ For a controlled parity phase, set `ORGANIZATION_MEMORY_INDEXED_SHADOW_ENABLED=t
 ### Indexed retrieval execution characteristics
 
 The indexed adapter uses two bounded-memory passes over matching postings. Pass one computes document frequency per query term; pass two streams the same `(documentId, term)` ordering, scores one document group at a time, and retains only the top-K heap/list. It therefore does not materialize the full accepted corpus or all matching documents in application memory. Corpus count and total token length come from one provider-neutral Prisma aggregate. The reported `postingsScanned` includes both passes; `firstPassPages` and `secondPassPages` expose their independent pagination cost. The deep-corpus regression compares exact BM25 scores and proves a rare match outside the most recent 1,000 records is found while the indexed candidate set remains selective.
+
+
+## Persistent index reconciliation
+
+- Indexed reads require both a completed per-project backfill and a completed full reconciliation at the current normalizer version with zero mismatches. Missing, stale, failed, or in-progress audits fail closed to streaming BM25.
+- Reconciliation audits source KnowledgeNodes in stable ID keyset batches, verifies each canonical document's normalized text, token count, SHA-256 content hash, status, project and normalizer version, and compares the complete expected term-frequency map with stored postings. A second stable keyset pass detects index documents with no source node.
+- Audit cursors, phase, mismatch count, normalizer version and timestamps are persisted in the per-project index state. Batches run in serializable transactions; retries are safe and compare-and-swap guards concurrent workers.
+- Any source/index write invalidates the reconciliation marker in the same transaction. A completed audit is therefore a point-in-time integrity attestation, not a permanent guarantee against future changes.
+- Run `npm run db:reconcile:organization-memory-index` after backfill and after repair. Use `--restart` to deliberately restart an audit. The command reports mismatch categories and never mutates source documents or postings.
+- A mismatch leaves the project unreconciled and blocks indexed reads. Repair remains an explicit backfill/reindex operation; reconciliation is read-only.

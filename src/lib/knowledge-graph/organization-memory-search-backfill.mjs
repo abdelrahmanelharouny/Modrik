@@ -61,7 +61,7 @@ export async function getOrganizationMemorySearchIndexReadiness(input = {}) {
   if (!projectIds.length) return { ready: true, projectCount: 0, readyProjectCount: 0, missingProjectIds: [], staleProjectIds: [], incompleteProjectIds: [] };
   const states = await input.findMany({
     where: { projectId: { in: projectIds } },
-    select: { projectId: true, status: true, normalizerVersion: true },
+    select: { projectId: true, status: true, normalizerVersion: true, reconciliationStatus: true, reconciliationMismatchCount: true, reconciliationNormalizerVersion: true },
   });
   if (!Array.isArray(states)) throw new TypeError("Index-state adapter must return an array.");
   const byProject = new Map(states.map((state) => [state.projectId, state]));
@@ -71,6 +71,10 @@ export async function getOrganizationMemorySearchIndexReadiness(input = {}) {
   const incompleteProjectIds = projectIds.filter((id) => byProject.has(id) &&
     byProject.get(id).normalizerVersion === ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION &&
     byProject.get(id).status !== "completed");
-  const readyProjectCount = projectIds.length - missingProjectIds.length - staleProjectIds.length - incompleteProjectIds.length;
-  return { ready: readyProjectCount === projectIds.length, projectCount: projectIds.length, readyProjectCount, missingProjectIds, staleProjectIds, incompleteProjectIds };
+  const unreconciledProjectIds = projectIds.filter((id) => byProject.has(id) &&
+    (byProject.get(id).reconciliationStatus !== "completed" ||
+     byProject.get(id).reconciliationMismatchCount !== 0 ||
+     byProject.get(id).reconciliationNormalizerVersion !== ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION));
+  const readyProjectCount = projectIds.length - missingProjectIds.length - staleProjectIds.length - incompleteProjectIds.length - unreconciledProjectIds.length;
+  return { ready: readyProjectCount === projectIds.length, projectCount: projectIds.length, readyProjectCount, missingProjectIds, staleProjectIds, incompleteProjectIds, unreconciledProjectIds };
 }

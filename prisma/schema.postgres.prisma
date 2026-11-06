@@ -381,6 +381,14 @@ model OrganizationMemorySearchIndexState {
   lastError         String?
   startedAt         DateTime?
   completedAt       DateTime?
+  reconciliationStatus String @default("pending") // pending | running | completed | failed
+  reconciliationPhase String @default("nodes") // nodes | documents | completed
+  reconciliationCursorNodeId String?
+  reconciliationCursorDocumentId String?
+  reconciliationMismatchCount Int @default(0)
+  reconciliationNormalizerVersion Int @default(0)
+  reconciliationStartedAt DateTime?
+  reconciliationCompletedAt DateTime?
   updatedAt         DateTime @updatedAt
   @@index([status, updatedAt])
 }

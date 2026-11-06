@@ -33,7 +33,8 @@
     "bench:planner:validate": "node scripts/validate-planner-benchmark.mjs",
     "research:human-packets": "node scripts/create-human-rating-packets.mjs",
     "research:human-analyze": "node scripts/analyze-human-ratings.mjs",
-    "db:backfill:organization-memory-index": "node scripts/backfill-organization-memory-search-index.mjs"
+    "db:backfill:organization-memory-index": "node scripts/backfill-organization-memory-search-index.mjs",
+    "db:reconcile:organization-memory-index": "node scripts/reconcile-organization-memory-search-index.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

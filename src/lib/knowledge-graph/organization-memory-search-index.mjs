@@ -53,6 +53,14 @@ export async function replaceOrganizationMemorySearchDocument(tx, node) {
     select: { id: true },
   });
 
+  // Any source/index mutation invalidates the last full reconciliation.
+  if (tx.organizationMemorySearchIndexState?.updateMany) {
+    await tx.organizationMemorySearchIndexState.updateMany({
+      where: { projectId: node.projectId },
+      data: { reconciliationStatus: "pending", reconciliationPhase: "nodes", reconciliationCursorNodeId: null, reconciliationCursorDocumentId: null, reconciliationMismatchCount: 0, reconciliationNormalizerVersion: 0, reconciliationCompletedAt: null },
+    });
+  }
+
   await tx.organizationMemorySearchPosting.deleteMany({ where: { documentId: document.id } });
   if (frequencies.size) {
     await tx.organizationMemorySearchPosting.createMany({
