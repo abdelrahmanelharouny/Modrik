@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveIdentitySession } from "@/lib/security/identity";
 import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import { SESSION_COOKIE } from "@/lib/security/session.mjs";
-import { createOAuthTransaction, oauthCallbackUrl, oauthCookieName, oauthProviderConfig } from "@/lib/security/oauth-lifecycle.mjs";
+import { createOAuthTransaction, oauthCallbackUrl, oauthCookieName, oauthProviderConfig, oauthStateRecord } from "@/lib/security/oauth-lifecycle.mjs";
 import { db } from "@/lib/db";
 export const runtime="nodejs";
 type Context={params:Promise<{id:string;provider:string}>};
@@ -20,6 +20,9 @@ export async function GET(_req:NextRequest,{params}:Context) {
  if(!config) return NextResponse.json({error:"OAuth provider activation is deferred. Configure the provider client credentials when enabling external connections.",code:"OAUTH_PROVIDER_NOT_CONFIGURED"},{status:503});
  try {
   const tx=createOAuthTransaction({provider,projectId,userId:identity.userId,organizationId:identity.organizationId});
+  // Keep only a hash of state server-side. Atomic deletion in the callback makes it one-use.
+  await db.integration.deleteMany({where:{projectId,kind:"oauth_state_"+provider}});
+  await db.integration.create({data:{projectId,kind:"oauth_state_"+provider,config:oauthStateRecord(tx)}});
   const url=new URL(config.authorizationUrl);
   url.searchParams.set("client_id",config.clientId); url.searchParams.set("redirect_uri",oauthCallbackUrl(provider));
   url.searchParams.set("response_type","code"); url.searchParams.set("state",tx.state);
