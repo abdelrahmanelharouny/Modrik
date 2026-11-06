@@ -10,8 +10,84 @@ type Params = { params: Promise<{ id: string }> };
 // limited to persisted links and exact stable references; no semantic guesses.
 export async function GET(request: NextRequest, { params }: Params) {
   const { id: projectId } = await params;
+  const requirementRef = request.nextUrl.searchParams.get("requirementId");
+  if (requirementRef) {
+    if (requirementRef.length > 128) return NextResponse.json({ error: "requirementId is too long." }, { status: 400 });
+    const [project, requirement] = await Promise.all([
+      db.project.findUnique({ where: { id: projectId }, select: { id: true } }),
+      db.requirement.findFirst({
+        where: { projectId, OR: [{ id: requirementRef }, { refId: requirementRef }] },
+      }),
+    ]);
+    if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    if (!requirement) return NextResponse.json({ error: "Requirement not found in this project." }, { status: 404 });
+
+    const [trackerMappings, traceLinks, claimLinks, knowledgeLinks, linkedStories, impact, decisionEntries] = await Promise.all([
+      db.syncMap.findMany({
+        where: { projectId, requirementId: requirement.id },
+        orderBy: { syncedAt: "desc" },
+        select: { id: true, kind: true, direction: true, localLabel: true, externalKey: true, externalUrl: true, title: true, syncedAt: true },
+      }),
+      db.traceLink.findMany({
+        where: { projectId, requirementId: requirement.id },
+        orderBy: { evidenceCode: "asc" },
+        include: { evidence: { select: { id: true, code: true, title: true, sourceType: true, language: true, consent: true, createdAt: true, revisions: { orderBy: { version: "desc" }, take: 1, select: { version: true, changeNote: true, createdAt: true, createdBy: true } } } } },
+      }),
+      db.requirementClaim.findMany({
+        where: { projectId, requirementId: requirement.id },
+        include: { claim: { include: { evidence: { select: { code: true } }, revision: { select: { version: true } } } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.knowledgeRequirement.findMany({
+        where: { projectId, requirementId: requirement.id },
+        include: { node: { select: { id: true, nodeRef: true, kind: true, label: true, status: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.userStory.findMany({ where: { projectId, requirementId: requirement.id }, select: { id: true, refId: true, title: true, status: true } }),
+      traverseImpact(projectId, [requirement.id]),
+      db.decisionEntry.findMany({
+        where: { projectId, stage: "GRAPH", action: "linked_tracker_change_to_requirement" },
+        orderBy: { createdAt: "desc" }, take: 100,
+        select: { id: true, action: true, actor: true, detail: true, createdAt: true },
+      }),
+    ]);
+
+    const impactedIds = [...new Set(impact.impacted.map((item) => item.id).filter((item) => typeof item === "string"))];
+    const [impactedRequirements, impactedEvidence] = impactedIds.length ? await Promise.all([
+      db.requirement.findMany({
+        where: { projectId, id: { in: impactedIds } },
+        select: { id: true, refId: true, text: true, status: true, priority: true, verifyStatus: true, driftStatus: true },
+      }),
+      db.traceLink.findMany({ where: { projectId, requirementId: { in: impactedIds } }, select: { requirementId: true, evidenceCode: true } }),
+    ]) : [[], []];
+    const impactedById = new Map(impactedRequirements.map((item) => [item.id, item]));
+    const evidenceByRequirement = new Map<string, string[]>();
+    for (const link of impactedEvidence) {
+      const codes = evidenceByRequirement.get(link.requirementId) ?? [];
+      codes.push(link.evidenceCode);
+      evidenceByRequirement.set(link.requirementId, codes);
+    }
+    const enrichedImpact = impact.impacted.map((item) => ({
+      ...item, requirement: impactedById.get(item.id) ?? null,
+      evidenceCodes: evidenceByRequirement.get(item.id) ?? [],
+    }));
+    const trace = summarizeReverseTrace({
+      requirement, traceLinks, claimLinks, knowledgeLinks, stories: linkedStories, impacted: enrichedImpact,
+    });
+    return NextResponse.json({
+      ok: true,
+      mode: "requirement_to_trackers",
+      requirement: { id: requirement.id, refId: requirement.refId, text: requirement.text, status: requirement.status, priority: requirement.priority },
+      trackerMappings: trackerMappings.map((mapping) => ({
+        ...mapping,
+        decisions: summarizeReverseDecisions(decisionEntries, requirement.id, mapping.id),
+      })),
+      trace,
+    });
+  }
+
   const syncMapId = request.nextUrl.searchParams.get("syncMapId");
-  if (!syncMapId) return NextResponse.json({ error: "syncMapId is required." }, { status: 400 });
+  if (!syncMapId) return NextResponse.json({ error: "syncMapId or requirementId is required." }, { status: 400 });
 
   const [project, syncMap, requirements, stories] = await Promise.all([
     db.project.findUnique({ where: { id: projectId }, select: { id: true } }),
