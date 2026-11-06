@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, RefreshCw, ClipboardCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +28,7 @@ interface CalibrationSummary {
 }
 interface CalibrationResponse { records: CalibrationRecord[]; calibration: CalibrationSummary; truncated: boolean }
 
-function OutcomeEditor({ record, onSaved }: { record: CalibrationRecord; onSaved: () => Promise<void> }) {
+function OutcomeEditor({ projectId, record, onSaved }: { projectId: string; record: CalibrationRecord; onSaved: () => Promise<void> }) {
   const [hours, setHours] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,7 +39,7 @@ function OutcomeEditor({ record, onSaved }: { record: CalibrationRecord; onSaved
     if (!hours.trim() || !Number.isFinite(Number(hours)) || Number(hours) < 0) return;
     setBusy(true);
     try {
-      await api(`/api/projects/${(window as unknown as { __modrikProjectId?: string }).__modrikProjectId ?? ""}/change-cost`, { method: "POST", body: JSON.stringify({ action: "record_outcome", estimateId: record.id, actualHours: Number(hours), note }) });
+      await api(`/api/projects/${projectId}/change-cost`, { method: "POST", body: JSON.stringify({ action: "record_outcome", estimateId: record.id, actualHours: Number(hours), note }) });
       toast({ title: ar ? "تم تسجيل ساعات التنفيذ" : "Observed effort recorded" });
       await onSaved();
     } catch (error) {
@@ -104,7 +103,7 @@ export function ChangeCostCalibration({ projectId, requirementId }: { projectId:
       <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">{ar ? "ارتباط الرتب" : "RANK CORRELATION"}</p><strong className="text-lg tabular-nums">{summary.rankCorrelation === null ? "—" : summary.rankCorrelation.toFixed(2)}</strong></div>
     </div>}
     {summary?.fit && <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "الملاءمة الوصفية" : "Descriptive fit"}: actual hours ≈ {summary.fit.intercept.toFixed(2)} + ({summary.fit.hoursPerEffortPoint.toFixed(2)} × effort points). {ar ? "ليست توقعًا معتمدًا." : "Not a validated forecast."}</p>}
-    {data?.records.length ? <div className="mt-3 space-y-2">{data.records.slice().reverse().slice(0, 12).map((record) => <OutcomeEditor key={record.id} record={record} onSaved={load} />)}</div> : <p className="mt-3 text-[10px] text-muted-foreground">{ar ? "لا توجد تقديرات محفوظة بعد. احفظ تقديرًا قبل بدء العمل، ثم سجّل الساعات الفعلية بعد انتهائه." : "No registered estimates yet. Save an estimate before work starts and record actual hours when it is complete."}</p>}
+    {data?.records.length ? <div className="mt-3 space-y-2">{data.records.slice().reverse().slice(0, 12).map((record) => <OutcomeEditor key={record.id} projectId={projectId} record={record} onSaved={load} />)}</div> : <p className="mt-3 text-[10px] text-muted-foreground">{ar ? "لا توجد تقديرات محفوظة بعد. احفظ تقديرًا قبل بدء العمل، ثم سجّل الساعات الفعلية بعد انتهائه." : "No registered estimates yet. Save an estimate before work starts and record actual hours when it is complete."}</p>}
     {data?.truncated && <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "السجل معروض جزئيًا؛ توجد سجلات أقدم." : "History is capped at the latest 2,000 journal entries."}</p>}
     <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{ar ? "المقاييس وصفية ومحسوبة على العينات المسجلة نفسها؛ لا تستخدمها كتوقعات تشغيلية قبل جمع عينة ممثلة واختبار منفصل." : summary?.caveat ?? "Metrics are descriptive and in-sample; do not use them as operational forecasts before representative data and held-out validation."}</p>
   </section>;
