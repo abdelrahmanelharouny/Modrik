@@ -246,8 +246,8 @@ test("streaming BM25 scores and tie-breaks match the in-memory BM25 reference", 
 test("persistent indexed BM25 matches streaming BM25 scores and ranking with bounded posting pages", async () => {
   const { rankOrganizationMemoryCandidatesIndexed, rankOrganizationMemoryCandidatesStream } = await import("../src/lib/knowledge-graph/organization-memory-retrieval.mjs");
   const docs = [
-    { id: "d1", nodeId: "n1", projectId: "p1", status: "accepted", normalizerVersion: 1, tokenCount: 5, updatedAt: new Date("2026-11-01T00:00:00Z") },
-    { id: "d2", nodeId: "n2", projectId: "p1", status: "accepted", normalizerVersion: 1, tokenCount: 4, updatedAt: new Date("2026-11-01T00:00:00Z") },
+    { id: "d1", nodeId: "n1", projectId: "p1", status: "accepted", normalizerVersion: 1, tokenCount: 6, updatedAt: new Date("2026-11-01T00:00:00Z") },
+    { id: "d2", nodeId: "n2", projectId: "p1", status: "accepted", normalizerVersion: 1, tokenCount: 5, updatedAt: new Date("2026-11-01T00:00:00Z") },
     { id: "d3", nodeId: "n3", projectId: "p2", status: "accepted", normalizerVersion: 1, tokenCount: 3, updatedAt: new Date("2026-11-01T00:00:00Z") },
     { id: "d4", nodeId: "n4", projectId: "p1", status: "rejected", normalizerVersion: 1, tokenCount: 2, updatedAt: new Date("2026-11-01T00:00:00Z") },
   ];

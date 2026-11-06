@@ -53,3 +53,10 @@ The benchmark aggregator accepts per-query ranked IDs, judged relevant IDs, K, a
 ## Persistent index backfill operations
 
 The backfill is project-scoped and resumable. Run `npm run db:backfill:organization-memory-index` after deploying the additive schema. It processes each project's KnowledgeNode rows in stable ID order, with a default batch size of 100 (override with `--batch-size=250`, maximum 500). Each batch writes documents/postings and advances its durable project cursor in one serializable transaction. Re-running the command resumes from the last committed cursor; completed projects at the current normalizer version are skipped. A normalizer-version change restarts that project's scan from the beginning. The readiness helper blocks indexed-read rollout while any requested project is missing, stale or incomplete. This command does not activate indexed retrieval; the streaming BM25 path remains authoritative until shadow parity and benchmark gates are met.
+
+
+## Indexed BM25 retrieval and rollout gate
+
+The indexed adapter computes corpus size and average document length from accepted, current-normalizer index documents, then reads only postings matching the normalized query terms. Postings are paged by the unique `(documentId, term)` key, and each document's term frequencies are scored with the same BM25 constants and IDF formula as the streaming reference path. Candidate metadata is reloaded from KnowledgeNode using the same authorized project set and accepted status filter; the indexed document is never treated as an authorization boundary.
+
+Indexed reads are disabled by default. Set `ORGANIZATION_MEMORY_INDEXED_READ_ENABLED=true` only after running the resumable backfill for every active project. The route checks the durable per-project readiness state inside the same serializable transaction; if any project is missing, stale or incomplete, it automatically falls back to streaming BM25. The index uses Prisma relational filters and portable scalar indexes, not provider-specific full-text extensions. Keep the streaming path as the correctness fallback until shadow comparisons and production-scale benchmark gates are approved.
