@@ -44,6 +44,8 @@ async function seedCorpus(size, suffix) {
     data: { name: "Organization memory PostgreSQL benchmark " + suffix, brief: "Disposable benchmark fixture; no production data." },
   });
   const now = new Date();
+  let rareIndex = Math.floor(size / 2);
+  while (rareIndex < size - 1 && rareIndex % 7 === 0) rareIndex += 1;
   const rows = Array.from({ length: size }, (_, index) => {
     const topic = TOPICS[index % TOPICS.length];
     const accepted = index % 7 !== 0;
@@ -53,7 +55,7 @@ async function seedCorpus(size, suffix) {
       label: topic.key + " " + topic.query + " benchmark record " + index,
       description: "Evidence for " + topic.key + " " + topic.query + "; " +
         (index % 13 === 0 ? "critical risk mitigation " : "operational context ") +
-        "reference cohort " + (index % 97) + (index === Math.floor(size / 2) ? " rarebenchmarksentinel" : ""),
+        "reference cohort " + (index % 97) + (index === rareIndex ? " rarebenchmarksentinel" : ""),
       status: accepted ? "accepted" : "proposed", origin: "derived", confidence: 0.8,
       attributes: "{}", createdAt: now, updatedAt: new Date(now.getTime() - index),
     };
@@ -69,12 +71,12 @@ async function seedCorpus(size, suffix) {
       for (const node of nodes) await replaceOrganizationMemorySearchDocument(tx, node);
     }, { timeout: 120000, maxWait: 10000 });
   }
-  return { project, rows, acceptedCount: accepted.length };
+  return { project, rows, acceptedCount: accepted.length, rareIndex };
 }
 async function runSize(size, repeats) {
   assertSize(size);
   const suffix = randomUUID().slice(0, 8);
-  const { project, rows, acceptedCount } = await seedCorpus(size, suffix);
+  const { project, rows, acceptedCount, rareIndex } = await seedCorpus(size, suffix);
   const projectIds = [project.id];
   const queries = TOPICS.map((topic, topicIndex) => ({
     ...topic,
@@ -84,7 +86,7 @@ async function runSize(size, repeats) {
   }));
   queries.push({
     key: "rare-term", query: "rarebenchmarksentinel", language: "en",
-    relevantIds: [rows[Math.floor(size / 2)].id],
+    relevantIds: [rows[rareIndex].id],
   });
   const indexedTimes = [], streamingTimes = [], firstRunTimes = [];
   const indexedJudgments = [], streamingJudgments = [], parity = [];
