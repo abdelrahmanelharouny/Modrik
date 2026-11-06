@@ -33,10 +33,10 @@ test("provider vectors are pinned to model and dimensions and reject malformed v
 
 test("embedding identity requires complete tenant, content and model identity", () => {
   assert.deepEqual(buildOrganizationMemoryEmbeddingIdentity({
-    organizationId: "o1", projectId: "p1", nodeId: "n1", contentHash: "abc",
+    organizationId: "o1", projectId: "p1", nodeId: "n1", contentHash: "a".repeat(64),
     model: "embed-v1", dimensions: 3,
   }), {
-    organizationId: "o1", projectId: "p1", nodeId: "n1", contentHash: "abc",
+    organizationId: "o1", projectId: "p1", nodeId: "n1", contentHash: "a".repeat(64),
     model: "embed-v1", dimensions: 3,
   });
   assert.throws(() => buildOrganizationMemoryEmbeddingIdentity({ organizationId: "o1" }), TypeError);
