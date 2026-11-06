@@ -299,7 +299,7 @@ test("indexed retrieval finds a rare archived match beyond 1,000 recent records"
   });
   const docs = rows.map((node,index)=>({
     id:`d${String(index).padStart(4,"0")}`,nodeId:node.id,projectId:"p1",status:"accepted",
-    normalizerVersion:1,tokenCount:(node.label+" "+node.description+" "+node.kind).trim().split(/\\s+/).length,
+    normalizerVersion:1,tokenCount:(node.label+" "+node.description+" "+node.kind).trim().split(/\s+/).length,
     updatedAt:node.updatedAt,
   }));
   const postings = [{documentId:"d1206",term:"needle",frequency:1,document:docs[1206]}];
