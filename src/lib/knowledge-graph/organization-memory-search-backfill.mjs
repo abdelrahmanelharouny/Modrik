@@ -71,11 +71,25 @@ export async function getOrganizationMemorySearchIndexReadiness(input = {}) {
   const incompleteProjectIds = projectIds.filter((id) => byProject.has(id) &&
     byProject.get(id).normalizerVersion === ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION &&
     byProject.get(id).status !== "completed");
+  const reconciliationMismatchProjectIds = projectIds.filter((id) => byProject.has(id) &&
+    (byProject.get(id).reconciliationMismatchCount ?? 0) > 0);
+  const reconciliationNormalizerStaleProjectIds = projectIds.filter((id) => byProject.has(id) &&
+    byProject.get(id).reconciliationNormalizerVersion !== ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION);
+  const reconciliationFailedProjectIds = projectIds.filter((id) => byProject.has(id) &&
+    byProject.get(id).reconciliationStatus === "failed");
+  const reconciliationIncompleteProjectIds = projectIds.filter((id) => byProject.has(id) &&
+    byProject.get(id).reconciliationStatus !== "completed" &&
+    byProject.get(id).reconciliationStatus !== "failed");
   const unreconciledProjectIds = projectIds.filter((id) => byProject.has(id) &&
     (byProject.get(id).reconciliationStatus !== "completed" ||
      byProject.get(id).reconciliationMismatchCount !== 0 ||
      byProject.get(id).reconciliationNormalizerVersion !== ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION));
   const blocked = new Set([...missingProjectIds, ...staleProjectIds, ...incompleteProjectIds, ...unreconciledProjectIds]);
   const readyProjectCount = projectIds.length - blocked.size;
-  return { ready: readyProjectCount === projectIds.length, projectCount: projectIds.length, readyProjectCount, missingProjectIds, staleProjectIds, incompleteProjectIds, unreconciledProjectIds };
+  return {
+    ready: readyProjectCount === projectIds.length, projectCount: projectIds.length, readyProjectCount,
+    missingProjectIds, staleProjectIds, incompleteProjectIds, unreconciledProjectIds,
+    reconciliationMismatchProjectIds, reconciliationNormalizerStaleProjectIds,
+    reconciliationFailedProjectIds, reconciliationIncompleteProjectIds,
+  };
 }

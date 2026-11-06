@@ -72,3 +72,21 @@ test("normalizer upgrades can restart a completed project backfill", async () =>
  assert.equal(reset.indexedCount,1);
  assert.equal(tx.state.row.normalizerVersion,ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION);
 });
+
+
+test("readiness classifies reconciliation mismatch, stale attestation and failed audit separately", async () => {
+ const result=await getOrganizationMemorySearchIndexReadiness({
+  projectIds:["mismatch","stale","failed","running"],
+  findMany:async()=>[
+   {projectId:"mismatch",status:"completed",normalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,reconciliationStatus:"failed",reconciliationMismatchCount:3,reconciliationNormalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION},
+   {projectId:"stale",status:"completed",normalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,reconciliationStatus:"completed",reconciliationMismatchCount:0,reconciliationNormalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION-1},
+   {projectId:"failed",status:"completed",normalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,reconciliationStatus:"failed",reconciliationMismatchCount:0,reconciliationNormalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION},
+   {projectId:"running",status:"completed",normalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,reconciliationStatus:"running",reconciliationMismatchCount:0,reconciliationNormalizerVersion:ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION},
+  ],
+ });
+ assert.deepEqual(result.reconciliationMismatchProjectIds,["mismatch"]);
+ assert.deepEqual(result.reconciliationNormalizerStaleProjectIds,["stale"]);
+ assert.deepEqual(result.reconciliationFailedProjectIds,["mismatch","failed"]);
+ assert.deepEqual(result.reconciliationIncompleteProjectIds,["running"]);
+ assert.equal(result.ready,false);
+});

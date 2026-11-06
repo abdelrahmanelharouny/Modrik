@@ -134,31 +134,64 @@ export async function GET(req: NextRequest) {
         withProject: true,
         findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
       });
-      if (indexedEnabled || shadowEnabled) {
-        const readiness = await getOrganizationMemorySearchIndexReadiness({
-          projectIds,
-          findMany: (args) => tx.organizationMemorySearchIndexState.findMany(args as Parameters<typeof tx.organizationMemorySearchIndexState.findMany>[0]),
-        });
-        if (readiness.ready) {
-          const indexed = await rankOrganizationMemoryCandidatesIndexed({
-            projectIds,
-            query: search,
-            limit: responseLimit,
-            normalizerVersion: ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,
-            aggregateDocuments: (args) => tx.organizationMemorySearchDocument.aggregate(args as Parameters<typeof tx.organizationMemorySearchDocument.aggregate>[0]),
-            findPostings: (args) => tx.organizationMemorySearchPosting.findMany(args as Parameters<typeof tx.organizationMemorySearchPosting.findMany>[0]),
-            findCandidates: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
-          });
-          if (shadowEnabled) {
-            const streaming = await runStreaming();
-            const parity = compareOrganizationMemoryRetrievalParity(streaming.rows, indexed.rows);
-            if (indexedEnabled) return { ...indexed, shadowComparison: parity, indexedShadowPostingsScanned: indexed.postingsScanned, indexedShadowDurationMs: indexed.durationMs };
-            return { ...streaming, shadowComparison: parity, indexedShadowPostingsScanned: indexed.postingsScanned, indexedShadowDurationMs: indexed.durationMs };
-          }
-          if (indexedEnabled) return indexed;
-        }
+      if (!indexedEnabled && !shadowEnabled) {
+        return {
+          ...(await runStreaming()),
+          indexReadiness: { checked: false, ready: false, projectCount: projectIds.length, readyProjectCount: 0 },
+          indexedFallbackReason: "indexed_read_disabled",
+        };
       }
-      return runStreaming();
+
+      const readiness = await getOrganizationMemorySearchIndexReadiness({
+        projectIds,
+        findMany: (args) => tx.organizationMemorySearchIndexState.findMany(args as Parameters<typeof tx.organizationMemorySearchIndexState.findMany>[0]),
+      });
+      const readinessSummary = {
+        checked: true, ready: readiness.ready, projectCount: readiness.projectCount,
+        readyProjectCount: readiness.readyProjectCount,
+      };
+      if (!readiness.ready) {
+        const fallbackReason =
+          readiness.missingProjectIds.length ? "index_state_missing" :
+          readiness.staleProjectIds.length ? "backfill_normalizer_stale" :
+          readiness.incompleteProjectIds.length ? "backfill_incomplete" :
+          readiness.reconciliationMismatchProjectIds.length ? "reconciliation_mismatch" :
+          readiness.reconciliationNormalizerStaleProjectIds.length ? "reconciliation_normalizer_stale" :
+          readiness.reconciliationFailedProjectIds.length ? "reconciliation_failed" :
+          "reconciliation_incomplete";
+        return {
+          ...(await runStreaming()),
+          indexReadiness: readinessSummary,
+          indexedFallbackReason: fallbackReason,
+        };
+      }
+
+      const indexed = await rankOrganizationMemoryCandidatesIndexed({
+        projectIds,
+        query: search,
+        limit: responseLimit,
+        normalizerVersion: ORGANIZATION_MEMORY_SEARCH_NORMALIZER_VERSION,
+        aggregateDocuments: (args) => tx.organizationMemorySearchDocument.aggregate(args as Parameters<typeof tx.organizationMemorySearchDocument.aggregate>[0]),
+        findPostings: (args) => tx.organizationMemorySearchPosting.findMany(args as Parameters<typeof tx.organizationMemorySearchPosting.findMany>[0]),
+        findCandidates: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
+      });
+      if (shadowEnabled) {
+        const streaming = await runStreaming();
+        const parity = compareOrganizationMemoryRetrievalParity(streaming.rows, indexed.rows);
+        return {
+          ...(indexedEnabled ? indexed : streaming),
+          shadowComparison: parity,
+          indexedShadowPostingsScanned: indexed.postingsScanned,
+          indexedShadowDurationMs: indexed.durationMs,
+          indexReadiness: readinessSummary,
+          indexedFallbackReason: indexedEnabled ? null : "shadow_mode_keeps_streaming_authoritative",
+        };
+      }
+      return {
+        ...indexed,
+        indexReadiness: readinessSummary,
+        indexedFallbackReason: null,
+      };
     }, { isolationLevel: "Serializable" }) : null;
     const shadowMetrics = scan && "shadowComparison" in scan
       ? scan as typeof scan & {
@@ -206,6 +239,8 @@ export async function GET(req: NextRequest) {
         candidateWindowTruncated: false,
         retrievalMode: scan!.retrievalMode ?? "streaming_bm25_keyset",
         retrievalSnapshotAt: scan!.snapshotAt,
+        indexedReadiness: scan!.indexReadiness,
+        indexedFallbackReason: scan!.indexedFallbackReason,
         ...(shadowMetrics ? {
           indexedShadowComparison: shadowMetrics.shadowComparison,
           indexedShadowPostingsScanned: shadowMetrics.indexedShadowPostingsScanned,

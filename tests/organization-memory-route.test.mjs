@@ -43,3 +43,13 @@ test("organization governance transitions update the lexical index atomically", 
   const source = fs.readFileSync(routePath, "utf8");
   assert.match(source, /tx\.knowledgeNode\.updateMany\([\s\S]*?replaceOrganizationMemorySearchDocument\(tx, updated\)/);
 });
+
+
+test("ranked retrieval exposes indexed readiness and an actionable streaming fallback reason", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /indexedFallbackReason: "indexed_read_disabled"/);
+  assert.match(source, /"index_state_missing"/);
+  assert.match(source, /"backfill_incomplete"/);
+  assert.match(source, /"reconciliation_mismatch"/);
+  assert.match(source, /indexedReadiness: scan!\.indexReadiness/);
+});

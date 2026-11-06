@@ -89,3 +89,8 @@ The indexed adapter uses two bounded-memory passes over matching postings. Pass 
 - A second keyset pass removes orphan search documents only after confirming that no source node exists in the same project. Their postings are deleted before the orphan document, and the reconciliation certificate is invalidated in the same transaction.
 - The command is idempotent and safe to restart from the beginning after interruption. It retries serialization/deadlock conflicts up to three times and reports per-batch progress. It does not claim readiness when it finishes.
 - Always run `npm run db:reconcile:organization-memory-index` after repair. The index remains fail-closed for reads until a full current-version audit completes with zero mismatches. Do not run repair against production until the additive schema is deployed, a backup/rollback plan exists, and the operator has approved the maintenance window.
+
+
+## Retrieval readiness and fallback telemetry
+
+Ranked accepted-memory responses expose `indexedReadiness` without leaking project identifiers: whether the gate was checked, whether it is ready, and the total/ready project counts. `indexedFallbackReason` explains why streaming BM25 remained authoritative, with distinct reasons for disabled indexed reads, missing index state, stale backfill normalizer, incomplete backfill, reconciliation mismatch, stale reconciliation normalizer, failed reconciliation and an in-progress reconciliation. In shadow-only mode the response explicitly reports that streaming remains authoritative by design. Shadow parity, posting scan count and indexed duration remain separately reported when a comparison actually ran. These fields are diagnostics, not authorization inputs and not a claim that indexed retrieval is enabled.
