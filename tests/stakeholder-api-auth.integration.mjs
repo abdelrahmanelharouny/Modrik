@@ -807,6 +807,11 @@ try {
     await collaborationSection.waitFor();
     await page.getByRole("textbox", { name: "الاسم المعروض" }).waitFor();
 
+    // Return to English before reloading Mission Control so the seeded
+    // project's accessible name is deterministic across persisted locales.
+    await page.getByRole("button", { name: /Toggle language/ }).click();
+    await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
+
     // Promote the disposable fixture to a completed baseline, then exercise
     // the authenticated workspace's six stage cockpits and the Debrief view.
     await prisma.project.update({ where: { id: projectA }, data: { status: "complete" } });
