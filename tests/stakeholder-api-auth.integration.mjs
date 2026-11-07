@@ -1235,10 +1235,11 @@ try {
     await page.getByRole("heading", { name: "Full agent pipeline acceptance" }).waitFor();
     await page.getByRole("heading", { name: /Debrief/ }).waitFor();
     await page.getByRole("img", { name: "Requirement constellation" }).waitFor();
-    const debriefText = await page.locator("main").innerText();
-    assert.ok(debriefText.includes("E-AGENT-01"), "Debrief constellation must render the source evidence code");
-    assert.ok(debriefText.includes("REQ-01"), "Debrief constellation must render the generated requirement references");
-    assert.ok(debriefText.includes("Full agent pipeline acceptance"), "the authenticated browser must retain the completed project identity");
+    const constellationLabels = await page.locator('svg[aria-label="Requirement constellation"] text').allTextContents();
+    assert.ok(constellationLabels.some(label => label.includes("E-AGENT-01")),
+      "Debrief constellation must render the source evidence code");
+    assert.ok(constellationLabels.some(label => label.includes("REQ-01")),
+      "Debrief constellation must render the generated requirement references");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
       "completed agent pipeline Debrief must not overflow at desktop width");
 
