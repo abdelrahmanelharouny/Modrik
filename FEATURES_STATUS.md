@@ -1,9 +1,9 @@
 # Modrik feature and release status
 
 **Canonical branch:** `main`  
-**Verified main commit:** `b6bb936c1ab6228190708527ceae9e4ef0fc6021`  
-**Verified CI:** [Run 42382272606 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42382272606) on 2026-11-07. Both `quality` and `postgres-schema` jobs passed.  
-**Integration:** PRs #27–#46 are merged in dependency order. PR #47 is a divergent Phase 4 replay and is intentionally excluded.  
+**Verified main commit:** `26c31acfd8594671d226a4a99b430fe5859de9ee`  
+**Latest PR CI:** [Run 42385319616 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616) on PR #48 head `43e123028ac628a86a39eff2070ed1812fbfd7b6`; both `quality` and `postgres-schema` passed. Post-merge `main` CI must be checked separately.  
+**Integration:** PRs #27–#46 and #48 are merged. PR #47 is a divergent Phase 4 replay and is intentionally excluded.  
 **Release status:** repository implementation is substantially complete; production is **not yet cleared** because live infrastructure, database-baseline reconciliation, staging rehearsal and external-service verification require deployment access.
 
 This file describes the repository at the verified main commit above. A green CI run verifies the tested commit and configured CI environment; it does not prove live provider connectivity, production migration safety, participant research or a production deployment.
@@ -45,10 +45,10 @@ This file describes the repository at the verified main commit above. A green CI
 
 These are the remaining repository-quality tasks, not missing historical PRs:
 
-1. Expand real-app Playwright journeys across the six workflow stages and debrief instruments.
+1. Expand real-app Playwright journeys across the six workflow stages and debrief instruments. PR #48 improved auth-shell RTL/accessibility smoke coverage; the complete authenticated journey remains open.
 2. Complete mobile/responsive and Arabic/RTL browser checks on the primary authenticated workspace, not only public auth shells.
-3. Add repeatable accessibility checks for labels, keyboard navigation, focus visibility, landmarks, contrast and reduced motion; manually review screen-reader flows.
-4. Stress offline queue recovery after tab termination, lease expiry, suspended tabs, interrupted requests and revision conflicts.
+3. Add repeatable accessibility checks for labels, keyboard navigation, focus visibility, landmarks, contrast and reduced motion; PR #48 covers skip-link keyboard behavior, visible focus, labels and 390px Arabic RTL smoke checks, but a full workspace audit and screen-reader review remain open.
+4. Stress offline queue recovery after tab termination and lease expiry is now covered by PR #48; suspended-tab, interrupted-request, backoff and revision-conflict recovery still need end-to-end coverage.
 5. Add representative concurrency/load checks for project, evidence, graph and organization-memory reads.
 6. Review onboarding, empty/loading/error/retry states and destructive-action confirmations.
 7. Re-run exact-head CI after the final P0 changes and preserve its test artifacts.
@@ -86,11 +86,11 @@ See [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) a
 
 ## 6. Integration and CI
 
-- Canonical merge chain: **#27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46**.
-- All twenty PRs are merged. Do not merge the old PRs #1–#26 again; their capabilities are represented in the reconciled canonical chain.
+- Canonical merge chain: **#27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46 → #48**.
+- All twenty-one canonical PRs are merged (including #48). Do not merge the old PRs #1–#26 again; their capabilities are represented in the reconciled canonical chain.
 - PR #47 is not part of the canonical chain and should not be merged wholesale.
-- Verified main SHA: `b6bb936c1ab6228190708527ceae9e4ef0fc6021`.
-- Verified exact-head CI: [42382272606](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42382272606), with both `quality` and `postgres-schema` successful.
+- Verified main SHA after #48: `26c31acfd8594671d226a4a99b430fe5859de9ee`.
+- PR #48 exact-head CI: [42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616), with both `quality` and `postgres-schema` successful. Verify the post-merge `main` push run before declaring the integrated head green.
 
 ## Release decision
 
