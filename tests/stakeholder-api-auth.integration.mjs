@@ -62,6 +62,17 @@ async function createStakeholder(projectId, suffix, approvalRole = "consulted", 
 try {
   await waitForServer();
 
+  // Public deployment readiness is read-only, checks the actual database
+  // connection, and returns no infrastructure details to unauthenticated callers.
+  const readiness = await fetch(`${baseUrl}/api/health`);
+  await expectStatus(readiness, 200, "public database readiness probe");
+  assert.deepEqual(await json(readiness), { status: "ok" });
+  assert.equal(readiness.headers.get("cache-control"), "no-store, max-age=0");
+  const readinessHead = await fetch(`${baseUrl}/api/health`, { method: "HEAD" });
+  await expectStatus(readinessHead, 200, "HEAD database readiness probe");
+  const readinessMutation = await fetch(`${baseUrl}/api/health`, { method: "POST" });
+  await expectStatus(readinessMutation, 401, "readiness endpoint must not permit unauthenticated mutation");
+
   // Exercise the global Next.js proxy boundary, not only route-local guards.
   // All application APIs must fail closed without the owner cookie; only the
   // deliberately narrow auth and participant endpoints remain public.
