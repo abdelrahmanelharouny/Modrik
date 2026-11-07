@@ -30,6 +30,8 @@ jobs:
         run: bun run tokens:sync
       - name: Regression tests
         run: bun run test
+      - name: Validate arbench-v2 benchmark corpus
+        run: bun run bench:validate
       - name: Validate and push SQLite schema
         env:
           DATABASE_URL: file:${{ github.workspace }}/ci.db

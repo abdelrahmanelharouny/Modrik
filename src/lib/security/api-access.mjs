@@ -1,10 +1,15 @@
-const PUBLIC_API_PATHS = new Set([
-  "/api/auth/login",
-  "/api/auth/logout",
-  "/api/auth/session",
-  "/api/study/respond",
-]);
+const PUBLIC_API_METHODS = Object.freeze({
+  "/api/auth/login": new Set(["POST"]),
+  "/api/auth/logout": new Set(["POST"]),
+  "/api/auth/session": new Set(["GET", "HEAD"]),
+  "/api/study/respond": new Set(["GET", "POST"]),
+});
 
 export function isPublicApiPath(pathname) {
-  return typeof pathname === "string" && PUBLIC_API_PATHS.has(pathname);
+  return typeof pathname === "string" && Object.hasOwn(PUBLIC_API_METHODS, pathname);
+}
+
+export function isPublicApiRequest(pathname, method) {
+  if (typeof pathname !== "string" || typeof method !== "string") return false;
+  return PUBLIC_API_METHODS[pathname]?.has(method.toUpperCase()) ?? false;
 }

@@ -86,3 +86,29 @@ This phase does not claim full legal compliance or multi-tenant isolation. The f
 - automated penetration testing and security review.
 
 The system must not process stakeholder evidence using an external model unless the applicable project processing policy permits that provider. Consent fields alone do not establish legal compliance.
+
+
+## Non-project API authorization (H1.4)
+
+Identity-backed requests to non-project API handlers require an explicit organization permission in `src/lib/security/organization-route-access.mjs`. Unknown paths or methods fail closed with `403 API_ROUTE_NOT_CLASSIFIED`; adding a new API handler therefore requires an explicit policy and a regression test.
+
+| Route | Methods | Required permission |
+| --- | --- | --- |
+| `/api` | GET, HEAD | `organization:read` |
+| `/api/transcribe` | POST | `requirements:write` |
+| `/api/missions`, `/api/demo` | GET, HEAD | `projects:read` |
+| `/api/missions`, `/api/demo` | POST | `projects:create` |
+| `/api/telemetry` | GET, HEAD | `audit:read` |
+| `/api/study` | GET, HEAD, POST, PATCH, DELETE | `organization:manage` |
+| `/api/self-audit` | GET, HEAD | `organization:manage` |
+| `/api/providers` | GET, HEAD | `organization:read` |
+
+The unauthenticated API surface is method-specific: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session`, and participant-scoped `GET|POST /api/study/respond`. A path-only match is not sufficient to bypass authentication.
+
+All `/api/projects/*` handlers are separately checked for project existence, organization ownership and the route's project permission before the handler runs. The route inventory test scans every API `route.ts` file and fails when a newly added method is neither an exact public exemption, a project-scoped handler, nor explicitly classified.
+
+This is a technical access-control gate, not a completed enterprise security review. Organization onboarding, invitation acceptance, recovery, MFA/SSO, distributed rate limiting, route-level penetration testing and production migration rollout remain separate release gates.
+
+## Benchmark integrity gate (H1.4)
+
+CI validates all 120 `arbench-v2` scenarios before a change can pass. Validation checks manifest count, unique stable IDs, the 8-category × 5-domain × 3-scenario coverage matrix, scenario-file presence and JSON validity, manifest/file metadata parity, gold payload presence, and evidence-code/consent integrity. This is a corpus-integrity check; it does not claim model-quality scores or execute paid/provider-backed inference.
