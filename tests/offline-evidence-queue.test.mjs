@@ -194,3 +194,22 @@ test("sync lease context exposes guarded acknowledgement and retry settlement", 
     assert.equal(await lease.assertLease(), lease.fencingToken);
   });
 });
+
+
+test("offline sync lease expires at the exact boundary and cannot be renewed by its former owner", async () => {
+  const { transitionOfflineEvidenceLease } = await import("../src/lib/evidence/offline-queue.mjs");
+  const acquired = transitionOfflineEvidenceLease(null, "tab-original", 5_000, 100);
+  assert.equal(acquired.lease.leaseUntil, 5_100);
+  const atBoundary = transitionOfflineEvidenceLease(acquired.lease, "tab-original", 5_100, 100, {
+    fencingToken: acquired.lease.fencingToken,
+  });
+  assert.equal(atBoundary.acquired, false, "leaseUntil is exclusive; a lease is expired at the exact boundary");
+  const recovered = transitionOfflineEvidenceLease(acquired.lease, "tab-recovered", 5_100, 100);
+  assert.equal(recovered.acquired, true);
+  assert.equal(recovered.lease.fencingToken, acquired.lease.fencingToken + 1);
+  const staleRelease = transitionOfflineEvidenceLease(recovered.lease, "tab-original", 5_101, 100, {
+    release: true, fencingToken: acquired.lease.fencingToken,
+  });
+  assert.equal(staleRelease.acquired, false);
+  assert.equal(staleRelease.lease.owner, "tab-recovered");
+});
