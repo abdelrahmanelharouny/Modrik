@@ -6,6 +6,7 @@ import { writeFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
 import { createSessionToken, createIdentitySessionToken, SESSION_COOKIE, SESSION_TTL_SECONDS, verifyPasswordHash } from "../src/lib/security/session.mjs";
+import { createPasswordResetToken, hashPasswordResetToken } from "../src/lib/security/password-reset.mjs";
 
 const bootstrapSalt = Buffer.alloc(16, 7);
 process.env.MODRIK_ADMIN_PASSWORD_HASH = "$scrypt$16384$8$1$" + bootstrapSalt.toString("hex") + "$" + scryptSync("Integration-Owner-Password-42!", bootstrapSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex");
@@ -157,6 +158,52 @@ try {
   assert.equal(identityStatusBody.authenticated, true);
   assert.equal(identityStatusBody.organizationId, tenantA.id);
   assert.equal(identityStatusBody.role, "owner");
+
+
+  // Password recovery: token is hashed, single-use, short-lived, and revokes sessions.
+  const resetUser = await prisma.user.create({
+    data: { email: `password-reset-${randomUUID()}@example.invalid`, passwordHash: process.env.MODRIK_ADMIN_PASSWORD_HASH, status: "active" },
+  });
+  identityCleanup.users.push(resetUser.id);
+  const resetMembership = await prisma.membership.create({
+    data: { userId: resetUser.id, organizationId: tenantA.id, role: "viewer", status: "active" },
+  });
+  const resetSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: resetSessionId, userId: resetUser.id, membershipId: resetMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const resetCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: resetUser.email, userId: resetUser.id, organizationId: tenantA.id,
+    membershipId: resetMembership.id, role: "viewer", sessionId: resetSessionId,
+  }, secret)}`;
+  const resetToken = createPasswordResetToken();
+  const resetTokenHash = hashPasswordResetToken(resetToken);
+  const resetRecord = await prisma.passwordResetToken.create({
+    data: { userId: resetUser.id, tokenHash: resetTokenHash, expiresAt: new Date(Date.now() + 30 * 60 * 1000) },
+  });
+  const otherResetToken = createPasswordResetToken();
+  const otherResetRecord = await prisma.passwordResetToken.create({
+    data: { userId: resetUser.id, tokenHash: hashPasswordResetToken(otherResetToken), expiresAt: new Date(Date.now() + 30 * 60 * 1000) },
+  });
+  assert.notEqual(resetRecord.tokenHash, resetToken);
+  const resetComplete = await fetch(`${baseUrl}/api/auth/password-reset/complete`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: resetToken, password: "Recovered-Password-2026!" }),
+  });
+  await expectStatus(resetComplete, 200, "complete password reset");
+  const resetUserAfter = await prisma.user.findUnique({ where: { id: resetUser.id } });
+  assert.equal(await verifyPasswordHash("Recovered-Password-2026!", resetUserAfter.passwordHash), true);
+  const usedReset = await prisma.passwordResetToken.findUnique({ where: { id: resetRecord.id } });
+  assert.ok(usedReset.usedAt);
+  const otherResetAfter = await prisma.passwordResetToken.findUnique({ where: { id: otherResetRecord.id } });
+  assert.ok(otherResetAfter.revokedAt, "successful reset revokes every other outstanding reset token");
+  const revokedResetSession = await fetch(`${baseUrl}/api/projects`, { headers: { cookie: resetCookie } });
+  await expectStatus(revokedResetSession, 401, "password reset revokes previous sessions");
+  const replayReset = await fetch(`${baseUrl}/api/auth/password-reset/complete`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: resetToken, password: "Another-Replay-Password-2026!" }),
+  });
+  assert.equal(replayReset.status, 400, "password reset token cannot be reused");
 
   // Organization invitation lifecycle: authorized issuance, hashed one-time token,
   // password bootstrap for new accounts, atomic acceptance, session issuance and revocation.
