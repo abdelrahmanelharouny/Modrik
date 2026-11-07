@@ -44,7 +44,8 @@ This checklist separates repository work from actions that require real infrastr
 - [ ] Configure `MODRIK_ADMIN_EMAIL`, `MODRIK_ADMIN_PASSWORD_HASH`, `MODRIK_AUTH_SECRET` and `MODRIK_ENCRYPTION_KEY`.
 - [ ] Configure `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; verify connectivity from the deployed runtime.
 - [ ] Configure `RESEND_API_KEY` and `PASSWORD_RESET_EMAIL_FROM`; verify sender/domain and real delivery.
-- [ ] Configure the selected LLM provider and verify bounded retries, timeouts, cost limits and failure handling.
+- [ ] Set `RP_LLM_PROVIDER` explicitly. For `model-b`, configure HTTPS `RP_MODEL_B_BASE_URL` and `RP_MODEL_B_MODEL`; for `local`, configure `RP_LOCAL_BASE_URL` and `RP_LOCAL_MODEL`; for `glm`, set `RP_GLM_NATIVE_RUNTIME_CONFIRMED=true` only after confirming the host supplies the native SDK credentials.
+- [ ] Verify bounded retries, timeouts, cost limits and provider failure handling.
 - [ ] Store secrets in the hosting provider's secret manager; never commit production values or copy them into logs.
 - [ ] Run `bun run security:release-check` inside the deployment environment.
 - [ ] Verify health endpoints, structured logs, alerting, error reporting, retention and incident ownership.
