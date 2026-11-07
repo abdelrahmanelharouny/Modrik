@@ -1,88 +1,97 @@
 # Modrik feature and release status
 
-**Snapshot:** `codex/modrik-h2-2-full-stack-reconciled`, updated 2026-11-06 at `2f23b173c7ef9b26b816eeb314ef5d68bc7938d0`. This is repository status; it does not claim external providers or a production deployment have been verified.
+**Canonical branch:** `main`  
+**Verified main commit:** `b6bb936c1ab6228190708527ceae9e4ef0fc6021`  
+**Verified CI:** [Run 42382272606 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42382272606) on 2026-11-07. Both `quality` and `postgres-schema` jobs passed.  
+**Integration:** PRs #27–#46 are merged in dependency order. PR #47 is a divergent Phase 4 replay and is intentionally excluded.  
+**Release status:** repository implementation is substantially complete; production is **not yet cleared** because live infrastructure, database-baseline reconciliation, staging rehearsal and external-service verification require deployment access.
 
-## Completed implementation phases
+This file describes the repository at the verified main commit above. A green CI run verifies the tested commit and configured CI environment; it does not prove live provider connectivity, production migration safety, participant research or a production deployment.
 
-### H1 — Engineering, security and product foundation
+## 1. Implemented product capabilities
 
-H1 repository implementation is complete: signed sessions, organization/project membership authorization, RBAC primitives, tenant isolation, invitations and password recovery, shared rate limiting, production configuration validation, encrypted integration credentials, guarded secret re-encryption/rotation, audit primitives, and database/API foundations.
+### Requirements workflow and agent system
+- Six human-gated requirements-engineering stages, with twelve bounded agent roles.
+- Evidence intake, Arabic-native elicitation, structured questions and recorded assumptions.
+- Impact-aware planning with four planner arms and explainable utility breakdowns.
+- Evidence-grounded requirement extraction, independent verification and evidence revision history.
+- Ambiguity scoring and human-approved rewrites.
+- Executable user stories, acceptance criteria and INVEST assessment.
+- Conflict taxonomy, implications-only negotiation and explicit human resolution.
+- Typed knowledge graph, provenance, reverse traceability and impact traversal.
+- Decision journal, audit history and project-scoped JSON/CSV exports.
 
-Remaining H1 items are release operations: reconcile schema history against each real deployed database, configure live provider credentials and origins, verify email/Redis/LLM services, rehearse backup/restore and rollback, and complete deployment-specific security review.
+### Intelligence, quality and measurement
+- Requirement quality assessment, executability simulation and gap discovery.
+- Calibration (including Brier/ECE), six-dimension project health, drift, compliance and wind-tunnel instruments.
+- Explainable change-effort heuristic; observed-work calibration is descriptive and is not a validated forecast.
+- Reproducible four-arm planner benchmark with a deterministic 120-scenario corpus and analysis utilities.
+- Blinded human-rating packet generation, consent filtering, integrity manifests and independent-rater analysis.
+- Organization-memory lexical retrieval, persistent index, backfill/reconciliation/repair, governance and PostgreSQL retrieval benchmark.
 
-### H2 — Planner evaluation and human-evaluation research infrastructure
+### Collaboration, identity and integrations
+- Stakeholder registry, positions, linked evidence, negotiation quorum and immutable participant responses.
+- Organization/user identity, signed sessions, membership and project authorization, RBAC, tenant isolation, invitations and password recovery.
+- Shared Redis-backed rate limiting, encrypted integration credentials and guarded secret re-encryption.
+- Static-token GitHub/Jira integrations, signed webhook ingestion, idempotent delivery handling and human-reviewed drift.
+- OAuth lifecycle groundwork exists in the repository, but provider activation and live OAuth verification remain deferred; static-token integration remains the supported MVP path.
 
-H2 repository implementation is complete:
-- Four-arm impact-aware planner and deterministic 120-scenario `arbench-v2` corpus, runner and analysis utilities.
-- Canonical blinded human-rating packets, consent filtering, immutable packet manifests and exact-byte SHA-256 integrity checks.
-- Independent-rater analysis with weighted kappa, paired contrasts, bootstrap intervals, permutation tests, Holm correction and adjudication queue.
-- CI validation of benchmark corpus and regression coverage for evaluation pipeline.
-- PostgreSQL-backed organization-memory retrieval benchmark using real Prisma/PostgreSQL adapters, deterministic Arabic/English fixtures, quality/parity metrics, latency percentiles, scan counts, tenant-scope assertion and cleanup.
+### Arabic, resilience and offline work
+- Arabic-first/bilingual UI, RTL switching, Egyptian Arabic evidence metadata and guarded voice intake/transcription.
+- Offline evidence create/update/delete queue, IndexedDB persistence, stable idempotency keys, FIFO ordering, revision-conflict review, explicit rebase/discard, multi-tab locking and fencing-token protection.
+- Pending offline work is retained until server acknowledgement or explicit discard; browser-local storage is not cross-device synchronization or separately encrypted storage.
 
-Research execution remains separate from implementation completion. Full benchmark sweeps, independent human ratings, rater calibration, adjudication and publication-grade sensitivity analysis require real execution and human participation; synthetic fixtures are not participant evidence.
+## 2. P0 — finish MVP confidence
 
-## Implemented product capabilities
+These are the remaining repository-quality tasks, not missing historical PRs:
 
-- Six-gate human-in-the-loop requirements workflow and twelve agent roles.
-- Evidence revisioning, exact-quote claim provenance, requirement-quality assessment, decision journal and typed knowledge graph with impact traversal.
-- Explainable requirement change-effort heuristic, explicitly not a validated cost/time forecast.
-- Observed-work change-cost calibration: server-recomputed immutable estimate snapshots, append-only actual-hours outcomes, project-scoped journal history, transparent descriptive fit/error/rank metrics and explicit sample-readiness caveats.
-- Executability simulation, ambiguity/conflict/health/calibration/drift/compliance/wind-tunnel instruments.
-- Arabic-first elicitation, bilingual UI metadata, RTL switching and guarded voice intake/transcription.
-- Stakeholder registry, positions, evidence links, negotiation quorum and immutable participant responses.
-- GitHub/Jira static-token integrations, encrypted credentials, signed webhook ingestion, delivery deduplication and bounded payload normalization.
-- OAuth-ready GitHub and Atlassian 3LO lifecycle: organization-authorized start/callback, signed 10-minute state, database-backed one-time state consumption, PKCE S256, encrypted access/refresh tokens, verified account/site identity, explicit repository/project target verification, provider-specific token refresh with compare-and-swap, revocation, masked connection status and decision-journal events. Provider activation remains disabled until deployment credentials are registered; dedicated settings UI and live provider E2E verification remain.
-- Deterministic reverse traceability from tracker records to requirements, evidence claims/revisions, graph nodes, stories and upstream impact paths; mappings require human review or exact stable references.
-- Project-scoped decision-journal JSON/CSV export with filters, row cap, formula-injection protection and explicit audit:read enforcement.
-- Offline evidence create/update/delete queue with IndexedDB persistence, stable operation UUIDs, idempotent server intake, FIFO synchronization, capped exponential retry for transient failures, online/focus/pageshow/visibility recovery plus periodic resume checks, revision conflict review, explicit rebase/discard controls, Web Locks and IndexedDB lease fallback with fencing tokens. Pending user work no longer expires by age; only server acknowledgement or explicit discard removes it.
-- Atomic compare-and-swap evidence updates/deletes and server-side idempotency ledger.
-- Organization knowledge-memory lexical retrieval, persistent inverted index write-through, resumable backfill, reconciliation/repair, fail-closed readiness, streaming BM25 fallback and PostgreSQL benchmark. Indexed reads remain gated by completeness/reconciliation and are not represented as generally enabled.
-- Organization governance/review queue and organization audit stream with tenant-scoped access; approver-only archive lifecycle and archive reader now preserve decision history while excluding archived knowledge from active retrieval.\n- Requirement-first Reverse Mode: inspect a requirement reference to list linked GitHub/Jira changes, evidence, claims, stories, impacted requirements and exact mapping decision trails; detailed tracker inspection remains human-reviewed and read-only.
-- CI for regression, benchmark corpus, release configuration shape, SQLite/PostgreSQL schema parity, PostgreSQL schema validation and integration, TypeScript, lint, production build, stakeholder API/browser E2E and PostgreSQL retrieval benchmark.
+1. Expand real-app Playwright journeys across the six workflow stages and debrief instruments.
+2. Complete mobile/responsive and Arabic/RTL browser checks on the primary authenticated workspace, not only public auth shells.
+3. Add repeatable accessibility checks for labels, keyboard navigation, focus visibility, landmarks, contrast and reduced motion; manually review screen-reader flows.
+4. Stress offline queue recovery after tab termination, lease expiry, suspended tabs, interrupted requests and revision conflicts.
+5. Add representative concurrency/load checks for project, evidence, graph and organization-memory reads.
+6. Review onboarding, empty/loading/error/retry states and destructive-action confirmations.
+7. Re-run exact-head CI after the final P0 changes and preserve its test artifacts.
 
-## Remaining product and research work
+## 3. P1 — intentionally outside MVP critical path
 
-### P0 — MVP quality and release confidence
-- Broader Playwright journeys across all six product stages, including Arabic/RTL and responsive/mobile workflows.
-- Browser-level two-tab integration now exercises the IndexedDB lease fallback: same-project serialization, strictly increasing fencing tokens, and concurrent work for independent projects. Lease expiry after tab termination, suspended-tab recovery and interrupted network synchronization remain additional stress cases.
-- Accessibility regression for keyboard navigation, focus management, labels, contrast and screen-reader semantics.
-- User-facing failure-state review: onboarding, organization/project creation, Briefing→Debrief, Human Gates, loading/empty/error states and recovery.
-- API/database load and concurrency tests for critical project, evidence, graph and retrieval flows.
+- Semantic/vector retrieval provider activation, embedding-worker scheduling, measured shadow parity and multilingual human-judged quality evaluation. BM25 remains the safe default.
+- Production-scale indexed organization-memory backfill and measured benefit before enabling indexed serving.
+- Cross-device offline replication, offline file/audio blobs and service-worker background synchronization.
+- Expanded change-cost calibration with representative held-out outcomes and project/change-type segmentation.
+- Advanced retention and bulk-governance workflows beyond the implemented approve/reject/archive lifecycle.
+- GitHub/Jira OAuth activation, provider registrations, live provider E2E and provider-side token lifecycle.
+- Real-world ASR quality evaluation for Egyptian Arabic.
 
-### P1 — H3 capability scale-up (not required to call the MVP functionally complete)
-- Semantic/vector retrieval is not enabled or connected to an embedding provider. ADR-018 requires provider selection, tenant-filtered storage, embedding lifecycle/outbox, deletion/re-embedding and multilingual quality evaluation before rollout.
-- Indexed organization-memory serving needs a production-shaped backfill/reconciliation run, shadow parity observation and measured database-scale benefit before promotion. Streaming BM25 remains the correctness fallback.
-- Extend change-cost calibration with representative held-out validation, project/change-type segmentation and operator review; current metrics are descriptive in-sample only.
-- Further organization governance beyond the now-implemented explicit approve/reject/archive lifecycle: retention policy, controlled bulk operations (only if explicitly authorized), and advanced audit review workflows.
-- GitHub/Jira OAuth and provider-side token lifecycle management; current integration uses static tokens and signed webhooks.
-- Offline file/audio blobs, cross-device queue replication and service-worker background sync are unsupported. IndexedDB is browser-local and not separately encrypted; avoid highly sensitive evidence on shared devices.
-- Egyptian Arabic ASR quality remains provider-dependent; script checks and human review are guardrails, not a full upstream accuracy solution.
+## 4. Research execution — implementation is not evidence
 
-### Research execution
-- Full 120-scenario benchmark sweeps and set-level judge sensitivity/calibration.
-- Real human-rater calibration, independent ratings, adjudication and final statistical analysis.
-- Pilot recruitment, approved consent, field validation with real teams and non-synthetic observations.
+- Run the full 120-scenario benchmark sweeps and judge sensitivity/calibration.
+- Recruit independent human raters, calibrate raters, collect ratings and complete adjudication/statistical analysis.
+- Conduct an approved pilot with real teams and non-synthetic observations.
+- Do not describe synthetic fixtures or generated rating packets as participant results.
 
-## External / operational release gates
+## 5. External operational release gates
 
-These cannot be completed by repository code alone:
-- Reconcile a provider-specific Prisma baseline against each real deployed database; the repository intentionally does not fabricate migration history.
-- Configure and verify production PostgreSQL, Redis, email delivery, LLM provider, HTTPS origins and encryption/session secrets.
-- Perform and restore-test database backups; verify monitoring, alerting, incident response and rollback.
-- Complete security/penetration testing and legal/privacy review appropriate to deployment jurisdictions and collected data.
-- Recruit pilot teams and study participants and run the planned research protocol.
+These require real deployment accounts, infrastructure or operator authorization:
 
-## Integration and CI status
+- Select and configure the hosting target, canonical HTTPS domain and deployment environments.
+- Provision production PostgreSQL and reconcile its actual schema/history with a reviewed provider-specific baseline. The repository intentionally does not invent migration history.
+- Configure and verify Redis, Resend sender/domain, LLM provider, session/encryption secrets and any required object storage.
+- Restore-test database backups; rehearse migration, rollback and recovery on staging.
+- Verify authentication, tenant isolation, rate limits, email delivery, webhooks and integration health against live providers.
+- Configure monitoring, alerting, error tracking, retention and incident-response ownership.
+- Complete deployment-specific security, privacy and legal review before onboarding real users.
 
-Canonical stacked integration path: **PR #27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46**. These are dependent stacked PRs, not independent merge candidates. PR #47 is a divergent Phase 4 replay based on an older Phase 3 branch and is excluded from the canonical chain. See [repository-consolidation-audit.md](repository-consolidation-audit.md).
+See [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) and [docs/database-migrations.md](docs/database-migrations.md).
 
-Latest verified full CI before the documentation-only audit commit:
-- Commit: `3c4b6631cfda8c491960540d091c7d14d446293c`
-- Workflow run: [42153766097](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42153766097) — **success** on 2026-11-06.
-- Verified quality and PostgreSQL jobs, including regression, TypeScript, lint, production build, stakeholder API/browser E2E, schema parity/validation, PostgreSQL integration and PostgreSQL retrieval benchmark.
+## 6. Integration and CI
 
-Current branch head: `99d871be8a551db9da2d1e1616ffec31239aa40a`. The audit documentation commit is newer than that successful run; its exact-head CI must be checked before treating it as verified. PR #46 remains open, Draft and unmerged. No PR was merged or closed by this status update.
+- Canonical merge chain: **#27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46**.
+- All twenty PRs are merged. Do not merge the old PRs #1–#26 again; their capabilities are represented in the reconciled canonical chain.
+- PR #47 is not part of the canonical chain and should not be merged wholesale.
+- Verified main SHA: `b6bb936c1ab6228190708527ceae9e4ef0fc6021`.
+- Verified exact-head CI: [42382272606](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42382272606), with both `quality` and `postgres-schema` successful.
 
 ## Release decision
 
-**Not production-cleared.** H1/H2 repository implementation phases are complete. The shortest credible MVP finish path is P0 browser/mobile/accessibility/recovery QA, exact-head CI, then staging deployment and operational rehearsal. H3 semantic retrieval, cross-device offline replication and OAuth should remain outside the MVP critical path unless product requirements explicitly demand them.
+**Ready for focused P0 completion and staging preparation; not production-cleared.** Do not run production schema mutation, rotate live secrets, activate OAuth/semantic retrieval, or deploy without the relevant environment, backup/restore rehearsal and explicit release authorization.
