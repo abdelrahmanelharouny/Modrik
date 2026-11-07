@@ -746,6 +746,18 @@ try {
       }
     });
     await page.goto(baseUrl, { waitUntil: "networkidle" });
+    const missionControlLanguageToggle = page.getByRole("button", { name: "Toggle language" });
+    await missionControlLanguageToggle.click();
+    await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.lang), "ar", "workspace must expose Arabic document language");
+    assert.equal(await page.evaluate(() => document.documentElement.dir), "rtl", "workspace must expose RTL document direction");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "Arabic Mission Control must not overflow horizontally at 390px");
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await missionControlLanguageToggle.click();
+    await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
+
     const missionCard = page.getByRole("button", { name: "Open mission Phase 4 integration A" });
     try {
       await missionCard.waitFor({ state: "visible", timeout: 15000 });
