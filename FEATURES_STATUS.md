@@ -1,9 +1,9 @@
 # Modrik feature and release status
 
 **Canonical branch:** `main`  
-**Verified main commit:** `3e42a4941fe09732836442db97d2522be57a70b6`  
-**Latest verified CI:** PR #48 [Run 42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616) passed; post-merge #48 [Run 42386023748](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748) passed. PRs #49, #50 and #51 each passed exact-head CI before merge; main post-merge run [42389383572](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42389383572) is in progress for `3e42a4941fe09732836442db97d2522be57a70b6`.  
-**Integration:** PRs #27–#46 and #48–#51 are merged. PR #47 is a divergent Phase 4 replay and is intentionally excluded. PR #52 adds completed-baseline reopen concurrency coverage and is awaiting exact-head CI.  
+**Verified main commit:** `7d0d667284651f4cd2417c2f9af42590d8c0acee`  
+**Latest verified CI:** PR #48 [Run 42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616), post-merge #48 [Run 42386023748](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748), and main after #49–#51 [Run 42389383572](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42389383572) passed. PRs #49–#53 passed exact-head CI before merge. PR #54 full agent-pipeline E2E [Run 42390256255](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42390256255) passed both `quality` and `postgres-schema`; post-merge main CI for `7d0d667284651f4cd2417c2f9af42590d8c0acee` is pending.  
+**Integration:** PRs #27–#46 and #48–#54 are merged. PR #47 is a divergent Phase 4 replay and is intentionally excluded.  
 **Release status:** repository implementation is substantially complete; production is **not yet cleared** because live infrastructure, database-baseline reconciliation, staging rehearsal and external-service verification require deployment access.
 
 This file describes the repository at the verified main commit above. A green CI run verifies the tested commit and configured CI environment; it does not prove live provider connectivity, production migration safety, participant research or a production deployment.
@@ -49,7 +49,7 @@ These are the remaining repository-quality tasks, not missing historical PRs:
 2. Expand Arabic/RTL checks beyond Briefing and Debrief to all seven authenticated workspace views and validate persisted locale after reload. PR #50 covers all seven views in English at 390px, tablet/desktop overflow, and Arabic Briefing/Debrief at 390px.
 3. Add repeatable accessibility checks for labels, keyboard navigation, focus visibility, landmarks, contrast and reduced motion; PR #48 covers skip-link keyboard behavior, visible focus, labels and auth-shell RTL smoke checks, but a full workspace audit and screen-reader review remain open.
 4. Stress offline queue recovery after tab termination and lease expiry is now covered by PR #48; suspended-tab, interrupted-request, backoff and revision-conflict recovery still need end-to-end coverage.
-5. Add representative concurrency/load checks for project, evidence, graph and organization-memory reads.
+5. Add representative concurrency/load checks for project, evidence, graph and organization-memory reads. PRs #51 and #52 cover stage approval and completed-baseline reopen compare-and-swap races; broad workload/load tests remain open.
 6. Review onboarding, empty/loading/error/retry states and destructive-action confirmations.
 7. Re-run exact-head CI after the final P0 changes and preserve its test artifacts.
 
