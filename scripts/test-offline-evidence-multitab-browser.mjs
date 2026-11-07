@@ -93,6 +93,7 @@ try {
   const crashedToken = Number(events.find((event) => event.startsWith("tab-crashed:start:")).split(":").at(-1));
   await first.close(); // abrupt page termination: task/finally/heartbeat no longer execute
   const recoveryTab = await context.newPage();
+  await recoveryTab.exposeFunction("recordEvent", (event) => events.push(event));
   await recoveryTab.goto(origin);
   await recoveryTab.evaluate(async () => {
     const db = await new Promise((resolve, reject) => {
