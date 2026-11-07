@@ -107,6 +107,28 @@ async function processJob(job) {
       where: { id: job.id, status: "processing", lockedBy: workerId, lockedAt: job.lockedAt },
     });
     if (!latestJob) return "lease_lost";
+
+    // The provider call happens outside the transaction. Revalidate every source
+    // predicate inside the write transaction so a concurrent edit, rejection,
+    // archive, or organization move cannot persist an obsolete vector.
+    const latestProject = await tx.project.findFirst({
+      where: { id: job.projectId, organizationId: job.organizationId, status: { not: "archived" } },
+      select: { id: true },
+    });
+    const latestNode = await tx.knowledgeNode.findFirst({
+      where: { id: job.nodeId, projectId: job.projectId, status: "accepted" },
+      select: { id: true, projectId: true, status: true, kind: true, label: true, description: true },
+    });
+    if (!latestProject || !latestNode) {
+      await complete(tx, job);
+      return "superseded_source_changed";
+    }
+    const latestContent = buildOrganizationMemoryEmbeddingContent(latestNode);
+    if (latestContent.contentHash !== job.contentHash) {
+      await complete(tx, job);
+      return "superseded_source_changed";
+    }
+
     const persisted = await persistOrganizationMemoryEmbedding(tx, {
       organizationId: job.organizationId, projectId: job.projectId, nodeId: job.nodeId,
       model: job.model, dimensions: job.dimensions, contentHash: job.contentHash, embedding,
