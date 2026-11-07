@@ -1233,6 +1233,41 @@ try {
       "Arabic authenticated workspace must not overflow at 390px");
     await page.getByRole("button", { name: /الجلسة الختامية/ }).click();
     await page.getByRole("heading", { name: /الجلسة الختامية/ }).waitFor();
+
+    // Extend RTL coverage from the two critical screens above to every
+    // authenticated workspace view. Toggle per view so navigation remains
+    // deterministic while the content itself is rendered in Arabic.
+    const rtlWorkspaceViews = [
+      "Briefing",
+      "Route Plot",
+      "Airframe",
+      "Turbulence Scan",
+      "Payload",
+      "Clearance",
+      "Debrief",
+    ];
+    await page.getByRole("button", { name: /Toggle language/ }).click();
+    await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
+    for (const view of rtlWorkspaceViews) {
+      await page.getByRole("button", { name: new RegExp(view) }).click();
+      await page.getByRole("heading", { name: new RegExp(view) }).waitFor();
+      await page.getByRole("button", { name: /Toggle language/ }).click();
+      await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+        `Arabic ${view} view must not overflow at 390px`);
+      assert.ok(await page.locator("main h1, main h2").first().isVisible(),
+        `Arabic ${view} view must retain a visible main heading`);
+      await page.getByRole("button", { name: /Toggle language/ }).click();
+      await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
+    }
+
+    // Locale preference must survive a full browser reload, not only SPA state.
+    await page.getByRole("button", { name: /Toggle language/ }).click();
+    await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "persisted Arabic locale must remain overflow-free after reload at 390px");
     await context.close();
   } finally {
     await browser.close();
