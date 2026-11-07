@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getOfflineEvidenceRetryDelay, offlineEvidenceFailureRequiresReview } from "../src/lib/evidence/offline-retry.mjs";
+import { getOfflineEvidenceRetryDelay, offlineEvidenceFailureRequiresReview, shouldDeferOfflineEvidenceSync } from "../src/lib/evidence/offline-retry.mjs";
 
 test("offline evidence retry delay grows exponentially and caps at five minutes", () => {
   assert.equal(getOfflineEvidenceRetryDelay(1), 5_000);
@@ -37,3 +37,10 @@ test("transient network and service failures remain eligible for automatic retry
     assert.equal(offlineEvidenceFailureRequiresReview(message), false, message);
   }
 });
+
+test("lifecycle recovery respects a pending retry while explicit retry can override it", () => {
+  assert.equal(shouldDeferOfflineEvidenceSync(true, false), true);
+  assert.equal(shouldDeferOfflineEvidenceSync(true, true), false);
+  assert.equal(shouldDeferOfflineEvidenceSync(false, false), false);
+});
+
