@@ -81,6 +81,10 @@ The webhook is intentionally a public, signature-authenticated endpoint. Do not 
 
 SQLite is the canonical development schema; PostgreSQL schema is generated and parity-checked. The repository inventory fingerprints describe checked-in schemas only; they do not prove equivalence with a deployed database. There is no committed production baseline because deployed database history has not been reconciled. Do not run `prisma migrate deploy` against an existing environment until backups have been restored in a rehearsal, the provider-specific baseline is reviewed, and the migration history is reconciled. See [database-migrations.md](database-migrations.md).
 
+## Readiness endpoint
+
+The unauthenticated, read-only `GET|HEAD /api/health` endpoint performs a minimal database connectivity check. It returns only `{ "status": "ok" }` with HTTP 200 when the database is reachable, or a generic HTTP 503 response with `Retry-After: 5` when it is not. Responses are `no-store`; connection strings, provider configuration and exception details are never exposed. Use this endpoint for platform readiness probes, not as a substitute for authenticated functional smoke tests.
+
 ## Operational checklist
 
 1. Configure all required secrets and run `bun run security:release-check` in the deployment environment.
