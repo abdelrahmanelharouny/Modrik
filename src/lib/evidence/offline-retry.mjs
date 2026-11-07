@@ -22,3 +22,8 @@ export function offlineEvidenceFailureRequiresReview(error) {
       : String(error ?? "");
   return /EVIDENCE_REVISION_CONFLICT|IDEMPOTENCY_CONFLICT|conflict|changed in another session|not found|forbidden|unauthorized|validation|permission/i.test(message);
 }
+
+/** Whether a lifecycle-triggered sync must respect an already scheduled retry. */
+export function shouldDeferOfflineEvidenceSync(retryPending, force = false) {
+  return Boolean(retryPending) && !force;
+}
