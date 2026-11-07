@@ -124,7 +124,7 @@ try {
   await recoveryTab.close();
 
   // A long-closed browser must not silently expire user-authored work.
-  const retained = await first.evaluate(async () => {
+  const retained = await second.evaluate(async () => {
     const { createOfflineEvidenceOperation, putOfflineEvidenceOperation, listOfflineEvidenceOperations } = await import("/offline-queue.mjs");
     const operation = createOfflineEvidenceOperation("browser-project-retention", {
       title: "Long-lived draft", content: "Must survive a month away", consent: false,
