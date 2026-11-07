@@ -4,6 +4,7 @@ import { createIdentitySession } from "@/lib/security/identity";
 import { hashPassword, isSessionSigningConfigured, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/security/session.mjs";
 import { hashInvitationToken, getInvitationState } from "@/lib/security/invitations.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
+import { consumeRateLimit } from "@/lib/security/rate-limit.mjs";
 
 export const runtime = "nodejs";
 const noStore = { "Cache-Control": "no-store, max-age=0" };
@@ -24,6 +25,11 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return jsonError("Invalid request body", 400);
   const token = typeof body.token === "string" ? body.token : "";
   const tokenHash = hashInvitationToken(token);
+
+  const ip = req.headers.get("x-real-ip")?.trim() || req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "unknown";
+  const rate = await consumeRateLimit({ scope: "invitation:accept:ip", identifier: ip, limit: 10, windowMs: 15 * 60 * 1000 });
+  if (rate.backend === "unavailable") return jsonError("Shared invitation protection is unavailable", 503);
+  if (!rate.allowed) return NextResponse.json({ error: "Too many invitation attempts. Try again later." }, { status: 429, headers: { ...noStore, "Retry-After": String(rate.retryAfterSeconds) } });
   if (!tokenHash) return jsonError("Invitation is invalid or no longer available", 400);
 
   const invitation = await db.organizationInvitation.findUnique({
