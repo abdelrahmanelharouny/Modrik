@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { isPublicApiPath, isPublicApiRequest } from "../src/lib/security/api-access.mjs";
 
 test("only explicit credential and participant-token endpoints bypass owner auth", () => {
+  assert.equal(isPublicApiPath("/api/health"), true);
   assert.equal(isPublicApiPath("/api/auth/login"), true);
   assert.equal(isPublicApiPath("/api/auth/logout"), true);
   assert.equal(isPublicApiPath("/api/auth/password-reset/request"), true);
@@ -13,11 +14,19 @@ test("only explicit credential and participant-token endpoints bypass owner auth
   assert.equal(isPublicApiPath("/api/webhooks/jira/project_123"), true);
   assert.equal(isPublicApiPath("/api/webhooks/github/project_123/extra"), false);
   assert.equal(isPublicApiPath("/api/projects"), false);
+  assert.equal(isPublicApiPath("/api/health/extra"), false);
   assert.equal(isPublicApiPath("/api/projects/demo"), false);
   assert.equal(isPublicApiPath("/api/study"), false);
   assert.equal(isPublicApiPath("/api/telemetry"), false);
   assert.equal(isPublicApiPath("/api/transcribe"), false);
   assert.equal(isPublicApiPath("/api/auth/anything-else"), false);
+});
+
+test("health readiness exemption is read-only", () => {
+  assert.equal(isPublicApiRequest("/api/health", "GET"), true);
+  assert.equal(isPublicApiRequest("/api/health", "HEAD"), true);
+  assert.equal(isPublicApiRequest("/api/health", "POST"), false);
+  assert.equal(isPublicApiRequest("/api/health", "DELETE"), false);
 });
 
 test("public password recovery exemptions are method-specific", () => {
