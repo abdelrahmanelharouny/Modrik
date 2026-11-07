@@ -27,7 +27,7 @@ export function validateProductionEnv(env = process.env) {
   const required = [
     "DATABASE_URL", "MODRIK_ADMIN_EMAIL", "MODRIK_ADMIN_PASSWORD_HASH",
     "MODRIK_AUTH_SECRET", "MODRIK_ENCRYPTION_KEY", "UPSTASH_REDIS_REST_URL",
-    "UPSTASH_REDIS_REST_TOKEN", "RESEND_API_KEY", "PASSWORD_RESET_EMAIL_FROM", "APP_URL",
+    "UPSTASH_REDIS_REST_TOKEN", "RESEND_API_KEY", "PASSWORD_RESET_EMAIL_FROM", "APP_URL", "RP_LLM_PROVIDER",
   ];
   for (const key of required) if (!hasValue(env, key)) errors.push(`${key} is required`);
   if (hasValue(env, "DATABASE_URL") && !/^postgres(?:ql)?:\/\//i.test(env.DATABASE_URL.trim())) errors.push("DATABASE_URL must use PostgreSQL in production");
@@ -40,6 +40,30 @@ export function validateProductionEnv(env = process.env) {
       !/^[^<>]+<[^<>@\s]+@[^<>@\s]+>$/.test(env.PASSWORD_RESET_EMAIL_FROM.trim()) &&
       !validEmail(env.PASSWORD_RESET_EMAIL_FROM.trim())) errors.push("PASSWORD_RESET_EMAIL_FROM must be an email address or Name <email> sender");
   if (hasValue(env, "APP_URL") && !validHttpsUrl(env.APP_URL.trim())) errors.push("APP_URL must be an HTTPS URL without embedded credentials");
+  const provider = hasValue(env, "RP_LLM_PROVIDER") ? env.RP_LLM_PROVIDER.trim().toLowerCase() : "";
+  if (provider && !["glm", "model-b", "local"].includes(provider)) {
+    errors.push("RP_LLM_PROVIDER must be one of glm, model-b, or local");
+  }
+  if (provider === "glm" && env.RP_GLM_NATIVE_RUNTIME_CONFIRMED !== "true") {
+    errors.push("RP_GLM_NATIVE_RUNTIME_CONFIRMED must be true only when the deployment runtime supports z-ai-web-dev-sdk credentials; otherwise select model-b or local");
+  }
+  if (provider === "model-b") {
+    if (!hasValue(env, "RP_MODEL_B_BASE_URL")) errors.push("RP_MODEL_B_BASE_URL is required when RP_LLM_PROVIDER=model-b");
+    else if (!validHttpsUrl(env.RP_MODEL_B_BASE_URL.trim())) errors.push("RP_MODEL_B_BASE_URL must be an HTTPS URL without embedded credentials in production");
+    if (!hasValue(env, "RP_MODEL_B_MODEL")) errors.push("RP_MODEL_B_MODEL is required when RP_LLM_PROVIDER=model-b");
+  }
+  if (provider === "local") {
+    if (!hasValue(env, "RP_LOCAL_BASE_URL")) errors.push("RP_LOCAL_BASE_URL is required when RP_LLM_PROVIDER=local");
+    else {
+      try {
+        const url = new URL(env.RP_LOCAL_BASE_URL.trim());
+        if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password) {
+          errors.push("RP_LOCAL_BASE_URL must be an HTTP(S) URL without embedded credentials");
+        }
+      } catch { errors.push("RP_LOCAL_BASE_URL must be a valid HTTP(S) URL"); }
+    }
+    if (!hasValue(env, "RP_LOCAL_MODEL")) errors.push("RP_LOCAL_MODEL is required when RP_LLM_PROVIDER=local");
+  }
   return { ok: errors.length === 0, errors };
 }
 
