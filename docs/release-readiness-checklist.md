@@ -5,8 +5,10 @@ This checklist separates repository work from actions that require real infrastr
 ## A. Repository and build gates
 
 - [x] Canonical integration PRs #27–#46 merged into `main` in dependency order.
+- [x] P0 QA PRs #48–#51 merged; #49–#51 passed exact-head CI before merge.
 - [x] Exact-main CI run 42382272606 passed: quality and PostgreSQL schema jobs.
 - [x] Regression suite, TypeScript, lint, production build, offline multi-tab browser test and stakeholder API/browser integration are part of CI.
+- [ ] Verify post-merge `main` CI for combined PRs #49–#51 (run 42389383572 was still in progress at the time of this update).
 - [ ] Re-run exact-head CI after the remaining P0 QA changes.
 - [ ] Inspect and archive the final CI artifacts and test diagnostics.
 - [ ] Build the final release candidate from a clean checkout using the lockfile.
@@ -19,9 +21,10 @@ This checklist separates repository work from actions that require real infrastr
 - [ ] Verify evidence provenance, revisions, conflict resolution and decision journal remain consistent end-to-end.
 - [ ] Verify stakeholder negotiation quorum, authority checks and immutable responses.
 - [ ] Verify GitHub/Jira static-token sync, webhook signature validation and duplicate-delivery handling with test credentials.
-- [ ] Verify all critical flows at 390px, tablet and desktop widths. PR #48 adds a 390px Arabic auth-shell smoke check; authenticated workspace coverage remains open.
+- [x] Smoke-check all seven authenticated workspace views at 390px in English, and check tablet/desktop overflow; Arabic Briefing and Debrief at 390px are covered by PR #50.
+- [ ] Extend Arabic/RTL coverage to all authenticated workspace views and verify locale persistence after reload.
 - [ ] Verify Arabic language switching updates document language/direction and remains correct after reload.
-- [ ] Verify keyboard-only completion, visible focus, form labels, error announcements and reduced-motion behavior. PR #48 adds skip-link, focus, form-label and RTL smoke checks; full keyboard/reduced-motion review remains open.
+- [ ] Verify keyboard-only completion, visible focus, form labels, error announcements and reduced-motion behavior. PR #48 adds skip-link, focus and form-label smoke checks; full authenticated-workspace keyboard/reduced-motion review remains open.
 - [ ] Verify empty, loading, error, retry, permission-denied and destructive-confirmation states.
 
 ## C. Offline and reliability
@@ -32,7 +35,8 @@ This checklist separates repository work from actions that require real infrastr
 - [ ] Verify queued drafts survive browser restarts and long periods offline.
 - [ ] Verify transient failures retry with bounded backoff; permanent/revision conflicts remain visible for user action.
 - [ ] Verify no queued operation disappears except after server acknowledgement or explicit discard.
-- [ ] Run API/database concurrency tests against representative project and evidence workloads.
+- [x] Verify concurrent final-stage approvals and concurrent completed-baseline reopen protection at the API level (PR #51 and PR #52 respectively; #52 is pending exact-head CI).
+- [ ] Run broader API/database concurrency tests against representative project and evidence workloads.
 
 ## D. Production infrastructure
 

@@ -1,9 +1,9 @@
 # Modrik feature and release status
 
 **Canonical branch:** `main`  
-**Verified main commit:** `26c31acfd8594671d226a4a99b430fe5859de9ee`  
-**Latest PR CI:** [Run 42385319616 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616) on PR #48 head `43e123028ac628a86a39eff2070ed1812fbfd7b6`; both `quality` and `postgres-schema` passed. Post-merge `main` CI: [Run 42386023748 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748) on main SHA `26c31acfd8594671d226a4a99b430fe5859de9ee`.  
-**Integration:** PRs #27–#46 and #48 are merged. PR #47 is a divergent Phase 4 replay and is intentionally excluded.  
+**Verified main commit:** `3e42a4941fe09732836442db97d2522be57a70b6`  
+**Latest verified CI:** PR #48 [Run 42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616) passed; post-merge #48 [Run 42386023748](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748) passed. PRs #49, #50 and #51 each passed exact-head CI before merge; main post-merge run [42389383572](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42389383572) is in progress for `3e42a4941fe09732836442db97d2522be57a70b6`.  
+**Integration:** PRs #27–#46 and #48–#51 are merged. PR #47 is a divergent Phase 4 replay and is intentionally excluded. PR #52 adds completed-baseline reopen concurrency coverage and is awaiting exact-head CI.  
 **Release status:** repository implementation is substantially complete; production is **not yet cleared** because live infrastructure, database-baseline reconciliation, staging rehearsal and external-service verification require deployment access.
 
 This file describes the repository at the verified main commit above. A green CI run verifies the tested commit and configured CI environment; it does not prove live provider connectivity, production migration safety, participant research or a production deployment.
@@ -45,9 +45,9 @@ This file describes the repository at the verified main commit above. A green CI
 
 These are the remaining repository-quality tasks, not missing historical PRs:
 
-1. Expand real-app Playwright journeys across the six workflow stages and debrief instruments. PR #48 improved auth-shell RTL/accessibility smoke coverage; the complete authenticated journey remains open.
-2. Complete mobile/responsive and Arabic/RTL browser checks on the primary authenticated workspace, not only public auth shells.
-3. Add repeatable accessibility checks for labels, keyboard navigation, focus visibility, landmarks, contrast and reduced motion; PR #48 covers skip-link keyboard behavior, visible focus, labels and 390px Arabic RTL smoke checks, but a full workspace audit and screen-reader review remain open.
+1. Extend the real-app Playwright journey from view-navigation smoke tests into a data-populated create → evidence → six human gates → debrief flow with real stage-agent execution. PR #50 covers all seven workspace views and responsive overflow; PR #51 covers all six API approval gates with deterministic fixtures. The complete authenticated, data-populated agent journey remains open.
+2. Expand Arabic/RTL checks beyond Briefing and Debrief to all seven authenticated workspace views and validate persisted locale after reload. PR #50 covers all seven views in English at 390px, tablet/desktop overflow, and Arabic Briefing/Debrief at 390px.
+3. Add repeatable accessibility checks for labels, keyboard navigation, focus visibility, landmarks, contrast and reduced motion; PR #48 covers skip-link keyboard behavior, visible focus, labels and auth-shell RTL smoke checks, but a full workspace audit and screen-reader review remain open.
 4. Stress offline queue recovery after tab termination and lease expiry is now covered by PR #48; suspended-tab, interrupted-request, backoff and revision-conflict recovery still need end-to-end coverage.
 5. Add representative concurrency/load checks for project, evidence, graph and organization-memory reads.
 6. Review onboarding, empty/loading/error/retry states and destructive-action confirmations.
