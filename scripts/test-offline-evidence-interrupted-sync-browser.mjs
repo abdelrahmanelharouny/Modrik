@@ -10,8 +10,9 @@ const server = createServer((request, response) => {
     request.on("data", (chunk) => { body += chunk; });
     request.on("end", () => {
       const payload = JSON.parse(body);
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ confirmed: true, operationId: payload.operationId }));
+      const rejected = new URL(request.url, "http://localhost").searchParams.get("fail") === "1";
+      response.writeHead(rejected ? 503 : 200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ confirmed: !rejected, operationId: payload.operationId }));
     });
     return;
   }
@@ -97,9 +98,17 @@ try {
       await window.signalRecoveryAcquired(lease.fencingToken);
       await new Promise((resolve) => { window.proceedRecovery = resolve; });
       await lease.assertLease();
+      const confirmationBody = JSON.stringify({ operationId: item.operationId });
+      const failedResponse = await fetch(`${origin}/confirm-sync?fail=1`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: confirmationBody,
+      });
+      if (failedResponse.status !== 503) throw new Error("Expected the mock server to reject the first confirmation");
+      const afterRejectedConfirmation = await (await import("/offline-queue.mjs")).listOfflineEvidenceOperations(item.projectId);
+      if (!afterRejectedConfirmation.some((queued) => queued.operationId === item.operationId)) {
+        throw new Error("A rejected server response must not remove the queued operation");
+      }
       const serverResponse = await fetch(`${origin}/confirm-sync`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ operationId: item.operationId }),
+        method: "POST", headers: { "content-type": "application/json" }, body: confirmationBody,
       });
       if (!serverResponse.ok) throw new Error(`Mock server confirmation failed: ${serverResponse.status}`);
       const confirmation = await serverResponse.json();
@@ -135,12 +144,12 @@ try {
   await recoveryTab.evaluate(() => window.recoverySyncTask);
   const recovered = await recoveryTab.evaluate(() => window.recoveryResult);
   assert.deepEqual(recovered, { acknowledged: true, remaining: 0 },
-    "the current lease owner must acknowledge and remove the operation only after a successful server confirmation");
+    "a rejected server confirmation must retain the queue; only a subsequent successful confirmation may permit acknowledgement");
 
   await staleTab.evaluate(() => window.releaseStaleTask());
   await staleTab.evaluate(() => window.staleSyncTask);
   await context.close();
-  process.stdout.write("PASS: stale offline sync owners cannot acknowledge queued work after lease takeover; recovery owner acknowledges only after mocked server confirmation.\n");
+  process.stdout.write("PASS: stale owners cannot acknowledge after takeover; failed server confirmation retains queued work and successful confirmation permits recovery-owner acknowledgement.\n");
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));
