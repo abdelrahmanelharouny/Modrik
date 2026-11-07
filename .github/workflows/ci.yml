@@ -44,6 +44,9 @@ jobs:
           RESEND_API_KEY: re_ci-placeholder
           PASSWORD_RESET_EMAIL_FROM: Modrik CI <security@example.invalid>
           APP_URL: https://app.example.invalid
+          RP_LLM_PROVIDER: model-b
+          RP_MODEL_B_BASE_URL: https://llm.example.invalid/v1
+          RP_MODEL_B_MODEL: ci-placeholder-model
         run: bun run security:release-check
       - name: Validate and push SQLite schema
         env:
