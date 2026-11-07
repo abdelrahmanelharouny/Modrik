@@ -25,7 +25,9 @@
     "db:inventory:write": "node scripts/schema-inventory.mjs --write",
     "db:inventory:check": "node scripts/schema-inventory.mjs",
     "db:migrate:deploy": "node scripts/guarded-migrate-deploy.mjs",
-    "security:release-check": "node scripts/validate-production-env.mjs --production"
+    "security:release-check": "node scripts/validate-production-env.mjs --production",
+    "secrets:rotate": "node scripts/rotate-integration-secrets.mjs",
+    "secrets:rotate:apply": "node scripts/rotate-integration-secrets.mjs --apply"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
