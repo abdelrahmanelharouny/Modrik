@@ -5,6 +5,16 @@ import { chromium } from "playwright";
 
 const moduleSource = await readFile(new URL("../src/lib/evidence/offline-queue.mjs", import.meta.url), "utf8");
 const server = createServer((request, response) => {
+  if (request.url === "/confirm-sync" && request.method === "POST") {
+    let body = "";
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", () => {
+      const payload = JSON.parse(body);
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ confirmed: true, operationId: payload.operationId }));
+    });
+    return;
+  }
   if (request.url === "/offline-queue.mjs") {
     response.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
     response.end(moduleSource);
@@ -80,17 +90,26 @@ try {
   let recoveryAcquired;
   const recoveryReady = new Promise((resolve) => { recoveryAcquired = resolve; });
   await recoveryTab.exposeFunction("signalRecoveryAcquired", recoveryAcquired);
-  await recoveryTab.evaluate(async (item) => {
+  await recoveryTab.evaluate(async ({ item, origin }) => {
     const { withOfflineEvidenceSyncLock } = await import("/offline-queue.mjs");
     window.recoverySyncTask = withOfflineEvidenceSyncLock(item.projectId, async (lease) => {
       window.recoveryLease = lease;
       await window.signalRecoveryAcquired(lease.fencingToken);
       await new Promise((resolve) => { window.proceedRecovery = resolve; });
       await lease.assertLease();
+      const serverResponse = await fetch(`${origin}/confirm-sync`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ operationId: item.operationId }),
+      });
+      if (!serverResponse.ok) throw new Error(`Mock server confirmation failed: ${serverResponse.status}`);
+      const confirmation = await serverResponse.json();
+      if (confirmation.confirmed !== true || confirmation.operationId !== item.operationId) {
+        throw new Error("Mock server did not confirm this operation");
+      }
       const acknowledged = await lease.acknowledge(item);
       window.recoveryResult = { acknowledged, remaining: (await (await import("/offline-queue.mjs")).listOfflineEvidenceOperations(item.projectId)).length };
     });
-  }, operation);
+  }, { item: operation, origin });
 
   const recoveredToken = await recoveryReady;
   assert.ok(recoveredToken > 1, "recovery must acquire a strictly newer fencing generation");
@@ -116,12 +135,12 @@ try {
   await recoveryTab.evaluate(() => window.recoverySyncTask);
   const recovered = await recoveryTab.evaluate(() => window.recoveryResult);
   assert.deepEqual(recovered, { acknowledged: true, remaining: 0 },
-    "the current lease owner must be able to acknowledge and remove the operation after server confirmation");
+    "the current lease owner must acknowledge and remove the operation only after a successful server confirmation");
 
   await staleTab.evaluate(() => window.releaseStaleTask());
   await staleTab.evaluate(() => window.staleSyncTask);
   await context.close();
-  process.stdout.write("PASS: stale offline sync owners cannot acknowledge queued work after lease takeover; recovery owner can acknowledge only after confirmation.\n");
+  process.stdout.write("PASS: stale offline sync owners cannot acknowledge queued work after lease takeover; recovery owner acknowledges only after mocked server confirmation.\n");
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));
