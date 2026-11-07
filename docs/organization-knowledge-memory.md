@@ -4,7 +4,7 @@
 
 The authenticated organization memory read endpoint reuses accepted KnowledgeNode records attached to projects; it does not create a second memory store. Governance transitions and the reviewer/approver queue are implemented, with a dedicated organization audit stream.
 
-Semantic retrieval architecture is recorded in ADR-018. The implementation adds a multilingual BM25 baseline and safe lexical/semantic/hybrid ranking primitives, but semantic retrieval is not enabled or connected to an embedding provider.
+Semantic retrieval architecture is recorded in ADR-018. The implementation now includes an OpenAI-compatible embedding provider adapter, SQLite/PostgreSQL embedding and durable outbox models, transactional enqueue hooks, a bounded retrying worker, resumable backfill, tenant-filtered exact-cosine search, and opt-in BM25/semantic reciprocal-rank fusion in the authenticated API. Semantic reads remain disabled by default: no production embedding provider has been configured or validated, and no human-judged multilingual quality gate has been completed.
 
 ## Authorization and tenant isolation
 
@@ -36,7 +36,7 @@ The review reader is /settings/knowledge-memory. Its accepted, review-queue and 
 
 - This is project-backed retrieval, not a separately persisted organization-memory entity.
 - The persistent inverted index is write-through for new and changed nodes, and existing records require the resumable per-project backfill. The read path intentionally remains streaming BM25 until index completeness, tenant-isolation tests, shadow parity and production-scale latency gates pass. No indexed-read performance claim is made yet.
-- Semantic/vector search is not enabled. Follow ADR-018: provider selection, tenant-filtered storage adapters, embedding lifecycle/outbox, deletion/re-embedding and multilingual benchmark must pass before rollout.
+- Semantic/vector reads remain disabled by default. The provider adapter, tenant-filtered storage, embedding lifecycle/outbox, deletion/re-embedding and hybrid API integration are implemented; production rollout still requires configuring and validating a real provider, completing the accepted-node backfill, operating the worker, and passing a human-judged Arabic/English/code-switched retrieval evaluation.
 - Governance is explicit; no bulk mutation, delete, or automatic promotion.
 - PostgreSQL integration coverage creates two isolated organizations and verifies accepted-memory and audit reads cannot cross tenant boundaries. It races two compare-and-set governance transitions and injects an audit foreign-key failure to prove atomic rollback. These focused integration tests are not a substitute for production load testing.
 - Real-world pilot recruitment, rater calibration and empirical H2 evaluation remain separate research gates.
@@ -178,6 +178,16 @@ npm run eval:organization-memory -- --input=./organization-memory-judgments.json
 The input object contains optional `name`, `version`, and `provenance`, plus a `queries` array. Each query requires `id`, `language` (for example `ar`, `en`, or `ar-en`), `projectId`, non-empty `relevantIds` from human-reviewed judgments, and `bm25RankedIds`; `semanticRankedIds` may be empty when no semantic candidates were returned. The runner applies the same reciprocal-rank fusion implementation as the API and reports Precision@K, Recall@K, MRR and NDCG@K overall and by language, with per-query rankings.
 
 The evaluator deliberately consumes captured rankings rather than inventing vectors or calling a provider. Capture BM25 and semantic results for the same authorized query/project snapshot, preserve dataset provenance, and have relevance labels reviewed independently. Synthetic test fixtures validate metric wiring only; they are not evidence of Arabic retrieval quality. Do not enable semantic reads based on a fixture report.
+
+### Semantic embedding worker operations
+
+After configuring `ORGANIZATION_MEMORY_EMBEDDING_ENDPOINT`, `ORGANIZATION_MEMORY_EMBEDDING_MODEL`, `ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS` and any required API key, run a bounded worker batch with:
+
+```bash
+npm run worker:organization-memory-embeddings -- --limit=100
+```
+
+The worker claims jobs with a lease, verifies the active project and current accepted-node content, calls the provider outside the database transaction, then revalidates source ownership/content before persisting. Completion uses lease compare-and-set; transient failures are retried with bounded backoff and eventually dead-lettered. The command exits after at most the requested number of jobs or when the queue is empty. It is a one-shot process, not a built-in scheduler: production deployments must run it from an external scheduler/worker service with appropriate database and provider secrets. Do not enable semantic reads until the queue is drained, stale jobs are reconciled, and provider behavior/cost/latency are observed.
 
 ### Semantic embedding backfill operations
 
