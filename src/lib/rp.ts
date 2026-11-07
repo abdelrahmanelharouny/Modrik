@@ -191,6 +191,19 @@ export interface EvidenceDTO {
   content: string;
   consent: boolean;
   origin: string;
+  revisions?: {
+    id: string;
+    version: number;
+    title: string;
+    content: string;
+    sourceType: string;
+    language: string;
+    consent: boolean;
+    contentHash: string;
+    changeNote: string;
+    createdBy: string;
+    createdAt: string;
+  }[];
 }
 
 export interface QuestionDTO {

@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
+import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { HudPanel, Eyebrow, Chip, Meter, SectionHead, EmptyBay, LiveDot } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,7 @@ import {
   Undo2,
   Waves,
   FlaskConical,
+  Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -226,6 +228,8 @@ export function ElicitationStage({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [experimenting, setExperimenting] = useState(false);
   const [experimentResult, setExperimentResult] = useState<PlannerExperimentView | null>(null);
+  const [evidenceQuery, setEvidenceQuery] = useState("");
+  const [evidenceTypeFilter, setEvidenceTypeFilter] = useState("all");
 
   const addEvidence = async () => {
     if (!title.trim() || !content.trim()) return;
@@ -326,6 +330,12 @@ export function ElicitationStage({
   };
 
   const langTone = (l: string) => (l === "ar-EG" ? "signal" : l === "codeswitch" ? "plasma" : "muted");
+  const filteredEvidence = project.evidences.filter((evidence) => {
+    const query = evidenceQuery.trim().toLocaleLowerCase();
+    const matchesQuery = !query || [evidence.code, evidence.title, evidence.content]
+      .some((value) => value.toLocaleLowerCase().includes(query));
+    return matchesQuery && (evidenceTypeFilter === "all" || evidence.sourceType === evidenceTypeFilter);
+  });
   const answered = project.questions.filter((q) => q.answered).length;
   const carried = project.questions.filter((q) => q.resolution === "proceed_with_uncertainty").length;
   const transcript = (text: string) => setContent((c) => (c ? `${c}\n${text}` : text));
@@ -416,13 +426,45 @@ export function ElicitationStage({
           }
         />
 
+        {project.evidences.length > 0 && (
+          <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_190px]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                value={evidenceQuery}
+                onChange={(event) => setEvidenceQuery(event.target.value)}
+                placeholder="Search source title, ID or transcript…"
+                aria-label="Search evidence sources"
+                className="pl-9"
+              />
+            </div>
+            <Select value={evidenceTypeFilter} onValueChange={setEvidenceTypeFilter}>
+              <SelectTrigger aria-label="Filter evidence by source type"><SelectValue placeholder="All source types" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All source types</SelectItem>
+                <SelectItem value="interview">Interview</SelectItem>
+                <SelectItem value="document">Document</SelectItem>
+                <SelectItem value="meeting">Meeting</SelectItem>
+                <SelectItem value="survey">Survey</SelectItem>
+                <SelectItem value="observation">Observation</SelectItem>
+                <SelectItem value="transcript">Transcript</SelectItem>
+                <SelectItem value="whiteboard_ocr">Whiteboard OCR</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground sm:col-span-2" aria-live="polite">
+              Showing {filteredEvidence.length} of {project.evidences.length} sources · {project.evidences.filter((e) => e.consent).length} AI-eligible
+            </p>
+          </div>
+        )}
         {project.evidences.length === 0 ? (
           <EmptyBay>
             No evidence yet. Add at least one source — agents refuse to fly without grounding.
           </EmptyBay>
+        ) : filteredEvidence.length === 0 ? (
+          <EmptyBay>No sources match this search. Try another term or source type.</EmptyBay>
         ) : (
-          <ul className="max-h-96 space-y-3 overflow-y-auto pr-1">
-            {project.evidences.map((ev) => (
+          <ul className="max-h-[min(70vh,760px)] space-y-3 overflow-y-auto pr-1">
+            {filteredEvidence.map((ev) => (
               <li key={ev.id} className="rounded-md border border-border/80 bg-secondary/30 p-4 transition-colors hover:border-aura/30">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -454,6 +496,11 @@ export function ElicitationStage({
                 <p className="mt-2 line-clamp-3 text-sm text-muted-foreground" dir="auto">
                   {ev.content}
                 </p>
+                <EvidenceRevisionPanel
+                  projectId={project.id}
+                  evidence={ev}
+                  onSaved={refresh}
+                />
               </li>
             ))}
           </ul>

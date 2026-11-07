@@ -112,7 +112,30 @@ model Evidence {
   origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
   traceLinks TraceLink[]
+  revisions  EvidenceRevision[]
   @@unique([projectId, code])
+}
+
+
+// Immutable, versioned snapshots of evidence. The Evidence row remains the
+// current working projection used by agents; revisions preserve provenance.
+model EvidenceRevision {
+  id          String   @id @default(cuid())
+  evidenceId  String
+  evidence    Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  version     Int
+  title       String
+  sourceType  String
+  language    String
+  content     String
+  consent     Boolean
+  contentHash String   // SHA-256 of canonical source fields; detects silent mutation
+  changeNote  String   @default("")
+  createdBy   String   @default("human") // human | system | import
+  createdAt   DateTime @default(now())
+
+  @@unique([evidenceId, version])
+  @@index([evidenceId, createdAt])
 }
 
 // Agent-generated clarifying questions, answered by the human (HITL gate 1)
