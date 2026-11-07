@@ -61,3 +61,15 @@ Run the same critical journey at 390×844, 768×1024 and 1440×900:
 For every executed row, record: commit SHA, environment/database type, browser/version, viewport, locale, fixture identifier, pass/fail, duration, artifact links, and reviewer. Keep manual screen-reader and visual sign-off distinct from automated checks.
 
 **Release rule:** this matrix is not itself proof of acceptance. The full authenticated journey, debrief checks, and live-provider/staging rehearsal remain open until executed and recorded against a clean release candidate.
+
+
+## Verified repository evidence — 2026-11-07
+
+The following automated coverage is now present on the canonical integration line and must be distinguished from the remaining manual/product acceptance work:
+
+- PR #50 covers navigation across all seven authenticated workspace views at mobile/tablet/desktop sizes, with Arabic checks for Briefing and Debrief.
+- PR #51 exercises all six API human-approval gates and verifies evidence grounding before extraction approval.
+- PR #54 runs the complete six-stage agent pipeline against a deterministic local OpenAI-compatible fixture, including evidence traceability, human approvals and memory harvest. This is API/integration evidence; it is not the continuous authenticated browser journey described below.
+- PR #56 adds Arabic RTL browser checks for all seven workspace views at 390px and verifies locale/direction survive a reload. Exact-head CI run [42394350241](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42394350241) completed successfully for both `quality` and `postgres-schema`. PR #56 remains open until separately reviewed and merged.
+
+These checks do **not** close the complete browser journey, screen-reader review, all responsive/language combinations, live-provider validation or staging rehearsal. Do not mark those rows passed until a new release-candidate run records the commit, browser, viewport, locale and artifacts.
