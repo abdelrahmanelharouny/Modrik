@@ -95,3 +95,38 @@ See [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) a
 ## Release decision
 
 **Ready for focused P0 completion and staging preparation; not production-cleared.** Do not run production schema mutation, rotate live secrets, activate OAuth/semantic retrieval, or deploy without the relevant environment, backup/restore rehearsal and explicit release authorization.
+
+
+---
+
+## Addendum — release evidence reconciliation (2026-11-07)
+
+This addendum supersedes the historical snapshot metadata above where it conflicts with later canonical commits. The body above is retained as a historical feature inventory; do not treat its old verified-main SHA or old pending-CI statements as current.
+
+### Later canonical integration
+
+- PRs #49–#55 are included in the current `main` history. PR #55 reconciles release status after the six-stage agent pipeline and acceptance coverage.
+- PR #56 is **not merged**. It adds Arabic RTL browser coverage for all seven authenticated workspace views and locale persistence after reload.
+- PR #56 head: `c842e23ef5d8445d2d50de7b7b83737af673bf22`.
+- Exact-head CI run [42394350241](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42394350241) completed successfully: `quality` and `postgres-schema` both succeeded, including TypeScript, lint, production build, regression and stakeholder browser integration.
+- PR #56 review/merge remains an outstanding repository integration action; no production deployment is implied.
+
+### Current P0 status
+
+1. Full six-stage agent pipeline against a deterministic local fixture: implemented and CI-tested by PR #54. This does not substitute for participant evaluation or a live LLM provider.
+2. Six human-approval API gates: implemented and tested by PR #51.
+3. Arabic RTL coverage across all seven authenticated views at 390px with reload persistence: implemented in PR #56; CI passed, merge pending.
+4. Continuous authenticated browser journey from organization onboarding through project/evidence, all six gates and Debrief: still open as a single end-to-end browser scenario.
+5. Full workspace accessibility/screen-reader audit, broader offline recovery stress and representative load tests: still open.
+
+### Still outside MVP / operationally blocked
+
+- OAuth provider activation and full token lifecycle; intentionally deferred.
+- Semantic/vector retrieval activation and external embedding-worker scheduling; intentionally deferred.
+- Cross-device offline replication and offline file/audio capture; not implemented.
+- Real participant recruitment, independent ratings, study execution and statistical analysis; protocol/tooling exist, data collection has not started.
+- Production database baseline reconciliation, verified backup/restore, live provider credentials, staging rehearsal, monitoring and deployment-specific security/privacy review; require operator access and approval.
+
+### Release decision
+
+**Repository implementation: advanced MVP candidate, pending remaining P0 acceptance and final clean release-candidate build. Production: not cleared.** Do not claim production readiness based solely on green CI. Do not mutate production databases, rotate live secrets, activate deferred integrations or deploy without explicit authorization and the operational gates above.
