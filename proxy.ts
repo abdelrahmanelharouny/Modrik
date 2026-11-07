@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
+import { resolveIdentitySession } from "@/lib/security/identity";
 import { isPublicApiPath } from "@/lib/security/api-access.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import {
-  isAuthConfigured,
+  isSessionSigningConfigured,
   SESSION_COOKIE,
   verifySessionToken,
 } from "@/lib/security/session.mjs";
@@ -13,7 +16,44 @@ function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
 }
 
-export function proxy(request: NextRequest) {
+function projectPermission(pathname: string, method: string, body?: unknown): string {
+  const parts = pathname.slice("/api/projects/".length).split("/");
+  const route = parts.slice(1).join("/");
+  if (!route) {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "DELETE") return "projects:delete";
+    if (method === "PATCH" || method === "PUT") return "projects:update";
+    return "projects:update";
+  }
+  if (route === "integrations") {
+    return method === "GET" ? "projects:read" : "members:manage";
+  }
+  if (route === "stakeholders") {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "PATCH") {
+      const action = body && typeof body === "object" ? String((body as Record<string, unknown>).action ?? "") : "";
+      const actionPermissions: Record<string, string> = {
+        update_stakeholder: "projects:update",
+        respond_negotiation: "requirements:write",
+        review_position: "requirements:review",
+        decide_negotiation: "requirements:approve",
+      };
+      return actionPermissions[action] ?? "organization:manage";
+    }
+    return "requirements:write";
+  }
+  if (route === "claims" || route === "quality") {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "PATCH") return "requirements:review";
+    return "requirements:write";
+  }
+  if (route === "compliance" && method !== "GET") return "requirements:review";
+  if (route === "drift" && method === "DELETE") return "requirements:review";
+  if (method === "GET" || method === "HEAD") return "projects:read";
+  return "requirements:write";
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -30,7 +70,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!isAuthConfigured()) {
+  if (!isSessionSigningConfigured()) {
     if (isApiPath(pathname)) {
       return NextResponse.json(
         { error: "Modrik authentication is not configured. See SECURITY.md.", code: "AUTH_NOT_CONFIGURED" },
@@ -43,7 +83,10 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = verifySessionToken(token, process.env.MODRIK_AUTH_SECRET);
   const configuredEmail = process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
-  if (!session || !configuredEmail || session.email !== configuredEmail) {
+  const legacyOwner = Boolean(session && session.type === "legacy-owner" && configuredEmail && session.email === configuredEmail);
+  const identity = session?.type === "identity" ? await resolveIdentitySession(token) : null;
+
+  if (!legacyOwner && !identity) {
     if (isApiPath(pathname)) {
       return NextResponse.json(
         { error: "Authentication required", code: "AUTH_REQUIRED" },
@@ -55,6 +98,101 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  const forwardedHeaders = new Headers(request.headers);
+  // Never trust caller-supplied identity context headers.
+  for (const header of ["x-modrik-user-id", "x-modrik-organization-id", "x-modrik-membership-id", "x-modrik-role"]) {
+    forwardedHeaders.delete(header);
+  }
+  if (identity) {
+    forwardedHeaders.set("x-modrik-user-id", identity.userId);
+    forwardedHeaders.set("x-modrik-organization-id", identity.organizationId);
+    forwardedHeaders.set("x-modrik-membership-id", identity.membershipId);
+    forwardedHeaders.set("x-modrik-role", identity.role);
+
+    if (pathname.startsWith("/api/projects/")) {
+      const projectId = decodeURIComponent(pathname.slice("/api/projects/".length).split("/")[0] ?? "");
+      if (!projectId) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } });
+      }
+      const project = await db.project.findUnique({
+        where: { id: projectId },
+        select: { id: true, organizationId: true },
+      });
+      if (!project || project.organizationId !== identity.organizationId) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } });
+      }
+      const permissionBody = pathname.endsWith("/stakeholders") && request.method === "PATCH"
+        ? await request.clone().json().catch(() => null)
+        : undefined;
+      const permission = projectPermission(pathname, request.method, permissionBody);
+      const membership = await db.membership.findUnique({
+        where: { id: identity.membershipId },
+        select: {
+          organizationId: true, role: true, status: true,
+          user: { select: { status: true } },
+          organization: { select: { status: true } },
+        },
+      });
+      if (!membership || !hasOrganizationPermission({
+        organizationId: membership.organizationId,
+        role: membership.role,
+        status: membership.status,
+        userStatus: membership.user.status,
+        organizationStatus: membership.organization.status,
+      }, permission)) {
+        return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
+      }
+    } else if (pathname === "/api/projects") {
+      const permission = request.method === "GET" ? "projects:read" : "projects:create";
+      const membership = await db.membership.findUnique({
+        where: { id: identity.membershipId },
+        select: {
+          organizationId: true, role: true, status: true,
+          user: { select: { status: true } },
+          organization: { select: { status: true } },
+        },
+      });
+      if (!membership || !hasOrganizationPermission({
+        organizationId: membership.organizationId,
+        role: membership.role,
+        status: membership.status,
+        userStatus: membership.user.status,
+        organizationStatus: membership.organization.status,
+      }, permission)) {
+        return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
+      }
+    } else {
+      const guardedPermission =
+        pathname === "/api/missions" || pathname === "/api/demo"
+          ? request.method === "GET" ? "projects:read" : "projects:create"
+          : pathname === "/api/telemetry"
+            ? "audit:read"
+            : pathname === "/api/study" || pathname === "/api/self-audit"
+              ? "organization:manage"
+              : pathname === "/api/providers"
+                ? "organization:read"
+                : null;
+      if (guardedPermission) {
+        const membership = await db.membership.findUnique({
+          where: { id: identity.membershipId },
+          select: {
+            organizationId: true, role: true, status: true,
+            user: { select: { status: true } },
+            organization: { select: { status: true } },
+          },
+        });
+        if (!membership || !hasOrganizationPermission({
+          organizationId: membership.organizationId,
+          role: membership.role,
+          status: membership.status,
+          userStatus: membership.user.status,
+          organizationStatus: membership.organization.status,
+        }, guardedPermission)) {
+          return NextResponse.json({ error: "Insufficient organization permission", code: "FORBIDDEN" }, { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } });
+        }
+      }
+    }
+  }
   // Cookie sessions must not be usable cross-origin for state-changing calls.
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     if (!isSameOriginMutation(request.headers, request.nextUrl.protocol)) {
@@ -65,7 +203,7 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next();
+  const response = NextResponse.next({ request: { headers: forwardedHeaders } });
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");

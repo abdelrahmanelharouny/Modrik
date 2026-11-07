@@ -24,8 +24,14 @@ function projectState(seed: MissionSeed): { status: string; currentStage: string
   }
 }
 
-export async function seedMission(seed: MissionSeed): Promise<string> {
-  const existing = await db.project.findFirst({ where: { name: seed.name }, select: { id: true } });
+export async function seedMission(
+  seed: MissionSeed,
+  identity?: { organizationId: string; userId: string },
+): Promise<string> {
+  const existing = await db.project.findFirst({
+    where: { name: seed.name, ...(identity ? { organizationId: identity.organizationId } : {}) },
+    select: { id: true },
+  });
   if (existing) return existing.id;
 
   const state = projectState(seed);
@@ -34,6 +40,7 @@ export async function seedMission(seed: MissionSeed): Promise<string> {
     data: {
       name: seed.name,
       brief: seed.brief,
+      ...(identity ? { organizationId: identity.organizationId, createdByUserId: identity.userId } : {}),
       status: state.status,
       currentStage: state.currentStage,
       stageStatus: state.stageStatus,
