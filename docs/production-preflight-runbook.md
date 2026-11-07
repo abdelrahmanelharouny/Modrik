@@ -33,7 +33,7 @@ Record in the deployment's protected operations record (never commit secrets):
 - [ ] Obtain explicit operator approval before running a single-writer migration job.
 - [ ] Verify schema fingerprint, referential integrity and critical row counts after migration.
 
-**Current known blocker:** the repository intentionally has no fabricated Prisma migration history. Existing databases may have been provisioned with `db push`; do not run `prisma migrate deploy` or production `db push` until actual database history is inventoried and reconciled. See [database migration safety](database-migrations.md).
+**Current known blocker:** the repository intentionally has no fabricated Prisma migration history. Existing databases may have been provisioned with `db push`; do not run `prisma migrate deploy` or production `db push` until actual database history is inventoried and reconciled. The current `db:migrate:deploy` guard fails closed even when its three acknowledgement variables are present: no provider-specific production migration runner is implemented yet. Treat this as a hard release blocker, not as a command that becomes safe after setting environment flags. See [database migration safety](database-migrations.md).
 
 ## 4. Staging rehearsal
 
