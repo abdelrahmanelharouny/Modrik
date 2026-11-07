@@ -34,41 +34,45 @@ export async function createOrganizationMemoryEmbeddingProvider(options = {}) {
       if (typeof text !== "string" || !text.trim() || text.length > 24_000) throw new TypeError("Embedding input text is invalid.");
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      let response;
       try {
-        response = await fetchImpl(`${config.endpoint}/embeddings`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
-          },
-          body: JSON.stringify({ model: config.model, input: text, dimensions: config.dimensions }),
-          signal: controller.signal,
-        });
-      } catch (error) {
-        if (error?.name === "AbortError") throw new Error("Embedding provider request timed out.");
-        // Fetch implementations may include endpoint details in transport errors. Never relay them.
-        throw new Error("Embedding provider request failed.");
+        let response;
+        try {
+          response = await fetchImpl(`${config.endpoint}/embeddings`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
+            },
+            body: JSON.stringify({ model: config.model, input: text, dimensions: config.dimensions }),
+            signal: controller.signal,
+          });
+        } catch (error) {
+          if (error?.name === "AbortError") throw new Error("Embedding provider request timed out.");
+          // Fetch implementations may include endpoint details in transport errors. Never relay them.
+          throw new Error("Embedding provider request failed.");
+        }
+        if (!response?.ok) {
+          const status = Number.isInteger(response?.status) ? response.status : 0;
+          throw new Error(`Embedding provider request failed with HTTP ${status}.`);
+        }
+        let payload;
+        try {
+          payload = await response.json();
+        } catch (error) {
+          if (error?.name === "AbortError") throw new Error("Embedding provider request timed out.");
+          throw new Error("Embedding provider returned invalid JSON.");
+        }
+        const vector = payload?.data?.[0]?.embedding;
+        const returnedModel = typeof payload?.model === "string" ? payload.model : config.model;
+        return validateOrganizationMemoryVector({
+          model: returnedModel,
+          dimensions: Array.isArray(vector) ? vector.length : 0,
+          vector,
+        }, { model: config.model, dimensions: config.dimensions });
       } finally {
+        // Keep the deadline active while the response body is being consumed.
         clearTimeout(timeout);
       }
-      if (!response?.ok) {
-        const status = Number.isInteger(response?.status) ? response.status : 0;
-        throw new Error(`Embedding provider request failed with HTTP ${status}.`);
-      }
-      let payload;
-      try {
-        payload = await response.json();
-      } catch {
-        throw new Error("Embedding provider returned invalid JSON.");
-      }
-      const vector = payload?.data?.[0]?.embedding;
-      const returnedModel = typeof payload?.model === "string" ? payload.model : config.model;
-      return validateOrganizationMemoryVector({
-        model: returnedModel,
-        dimensions: Array.isArray(vector) ? vector.length : 0,
-        vector,
-      }, { model: config.model, dimensions: config.dimensions });
     },
   };
 }
