@@ -591,6 +591,168 @@ try {
   const projectIndex = await json(projectIndexResponse);
   assert.ok(projectIndex.projects.some(project => project.id === projectA), "project index API must expose the seeded project");
 
+  // Exercise the actual six-stage human approval API against a disposable
+  // project. Agent outputs are seeded as fixture records; no live LLM is needed.
+  const pipelineProjectId = randomUUID();
+  projectIds.push(pipelineProjectId);
+  await prisma.project.create({
+    data: {
+      id: pipelineProjectId,
+      name: "Six-stage approval contract",
+      brief: "Disposable API integration fixture for the human approval gates.",
+      currentStage: "ELICITATION",
+      stageStatus: "awaiting_review",
+    },
+  });
+  const approvePipeline = () => fetch(`${baseUrl}/api/projects/${pipelineProjectId}/pipeline`, {
+    method: "POST", headers, body: JSON.stringify({ action: "approve" }),
+  });
+  const setPipelineReview = () => prisma.project.update({
+    where: { id: pipelineProjectId }, data: { stageStatus: "awaiting_review" },
+  });
+  const approveAndExpect = async (nextStage, label) => {
+    const response = await approvePipeline();
+    await expectStatus(response, 200, label);
+    const body = await json(response);
+    assert.equal(body.nextStage, nextStage, `${label} must advance to the expected next stage`);
+  };
+
+  const emptyElicitation = await approvePipeline();
+  await expectStatus(emptyElicitation, 422, "elicitation gate rejects empty questions");
+  assert.equal((await prisma.project.findUnique({ where: { id: pipelineProjectId } })).stageStatus, "awaiting_review",
+    "failed preflight must leave the stage available for correction");
+  await prisma.question.create({
+    data: {
+      projectId: pipelineProjectId,
+      text: "Which user group owns the approval?",
+      answer: "The operations lead owns approval.",
+      answered: true,
+      resolution: "answered",
+      answerSource: "human",
+    },
+  });
+  await approveAndExpect("PROBLEM_SELECTION", "human elicitation approval");
+
+  await setPipelineReview();
+  const emptyProblem = await approvePipeline();
+  await expectStatus(emptyProblem, 422, "problem selection gate rejects zero selected candidates");
+  await prisma.problemCandidate.create({
+    data: {
+      projectId: pipelineProjectId,
+      title: "Reduce manual approval delays",
+      description: "The approval handoff is currently manual.",
+      impact: 4,
+      effort: 2,
+      selected: true,
+      humanEdited: true,
+    },
+  });
+  await approveAndExpect("EXTRACTION", "single selected problem approval");
+
+  await setPipelineReview();
+  const emptyExtraction = await approvePipeline();
+  await expectStatus(emptyExtraction, 422, "extraction gate rejects empty requirements");
+  const pipelineEvidence = await prisma.evidence.create({
+    data: {
+      projectId: pipelineProjectId,
+      code: "E-PIPE-01",
+      title: "Operations interview",
+      sourceType: "interview",
+      language: "en",
+      content: "The operations lead must approve requests before they proceed.",
+      consent: true,
+    },
+  });
+  const pipelineRequirement = await prisma.requirement.create({
+    data: {
+      projectId: pipelineProjectId,
+      refId: "REQ-PIPE-01",
+      text: "The system shall route each request to the operations lead for approval.",
+      verifyStatus: "supported",
+      verificationSource: "human",
+      language: "en",
+    },
+  });
+  const secondPipelineRequirement = await prisma.requirement.create({
+    data: {
+      projectId: pipelineProjectId,
+      refId: "REQ-PIPE-02",
+      text: "The system shall record the approval outcome.",
+      verifyStatus: "supported",
+      verificationSource: "human",
+      language: "en",
+    },
+  });
+  await prisma.traceLink.create({
+    data: {
+      projectId: pipelineProjectId,
+      requirementId: pipelineRequirement.id,
+      evidenceId: pipelineEvidence.id,
+      evidenceCode: pipelineEvidence.code,
+      note: "Human-reviewed source link for approval-gate integration.",
+    },
+  });
+  await prisma.traceLink.create({
+    data: {
+      projectId: pipelineProjectId,
+      requirementId: secondPipelineRequirement.id,
+      evidenceId: pipelineEvidence.id,
+      evidenceCode: pipelineEvidence.code,
+      note: "Second requirement grounded in the same interview source.",
+    },
+  });
+  await approveAndExpect("AMBIGUITY", "evidence-grounded human-verified requirements approval");
+
+  await setPipelineReview();
+  await approveAndExpect("STORIES", "ambiguity stage human approval");
+
+  await setPipelineReview();
+  const emptyStories = await approvePipeline();
+  await expectStatus(emptyStories, 422, "story gate rejects an empty story set");
+  await prisma.userStory.create({
+    data: {
+      projectId: pipelineProjectId,
+      requirementId: pipelineRequirement.id,
+      refId: "US-PIPE-01",
+      title: "Approve a request",
+      narrative: "As an operations lead, I want to approve a request so that the workflow can proceed.",
+      acceptance: "Given a pending request\\nWhen the operations lead approves it\\nThen the request is marked approved",
+      investScore: 82,
+    },
+  });
+  await approveAndExpect("CONFLICTS", "reviewed user story approval");
+
+  await setPipelineReview();
+  const openConflict = await prisma.conflict.create({
+    data: {
+      projectId: pipelineProjectId,
+      reqAId: pipelineRequirement.id,
+      reqBId: secondPipelineRequirement.id,
+      description: "The requirements disagree about the approval outcome.",
+      severity: "medium",
+      status: "open",
+    },
+  });
+  const unresolved = await approvePipeline();
+  await expectStatus(unresolved, 422, "conflict gate rejects unresolved findings");
+  await prisma.conflict.update({
+    where: { id: openConflict.id },
+    data: { status: "resolved", resolution: "Use the operations lead's recorded approval outcome." },
+  });
+
+  // Two concurrent final approvals must never create two completed transitions.
+  const finalApprovals = await Promise.all([approvePipeline(), approvePipeline()]);
+  assert.deepEqual(finalApprovals.map(response => response.status).sort(), [200, 409],
+    "exactly one concurrent final approval must own the transition");
+  const finalPipelineProject = await prisma.project.findUnique({ where: { id: pipelineProjectId } });
+  assert.equal(finalPipelineProject.status, "complete");
+  assert.equal(finalPipelineProject.currentStage, "CONFLICTS");
+  assert.equal(finalPipelineProject.stageStatus, "approved");
+  const pipelineRuns = await prisma.pipelineRun.findMany({ where: { projectId: pipelineProjectId } });
+  assert.equal(pipelineRuns.length, 6, "one pipeline run must be recorded for each successful human gate");
+  assert.ok(pipelineRuns.every(run => run.status === "done"), "all six approved stage runs must be complete");
+  process.stdout.write("Pipeline approval integration: six human gates, blocked preflights, and concurrent final-approval protection passed.\\n");
+
   const browser = await chromium.launch({ headless: true });
   try {
     const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
