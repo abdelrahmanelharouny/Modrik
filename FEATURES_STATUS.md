@@ -2,7 +2,7 @@
 
 **Canonical branch:** `main`  
 **Verified main commit:** `26c31acfd8594671d226a4a99b430fe5859de9ee`  
-**Latest PR CI:** [Run 42385319616 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616) on PR #48 head `43e123028ac628a86a39eff2070ed1812fbfd7b6`; both `quality` and `postgres-schema` passed. Post-merge `main` CI must be checked separately.  
+**Latest PR CI:** [Run 42385319616 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616) on PR #48 head `43e123028ac628a86a39eff2070ed1812fbfd7b6`; both `quality` and `postgres-schema` passed. Post-merge `main` CI: [Run 42386023748 — completed successfully](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748) on main SHA `26c31acfd8594671d226a4a99b430fe5859de9ee`.  
 **Integration:** PRs #27–#46 and #48 are merged. PR #47 is a divergent Phase 4 replay and is intentionally excluded.  
 **Release status:** repository implementation is substantially complete; production is **not yet cleared** because live infrastructure, database-baseline reconciliation, staging rehearsal and external-service verification require deployment access.
 
@@ -90,7 +90,7 @@ See [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) a
 - All twenty-one canonical PRs are merged (including #48). Do not merge the old PRs #1–#26 again; their capabilities are represented in the reconciled canonical chain.
 - PR #47 is not part of the canonical chain and should not be merged wholesale.
 - Verified main SHA after #48: `26c31acfd8594671d226a4a99b430fe5859de9ee`.
-- PR #48 exact-head CI: [42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616), with both `quality` and `postgres-schema` successful. Verify the post-merge `main` push run before declaring the integrated head green.
+- PR #48 exact-head CI: [42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616), with both `quality` and `postgres-schema` successful. Post-merge `main` push CI [42386023748](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748) passed on `26c31acfd8594671d226a4a99b430fe5859de9ee`.
 
 ## Release decision
 
