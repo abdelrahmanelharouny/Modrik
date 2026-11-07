@@ -806,6 +806,52 @@ try {
     const collaborationSection = page.locator('section[dir="rtl"]').filter({ hasText: "التعاون مع أصحاب المصلحة" });
     await collaborationSection.waitFor();
     await page.getByRole("textbox", { name: "الاسم المعروض" }).waitFor();
+
+    // Promote the disposable fixture to a completed baseline, then exercise
+    // the authenticated workspace's six stage cockpits and the Debrief view.
+    await prisma.project.update({ where: { id: projectA }, data: { status: "complete" } });
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    const completedMission = page.getByRole("button", { name: "Open mission Phase 4 integration A" });
+    await completedMission.waitFor({ state: "visible" });
+    await completedMission.click();
+    await page.getByRole("heading", { name: /Instruments, Health & Integrations/ }).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    const workspaceViews = [
+      "Briefing",
+      "Route Plot",
+      "Airframe",
+      "Turbulence Scan",
+      "Payload",
+      "Clearance",
+      "Debrief",
+    ];
+    for (const view of workspaceViews) {
+      const navigationItem = page.getByRole("button", { name: new RegExp(view) });
+      await navigationItem.click();
+      await page.getByRole("heading", { name: new RegExp(view) }).waitFor();
+      assert.equal(await navigationItem.getAttribute("aria-current"), "step",
+        `${view} navigation item must expose the active step`);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+        `${view} workspace view must not overflow at 390px`);
+    }
+
+    await page.setViewportSize({ width: 768, height: 1024 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "authenticated workspace must not overflow at tablet width");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "authenticated workspace must not overflow at desktop width");
+
+    await page.getByRole("button", { name: /Toggle language/ }).click();
+    await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: /الإحاطة/ }).click();
+    await page.getByRole("heading", { name: /الإحاطة/ }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "Arabic authenticated workspace must not overflow at 390px");
+    await page.getByRole("button", { name: /الجلسة الختامية/ }).click();
+    await page.getByRole("heading", { name: /الجلسة الختامية/ }).waitFor();
     await context.close();
   } finally {
     await browser.close();
