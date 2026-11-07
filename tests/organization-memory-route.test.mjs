@@ -95,3 +95,13 @@ test("indexed shadow mode does not make a duplicate semantic provider request", 
   assert.match(source, /const streaming = indexedEnabled \? streamingBase : await runHybrid\(streamingBase\)/);
   assert.match(source, /compareOrganizationMemoryRetrievalParity\(streamingBase\.rows, indexed\.rows\)/);
 });
+
+test("semantic provider network request is completed before opening the database transaction", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  const preflight = source.indexOf("const queryEmbedding = await provider.embed(search!)");
+  const transaction = source.indexOf("const scan = rankedSearch ? await db.$transaction");
+  assert.ok(preflight >= 0, "semantic query embedding preflight must exist");
+  assert.ok(transaction >= 0, "ranked database transaction must exist");
+  assert.ok(preflight < transaction, "provider network I/O must not hold the serializable database transaction open");
+  assert.match(source, /queryEmbedding: semanticContext\.queryEmbedding/);
+});
