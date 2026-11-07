@@ -5,12 +5,13 @@ import { chromium } from "playwright";
 
 const moduleSource = await readFile(new URL("../src/lib/evidence/offline-queue.mjs", import.meta.url), "utf8");
 const server = createServer((request, response) => {
-  if (request.url === "/confirm-sync" && request.method === "POST") {
+  const requestUrl = new URL(request.url, "http://localhost");
+  if (requestUrl.pathname === "/confirm-sync" && request.method === "POST") {
     let body = "";
     request.on("data", (chunk) => { body += chunk; });
     request.on("end", () => {
       const payload = JSON.parse(body);
-      const rejected = new URL(request.url, "http://localhost").searchParams.get("fail") === "1";
+      const rejected = requestUrl.searchParams.get("fail") === "1";
       response.writeHead(rejected ? 503 : 200, { "content-type": "application/json" });
       response.end(JSON.stringify({ confirmed: !rejected, operationId: payload.operationId }));
     });
