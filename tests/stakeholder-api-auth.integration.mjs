@@ -603,6 +603,18 @@ try {
     await guestPage.getByText("البريد الإلكتروني", { exact: true }).waitFor();
     assert.equal(await guestPage.locator("main").getAttribute("dir"), "rtl", "Arabic login shell must use RTL direction");
     assert.equal(await guestPage.locator("form").getAttribute("dir"), "rtl", "Arabic login controls must use RTL direction");
+    assert.equal(await guestPage.locator("html").getAttribute("lang"), "ar", "Arabic language switch must update the document language");
+    assert.equal(await guestPage.locator("html").getAttribute("dir"), "rtl", "Arabic language switch must update document direction");
+    const loginFieldAudit = await guestPage.locator("form input, form textarea, form select").evaluateAll((fields) => fields.map((field) => {
+      const labelledBy = field.getAttribute("aria-labelledby");
+      const label = field.closest("label") || (field.id ? document.querySelector(`label[for="${CSS.escape(field.id)}"]`) : null);
+      return { type: field.getAttribute("type") || field.tagName.toLowerCase(), named: Boolean(field.getAttribute("aria-label") || labelledBy || label?.textContent?.trim()) };
+    }));
+    assert.ok(loginFieldAudit.length >= 2, "login form must expose both credential controls");
+    assert.ok(loginFieldAudit.every((field) => field.named), `every login control must have an accessible name: ${JSON.stringify(loginFieldAudit)}`);
+    assert.equal(await guestPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "Arabic login page must not introduce horizontal overflow at 390px");
+
 
     // Public invitation and recovery shells must preserve native Arabic/RTL
     // direction at the narrow mobile breakpoint, including invalid-link states.
