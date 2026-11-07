@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { createOfflineEvidenceOperation, createOfflineEvidenceMutationOperation, rebaseOfflineEvidenceUpdateOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, withOfflineEvidenceSyncLock, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
-import { getOfflineEvidenceRetryDelay, offlineEvidenceFailureRequiresReview } from "@/lib/evidence/offline-retry.mjs";
+import { getOfflineEvidenceRetryDelay, offlineEvidenceFailureRequiresReview, shouldDeferOfflineEvidenceSync } from "@/lib/evidence/offline-retry.mjs";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
@@ -252,7 +252,7 @@ export function ElicitationStage({
     // Lifecycle recovery events must not bypass a scheduled exponential backoff.
     // An explicit user retry may intentionally override the delay.
     if (offlineRetryTimerRef.current) {
-      if (!force) return;
+      if (shouldDeferOfflineEvidenceSync(true, force)) return;
       clearTimeout(offlineRetryTimerRef.current);
       offlineRetryTimerRef.current = null;
     }
