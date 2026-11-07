@@ -746,6 +746,13 @@ try {
       }
     });
     await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await page.keyboard.press("Tab");
+    assert.match(await page.evaluate(() => document.activeElement?.textContent?.trim() || ""), /Skip to main content/,
+      "keyboard users must reach the skip-navigation link first");
+    assert.notEqual(await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle), "none",
+      "skip-navigation focus must be visibly indicated");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => window.location.hash === "#main-content");
     const missionControlLanguageToggle = page.getByRole("button", { name: "Toggle language" });
     await missionControlLanguageToggle.click();
     await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
