@@ -1,4 +1,5 @@
 const PUBLIC_API_METHODS = Object.freeze({
+  "/api/health": new Set(["GET", "HEAD"]),
   "/api/auth/login": new Set(["POST"]),
   "/api/auth/invitations/accept": new Set(["POST"]),
   "/api/auth/password-reset/request": new Set(["POST"]),
