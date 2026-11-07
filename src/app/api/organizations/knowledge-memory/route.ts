@@ -132,6 +132,19 @@ export async function GET(req: NextRequest) {
         query.where, page, view === "review_queue" ? "asc" : "desc",
       );
     }
+    // Network/provider work must finish before opening the serializable DB transaction.
+    // The transaction below is reserved for tenant-scoped database retrieval only.
+    let semanticContext: { model: string; dimensions: number; queryEmbedding: Awaited<ReturnType<Awaited<ReturnType<typeof createOrganizationMemoryEmbeddingProvider>>["embed"]>> } | null = null;
+    let semanticPreflightFailed = false;
+    if (rankedSearch && process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED === "true" && projectIds.length) {
+      try {
+        const provider = await createOrganizationMemoryEmbeddingProvider();
+        const queryEmbedding = await provider.embed(search!);
+        semanticContext = { model: provider.model, dimensions: provider.dimensions, queryEmbedding };
+      } catch {
+        semanticPreflightFailed = true;
+      }
+    }
     const scan = rankedSearch ? await db.$transaction(async (tx) => {
       const indexedEnabled = process.env.ORGANIZATION_MEMORY_INDEXED_READ_ENABLED === "true";
       const shadowEnabled = process.env.ORGANIZATION_MEMORY_INDEXED_SHADOW_ENABLED === "true";
@@ -145,12 +158,15 @@ export async function GET(req: NextRequest) {
       });
       const runHybrid = async <T extends { rows: Array<{ id: string; projectId: string; status: string }> }>(lexical: T) => {
         if (process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true" || !projectIds.length) return lexical;
+        if (!semanticContext) {
+          return semanticPreflightFailed
+            ? { ...lexical, semanticFallbackReason: "semantic_unavailable_bm25_served" }
+            : lexical;
+        }
         try {
-          const provider = await createOrganizationMemoryEmbeddingProvider();
-          const queryEmbedding = await provider.embed(search!);
           const semantic = await searchTenantScopedOrganizationMemoryEmbeddings({
-            organizationId: identity.organizationId, projectIds, model: provider.model, dimensions: provider.dimensions,
-            queryEmbedding, limit: responseLimit,
+            organizationId: identity.organizationId, projectIds, model: semanticContext.model, dimensions: semanticContext.dimensions,
+            queryEmbedding: semanticContext.queryEmbedding, limit: responseLimit,
             findEmbeddings: (args) => tx.organizationMemoryEmbedding.findMany(args as Parameters<typeof tx.organizationMemoryEmbedding.findMany>[0]),
             findNodes: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
           });
