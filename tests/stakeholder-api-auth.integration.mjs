@@ -751,7 +751,26 @@ try {
   const pipelineRuns = await prisma.pipelineRun.findMany({ where: { projectId: pipelineProjectId } });
   assert.equal(pipelineRuns.length, 6, "one pipeline run must be recorded for each successful human gate");
   assert.ok(pipelineRuns.every(run => run.status === "done"), "all six approved stage runs must be complete");
-  process.stdout.write("Pipeline approval integration: six human gates, blocked preflights, and concurrent final-approval protection passed.\\n");
+
+  // Reopening a completed baseline is also a compare-and-swap operation:
+  // two tabs racing to reopen must not both claim the lifecycle transition.
+  const reopenUrl = `${baseUrl}/api/projects/${pipelineProjectId}/pipeline`;
+  const reopen = () => fetch(reopenUrl, {
+    method: "POST", headers, body: JSON.stringify({ action: "reopen" }),
+  });
+  const reopenRace = await Promise.all([reopen(), reopen()]);
+  assert.deepEqual(reopenRace.map(response => response.status).sort(), [200, 409],
+    "exactly one concurrent reopen must own the completed-baseline transition");
+  const reopenedProject = await prisma.project.findUnique({ where: { id: pipelineProjectId } });
+  assert.equal(reopenedProject.status, "active");
+  assert.equal(reopenedProject.currentStage, "CONFLICTS", "reopen must preserve the approved stage position");
+  assert.equal(reopenedProject.stageStatus, "awaiting_input");
+  const duplicateReopen = await reopen();
+  await expectStatus(duplicateReopen, 409, "an already reopened baseline cannot be reopened again");
+  const runsAfterReopen = await prisma.pipelineRun.findMany({ where: { projectId: pipelineProjectId } });
+  assert.equal(runsAfterReopen.length, 6, "reopening must not fabricate an agent or approval run");
+
+  process.stdout.write("Pipeline approval integration: six human gates, blocked preflights, concurrent final-approval and reopen protection passed.\\n");
 
   const browser = await chromium.launch({ headless: true });
   try {
