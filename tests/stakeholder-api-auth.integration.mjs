@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
 import { createHash, randomUUID, scryptSync } from "node:crypto";
 import { writeFile } from "node:fs/promises";
@@ -12,6 +13,71 @@ const bootstrapSalt = Buffer.alloc(16, 7);
 process.env.MODRIK_ADMIN_PASSWORD_HASH = "$scrypt$16384$8$1$" + bootstrapSalt.toString("hex") + "$" + scryptSync("Integration-Owner-Password-42!", bootstrapSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex");
 const port = Number(process.env.MODRIK_E2E_PORT || 3187);
 const baseUrl = `http://127.0.0.1:${port}`;
+
+function mockAgentCompletion(prompt) {
+  if (prompt.includes("A requirements project just completed.")) {
+    return { glossary: [{ term: "Approval owner", definition: "The person accountable for a workflow decision." }], lessons: [{ term: "Retain provenance", detail: "Keep every approved requirement linked to its source evidence." }] };
+  }
+  if (prompt.includes("You are the VERIFIER in a propose-verify requirements pipeline.")) {
+    return { verdicts: Array.from({ length: 8 }, (_, i) => ({ refId: `REQ-${String(i + 1).padStart(2, "0")}`, verdict: "supported", note: "Directly supported by the cited interview evidence." })) };
+  }
+  if (prompt.includes("TASK: Generate") && prompt.includes("candidate clarifying questions")) {
+    return { questions: Array.from({ length: 12 }, (_, i) => ({ text: `Which operational constraint ${i + 1} must the approval workflow respect?`, rationale: "Clarifies a downstream implementation constraint.", priority: i < 3 ? "high" : "medium", askCost: 2, fallbackAssumption: "Assume the operations lead owns this decision.", language: "en" })) };
+  }
+  if (prompt.includes("CANDIDATE QUESTIONS TO SCORE:")) {
+    return { scores: Array.from({ length: 12 }, (_, i) => ({ index: i + 1, infoGain: 4, impact: 4, uncertainty: 4, risk: 3 })) };
+  }
+  if (prompt.includes("QUESTION SET UNDER EVALUATION:")) {
+    return { evidenceCoverage: 90, redundancyRate: 5, dialectFit: 100 };
+  }
+  if (prompt.includes("TASK: Propose 3-4 candidate problem statements")) {
+    return { candidates: [
+      { title: "Slow manual approvals", description: "Requests wait for manual routing and ownership confirmation.", evidenceCodes: ["E-AGENT-01"], suggestedImpact: 4, suggestedEffort: 2 },
+      { title: "Missing approval history", description: "Teams cannot consistently inspect previous decisions.", evidenceCodes: ["E-AGENT-01"], suggestedImpact: 3, suggestedEffort: 2 },
+      { title: "Unclear request ownership", description: "Requests can arrive without an accountable owner.", evidenceCodes: ["E-AGENT-01"], suggestedImpact: 4, suggestedEffort: 3 },
+    ] };
+  }
+  if (prompt.includes("TASK: Extract 8-12 atomic requirements")) {
+    return { requirements: Array.from({ length: 8 }, (_, i) => ({
+      text: `The system shall record approval decision ${i + 1} with its responsible operations lead.`,
+      type: "functional", priority: i < 5 ? "Must" : "Should", evidenceCodes: ["E-AGENT-01"], confidence: 92, language: "en",
+    })) };
+  }
+  if (prompt.includes("TASK: Score each requirement for ambiguity")) {
+    return { assessments: Array.from({ length: 8 }, (_, i) => ({ refId: `REQ-${String(i + 1).padStart(2, "0")}`, score: 12, issues: "No material ambiguity detected.", suggestion: "" })) };
+  }
+  if (prompt.includes("TASK: Write one user story per requirement")) {
+    return { stories: Array.from({ length: 8 }, (_, i) => ({
+      refId: `REQ-${String(i + 1).padStart(2, "0")}`, title: `Record approval decision ${i + 1}`,
+      narrative: "As an operations lead, I want the approval decision recorded so that the team can audit the workflow.",
+      acceptance: ["Given a pending request when the operations lead approves it then the decision is recorded."],
+      investScore: 88, investNote: "Independent, testable and valuable.",
+    })) };
+  }
+  if (prompt.includes("TASK: Cross-check all requirement pairs")) return { conflicts: [] };
+  throw new Error(`Unexpected mock LLM prompt: ${prompt.slice(0, 240)}`);
+}
+
+const mockProvider = createServer(async (request, response) => {
+  let raw = "";
+  for await (const chunk of request) raw += chunk;
+  try {
+    const payload = JSON.parse(raw);
+    const prompt = (payload.messages ?? []).map(message => String(message.content ?? "")).join("\\n");
+    const content = JSON.stringify(mockAgentCompletion(prompt));
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ choices: [{ message: { content } }] }));
+  } catch (error) {
+    response.writeHead(500, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+  }
+});
+await new Promise((resolve, reject) => {
+  mockProvider.once("error", reject);
+  mockProvider.listen(0, "127.0.0.1", resolve);
+});
+const mockProviderPort = mockProvider.address().port;
+
 const childEnv = {
   ...process.env,
   PORT: String(port),
@@ -19,6 +85,9 @@ const childEnv = {
   APP_URL: "https://modrik.example.invalid",
   UPSTASH_REDIS_REST_URL: "https://upstash-ci.invalid",
   UPSTASH_REDIS_REST_TOKEN: "ci-only-mock-token",
+  RP_LLM_PROVIDER: "local",
+  RP_LOCAL_BASE_URL: `http://127.0.0.1:${mockProviderPort}/v1`,
+  RP_LOCAL_MODEL: "modrik-ci-agent-fixture",
   NODE_OPTIONS: [process.env.NODE_OPTIONS, "--import=./tests/support/mock-upstash-rest.mjs"].filter(Boolean).join(" "),
 };
 const child = spawn(process.execPath, [".next/standalone/server.js"], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
