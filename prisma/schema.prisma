@@ -31,6 +31,8 @@ model User {
   memberships     Membership[]
   sessions        AuthSession[]
   projectsCreated Project[]    @relation("ProjectCreator")
+  invitationsSent OrganizationInvitation[] @relation("InvitationSender")
+  invitationsReceived OrganizationInvitation[] @relation("InvitationRecipient")
 
   @@index([status, createdAt])
 }
@@ -44,6 +46,7 @@ model Organization {
   updatedAt   DateTime     @updatedAt
   memberships Membership[]
   projects    Project[]
+  invitations OrganizationInvitation[]
 
   @@index([status, createdAt])
 }
@@ -751,4 +754,29 @@ model SyncMap {
   syncedAt        DateTime @default(now())
   idempotencyKey  String?  @unique // stable key for best-effort duplicate recovery on tracker retries
   leaseExpiresAt  DateTime? // temporary claim while an external issue is being created
+}
+
+
+// Organization invitations are bearer-token workflows. Only a SHA-256 hash
+// of the 256-bit random token is persisted; the raw token is shown once.
+model OrganizationInvitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  invitedByUserId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation("InvitationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy      User         @relation("InvitationSender", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  email          String
+  role           String       // owner is never assignable through an invitation
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, email, acceptedAt, revokedAt])
+  @@index([userId, organizationId])
+  @@index([expiresAt, acceptedAt, revokedAt])
 }

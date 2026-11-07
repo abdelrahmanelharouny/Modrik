@@ -28,6 +28,17 @@ export function isAuthConfigured(env = process.env) {
   );
 }
 
+export async function hashPassword(password) {
+  if (typeof password !== "string" || password.length < 12 || password.length > 1024) {
+    throw new TypeError("Password must contain between 12 and 1024 characters");
+  }
+  const salt = randomBytes(16);
+  const key = await scrypt(password, salt, 32, {
+    N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024,
+  });
+  return "$scrypt$16384$8$1$" + salt.toString("hex") + "$" + key.toString("hex");
+}
+
 export async function verifyPasswordHash(password, passwordHash) {
   const match = /^\$scrypt\$(\d+)\$(\d+)\$(\d+)\$([a-f0-9]{32,128})\$([a-f0-9]{64,128})$/i.exec(
     typeof passwordHash === "string" ? passwordHash : ""

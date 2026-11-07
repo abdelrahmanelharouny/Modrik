@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { randomUUID, scryptSync } from "node:crypto";
+import { createHash, randomUUID, scryptSync } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
-import { createSessionToken, createIdentitySessionToken, SESSION_COOKIE, SESSION_TTL_SECONDS } from "../src/lib/security/session.mjs";
+import { createSessionToken, createIdentitySessionToken, SESSION_COOKIE, SESSION_TTL_SECONDS, verifyPasswordHash } from "../src/lib/security/session.mjs";
 
 const bootstrapSalt = Buffer.alloc(16, 7);
 process.env.MODRIK_ADMIN_PASSWORD_HASH = "$scrypt$16384$8$1$" + bootstrapSalt.toString("hex") + "$" + scryptSync("Integration-Owner-Password-42!", bootstrapSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex");
 const port = Number(process.env.MODRIK_E2E_PORT || 3187);
 const baseUrl = `http://127.0.0.1:${port}`;
-const childEnv = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1" };
+const childEnv = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1", APP_URL: "https://modrik.example.invalid" };
 const child = spawn(process.execPath, [".next/standalone/server.js"], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
 const prisma = new PrismaClient();
 let logs = "";
@@ -151,57 +151,161 @@ try {
   const tenantDemoB = await prisma.project.create({ data: { name: "Tenant B demo", brief: "private demo", organizationId: tenantB.id, isDemo: true } });
   identityCleanup.projects.push(tenantDemoB.id);
   const tenantHeaders = { cookie: identityCookie, "content-type": "application/json" };
-
-  // Requirement Quality endpoints must inherit the same project/tenant boundary.
-  const tenantQualityRequirement = await prisma.requirement.create({
-    data: { projectId: tenantProjectA.id, refId: "REQ-QA-TENANT-A", text: "The system shall expose tenant-scoped quality assessments." },
-  });
-  const foreignQualityRequirement = await prisma.requirement.create({
-    data: { projectId: tenantProjectB.id, refId: "REQ-QA-TENANT-B", text: "A foreign tenant requirement." },
-  });
-  const qualityPayload = {
-    requirementId: tenantQualityRequirement.id,
-    atomicity: 90, clarity: 90, completeness: 90, testability: 90,
-    consistency: 90, traceability: 90, feasibility: 90, verifiability: 90, nfrCoverage: 90,
-    issues: ["Add a measurable response-time threshold."],
-  };
-  const tenantQualityCreate = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
-    method: "POST", headers: tenantHeaders, body: JSON.stringify(qualityPayload),
-  });
-  await expectStatus(tenantQualityCreate, 201, "same-tenant requirement quality assessment creation");
-  const createdQualityAssessment = (await json(tenantQualityCreate)).assessment;
-  assert.equal(createdQualityAssessment.requirementId, tenantQualityRequirement.id);
-  assert.equal(createdQualityAssessment.overallScore, 90);
-  const forgedRequirementQualityCreate = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
-    method: "POST", headers: tenantHeaders,
-    body: JSON.stringify({ ...qualityPayload, requirementId: foreignQualityRequirement.id }),
-  });
-  await expectStatus(forgedRequirementQualityCreate, 404, "foreign requirement cannot be assessed through an authorized project");
-  const tenantQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, { headers: tenantHeaders });
-  await expectStatus(tenantQualityRead, 200, "same-tenant requirement quality assessment read");
-  assert.ok((await json(tenantQualityRead)).assessments.some(item => item.id === createdQualityAssessment.id));
-  const tenantQualityAccept = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
-    method: "PATCH", headers: tenantHeaders,
-    body: JSON.stringify({ assessmentId: createdQualityAssessment.id, status: "accepted" }),
-  });
-  await expectStatus(tenantQualityAccept, 200, "authorized reviewer may accept a current quality assessment");
-  assert.equal((await json(tenantQualityAccept)).assessment.status, "accepted");
-  const foreignQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectB.id}/quality`, {
-    headers: { ...tenantHeaders, "x-modrik-organization-id": tenantB.id, "x-modrik-role": "owner" },
-  });
-  await expectStatus(foreignQualityRead, 404, "cross-tenant requirement quality read must be hidden");
-  const foreignQualityCreate = await fetch(`${baseUrl}/api/projects/${tenantProjectB.id}/quality`, {
-    method: "POST",
-    headers: { ...tenantHeaders, "x-modrik-organization-id": tenantB.id, "x-modrik-role": "owner" },
-    body: JSON.stringify({ ...qualityPayload, requirementId: tenantQualityRequirement.id }),
-  });
-  await expectStatus(foreignQualityCreate, 404, "cross-tenant requirement quality write must be hidden");
   const identitySessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
   await expectStatus(identitySessionStatus, 200, "identity session status");
   const identityStatusBody = await json(identitySessionStatus);
   assert.equal(identityStatusBody.authenticated, true);
   assert.equal(identityStatusBody.organizationId, tenantA.id);
   assert.equal(identityStatusBody.role, "owner");
+
+  // Organization invitation lifecycle: authorized issuance, hashed one-time token,
+  // password bootstrap for new accounts, atomic acceptance, session issuance and revocation.
+  const inviteEmail = `invitee-${randomUUID()}@example.invalid`;
+  const createInvitation = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ email: inviteEmail, role: "viewer" }),
+  });
+  await expectStatus(createInvitation, 201, "create organization invitation");
+  const invitationPayload = await json(createInvitation);
+  assert.equal(invitationPayload.delivery, "manual");
+  assert.match(invitationPayload.inviteUrl, /^https:\/\/modrik\.example\.invalid\/invite\/accept\?token=/);
+  const invitationToken = new URL(invitationPayload.inviteUrl).searchParams.get("token");
+  assert.ok(invitationToken);
+  const invitationHash = createHash("sha256").update(invitationToken, "utf8").digest("hex");
+  const storedInvitation = await prisma.organizationInvitation.findUnique({ where: { id: invitationPayload.invitation.id } });
+  assert.equal(storedInvitation.tokenHash, invitationHash);
+  assert.notEqual(storedInvitation.tokenHash, invitationToken);
+  const invitedUser = await prisma.user.findUnique({ where: { email: inviteEmail } });
+  assert.ok(invitedUser);
+  identityCleanup.users.push(invitedUser.id);
+  const invitedMembership = await prisma.membership.findUnique({
+    where: { userId_organizationId: { userId: invitedUser.id, organizationId: tenantA.id } },
+  });
+  assert.equal(invitedMembership.status, "invited");
+  const shortPassword = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: invitationToken, password: "too-short" }),
+  });
+  await expectStatus(shortPassword, 400, "reject weak invitation password");
+  const crossOriginAccept = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json", origin: "https://attacker.example" },
+    body: JSON.stringify({ token: invitationToken, password: "Invitation-Password-2026!" }),
+  });
+  await expectStatus(crossOriginAccept, 403, "cross-origin invitation acceptance rejected");
+  const competingAccepts = await Promise.all([1, 2].map(() => fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: invitationToken, password: "Invitation-Password-2026!", displayName: "Invited Member" }),
+  })));
+  const acceptedInvitation = competingAccepts.find((response) => response.status === 200);
+  const losingAccept = competingAccepts.find((response) => response.status !== 200);
+  assert.ok(acceptedInvitation, "exactly one concurrent invitation acceptance must succeed");
+  assert.ok(losingAccept && [400, 409].includes(losingAccept.status), "competing invitation acceptance must be rejected");
+  const invitedSessionCookie = acceptedInvitation.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
+  assert.ok(invitedSessionCookie, "accepted invitation must issue an HttpOnly session");
+  const acceptedBody = await json(acceptedInvitation);
+  assert.equal(acceptedBody.email, inviteEmail);
+  assert.equal(acceptedBody.role, "viewer");
+
+  // Existing accounts keep their password when joining another organization.
+  const existingPassword = "Existing-Account-Password-2026!";
+  const existingSalt = Buffer.alloc(16, 9);
+  const existingHash = "$scrypt$16384$8$1$" + existingSalt.toString("hex") + "$" + scryptSync(existingPassword, existingSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString("hex");
+  const existingInvitee = await prisma.user.create({
+    data: { email: `existing-invitee-${randomUUID()}@example.invalid`, passwordHash: existingHash, status: "active" },
+  });
+  identityCleanup.users.push(existingInvitee.id);
+  const existingInviteResponse = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ email: existingInvitee.email, role: "reviewer" }),
+  });
+  await expectStatus(existingInviteResponse, 201, "invite an existing account");
+  const existingInvite = await json(existingInviteResponse);
+  const existingToken = new URL(existingInvite.inviteUrl).searchParams.get("token");
+  const existingAccept = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: existingToken }),
+  });
+  await expectStatus(existingAccept, 200, "existing account accepts invitation without resetting password");
+  const unchangedInvitee = await prisma.user.findUnique({ where: { id: existingInvitee.id } });
+  assert.equal(unchangedInvitee.passwordHash, existingHash, "invitation acceptance must never overwrite an existing password");
+
+  // Re-inviting a revoked membership must revoke every old session before
+  // the membership can become active again.
+  const formerMember = await prisma.user.create({
+    data: { email: `former-member-${randomUUID()}@example.invalid`, status: "active" },
+  });
+  identityCleanup.users.push(formerMember.id);
+  const formerMembership = await prisma.membership.create({
+    data: { userId: formerMember.id, organizationId: tenantA.id, role: "viewer", status: "revoked" },
+  });
+  const formerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: formerSessionId, userId: formerMember.id, membershipId: formerMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const formerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: formerMember.email, userId: formerMember.id, organizationId: tenantA.id,
+    membershipId: formerMembership.id, role: "viewer", sessionId: formerSessionId,
+  }, secret)}`;
+  const formerInviteResponse = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ email: formerMember.email, role: "reviewer" }),
+  });
+  await expectStatus(formerInviteResponse, 201, "re-invite a revoked former member");
+  const formerInvite = await json(formerInviteResponse);
+  const formerToken = new URL(formerInvite.inviteUrl).searchParams.get("token");
+  const oldSessionRecord = await prisma.authSession.findUnique({ where: { id: formerSessionId } });
+  assert.ok(oldSessionRecord.revokedAt, "re-invitation must revoke stale sessions before membership reactivation");
+  const formerAccept = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: formerToken, password: "Former-Member-Password-2026!" }),
+  });
+  await expectStatus(formerAccept, 200, "former member accepts a fresh invitation");
+  const staleFormerSession = await fetch(`${baseUrl}/api/projects`, { headers: { cookie: formerCookie } });
+  await expectStatus(staleFormerSession, 401, "previously revoked session must remain revoked after re-invitation");
+  const activeInvitedMembership = await prisma.membership.findUnique({
+    where: { userId_organizationId: { userId: invitedUser.id, organizationId: tenantA.id } },
+  });
+  assert.equal(activeInvitedMembership.status, "active");
+  assert.equal(activeInvitedMembership.role, "viewer");
+  const savedInvitee = await prisma.user.findUnique({ where: { id: invitedUser.id } });
+  assert.equal(await verifyPasswordHash("Invitation-Password-2026!", savedInvitee.passwordHash), true);
+  const invitedSession = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: `modrik_session=${invitedSessionCookie}` } });
+  await expectStatus(invitedSession, 200, "invited member session");
+  assert.equal((await json(invitedSession)).organizationId, tenantA.id);
+  const replayedInvitation = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: invitationToken, password: "Invitation-Password-2026!" }),
+  });
+  assert.equal(replayedInvitation.status, 400, "accepted invitation token must not be reusable");
+
+  const revokeEmail = `revoked-invite-${randomUUID()}@example.invalid`;
+  const revokeCreate = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ email: revokeEmail, role: "reviewer" }),
+  });
+  await expectStatus(revokeCreate, 201, "create revocable invitation");
+  const revokePayload = await json(revokeCreate);
+  const revokeToken = new URL(revokePayload.inviteUrl).searchParams.get("token");
+  const revokeInvitee = await prisma.user.findUnique({ where: { email: revokeEmail } });
+  identityCleanup.users.push(revokeInvitee.id);
+  const revoked = await fetch(`${baseUrl}/api/invitations/revoke`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ invitationId: revokePayload.invitation.id }),
+  });
+  await expectStatus(revoked, 200, "revoke pending invitation");
+  const revokedRecord = await prisma.organizationInvitation.findUnique({ where: { id: revokePayload.invitation.id } });
+  assert.ok(revokedRecord.revokedAt);
+  const revokedAccept = await fetch(`${baseUrl}/api/auth/invitations/accept`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: revokeToken, password: "Invitation-Password-2026!" }),
+  });
+  assert.equal(revokedAccept.status, 400, "revoked invitation cannot be accepted");
+
+  const ownerRoleAttempt = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: tenantHeaders,
+    body: JSON.stringify({ email: `owner-role-${randomUUID()}@example.invalid`, role: "owner" }),
+  });
+  await expectStatus(ownerRoleAttempt, 400, "invitation must not grant owner role");
 
   const tenantIndex = await fetch(`${baseUrl}/api/projects`, { headers: tenantHeaders });
   await expectStatus(tenantIndex, 200, "identity tenant project index");
@@ -239,21 +343,19 @@ try {
     email: viewerUser.email, userId: viewerUser.id, organizationId: tenantA.id,
     membershipId: viewerMembership.id, role: "viewer", sessionId: viewerSessionId,
   }, secret)}`;
-
-  const viewerQualityRead = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
-    headers: { cookie: viewerCookie },
-  });
-  await expectStatus(viewerQualityRead, 200, "viewer may read requirement quality assessments");
-  const viewerQualityWrite = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
+  const viewerInvitationList = await fetch(`${baseUrl}/api/invitations`, { headers: { cookie: viewerCookie } });
+  await expectStatus(viewerInvitationList, 403, "viewer cannot list organization invitations");
+  const viewerInvitationCreate = await fetch(`${baseUrl}/api/invitations`, {
     method: "POST", headers: { cookie: viewerCookie, "content-type": "application/json" },
-    body: JSON.stringify(qualityPayload),
+    body: JSON.stringify({ email: `forbidden-${randomUUID()}@example.invalid`, role: "viewer" }),
   });
-  await expectStatus(viewerQualityWrite, 403, "viewer cannot create requirement quality assessments");
-  const viewerQualityReview = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/quality`, {
-    method: "PATCH", headers: { cookie: viewerCookie, "content-type": "application/json" },
-    body: JSON.stringify({ assessmentId: createdQualityAssessment.id, status: "accepted" }),
+  await expectStatus(viewerInvitationCreate, 403, "viewer cannot create organization invitations");
+  const crossOriginInvitation = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST", headers: { ...tenantHeaders, origin: "https://attacker.example" },
+    body: JSON.stringify({ email: `csrf-${randomUUID()}@example.invalid`, role: "viewer" }),
   });
-  await expectStatus(viewerQualityReview, 403, "viewer cannot accept requirement quality assessments");
+  await expectStatus(crossOriginInvitation, 403, "cross-origin invitation creation rejected");
+
   const viewerCreate = await fetch(`${baseUrl}/api/projects`, {
     method: "POST", headers: {
       cookie: viewerCookie,

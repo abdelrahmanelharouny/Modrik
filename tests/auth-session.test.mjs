@@ -6,6 +6,8 @@ import {
   isAuthConfigured,
   SESSION_TTL_SECONDS,
   verifyAdminCredentials,
+  verifyPasswordHash,
+  hashPassword,
   verifySessionToken,
 } from "../src/lib/security/session.mjs";
 
@@ -51,4 +53,16 @@ test("owner credentials use the expected bounded scrypt hash format", async () =
 test("malformed or out-of-range scrypt parameters fail without attempting password verification", async () => {
   const malformed = { ...env, MODRIK_ADMIN_PASSWORD_HASH: "$scrypt$999999$8$1$" + "11".repeat(16) + "$" + "22".repeat(32) };
   assert.equal(await verifyAdminCredentials("owner@example.com", "password", malformed), false);
+});
+
+test("new invitation passwords use the existing bounded scrypt format", async () => {
+  const password = "invitation-password-2026";
+  const hash = await hashPassword(password);
+  const parts = hash.split("$");
+  assert.deepEqual(parts.slice(1, 5), ["scrypt", "16384", "8", "1"]);
+  assert.match(parts[5], /^[a-f0-9]{32}$/);
+  assert.match(parts[6], /^[a-f0-9]{64}$/);
+  assert.equal(await verifyPasswordHash(password, hash), true);
+  assert.equal(await verifyPasswordHash("wrong-password", hash), false);
+  await assert.rejects(() => hashPassword("short"), /12 and 1024/);
 });

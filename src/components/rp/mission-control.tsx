@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { STAGES, type Stage } from "@/lib/rp";
 import { FLIGHT_PLAN, IDENTITY, INTEGRATIONS, LIBRARY_STATE, STATUS_CHIP, TELEMETRY_LABELS } from "@/lib/registry";
@@ -49,6 +50,7 @@ import {
   Library,
   Search,
   Download,
+  Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SignOutButton } from "@/components/rp/sign-out-button";
@@ -248,8 +250,10 @@ export function MissionControl({
             <a href="#fleet" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "الأسطول" : "Fleet"}</a>
             <a href="#flightplan" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "خطة الرحلة" : "Flight Plan"}</a>
             <a href="#library" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "المكتبة" : "Library"}</a>
+            <Link href="/settings/members" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-aura"><Users className="h-4 w-4" /> {ar ? "الأعضاء" : "Members"}</Link>
           </nav>
           <div className="flex items-center gap-2">
+            <Link href="/settings/members" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-2 text-xs text-muted-foreground hover:text-aura md:hidden"><Users className="h-4 w-4" /><span>Members</span></Link>
             <Chip tone="plasma" className="hidden sm:inline-flex">
               <LiveDot tone="plasma" /> {ar ? "بوابة بشرية في كل مرحلة" : "human-gated · evidence-driven"}
             </Chip>

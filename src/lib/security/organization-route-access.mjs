@@ -13,6 +13,8 @@ const ROUTE_PERMISSIONS = Object.freeze({
   }),
   "/api/self-audit": Object.freeze({ GET: "organization:manage", HEAD: "organization:manage" }),
   "/api/providers": Object.freeze({ GET: "organization:read", HEAD: "organization:read" }),
+  "/api/invitations": Object.freeze({ GET: "members:manage", HEAD: "members:manage", POST: "members:manage" }),
+  "/api/invitations/revoke": Object.freeze({ POST: "members:manage" }),
 });
 
 /**
