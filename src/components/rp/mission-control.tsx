@@ -266,14 +266,14 @@ export function MissionControl({
         </div>
       </header>
 
-      <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 lg:px-8">
+      <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-4 pb-8 lg:px-8">
         {/* ── hero ── */}
-        <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.1fr_0.9fr] lg:py-16">
+        <section className="grid items-center gap-8 py-8 lg:grid-cols-[1.15fr_0.85fr] lg:py-10">
           <Reveal>
             <Eyebrow className="mb-4 block">
               ◉ {ar ? "مركز التحكم في هندسة المتطلبات" : "REQUIREMENTS ENGINEERING · MISSION CONTROL"}
             </Eyebrow>
-            <h1 className="font-display text-4xl font-bold leading-[1.06] tracking-tight sm:text-5xl lg:text-[3.4rem]">
+            <h1 className="max-w-3xl font-display text-3xl font-bold leading-[1.12] tracking-tight sm:text-4xl lg:text-5xl">
               {ar ? IDENTITY.taglineAr : IDENTITY.tagline}
             </h1>
             <p className="mt-4 max-w-xl leading-relaxed text-muted-foreground">
@@ -338,13 +338,13 @@ export function MissionControl({
 
           {/* radar + telemetry */}
           <Reveal delay={0.12}>
-            <HudPanel glow className="p-6" as="div">
+            <HudPanel className="p-5 sm:p-6" as="div">
               <div className="mb-3 flex items-center justify-between">
                 <Eyebrow>◉ {ar ? "رادار الأسطول — مباشر" : "FLEET RADAR — LIVE"}</Eyebrow>
                 <LiveDot tone="verify" />
               </div>
               <div className="flex justify-center">
-                <RadarSweep size={286} blips={blips} />
+                <RadarSweep size={232} blips={blips} />
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border/70 pt-4 sm:grid-cols-4">
                 {heroStats.length === 0 &&
@@ -367,50 +367,6 @@ export function MissionControl({
               </div>
             </HudPanel>
           </Reveal>
-        </section>
-
-        {/* ── flight plan ── */}
-        <section id="flightplan" className="scroll-mt-20 py-10">
-          <Reveal>
-            <SectionHead
-              icon={Route}
-              title={ar ? "خطة الرحلة — من الضباب إلى الإقلاع" : "The Flight Plan — fog to flight-ready"}
-              blurb={
-                ar
-                  ? "سبع مراحل، كل منها وكيل ذكي وبوابة موافقة بشرية — أنت تقرر متى ننتقل."
-                  : "Seven phases, each an agentic stage closed by a human gate you control. Nothing advances without you."
-              }
-            />
-          </Reveal>
-          <div className="relative mt-2">
-            <svg className="absolute inset-x-0 top-5 hidden h-2 w-full lg:block" aria-hidden preserveAspectRatio="none" viewBox="0 0 100 2">
-              <line x1="0" y1="1" x2="100" y2="1" stroke="rgba(44,232,200,0.35)" strokeWidth="1.5" strokeDasharray="4 4" className="animate-dash-flow" vectorEffect="non-scaling-stroke" />
-            </svg>
-            <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
-              {FLIGHT_PLAN.map((ph, i) => {
-                const Icon = ICONS[ph.icon] ?? Telescope;
-                return (
-                  <Reveal key={ph.code} delay={i * 0.06} className="min-w-0">
-                    <li className="relative h-full min-w-0">
-                      <div className="mb-3 hidden justify-center lg:flex">
-                        <span className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border border-aura/40 bg-background">
-                          <Icon className="h-4 w-4 text-aura" />
-                        </span>
-                      </div>
-                      <HudPanel className={i === FLIGHT_PLAN.length - 1 ? "h-full border-plasma/30 p-4" : "h-full p-4"} as="div">
-                        <div className="flex items-center justify-between lg:block">
-                          <span className="font-mono text-[10px] tracking-widest text-muted-foreground">{ph.num}</span>
-                          <Icon className="h-4 w-4 text-aura lg:hidden" />
-                        </div>
-                        <h3 className="mt-1.5 font-display text-sm font-bold tracking-tight">{ar ? ph.titleAr : ph.title}</h3>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{ar ? ph.callsign : ph.callsign}</p>
-                      </HudPanel>
-                    </li>
-                  </Reveal>
-                );
-              })}
-            </ol>
-          </div>
         </section>
 
         {/* ── fleet ── */}
@@ -469,18 +425,17 @@ export function MissionControl({
                 const chipTone = p.status === "complete" ? "verify" : "aura";
                 return (
                   <Reveal key={p.id} delay={Math.min(i, 5) * 0.05} className="min-w-0">
-                    <li
-                      className="group relative min-w-0 cursor-pointer"
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Open mission ${p.name}`}
-                      onClick={() => onOpen(p.id)}
-                      onKeyDown={(e) => e.key === "Enter" && onOpen(p.id)}
-                    >
+                    <li className="group relative min-w-0">
                       <HudPanel
                         className="h-full p-5 transition-all duration-300 group-hover:-translate-y-1 group-hover:border-aura/40 group-hover:hud-glow"
                         as="div"
                       >
+                        <button
+                          type="button"
+                          className="absolute inset-0 z-10 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          aria-label={ar ? `افتح المهمة ${p.name}` : `Open mission ${p.name}`}
+                          onClick={() => void onOpen(p.id)}
+                        />
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -494,7 +449,7 @@ export function MissionControl({
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Mission menu">
+                              <Button variant="ghost" size="icon" className="relative z-20 h-7 w-7 shrink-0" aria-label={ar ? "قائمة المهمة" : "Mission menu"}>
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -546,6 +501,52 @@ export function MissionControl({
           )}
         </section>
 
+        
+
+        {/* ── flight plan ── */}
+        <section id="flightplan" className="scroll-mt-20 py-10">
+          <Reveal>
+            <SectionHead
+              icon={Route}
+              title={ar ? "خطة الرحلة — من الضباب إلى الإقلاع" : "The Flight Plan — fog to flight-ready"}
+              blurb={
+                ar
+                  ? "سبع مراحل، كل منها وكيل ذكي وبوابة موافقة بشرية — أنت تقرر متى ننتقل."
+                  : "Seven phases, each an agentic stage closed by a human gate you control. Nothing advances without you."
+              }
+            />
+          </Reveal>
+          <div className="relative mt-2">
+            <svg className="absolute inset-x-0 top-5 hidden h-2 w-full lg:block" aria-hidden preserveAspectRatio="none" viewBox="0 0 100 2">
+              <line x1="0" y1="1" x2="100" y2="1" stroke="rgba(44,232,200,0.35)" strokeWidth="1.5" strokeDasharray="4 4" className="animate-dash-flow" vectorEffect="non-scaling-stroke" />
+            </svg>
+            <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+              {FLIGHT_PLAN.map((ph, i) => {
+                const Icon = ICONS[ph.icon] ?? Telescope;
+                return (
+                  <Reveal key={ph.code} delay={i * 0.06} className="min-w-0">
+                    <li className="relative h-full min-w-0">
+                      <div className="mb-3 hidden justify-center lg:flex">
+                        <span className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border border-aura/40 bg-background">
+                          <Icon className="h-4 w-4 text-aura" />
+                        </span>
+                      </div>
+                      <HudPanel className={i === FLIGHT_PLAN.length - 1 ? "h-full border-plasma/30 p-4" : "h-full p-4"} as="div">
+                        <div className="flex items-center justify-between lg:block">
+                          <span className="font-mono text-[10px] tracking-widest text-muted-foreground">{ph.num}</span>
+                          <Icon className="h-4 w-4 text-aura lg:hidden" />
+                        </div>
+                        <h3 className="mt-1.5 font-display text-sm font-bold tracking-tight">{ar ? ph.titleAr : ph.title}</h3>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{ar ? ph.callsign : ph.callsign}</p>
+                      </HudPanel>
+                    </li>
+                  </Reveal>
+                );
+              })}
+            </ol>
+          </div>
+        </section>
+
         {/* ── mission library ── */}
         <section id="library" className="scroll-mt-20 py-10">
           <Reveal>
@@ -568,13 +569,13 @@ export function MissionControl({
           </Reveal>
 
           <Reveal delay={0.05}>
-            <div className="relative mb-4 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <div className="relative mb-4 w-full max-w-md">
+              <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input
                 value={libFilter}
                 onChange={(e) => setLibFilter(e.target.value)}
                 placeholder={ar ? "ابحث بالاسم أو المجال…" : "Search by name or domain…"}
-                className="pl-9"
+                className="ps-9"
                 aria-label={ar ? "بحث في المكتبة" : "Search library"}
               />
             </div>

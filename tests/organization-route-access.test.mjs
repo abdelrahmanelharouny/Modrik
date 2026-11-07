@@ -29,19 +29,17 @@ test("every non-project API handler has an explicit organization permission or e
   const unclassified = [];
   for (const file of collectRouteFiles(apiRoot)) {
     const routePath = file.split(path.sep).slice(0, -1).map((part) => part.replace(/^\[(.*)\]$/, ":$1")).join("/");
-    const pathname = routePath ? `/api/${routePath}` : "/api";
+    const pathname = routePath ? "/api/" + routePath : "/api";
     if (pathname.startsWith("/api/projects/") || pathname === "/api/projects") continue;
     const source = fs.readFileSync(path.join(apiRoot, file), "utf8");
     const methods = methodsIn(source);
-    assert.ok(methods.length > 0, `${pathname} must export an HTTP method`);
+    assert.ok(methods.length > 0, pathname + " must export an HTTP method");
     for (const method of methods) {
       if (isPublicApiRequest(pathname, method)) continue;
-      if (!resolveOrganizationRoutePermission(pathname, method)) {
-        unclassified.push(`${method} ${pathname}`);
-      }
+      if (!resolveOrganizationRoutePermission(pathname, method)) unclassified.push(method + " " + pathname);
     }
   }
-  assert.deepEqual(unclassified, [], `Unclassified API handlers: ${unclassified.join(", ")}`);
+  assert.deepEqual(unclassified, [], "Unclassified API handlers: " + unclassified.join(", "));
 });
 
 test("sensitive non-project routes require the intended least-privilege role permission", () => {
@@ -49,9 +47,15 @@ test("sensitive non-project routes require the intended least-privilege role per
   assert.equal(resolveOrganizationRoutePermission("/api/telemetry", "GET"), "audit:read");
   assert.equal(resolveOrganizationRoutePermission("/api/study", "POST"), "organization:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/providers", "GET"), "organization:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/:provider/callback", "GET"), "projects:update");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "GET"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "POST"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations/revoke", "POST"), "members:manage");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "GET"), "organization:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "PATCH"), "organization:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/audit", "GET"), "audit:read");
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/audit", "POST"), null);
+  assert.equal(resolveOrganizationRoutePermission("/api/organizations/knowledge-memory", "POST"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/transcribe", "GET"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/unclassified", "POST"), null);
 });
@@ -66,4 +70,12 @@ test("public API exemptions are restricted to the intended HTTP methods", async 
   assert.equal(isPublicApiRequest("/api/auth/session", "POST"), false);
   assert.equal(isPublicApiRequest("/api/study/respond", "GET"), true);
   assert.equal(isPublicApiRequest("/api/study/respond", "PATCH"), false);
+});
+
+test("organization audit route rejects incomplete tenant identity before database access", () => {
+  const source = fs.readFileSync(path.join(apiRoot, "organizations", "audit", "route.ts"), "utf8");
+  const guard = source.indexOf("hasVerifiedOrganizationMemoryIdentity(identity)");
+  const firstQuery = source.search(/db\\.organizationAuditEvent\\./);
+  assert.ok(guard >= 0, "audit route must verify organization, actor and role scope");
+  assert.ok(firstQuery < 0 || guard < firstQuery, "identity guard must run before audit database access");
 });

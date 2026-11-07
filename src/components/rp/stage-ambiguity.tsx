@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Gauge, Sparkles, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLang } from "@/lib/i18n";
 
 function ambTone(score: number): Tone {
   if (score >= 60) return "coral";
@@ -27,6 +28,8 @@ export function AmbiguityStage({
   refresh: () => Promise<void>;
 }) {
   const { toast } = useToast();
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const [filter, setFilter] = useState<"all" | "flagged">("all");
 
   const applySuggestion = async (itemId: string) => {
@@ -50,8 +53,8 @@ export function AmbiguityStage({
   if (assessed.length === 0) {
     return (
       <HudPanel className="p-6">
-        <SectionHead icon={Gauge} title="Turbulence scan" blurb="Ambiguity density per requirement." />
-        <EmptyBay>Run the Ambiguity Agent to score every requirement and flag weak, untestable wording.</EmptyBay>
+        <SectionHead icon={Gauge} title={ar ? "فحص الغموض" : "Turbulence scan"} blurb={ar ? "مستوى الغموض في كل متطلب." : "Ambiguity density per requirement."} />
+        <EmptyBay>{ar ? "شغّل وكيل الغموض لتقييم كل متطلب وتحديد الصياغات الضعيفة أو صعبة الاختبار." : "Run the Ambiguity Agent to score every requirement and flag weak, untestable wording."}</EmptyBay>
       </HudPanel>
     );
   }
@@ -60,12 +63,12 @@ export function AmbiguityStage({
     <section className="space-y-4">
       <SectionHead
         icon={Gauge}
-        title="Turbulence scan"
-        blurb="Ambiguity 0–100 per requirement (Arabic lexicon included) — accept rewrites where the air is rough."
+        title={ar ? "فحص الغموض" : "Turbulence scan"}
+        blurb={ar ? "درجة الغموض من 0 إلى 100 لكل متطلب، مع دعم معجم عربي. راجع الصياغات البديلة عند الحاجة." : "Ambiguity 0–100 per requirement (Arabic lexicon included) — accept rewrites where the air is rough."}
         right={
           <>
-            <Chip tone={ambTone(avg)}>avg {avg}</Chip>
-            <Chip tone={flagged.length ? "signal" : "verify"}>{flagged.length} flagged</Chip>
+            <Chip tone={ambTone(avg)}>{ar ? `المتوسط ${avg}` : `avg ${avg}`}</Chip>
+            <Chip tone={flagged.length ? "signal" : "verify"}>{ar ? `${flagged.length} متطلبًا يحتاج مراجعة` : `${flagged.length} flagged`}</Chip>
             <div className="flex rounded-md border border-border p-0.5">
               <button
                 className={`rounded px-3 py-1 font-mono text-[10px] uppercase tracking-wider ${filter === "all" ? "bg-aura/15 text-aura" : "text-muted-foreground"}`}
@@ -92,11 +95,11 @@ export function AmbiguityStage({
                 {r.refId}
               </Badge>
               <span className="flex min-w-[140px] flex-1 items-center gap-2" style={{ maxWidth: 260 }}>
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">amb</span>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{ar ? "غموض" : "amb"}</span>
                 <Meter value={r.ambiguity} tone={ambTone(r.ambiguity)} className="flex-1" />
                 <span className="font-mono text-xs text-muted-foreground tabular-nums">{r.ambiguity}</span>
               </span>
-              {r.suggestion && <Chip tone="aura">rewrite available</Chip>}
+              {r.suggestion && <Chip tone="aura">{ar ? "صياغة بديلة متاحة" : "rewrite available"}</Chip>}
             </div>
 
             <p className="mt-2 text-sm leading-relaxed" dir="auto">
@@ -105,7 +108,7 @@ export function AmbiguityStage({
 
             {r.ambiguityNote && (
               <p className="mt-2 rounded-md border border-signal/25 bg-signal/5 px-3 py-1.5 text-xs text-signal" dir="auto">
-                <span className="font-mono font-semibold tracking-wider">WEAK WORDING · </span>
+                <span className="font-mono font-semibold tracking-wider">{ar ? "صياغة ضعيفة · " : "WEAK WORDING · "}</span>
                 {r.ambiguityNote}
               </p>
             )}
@@ -114,11 +117,11 @@ export function AmbiguityStage({
               <div className="mt-3 rounded-md border border-aura/30 bg-aura/5 p-3">
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-aura">
-                    <Sparkles className="h-3.5 w-3.5" /> proposed rewrite
+                    <Sparkles className="h-3.5 w-3.5" /> {ar ? "صياغة مقترحة" : "proposed rewrite"}
                   </span>
                   {isCurrent && (
                     <Button size="sm" variant="outline" onClick={() => applySuggestion(r.id)} className="border-aura/40 text-aura hover:bg-aura/10">
-                      <Check className="mr-1.5 h-3.5 w-3.5" /> Apply rewrite
+                      <Check className="mr-1.5 h-3.5 w-3.5" /> {ar ? "اعتماد الصياغة" : "Apply rewrite"}
                     </Button>
                   )}
                 </div>

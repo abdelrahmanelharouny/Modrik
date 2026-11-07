@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { oauthActivationReady } from "@/lib/security/oauth-lifecycle.mjs";
 import {
   maskedStatus,
   saveConfig,
@@ -9,6 +10,8 @@ import {
   jiraPull,
   testConnection,
   listSyncMaps,
+  saveGitHubWebhookSecret,
+  saveJiraWebhookSecret,
 } from "@/lib/integrations";
 
 type Params = { params: Promise<{ id: string }> };
@@ -16,7 +19,14 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const [status, maps] = await Promise.all([maskedStatus(id), listSyncMaps(id)]);
-  return NextResponse.json({ status, maps });
+  return NextResponse.json({
+    status,
+    maps,
+    oauthAvailable: {
+      github: oauthActivationReady("github"),
+      jira: oauthActivationReady("jira"),
+    },
+  });
 }
 
 // POST { kind, action, config? }
@@ -37,6 +47,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         for (const k of Object.keys(cfg)) cfg[k] = String(cfg[k] ?? "").slice(0, 400);
         const status = await saveConfig(id, kind, cfg);
         return NextResponse.json({ ok: true, status });
+      }
+      case "save-webhook-secret": {
+        const secret = String(body.secret ?? "");
+        if (kind === "github") await saveGitHubWebhookSecret(id, secret);
+        else await saveJiraWebhookSecret(id, secret);
+        return NextResponse.json({ ok: true, webhookConfigured: true });
       }
       case "test":
         return NextResponse.json(await testConnection(id, kind));

@@ -83,7 +83,7 @@ Finally, Modrik is deliberately **Arabic-first**. Its primary stakeholders think
 - **Not a document generator.** There is no "generate my SRS" button, by design. A baseline can only be exported after a human has passed six gates (see [D1](#19-design-decision-records--the-why-behind-every-choice)).
 - **Not autonomous.** Agents never commit decisions. The word "gate" is load-bearing: each phase ends in `awaiting_input` / `awaiting_review` states that only a human transitions (see [D2](#19-design-decision-records--the-why-behind-every-choice)).
 - **Not a chatbot.** There is no free-form chat surface. Every agent interaction is a structured payload with a schema, stored as an artifact, and rendered as a reviewable card.
-- **Not yet a public, production-ready multi-tenant SaaS.** H1 adds signed sessions, organization membership RBAC, project-level authorization, tenant-isolation checks, invitation and password-recovery flows, and shared rate limiting. Production adoption still requires a reconciled database migration baseline, live provider verification, and completion of the remaining H1 integration/research release gates.
+- **Not yet a public, production-ready multi-tenant SaaS.** H1 adds signed sessions, organization membership RBAC, project-level authorization, tenant-isolation checks, invitation and password-recovery flows, and shared rate limiting. H1 repository implementation is complete; production adoption still requires a deployed-database baseline, live provider verification, backup/restore rehearsal and deployment-specific security review.
 
 ## 3. The Flight Plan — six gates and a debrief
 
@@ -230,7 +230,7 @@ Each seeded mission carries the full artifact set: 2–3 bilingual evidence arti
 |-------|--------|----------------------------------|
 | Framework | **Next.js 16 (App Router)** | One artifact for UI + API routes simplifies deployment to a single Vercel project; route handlers give the audit suite clean, curl-able HTTP contracts; server components keep the shell fast while the cockpit is fully interactive. |
 | Language | **TypeScript, strict** | The domain is full of discriminated unions (stage codes, statuses, conflict kinds, edge kinds). A `Stage` union type + registry vocabulary objects make invalid states unrepresentable at the UI boundary. |
-| Data | **Prisma 6** over **SQLite (dev) / PostgreSQL (prod)** | Typed queries against 19 models with relations; `db push` iteration speed for research; dual-schema provider switch keeps local dev zero-config and production durable (see [D3](#19-design-decision-records--the-why-behind-every-choice)). |
+| Data | **Prisma 6** over **SQLite (dev) / PostgreSQL (prod)** | Typed queries against 38 models with relations; `db push` iteration speed for research; dual-schema provider switch keeps local dev zero-config and production durable (see [D3](#19-design-decision-records--the-why-behind-every-choice)). |
 | UI | **Tailwind CSS 4 + shadcn/ui + Radix** | The flight-deck look is token-driven (`--aura` accents, HUD panels); shadcn gives accessible primitives (dialogs, tabs, toasts) without stealing markup ownership; Radix primitives are RTL-safe — a hard requirement for §8. |
 | Motion | **Framer Motion** (Reveal wrappers, impact rings) | Used sparingly and never for data — motion marks *state transitions* (gates, impact sets), not decoration. |
 | LLM | **z-ai-web-dev-sdk (GLM, default)** behind a swappable provider interface | The provider interface (§13) keeps the strategy (retries, JSON repair, budgets) fixed and the model swappable — GLM default inside its native sandbox, any OpenAI-compatible endpoint elsewhere (see [D9](#19-design-decision-records--the-why-behind-every-choice)). |
@@ -246,7 +246,7 @@ flowchart LR
         LIB["Mission Library"]
     end
 
-    subgraph API["API surface (23 route handlers)"]
+    subgraph API["API surface (36 route handlers)"]
         TEL["/api/telemetry"]
         PRJ["/api/projects/* (stages · items · pipeline · instruments)"]
         MIS["/api/missions (library catalog + seeding)"]
@@ -288,7 +288,7 @@ flowchart LR
 
 ## 11. The data model — nineteen tables
 
-All 19 Prisma models (`prisma/schema.prisma`) — SQLite in dev, the generated `schema.postgres.prisma` in production; both are maintained from the single source of truth by `npm run db:sync:pg`.
+All 38 Prisma models (`prisma/schema.prisma`) — SQLite in dev, the generated `schema.postgres.prisma` in production; both are maintained from the single source of truth by `npm run db:sync:pg`.
 
 | Domain | Models | Notes |
 |--------|--------|-------|
@@ -316,7 +316,7 @@ Every route is a Next.js route handler (`src/app/api/**`), all dynamic (`ƒ`), a
 | `/api/telemetry` | GET | 15 live platform figures (fleet, totals, per-mechanism counters) |
 | `/api/projects` | GET, POST | Fleet list + create mission |
 | `/api/projects/[id]` | GET, PATCH, DELETE | Mission DTO (full state), stage transitions, edits |
-| `/api/projects/[id]/evidence` | GET, POST | Evidence intake (+ voice-transcript save path) |
+| `/api/projects/[id]/evidence` | GET, POST, PATCH, DELETE | Evidence intake, versioned edits and source removal with traceability invalidation |
 | `/api/projects/[id]/items` | GET, PATCH | Requirements / stories / candidates / conflicts CRUD surface for gate reviews |
 | `/api/projects/[id]/pipeline` | POST | Run a stage agent / advance the state machine |
 | `/api/projects/[id]/planner` | GET, POST | PlannerRun history; run a specific arm |
@@ -363,7 +363,7 @@ Modrik treats requirements evidence as what it is — **sensitive stakeholder da
 - **Anonymisation.** Study participants are code-named (no names in the DB); CSV exports carry only anonymised codes and event-level provenance.
 - **Server-side LLM boundary.** Evidence and requirements never transit to the browser beyond what the mission DTO needs; agent calls happen exclusively in route handlers.
 - **Air-gapped path.** The `local` provider keeps cognition on-premises for PDPL-resident deployments (§13).
-- **Known gap, stated plainly:** there is no auth/RBAC yet. Deploy Modrik behind your own gateway/SSO for team use; RBAC is a named roadmap item ([§21](#21-roadmap), [D12](#19-design-decision-records--the-why-behind-every-choice)).
+- **Current boundary:** signed identity sessions, organization/project membership RBAC, tenant-scoped route authorization, invitations, password recovery and shared rate limiting are implemented. Production use is still gated on provider verification, a reconciled database migration baseline and restore rehearsal; enterprise SSO/MFA are not implemented. See [`SECURITY.md`](./SECURITY.md) and [`FEATURES_STATUS.md`](./FEATURES_STATUS.md).
 
 ## 15. The benchmark — arbench-v2
 
@@ -398,7 +398,7 @@ Modrik's core claim — *evidence-driven HITL produces better requirements with 
 git clone https://github.com/<you>/modrik.git && cd modrik
 cp .env.example .env          # defaults are correct for local dev
 npm install                   # runs `prisma generate` for the SQLite schema
-npm run db:push               # creates db/custom.db with all 19 tables
+npm run db:push               # creates db/custom.db with all 38 models
 npm run dev                   # http://localhost:3000
 ```
 
@@ -433,75 +433,73 @@ Set `DATABASE_URL` to a Postgres URL (or keep SQLite — it works on a persisten
 
 ## 18. Deploying to Vercel
 
-Modrik is prepared end-to-end for the **GitHub → Vercel** flow. The deployment has exactly one non-obvious requirement — **the database must be PostgreSQL** (Vercel's serverless filesystem is ephemeral; SQLite files do not persist) — and the build **fails fast with fix instructions** if you forget it, instead of failing cryptically at runtime.
+Modrik can be built for Vercel, but a successful build is **not** the same as production readiness. Production deployment is gated on verified secrets, real provider connectivity, a reviewed PostgreSQL baseline, a tested backup restore, and an approved database change procedure. Do not point a live deployment at an existing database and run `prisma db push` or `prisma migrate deploy` as an informal setup step.
 
-### 18.1 The 10-minute walkthrough
+### 18.1 Required deployment sequence
 
-**Step 1 — Push to GitHub.**
+**Step 1 — Integrate the release candidate.**  
+Deploy only from the reviewed release branch after the complete PR chain has been reconciled with current `main`, exact-head CI has passed, and the post-merge candidate has its own green CI. Historical green checks on individual stacked branches do not validate the final deployment tree.
 
-```bash
-git remote add origin https://github.com/<you>/modrik.git
-git push -u origin main
-```
+**Step 2 — Provision managed PostgreSQL.**  
+Vercel's serverless filesystem is ephemeral; SQLite is for local development and CI. Provision a managed PostgreSQL database and keep separate staging and production databases. Use the provider's recommended pooled runtime URL and a direct connection URL for administrative maintenance where required.
 
-The repo ships clean: `.env`, runtime data (`db/`), deliverables and sandbox artifacts are git-ignored; `.env.example` documents every variable.
+**Step 3 — Configure every required production secret.**
 
-**Step 2 — Create the database.** Pick any managed Postgres:
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `DATABASE_URL` | **Yes** | PostgreSQL connection string |
+| `MODRIK_ADMIN_EMAIL` | **Yes** | Initial owner identity |
+| `MODRIK_ADMIN_PASSWORD_HASH` | **Yes** | Scrypt hash generated with `bun scripts/hash-admin-password.mjs` |
+| `MODRIK_AUTH_SECRET` | **Yes** | Independent random secret, at least 32 bytes |
+| `MODRIK_ENCRYPTION_KEY` | **Yes** | Independent 32-byte AES-256-GCM key |
+| `UPSTASH_REDIS_REST_URL` | **Yes** | Shared production rate limiter, HTTPS URL |
+| `UPSTASH_REDIS_REST_TOKEN` | **Yes** | Upstash REST credential |
+| `RESEND_API_KEY` | **Yes** | Password-recovery email delivery |
+| `PASSWORD_RESET_EMAIL_FROM` | **Yes** | Verified sender identity |
+| `APP_URL` | **Yes** | Canonical public HTTPS origin |
+| `RP_LLM_PROVIDER` | Recommended | Explicit provider selection |
+| `RP_MODEL_B_BASE_URL`, `RP_MODEL_B_MODEL`, `RP_MODEL_B_API_KEY` | If using model-b | OpenAI-compatible chat provider configuration |
+| `RP_GITHUB_*`, `RP_JIRA_*` | Optional | Deployment-level tracker fallbacks |
 
-| Option | How |
-|--------|-----|
-| **Vercel Postgres** (simplest) | Vercel dashboard → your project → **Storage** → Create Database (Postgres). The `DATABASE_URL` env var can be attached to the project with one click. |
-| **Neon** | Create a project → copy the pooled connection string. |
-| **Supabase** | Create a project → Settings → Database → connection string (use the pooled/6543 port for serverless). |
+Generate the two independent cryptographic keys with `openssl rand -hex 32`; never reuse the authentication secret as the encryption key. Generate the password hash interactively and do not pass a plaintext password in a shell command. Store secrets only in the deployment secret manager, never in Git or client-visible variables.
 
-**Step 3 — Import the repo on Vercel.** New Project → import `modrik` → framework **Next.js** is auto-detected; build command and output need no overrides (`npm run build` handles Prisma provider selection automatically — a Postgres `DATABASE_URL` makes it generate the Postgres client, anything else on Vercel stops the build with a 2-minute fix guide).
+**Step 4 — Run the production configuration gate.**
 
-**Step 4 — Configure environment variables** (Project → Settings → Environment Variables):
+Run `bun run security:release-check` in the target deployment environment. This validates configuration shape, not provider connectivity. Separately verify that Redis, Resend, the selected LLM provider, and any configured tracker endpoints work from the deployed runtime.
 
-| Variable | Required | Value |
-|----------|----------|-------|
-| `DATABASE_URL` | **required** | Your Postgres connection string (`postgresql://…`) |
-| `RP_LLM_PROVIDER` | recommended | `model-b` on Vercel (GLM's SDK is sandbox-native — see §13); keep unset only if you run self-hosted |
-| `RP_MODEL_B_BASE_URL` | if provider=model-b | e.g. `https://api.openai.com/v1` |
-| `RP_MODEL_B_MODEL` | if provider=model-b | e.g. `gpt-4o-mini` / `deepseek-chat` / any OpenAI-compatible model |
-| `RP_MODEL_B_API_KEY` | if provider=model-b | the endpoint's key |
-| `RP_GITHUB_TOKEN` / `RP_GITHUB_OWNER` / `RP_GITHUB_REPO` | optional | GitHub Issues sync fallbacks |
-| `RP_JIRA_BASE_URL` / `RP_JIRA_EMAIL` / `RP_JIRA_TOKEN` / `RP_JIRA_PROJECT_KEY` | optional | Jira Cloud v3 sync fallbacks |
-| `RP_PLANNER_ARM` | optional | default elicitation arm (`impact_aware`) |
+**Step 5 — Reconcile and approve the database baseline before schema changes.**
 
-**Step 5 — Create the tables (one time, from your machine).** The first deploy renders an empty-but-healthy platform; push the schema once:
+The checked-in SQLite and generated PostgreSQL schemas are parity-checked, but that does not prove equivalence with an existing deployed database. The repository currently has no approved production baseline or completed production migration runner. `bun run db:migrate:deploy` intentionally fails closed. Do not bypass this guard or use `db:push` against an existing production database.
 
-```bash
-DATABASE_URL="postgresql://…" npm run db:push:pg
-```
+Before production schema deployment:
+1. Take a provider-native backup and restore it into an isolated environment.
+2. Compare the restored database's actual schema and migration history with the current Prisma schema.
+3. Document additive/destructive changes and data-preservation behavior.
+4. Approve a provider-specific baseline and release procedure.
+5. Run the procedure against staging, verify application workflows, and rehearse rollback.
 
-(Prisma prefers the inline env over `.env`, so the command above targets your production DB while `.env` still points at SQLite. Re-run this after any schema change; `db:push` diffs non-interactively and is safe for additive changes.)
+A disposable empty staging database may be used for schema validation; it is not evidence that an existing production database is safe to mutate.
 
-**Step 6 — Deploy, then seed the showcase.** Deploy (or push to trigger it). On first visit the platform is live with **zero missions** — that is the dynamicity rule being honest. Populate in one of two ways:
+**Step 6 — Deploy to staging and run smoke tests.**
 
-- In the UI: **Mission Library → Load** on any card (seeds real DB rows via the idempotent seeder), or **Load demo mission**.
-- Via API (several missions at once): `curl -X POST https://<your-app>/api/missions -H 'content-type: application/json' -d '{"missionId":"tuktuk-fleet"}'` — repeat per mission id, or script the loop over the 13 catalog ids.
+Verify HTTPS and secure cookies, owner bootstrap, login/logout, password recovery, invitations, role permissions, cross-organization isolation, project creation, the six pipeline gates, evidence revisions, knowledge governance, reverse trace review, tracker integrations, audit export, and offline evidence synchronization. Confirm that unauthenticated protected APIs return `401`, missing auth configuration returns `503`, and cross-origin mutations are rejected.
 
-**Step 7 — Configure the LLM provider.** With `RP_LLM_PROVIDER=model-b` and a valid key, every agent works. Voice intake (`/api/transcribe`) uses the GLM ASR service and therefore works when GLM is reachable; with a foreign provider the route degrades gracefully (clear error, no crash). Everything else — planner, graph, executability, health, calibration, drift, compliance math, integrations, study, telemetry — is model-independent or deterministic.
+**Step 7 — Approve production only after operational gates pass.**
 
-### 18.2 Vercel-specific limits (and how Modrik adapts)
+Verify a fresh backup restore, real provider connectivity, rate-limit behavior across multiple instances, monitoring/alerting, and an operator rollback procedure. Seed showcase missions only after the environment is approved; do not use demo data as production customer data.
 
-| Limit | Impact | Adaptation |
-|-------|--------|------------|
-| Request body ≤ **4.5 MB** | Voice-note uploads | `/api/transcribe` clamps to ~4 MB on Vercel and returns a **human-readable** message ("keep clips under ~30 seconds or self-host for 2-minute notes") instead of an opaque edge 413 |
-| Cold starts + function timeouts | Long agent runs | Agents retry internally; route handlers stream nothing and stay under default limits; for heavy missions consider Pro plan timeouts or self-hosting |
-| Ephemeral filesystem | No SQLite | Enforced at build time by the guardrail in `scripts/prisma-setup.mjs` |
-| No persistent cron | Drift sweeps are on-demand | Drift runs from the Debrief button (webhook-automated sweeps are a roadmap item) |
+### 18.2 Vercel runtime constraints
 
-### 18.3 Updating the schema later
+| Limit | Impact | Operational response |
+|-------|--------|----------------------|
+| Request body limits | Voice-note uploads may be rejected above the configured bound | Keep clips within the API's documented limit or use a separately operated ingestion service |
+| Function timeouts and cold starts | Long agent runs may exceed the runtime budget | Measure real workloads; use an appropriate plan or move long-running work to a durable worker |
+| Ephemeral filesystem | Local SQLite and local file persistence are not production storage | Use PostgreSQL and durable object storage for any future file lifecycle |
+| No persistent cron by default | Scheduled drift sweeps are not automatic | Use an external scheduler or event-driven workflow with authenticated callbacks |
 
-```bash
-# 1. edit prisma/schema.prisma (single source of truth)
-npm run db:sync:pg        # regenerate the postgres variant
-npm run db:push           # local sqlite
-DATABASE_URL="postgresql://…" npm run db:push:pg   # production
-git commit -am "schema: <change>" && git push           # redeploys
-```
+### 18.3 Schema change policy
+
+For local development, edit `prisma/schema.prisma`, regenerate the PostgreSQL schema with `npm run db:sync:pg`, and run provider-parity tests. For production, do not treat `prisma db push` as a migration strategy. Every schema change must have an approved migration/baseline, backup and restore evidence, staging validation, and an exact release SHA. See [database-migrations.md](docs/database-migrations.md) and [security-deployment.md](docs/security-deployment.md).
 
 ## 19. Design decision records — the why behind every choice
 
@@ -515,7 +513,7 @@ The reasoning behind every significant architectural choice, in one place. Each 
 
 **D4 — The registry + the dynamicity rule.** *Decision:* all qualitative UI metadata in `src/lib/registry.ts`; all quantitative values from the DB via APIs; hardcoded statistics forbidden (and grepped for). *Alternatives:* constants next to components (drifts silently); a CMS (overkill). *Deciding force:* §7's three arguments — research integrity, aging screenshots, and testability. A hallucination-measuring platform hallucinating its own stats would be self-refuting.
 
-**D5 — Route handlers, not Server Actions.** *Decision:* all engine access via 23 HTTP routes. *Alternatives:* Server Actions (less boilerplate). *Deciding force:* the API is the **audit surface** — the agent-audit harness, planner reproductions, integration tests and curl-driven verification all drive the same endpoints the UI does. An engine reachable only through the component tree cannot be independently audited.
+**D5 — Route handlers, not Server Actions.** *Decision:* all engine access via 36 HTTP route handlers. *Alternatives:* Server Actions (less boilerplate). *Deciding force:* the API is the **audit surface** — the agent-audit harness, planner reproductions, integration tests and curl-driven verification all drive the same endpoints the UI does. An engine reachable only through the component tree cannot be independently audited.
 
 **D6 — Implications-only conflict negotiation.** *Decision:* conflicts carry a six-way taxonomy and per-option impacts; resolution text is human-written. *Alternatives:* agent-recommended resolutions (faster). *Deciding force:* conflicts encode stakeholder value disagreements — the one place software must not have opinions. Also, recommendation laundering is the failure mode HITL exists to prevent (D2).
 
@@ -539,35 +537,36 @@ The reasoning behind every significant architectural choice, in one place. Each 
 
 ## 20. Feature status
 
-The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./FEATURES_STATUS.md). Summary:
+The authoritative, honestly-maintained status lives in [`FEATURES_STATUS.md`](./FEATURES_STATUS.md). Summary (verified against this repository snapshot):
 
 - **Complete & live:** the six-gate pipeline and 12 agent roles; impact-aware Question Planner + four-arm ablation; typed knowledge graph and impact traversal; executability simulation and GAP discoveries; calibration and six-dimension health instruments; evidence revisioning, claim provenance and requirement-quality assessments; decision journal; drift radar; deterministic WCAG/performance/PDPL checks; GitHub/Jira token integrations; 120-scenario arbench-v2; study infrastructure; Mission Library; Arabic-first elicitation and guarded voice intake.
-- **Implemented on an open draft PR (not merged):** stakeholder registry; requirement positions with human review; accepted-claim evidence links; multi-stakeholder negotiation with 2–30 participants, individual immutable responses, quorum before decision, human rationale, trade-offs and dissent. See [PR #5](https://github.com/abdelrahmanelharouny/Modrik/pull/5).
-- **In development:** full-bench ablation sweeps, tracker→drift webhook automation, OAuth for integrations, multi-user organization/project RBAC and scripted end-to-end coverage. A single-owner login/session boundary already exists; it is not organization-level authorization.
+- **Implemented in this branch:** stakeholder registry; requirement positions with human review; accepted-claim evidence links; multi-stakeholder negotiation with 2–30 participants, immutable participant responses, quorum checks, human rationale, trade-offs and dissent. API/UI and policy tests are present; a real field pilot is still outstanding.
+- **Implemented but not externally verified:** organization/project membership RBAC and tenant-scoped authorization; invitation and password-recovery flows; shared Upstash rate limiting; browser/API integration coverage in CI; encrypted static-token GitHub/Jira integrations and a guarded credential-rotation utility. Provider connectivity, deployment migrations and production restore remain operator release gates.
+- **Implemented but awaiting live delivery verification:** signed GitHub Issues/Push webhooks feed bounded change signals into drift review, with HMAC verification, per-project encrypted secrets, repository binding and delivery deduplication. Project audit exports are available as JSON/CSV with explicit audit:read role enforcement and CSV formula-injection protection. Jira event webhooks, GitHub/Jira OAuth, publication-grade set-level judge calibration, and a larger full-bench ablation sweep remain incomplete. Existing benchmark runner and analysis scripts support reproducible runs but do not constitute published empirical results.
 - **Not started:** field-pilot recruitment and study analysis (protocol/infrastructure only).
-- **Still missing:** offline mode, set-level judge calibration suitable for publication claims, organization-scale access governance, and requirement-level cost-of-change modelling.
+- **Still open:** organization-scale knowledge memory and richer governance lifecycle controls. Offline text evidence create/update/delete, revision conflict review, explicit rebase/discard, and cross-tab synchronization fallbacks are implemented; file/audio blobs, offline transcription, cross-device replication and service-worker background sync remain unsupported. The first transparent change-effort proxy is implemented in the requirement impact view, but still needs calibration against observed engineering work before it can be treated as a forecast.
 
 ## 21. Roadmap
 
 The roadmap is ordered by release risk. A feature is not considered complete until its implementation, tests, migrations, accessibility and operator documentation are verified.
 
-1. **H1 — production foundation (implementation substantially advanced; release not yet cleared):** organization and project membership RBAC, tenant-isolation checks, invitation/recovery lifecycle, shared rate limiting, API integration tests, scripted Playwright E2E, CI benchmark validation, and production configuration validation are implemented on the H1 branch stack. Remaining release gates: reconcile and commit a provider-specific Prisma baseline against each real deployed database; verify live Redis/email/database credentials and restore procedures; implement and test GitHub/Jira OAuth plus integration-secret rotation; complete set-level judge sensitivity/calibration. Do not treat repository schema inventory as a deployed-database baseline.
-2. **H2 — field research and collaboration:** complete stakeholder response/review workflows; run a 2–3-team pilot; recruit study participants and execute the analysis pipeline; publish reproducible four-arm ablation results; tracker webhooks feeding evidence-drift review.
-3. **H3 — scale and resilience:** offline-first capture and conflict-safe sync; organization-level governance and audit exports; reverse mode from implementation changes to living requirements; requirement-level cost-of-change modelling; organization-scale knowledge memory.
+1. **H1 — engineering and production foundation (repository implementation complete; production release gates remain):** organization/project membership RBAC, tenant-isolation checks, invitation/recovery lifecycle, shared rate limiting, integration tests, stakeholder browser E2E, benchmark validation, and production configuration validation are implemented. Remaining operational gates: reconcile a provider-specific Prisma baseline against each deployed database; verify live Redis/email/database credentials and restore procedures; complete deployment-specific security review. GitHub/Jira OAuth is a separate integration capability still open. Do not treat repository schema inventory as a deployed-database baseline.
+2. **H2 — evaluation and human-evaluation infrastructure (implementation complete; empirical execution remains):** four-arm planner, deterministic benchmark corpus/runner/analysis, blinded human-rating packets, consent and artifact-integrity controls, statistical analysis pipeline, stakeholder response/review workflows, and tracker webhooks are implemented. Remaining empirical work: run full-bench sweeps, calibrate independent raters, recruit study participants/2–3 pilot teams, collect real observations, and analyze/report results.
+3. **H3 — scale and resilience:** organization-scale knowledge memory and advanced governance lifecycle; validate/calibrate the requirement-level change-effort model; expand reverse traceability into continuous change-impact workflows; and stress-test offline cross-tab lease recovery. Offline capture/conflict-safe synchronization, initial reverse traceability, and the first change-effort proxy are already implemented foundations.
 
-**Release gates:** H1 is a hard prerequisite for a public multi-tenant launch. H2 is required before making field-effectiveness or publication-grade superiority claims. H3 is a scale roadmap, not an MVP launch blocker.
+**Release gates:** H1 repository scope is complete, but production deployment is blocked on external operational/security gates. H2 implementation scope is complete, but field-effectiveness and publication-grade claims require real human data and analysis. H3 is a scale roadmap, not an MVP launch blocker.
 
 ## 22. Repository layout
 
 ```
 modrik/
 ├── prisma/
-│   ├── schema.prisma              # single source of truth (19 models, SQLite for dev)
+│   ├── schema.prisma              # canonical data model (38 models, SQLite for dev)
 │   └── schema.postgres.prisma     # AUTO-GENERATED postgres variant (db:sync:pg)
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx               # Mission Control (single route)
-│   │   └── api/                   # 23 route handlers (§12)
+│   │   └── api/                   # 36 route handlers
 │   ├── components/rp/
 │   │   └── mission-control.tsx    # the flight deck (fleet · cockpit · debrief · library)
 │   ├── hooks/                     # i18n (AR/EN), toasts, reveal motion
@@ -619,11 +618,11 @@ A platform whose brand is honesty owes you this list:
 
 1. **Arabic ASR upstream gap** — the speech service occasionally returns wrong-script output for Egyptian Arabic. Guarded (script check, retry, human warning) but not solved; the decision to keep or replace the ASR provider is a documented P0.
 2. **Set-level ablation sensitivity** — the seeded planner comparison differentiates arms clearly on per-question utility, but set-level metrics are close; judge design needs a sensitivity upgrade before publication-grade claims.
-3. **No auth/RBAC** — deploy behind your own gateway; RBAC is roadmap H1.
-4. **No automated E2E suite** — verification is audit-harness + live browser sweeps; a scripted E2E suite is a named gap.
-7. **Pilot recruitment not started** — study infrastructure is complete and verified; participants haven't been recruited.
-8. **Single-stakeholder sessions** — negotiation is one human against implications, not multi-stakeholder deliberation (roadmap H2).
-9. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
+3. **Production rollout is not cleared** — RBAC and tenant isolation are implemented, but database migration baselines, live provider checks, backup/restore rehearsal and OAuth remain release gates.
+4. **E2E coverage is focused, not exhaustive** — CI includes a Playwright stakeholder flow and API integration coverage; the full application still needs broader scripted journeys and cross-browser/device coverage.
+5. **Pilot recruitment not started** — study infrastructure is implemented, but participant recruitment, consent operations, data collection and analysis require real people and approved sites.
+6. **OAuth remains incomplete** — GitHub/Jira static-token sync and signed issue webhooks are implemented in the repository; OAuth authorization and provider-side token lifecycle remain open.
+7. **Cost estimates are heuristics** — tokens ≈ chars÷4 with a blended USD rate; directionally useful, not billing-grade.
 
 ## 25. Glossary
 
@@ -642,3 +641,24 @@ A platform whose brand is honesty owes you this list:
 | Drift | الانحراف | Post-approval divergence between evidence and the approved baseline |
 | Impact-aware planner | المُخطّط الواعي بالأثر | The utility-formula question-selection engine and its ablation |
 | Modrik / مدرك | مُدرك | "The one that perceives" — the platform's name and its contract |
+
+
+## Reverse traceability — tracker change to requirement impact
+
+The project reverse-traceability endpoint resolves a GitHub/Jira tracker record only through an explicit requirement link, a linked user story, or an exact stable requirement reference. It does not treat text similarity, commit messages, or changed file paths as proof of a requirement relationship. Unmapped tracker records are returned as unmapped and can be linked only through the human-reviewed mapping action.
+
+For a resolved requirement, the endpoint returns its direct evidence trace links, linked claims with their accepted/review status and evidence revision provenance, related knowledge-graph nodes, user stories, and upstream impacted requirements with graph hop paths. Mapping decisions are written to the immutable decision journal. Endpoint: `GET /api/projects/{projectId}/traceability/reverse?syncMapId={syncMapId}`; human mapping: `POST /api/projects/{projectId}/traceability/reverse` with `{ action: "link_tracker_requirement", syncMapId, requirementId }`.
+
+
+## Jira Cloud webhooks
+
+Jira Cloud issue-created, issue-updated and issue-deleted events can be delivered to `POST /api/webhooks/jira/{projectId}`. Configure the Jira integration first, then set a per-project webhook secret in the integration console. Modrik stores the secret encrypted, preserves it when Jira credentials are updated, and verifies Jira's `X-Hub-Signature` HMAC over the exact raw UTF-8 request body. Delivery deduplication uses Jira's `X-Atlassian-Webhook-Identifier`; event normalization requires the configured project key and treats issue content as untrusted data. Payloads are capped at 1 MB. Configure an admin webhook in Jira Cloud with the same secret and the three supported issue events. Live delivery still requires a deployed HTTPS endpoint and a real Jira configuration; CI only verifies the local signature and normalization code paths.
+
+
+## Offline evidence capture and synchronization
+
+Evidence create, update and delete operations can be queued in browser IndexedDB while disconnected. The queue is bounded to 100 pending operations per project with 30-day retention, stable operation UUIDs, strict payload validation, FIFO synchronization, reconnect/manual retry, and idempotent server intake. Updates and deletes carry an expected revision; the server enforces atomic compare-and-swap and returns a conflict instead of overwriting a newer source. The UI exposes pending/retry observability, local-vs-server review for update conflicts, deliberate rebase to the latest reviewed revision, and explicit local discard. Discarding a queued operation does not mutate the server source.
+
+Synchronization prefers the Web Locks API and falls back to an IndexedDB lease for cross-tab exclusion, with an in-process fallback only when IndexedDB is unavailable. Lease expiry and heartbeat provide recovery after a tab disappears. The fallback has not yet received a dedicated multi-tab browser stress test, so it must not be treated as formally proven under tab suspension and lease-expiry races.
+
+This is not a complete offline application: file/audio blobs, voice transcription while offline, cross-device queue replication and service-worker background sync are not supported. IndexedDB is browser-local storage and is not separately encrypted by Modrik; do not queue highly sensitive evidence on shared devices. Keep the same browser profile available until queued items synchronize.

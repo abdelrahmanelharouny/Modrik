@@ -11,7 +11,7 @@ import {
   verifySessionToken,
 } from "@/lib/security/session.mjs";
 
-const OPEN_PATHS = new Set(["/login", "/invite/accept", "/study/participant"]);
+const OPEN_PATHS = new Set(["/login", "/invite/accept", "/reset-password", "/study/participant"]);
 
 function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
@@ -39,8 +39,17 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
     if (method === "PATCH" || method === "PUT") return "projects:update";
     return "projects:update";
   }
+  if (route.startsWith("integrations/oauth/")) {
+    return "projects:update";
+  }
   if (route === "integrations") {
     return method === "GET" ? "projects:read" : "members:manage";
+  }
+  if (route === "audit/export") {
+    return method === "GET" || method === "HEAD" ? "audit:read" : "organization:manage";
+  }
+  if (route === "traceability/reverse") {
+    return method === "GET" || method === "HEAD" ? "projects:read" : "requirements:review";
   }
   if (route === "stakeholders") {
     if (method === "GET" || method === "HEAD") return "projects:read";

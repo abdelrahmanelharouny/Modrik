@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { estimateChangeCost, type ChangeCostEstimate } from "@/lib/change-cost.mjs";
 import { PRIORITY_ORDER, type ProjectDTO } from "@/lib/rp";
 import { INTEGRATIONS, INSTRUMENTS } from "@/lib/registry";
 import { useLang } from "@/lib/i18n";
@@ -18,6 +19,7 @@ import { HudPanel, Eyebrow, Chip, CountUp, Meter, SectionHead, EmptyBay, Reveal,
 import { ICONS } from "@/components/rp/icons";
 import { PlannerLab, CalibrationPanel, ExecutabilitySim, SelfAuditPanel, IntegrationsConsole } from "@/components/rp/debrief-instruments";
 import { KnowledgeGraphExplorer } from "@/components/rp/knowledge-graph-explorer";
+import { ChangeCostCalibration } from "@/components/rp/change-cost-calibration";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -131,9 +133,12 @@ function Constellation({ project }: { project: ProjectDTO }) {
   const [sel, setSel] = useState<{ kind: "req" | "ev"; id: string } | null>(null);
   const [edges, setEdges] = useState<GraphEdgeDTO[]>([]);
   const [impact, setImpact] = useState<ImpactNodeDTO[]>([]);
+  const [changeCost, setChangeCost] = useState<ChangeCostEstimate | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [tracing, setTracing] = useState(false);
   const { toast } = useToast();
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const W = 640;
   const H = 400;
   const cx = W / 2;
@@ -201,7 +206,8 @@ function Constellation({ project }: { project: ProjectDTO }) {
         body: JSON.stringify({ action: "traverse", requirementIds: [requirementId] }),
       });
       setImpact(d.impacted);
-      toast({ title: "Impact traversal complete", description: `${d.impacted.length} requirement(s) reachable through typed edges.` });
+      setChangeCost(estimateChangeCost(reqs.find((r) => r.id === requirementId)!, d.impacted, reqs));
+      toast({ title: "Impact traversal complete", description: `${d.impacted.length} requirement(s) reachable; change-effort proxy calculated.` });
     } catch (e) {
       toast({ title: "Traversal failed", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -269,7 +275,7 @@ function Constellation({ project }: { project: ProjectDTO }) {
             if (!p) return null;
             const active = sel?.id === e.id;
             return (
-              <g key={e.id} onClick={() => setSel(active ? null : { kind: "ev", id: e.id })} className="cursor-pointer">
+              <g key={e.id} onClick={() => { setSel(active ? null : { kind: "ev", id: e.id }); setImpact([]); setChangeCost(null); }} className="cursor-pointer">
                 <circle cx={p.x} cy={p.y} r="13" fill="rgba(167,139,250,0.12)" stroke="rgba(167,139,250,0.5)" strokeWidth={active ? 2 : 1} />
                 <text x={p.x} y={p.y + 3} textAnchor="middle" fill="#a78bfa" fontSize="9" fontFamily="var(--font-jbmono), monospace">{e.code}</text>
               </g>
@@ -284,7 +290,7 @@ function Constellation({ project }: { project: ProjectDTO }) {
             const impacted = impactIds.has(r.id);
             const color = impacted ? "#a78bfa" : flagged ? "#ffb454" : r.ambiguity >= 60 ? "#ff6b7a" : r.ambiguity >= 30 ? "#ffb454" : "#2ce8c8";
             return (
-              <g key={r.id} onClick={() => setSel(active ? null : { kind: "req", id: r.id })} className="cursor-pointer">
+              <g key={r.id} onClick={() => { setSel(active ? null : { kind: "req", id: r.id }); setImpact([]); setChangeCost(null); }} className="cursor-pointer">
                 {impacted && (
                   <circle cx={p.x} cy={p.y} r="21" fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="3 3">
                     <animate attributeName="r" values="18;24;18" dur="1.8s" repeatCount="indefinite" />
@@ -319,7 +325,7 @@ function Constellation({ project }: { project: ProjectDTO }) {
             {extracting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Network className="mr-1 h-3 w-3" />} extract edges
           </Button>
           {impact.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setImpact([])} className="h-7 border-border px-2 font-mono text-[10px]">
+            <Button size="sm" variant="outline" onClick={() => { setImpact([]); setChangeCost(null); }} className="h-7 border-border px-2 font-mono text-[10px]">
               clear impact ({impact.length})
             </Button>
           )}
@@ -372,6 +378,50 @@ function Constellation({ project }: { project: ProjectDTO }) {
               </li>
             ))}
           </ul>
+          {changeCost && (
+            <div className="mt-4 rounded-md border border-plasma/30 bg-plasma/5 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <Eyebrow tone="plasma">{ar ? "تقدير جهد التغيير" : "CHANGE EFFORT PROXY"}</Eyebrow>
+                  <div className="mt-1 font-display text-2xl font-bold tabular-nums">{changeCost.effortPoints.toFixed(2)} <span className="text-xs font-normal text-muted-foreground">{ar ? "نقاط جهد" : "effort points"}</span></div>
+                </div>
+                <Badge variant="outline" className="border-plasma/40 text-plasma">{changeCost.effortRange.low.toFixed(2)}–{changeCost.effortRange.high.toFixed(2)} {ar ? "نطاق تخطيطي" : "planning band"}</Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "مباشر" : "DIRECT"}</div><strong>{changeCost.directImpact}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "غير مباشر" : "TRANSITIVE"}</div><strong>{changeCost.transitiveImpact}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "إجمالي المتأثر" : "AFFECTED TOTAL"}</div><strong>{changeCost.affectedRequirements}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "مخاطر مرتفعة" : "HIGH RISK"}</div><strong>{changeCost.highRiskRequirements}</strong></div>
+              </div>
+              {changeCost.factors.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{changeCost.factors.map((factor) => <Badge key={factor.id} variant="secondary" className="text-[9px]">{factor.id.replaceAll("_", " ")} · {factor.count}</Badge>)}</div>}
+              <div className="mt-3 grid grid-cols-2 gap-2 rounded-md border border-border/70 bg-background/40 p-2 text-xs sm:grid-cols-4">
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "عدم اكتمال المدخلات" : "INPUT UNCERTAINTY"}</div><strong className="tabular-nums">{changeCost.uncertainty.percent}%</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "الإشارات الناقصة" : "MISSING SIGNALS"}</div><strong className="tabular-nums">{changeCost.uncertainty.missingSignals}/{changeCost.uncertainty.totalSignals}</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "هامش التخطيط" : "PLANNING MARGIN"}</div><strong className="tabular-nums">±{changeCost.uncertainty.bandPercent}%</strong></div>
+                <div><div className="font-mono text-[9px] text-muted-foreground">{ar ? "مساهمات مفصلة" : "BREAKDOWN ROWS"}</div><strong className="tabular-nums">{changeCost.breakdown.length}</strong></div>
+              </div>
+              {changeCost.uncertainty.factors.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{changeCost.uncertainty.factors.map((factor) => <Badge key={factor.id} variant="outline" className="border-signal/40 text-[9px] text-signal">{ar ? "نقص" : "missing"} · {factor.id.replaceAll("_", " ")} · {factor.count}</Badge>)}</div>}
+              <details className="mt-3 rounded-md border border-border/70 bg-background/30 p-3">
+                <summary className="cursor-pointer text-xs font-medium">{ar ? "عرض تفصيل مساهمة كل متطلب" : "Inspect per-requirement cost breakdown"}</summary>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-left text-[10px]">
+                    <thead className="text-muted-foreground"><tr>
+                      <th className="py-1 pr-3">{ar ? "المتطلب" : "Requirement"}</th><th className="py-1 pr-3">{ar ? "العمق" : "Depth"}</th><th className="py-1 pr-3">{ar ? "وزن العلاقة" : "Relation"}</th><th className="py-1 pr-3">{ar ? "مضاعف المخاطر" : "Risk ×"}</th><th className="py-1 pr-3">{ar ? "المساهمة" : "Contribution"}</th>
+                    </tr></thead>
+                    <tbody>{changeCost.breakdown.map((row) => <tr key={row.requirementId} className="border-t border-border/50 align-top">
+                      <td className="py-2 pr-3 font-mono">{row.requirementRef ?? row.requirementId}</td><td className="py-2 pr-3 tabular-nums">{row.depth}</td><td className="py-2 pr-3 tabular-nums">{row.relationWeight.toFixed(2)}</td><td className="py-2 pr-3 tabular-nums">{row.riskMultiplier.toFixed(2)}</td><td className="py-2 pr-3 tabular-nums">{row.effortPoints.toFixed(3)}</td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+                {changeCost.breakdown.some((row) => row.uncertaintyReasons.length > 0) && <div className="mt-3 space-y-1">
+                  <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{ar ? "أسباب عدم اليقين" : "UNCERTAINTY REASONS"}</p>
+                  {changeCost.breakdown.filter((row) => row.uncertaintyReasons.length > 0).map((row) => <p key={row.requirementId} className="text-[10px] text-muted-foreground"><span className="font-mono text-foreground">{row.requirementRef ?? row.requirementId}:</span> {row.uncertaintyReasons.map((reason) => reason.replaceAll("_", " ")).join(" · ")}</p>)}
+                </div>}
+              </details>
+              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">{ar ? "النقاط نسبية وليست ساعات أو تكلفة مالية أو توقعًا معتمدًا. هامش التخطيط يتسع من 20% إلى 50% وفق اكتمال الإشارات، وليس فترة ثقة إحصائية." : changeCost.caveat} {ar ? "المنهجية: وزن أثر العلاقات حسب العمق مضروبًا في عوامل مخاطر المتطلب." : changeCost.methodology + "."}</p>
+              {selectedReq && <ChangeCostCalibration projectId={project.id} requirementId={selectedReq.id} />}
+            </div>
+          )}
         </HudPanel>
       )}
       {selectedEv && (
@@ -407,6 +457,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
   const [tunnel, setTunnel] = useState<{ answered: number } | null>(null);
   const [tunnelBusy, setTunnelBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [auditExportBusy, setAuditExportBusy] = useState(false);
 
   useEffect(() => {
     api<{ report: HealthReport | null; debt: DebtProfileDTO | null }>(`/api/projects/${project.id}/health`)
@@ -544,12 +595,29 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
     toast({ title: "Gherkin skeleton exported" });
   };
 
-  const exportAudit = () => {
-    download(
-      `${project.name.replace(/\W+/g, "_")}_audit_log.json`,
-      JSON.stringify({ project: project.name, decisions: project.decisions, runs: project.runs }, null, 2)
-    );
-    toast({ title: "Audit log exported" });
+  const exportAudit = async (format: "json" | "csv" = "json") => {
+    setAuditExportBusy(true);
+    try {
+      const response = await fetch("/api/projects/" + project.id + "/audit/export?format=" + format + "&limit=10000", {
+        method: "GET", credentials: "same-origin",
+        headers: { Accept: format === "csv" ? "text/csv" : "application/json" },
+      });
+      const content = await response.text();
+      if (!response.ok) {
+        let message = "Audit export failed";
+        try { message = String((JSON.parse(content) as { error?: string }).error ?? message); } catch { /* keep fallback */ }
+        throw new Error(message);
+      }
+      const truncated = response.headers.get("X-Export-Truncated") === "true" ||
+        (format === "json" && Boolean((JSON.parse(content) as { truncated?: boolean }).truncated));
+      const name = project.name.replace(/\W+/g, "_") + "_audit_log." + format;
+      download(name, content, format === "csv" ? "text/csv;charset=utf-8" : "application/json");
+      toast({ title: ar ? "تم تصدير سجل التدقيق" : "Audit log exported", description: truncated ? (ar ? "تم الوصول إلى حد التصدير؛ استخدم فلاتر التاريخ لتصدير الباقي." : "Export reached the 10,000-row cap; use date filters for the remaining records.") : undefined });
+    } catch (error) {
+      toast({ title: ar ? "تعذر تصدير سجل التدقيق" : "Audit export failed", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setAuditExportBusy(false);
+    }
   };
 
   const githubPayload = () =>
@@ -959,9 +1027,14 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
                 title={ar ? "سجل القرارات" : "Decision journal"}
                 blurb={ar ? "سجل تدقيق غير قابل للتعديل لكل قرار بشري أو آلي." : "Immutable audit trail of every human and agent decision."}
                 right={
-                  <Button size="sm" variant="outline" onClick={exportAudit} className="border-border">
-                    <Download className="mr-2 h-3.5 w-3.5" /> {ar ? "تصدير التدقيق" : "Export audit"}
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" disabled={auditExportBusy} onClick={() => exportAudit("json")} className="border-border">
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> JSON
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={auditExportBusy} onClick={() => exportAudit("csv")} className="border-border">
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> CSV
+                    </Button>
+                  </>
                 }
               />
               {project.decisions.length === 0 ? (
@@ -1045,7 +1118,7 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
         <Button variant="outline" onClick={exportGherkin} className="border-border">
           <Download className="mr-2 h-4 w-4" /> {ar ? "تصدير Gherkin" : "Export Gherkin (.feature)"}
         </Button>
-        <Button variant="outline" onClick={exportAudit} className="border-border">
+        <Button variant="outline" disabled={auditExportBusy} onClick={() => exportAudit("json")} className="border-border">
           <ScrollText className="mr-2 h-4 w-4" /> {ar ? "سجل التدقيق" : "Audit log"}
         </Button>
       </div>

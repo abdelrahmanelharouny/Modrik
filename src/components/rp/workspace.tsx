@@ -123,14 +123,14 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
           <Chip tone={stageStatusTone} className="hidden sm:inline-flex">
             <LiveDot tone={stageStatusTone} /> {stageStatusChip.label}
           </Chip>
-          <Button variant="outline" size="sm" onClick={toggle} aria-label="Toggle language" className="px-2">
+          <Button variant="outline" size="sm" onClick={toggle} aria-label={ar ? "Toggle language — تغيير اللغة إلى الإنجليزية" : "Toggle language — Switch language to Arabic"} className="px-2">
             <span className="font-mono text-xs">{ar ? "EN" : "ع"}</span>
           </Button>
           <SignOutButton />
         </div>
       </header>
 
-      <main id="workspace-content" tabIndex={-1} aria-busy={busy || running} className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8">
+      <main id="workspace-content" tabIndex={-1} aria-busy={busy || running} className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 lg:px-8 lg:py-7">
         {/* flight path rail */}
         <HudPanel className="mb-6 px-4 pb-3 pt-4 lg:px-6" as="div">
           <FlightPath
@@ -152,8 +152,8 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <HudPanel className="mb-6 p-6" as="section">
-              <div className="flex flex-wrap items-start justify-between gap-4">
+            <HudPanel className="mb-5 p-4 sm:p-6" as="section">
+              <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start">
                 <div className="max-w-2xl">
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">
                     <PhaseIcon className="h-4 w-4 text-aura" />
@@ -174,17 +174,17 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
                   </p>
                 </div>
                 {isCurrent && (
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                     {project.stageStatus === "awaiting_input" && viewing === "ELICITATION" && (
                       <Select value={plannerArm} onValueChange={setPlannerArm}>
                         <SelectTrigger aria-label="Planner arm" className="h-9 w-[220px] border-border/80 bg-secondary/40 font-mono text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="impact_aware">◆ impact-aware planner (utility formula)</SelectItem>
-                          <SelectItem value="single_shot">single-shot baseline</SelectItem>
-                          <SelectItem value="random">random selection</SelectItem>
-                          <SelectItem value="llm">LLM self-selection</SelectItem>
+                          <SelectItem value="impact_aware">{ar ? "مراعي للأثر (معادلة المنفعة)" : "Impact-aware planner (utility formula)"}</SelectItem>
+                          <SelectItem value="single_shot">{ar ? "اختيار مباشر — خط أساس" : "Single-shot baseline"}</SelectItem>
+                          <SelectItem value="random">{ar ? "اختيار عشوائي" : "Random selection"}</SelectItem>
+                          <SelectItem value="llm">{ar ? "اختيار النموذج اللغوي" : "LLM self-selection"}</SelectItem>
                         </SelectContent>
                       </Select>
                     )}

@@ -2,7 +2,7 @@
 
 ## Identity, sessions, and organization access
 
-The Next.js 16 `src/proxy.ts` gate protects application APIs and pages by default. Public API exemptions are method-specific:
+The root-level Next.js 16 `proxy.ts` gate protects application APIs and pages by default; `src/proxy.ts` is kept in sync as the source-side mirror. Public API exemptions are method-specific:
 
 - `POST /api/auth/login`
 - `POST /api/auth/invitations/accept`
@@ -38,7 +38,7 @@ openssl rand -hex 32
 openssl rand -hex 32
 ```
 
-Use one value for `MODRIK_AUTH_SECRET` and the other for `MODRIK_ENCRYPTION_KEY`. Back up the encryption key securely: losing it makes encrypted integration credentials unrecoverable. Use the guarded rotation tool for planned changes: set distinct `MODRIK_ENCRYPTION_KEY_OLD` and `MODRIK_ENCRYPTION_KEY_NEW` values, run `bun run secrets:rotate` for a read-only dry run, take and verify a database backup, then run `bun run secrets:rotate:apply` in a maintenance window. The operation uses compare-and-swap updates inside a transaction, preserves unrelated config fields, supports legacy plaintext rows, and is idempotent for records already encrypted with the new key. Retain the old key until a restore/rollback rehearsal and post-rotation credential checks pass. This rotates stored integration tokens; it does not rotate provider-side GitHub/Jira credentials or implement OAuth.
+Use one value for `MODRIK_AUTH_SECRET` and the other for `MODRIK_ENCRYPTION_KEY`. Back up the encryption key securely: losing it makes encrypted integration credentials unrecoverable. A guarded local credential re-encryption utility is available: set distinct `MODRIK_ENCRYPTION_KEY_OLD` and `MODRIK_ENCRYPTION_KEY_NEW` values, run `bun run secrets:rotate` for a read-only dry run, take and verify a database backup, then run `bun run secrets:rotate:apply` in a maintenance window. The operation uses compare-and-swap updates inside a transaction, preserves unrelated config fields, supports legacy plaintext rows, and is idempotent for records already encrypted with the new key. Retain the old key until a restore/rollback rehearsal and post-rotation credential checks pass. This re-encrypts stored integration tokens; it does not rotate provider-side GitHub/Jira credentials or implement OAuth. Run the utility only after the dependency-backed test suite and a staging rehearsal pass.
 
 ## Invitations and password recovery
 
@@ -57,9 +57,25 @@ The in-process fallback is restricted to development/test and is not a multi-ins
 
 ## Integration credentials
 
-Saved GitHub/Jira credentials are encrypted at rest using AES-256-GCM. Legacy plaintext values remain readable for compatibility and should be re-saved after encryption is configured. OAuth authorization flows and automated encryption-key rotation are not yet complete. Treat static-token integration as the current capability; do not advertise OAuth or automatic rotation as supported.
+Saved GitHub/Jira credentials are encrypted at rest using AES-256-GCM. Legacy plaintext values remain readable for compatibility and should be re-saved after encryption is configured. OAuth authorization flows and provider-side token lifecycle automation are not implemented. A guarded operator-run re-encryption utility exists for stored credentials, but it is not an automatic rotation service. Treat static-token integration as the current capability; do not advertise OAuth or provider-side automatic rotation as supported.
 
 The Jira connector validates allowed HTTPS origins and does not follow redirects. Private Jira Data Center deployments must additionally assess DNS/IP egress controls; hostname allowlisting alone is not a complete network-layer SSRF defense.
+
+## Project audit exports
+
+Authenticated project audit export is available at `GET /api/projects/{projectId}/audit/export`. It exports the complete project-scoped decision journal as JSON or CSV (`?format=json|csv`), with bounded date, actor, stage and action filters and a maximum of 10,000 rows per request. Access is gated by the explicit `audit:read` permission (Owner, Admin, Reviewer and Approver); Engineer and Viewer roles are denied. Responses are marked `no-store`. CSV output quotes all cells and neutralizes spreadsheet formula prefixes. Use date filters for larger histories; export does not include credentials, sessions or other projects' records.
+
+## GitHub webhook drift ingestion
+
+A project can receive signed GitHub `issues` (opened, edited, reopened, closed) and `push` events at:
+
+```text
+POST /api/webhooks/github/{projectId}
+```
+
+Configure the GitHub repository webhook with content type `application/json`, a random secret of at least 32 characters, and the Issues + Push event subscriptions. Save the same secret in the project's GitHub integration settings; it is encrypted at rest with `MODRIK_ENCRYPTION_KEY`. The secret is never returned to the browser. GitHub's `X-Hub-Signature-256` is checked against the exact raw request bytes before JSON parsing or event processing. The ingress enforces a 1 MB payload limit, repository binding, bounded event summaries and a delivery-idempotency reservation; repeated deliveries do not repeat drift analysis. Unsupported event types/actions are acknowledged and ignored. Failed processing is marked retryable so GitHub can redeliver.
+
+The webhook is intentionally a public, signature-authenticated endpoint. Do not remove signature verification or add a broad `/api/webhooks/*` authentication exemption. GitHub issue/commit text is untrusted project data; it is passed only as a bounded change signal to the existing drift analysis and never treated as an authorization instruction. This is event-driven drift triage, not automatic requirement modification: humans still review and resolve drift.
 
 ## Database migration release gate
 
@@ -75,5 +91,5 @@ SQLite is the canonical development schema; PostgreSQL schema is generated and p
 6. Verify password-reset responses do not reveal account existence and successful resets revoke sessions.
 7. Verify cross-organization and cross-project access is denied for every role and HTTP method.
 8. Test a full database backup restore before approving a production migration baseline.
-9. Re-save legacy plaintext integration credentials; retain the old encryption key until a reviewed rotation process is implemented.
+9. Re-save legacy plaintext integration credentials; use the guarded stored-secret re-encryption utility only after backup, staging rehearsal and rollback verification.
 10. Do not describe technical self-audit output as legal certification. Unmeasured controls remain `not-assessed`.

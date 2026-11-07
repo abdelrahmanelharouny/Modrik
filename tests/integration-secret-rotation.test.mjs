@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { encryptSecret, decryptSecret } from "../src/lib/security/secret-box.mjs";
-import { rotateIntegrationConfig } from "../scripts/rotate-integration-secrets.mjs";
+import { rotateIntegrationConfig } from "../src/lib/security/integration-secret-rotation.mjs";
 
 const oldKey = Buffer.alloc(32, 1).toString("hex");
 const newKey = Buffer.alloc(32, 2).toString("hex");

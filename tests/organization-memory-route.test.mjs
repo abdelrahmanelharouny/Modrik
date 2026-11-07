@@ -1,0 +1,107 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const routePath = path.join(root, "src", "app", "api", "organizations", "knowledge-memory", "route.ts");
+
+test("ranked organization-memory response limit is initialized before the streaming scan", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  const limitDeclaration = source.indexOf("const responseLimit = Math.min(limit ?? 25, 100);");
+  const scanInvocation = source.indexOf("rankOrganizationMemoryCandidatesStream({");
+  assert.ok(limitDeclaration >= 0, "ranked response limit must be declared");
+  assert.ok(scanInvocation >= 0, "ranked search must invoke the streaming ranker");
+  assert.ok(limitDeclaration < scanInvocation, "responseLimit must be initialized before it is passed to the ranker");
+});
+
+test("organization-memory search rejects oversized raw queries before database access", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  const validation = source.indexOf('if (search && search.length > 120)');
+  const projectQuery = source.indexOf("db.project.findMany({");
+  assert.ok(validation >= 0, "query length must be bounded");
+  assert.ok(projectQuery >= 0, "project scope query must exist");
+  assert.ok(validation < projectQuery, "query validation must happen before database access");
+});
+
+test("organization-memory API limit contract matches the ranking and page caps", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /Number\(rawLimit\) > 100/);
+  assert.match(source, /limit must be an integer between 1 and 100/);
+  assert.doesNotMatch(source, /Number\(rawLimit\) > 1000/);
+});
+
+
+test("KnowledgeNode create and update maintain the lexical index in the same transaction", () => {
+  const source = fs.readFileSync(path.join(root, "src", "app", "api", "projects", "[id]", "knowledge-graph", "route.ts"), "utf8");
+  assert.match(source, /db\.\$transaction\(async \(tx\) => \{[\s\S]*?tx\.knowledgeNode\.create\([\s\S]*?replaceOrganizationMemorySearchDocument\(tx, created\)/);
+  assert.match(source, /tx\.knowledgeNode\.update\([\s\S]*?replaceOrganizationMemorySearchDocument\(tx, updated\)/);
+});
+
+test("organization governance transitions update the lexical index atomically", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /tx\.knowledgeNode\.updateMany\([\s\S]*?replaceOrganizationMemorySearchDocument\(tx, updated\)/);
+});
+
+
+test("ranked retrieval exposes indexed readiness and an actionable streaming fallback reason", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /indexedFallbackReason: "indexed_read_disabled"/);
+  assert.match(source, /"index_state_missing"/);
+  assert.match(source, /"backfill_incomplete"/);
+  assert.match(source, /"reconciliation_mismatch"/);
+  assert.match(source, /indexedReadiness: scan!\.indexReadiness/);
+});
+
+
+test("indexed retrieval diagnostics include posting work as well as readiness and fallback", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /retrievalPostingsScanned: "postingsScanned" in scan!/);
+  assert.match(source, /candidateFirstPassPages/);
+  assert.match(source, /candidateSecondPassPages/);
+});
+
+
+test("archive view is separately gated by approval permission and uses archived-only query", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /view !== "accepted" && view !== "review_queue" && view !== "archived"/);
+  assert.match(source, /view === "archived" && !canApprove/);
+  assert.match(source, /buildOrganizationMemoryArchiveQuery/);
+  assert.match(source, /summarizeOrganizationArchivedKnowledgeNode/);
+});
+
+
+test("organization knowledge UI exposes archive only to approvers and keeps archived records read-only", () => {
+  const source = fs.readFileSync(path.join(root, "src", "app", "settings", "knowledge-memory", "review-manager.tsx"), "utf8");
+  assert.match(source, /capabilities\.canApprove \? <button[^]*?view === "archived"/);
+  assert.match(source, /decide\(item, "archive"\)/);
+  assert.match(source, /view === "accepted" && capabilities\.canApprove/);
+  assert.match(source, /Archived record · Read only/);
+});
+
+
+test("semantic hybrid retrieval is opt-in and reports BM25 fallback diagnostics", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true"/);
+  assert.match(source, /semantic_unavailable_bm25_served/);
+  assert.match(source, /semanticFallbackReason/);
+  assert.match(source, /fuseOrganizationMemoryRankings/);
+});
+
+test("indexed shadow mode does not make a duplicate semantic provider request", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /const indexedWithSemantic = indexedEnabled \? await runHybrid\(indexed\) : indexed/);
+  assert.match(source, /const streaming = indexedEnabled \? streamingBase : await runHybrid\(streamingBase\)/);
+  assert.match(source, /compareOrganizationMemoryRetrievalParity\(streamingBase\.rows, indexed\.rows\)/);
+});
+
+test("semantic provider network request is completed before opening the database transaction", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  const preflight = source.indexOf("const queryEmbedding = await provider.embed(search!)");
+  const transaction = source.indexOf("const scan = rankedSearch ? await db.$transaction");
+  assert.ok(preflight >= 0, "semantic query embedding preflight must exist");
+  assert.ok(transaction >= 0, "ranked database transaction must exist");
+  assert.ok(preflight < transaction, "provider network I/O must not hold the serializable database transaction open");
+  assert.match(source, /queryEmbedding: semanticContext\.queryEmbedding/);
+});

@@ -1,0 +1,7 @@
+export interface ReverseTraceRequirement { id: string; refId: string; text?: string; status?: string; priority?: string }
+export interface ReverseTraceSourceRevision { version: number; changeNote?: string | null; createdAt?: Date | string | null; createdBy?: string | null }
+export interface ReverseTraceSource { id: string; code: string; title: string; sourceType: string; language: string; consent: boolean; createdAt?: Date | string | null; revisions?: ReverseTraceSourceRevision[] }
+export interface ReverseTraceTrackerRecord { requirementId?: string | null; storyId?: string | null; localLabel?: string | null }
+export function resolveTrackerRequirement(syncMap: ReverseTraceTrackerRecord | null, requirements: ReverseTraceRequirement[], stories?: Array<{ id: string; requirementId: string }>): { requirement: ReverseTraceRequirement | null; resolution: "unmapped" | "explicit_requirement_link" | "linked_user_story" | "exact_stable_reference" | "ambiguous_reference" };
+export function summarizeReverseDecisions(decisions: Array<any>, requirementId: string, syncMapId: string): Array<any>;
+export function summarizeReverseTrace(input: { requirement: unknown; traceLinks?: Array<{ evidenceCode: string; evidenceId?: string | null; note?: string | null; evidence?: ReverseTraceSource | null }>; claimLinks?: Array<{ claim: any; relationship: string }>; knowledgeLinks?: Array<{ node: any; role: string }>; stories?: Array<any>; impacted?: Array<any>; decisions?: Array<any> }): Record<string, unknown>;

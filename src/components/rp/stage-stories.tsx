@@ -7,6 +7,7 @@ import { type ProjectDTO } from "@/lib/rp";
 import { HudPanel, Chip, SectionHead, EmptyBay, type Tone } from "@/components/rp/hud";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen } from "lucide-react";
+import { useLang } from "@/lib/i18n";
 
 function investTone(v: number): Tone {
   return v >= 70 ? "verify" : v >= 50 ? "signal" : "coral";
@@ -22,13 +23,15 @@ export function StoriesStage({
   refresh: () => Promise<void>;
 }) {
   void api;
+  const { lang } = useLang();
+  const ar = lang === "ar";
   const reqById = new Map(project.requirements.map((r) => [r.id, r]));
 
   if (project.stories.length === 0) {
     return (
       <HudPanel className="p-6">
-        <SectionHead icon={BookOpen} title="Generated stories" blurb="Executable user stories." />
-        <EmptyBay>Run the Story Agent to turn approved requirements into user stories with acceptance criteria.</EmptyBay>
+        <SectionHead icon={BookOpen} title={ar ? "قصص المستخدم المُولّدة" : "Generated stories"} blurb={ar ? "قصص مستخدم بمعايير قبول قابلة للتحقق." : "Executable user stories."} />
+        <EmptyBay>{ar ? "شغّل وكيل القصص لتحويل المتطلبات المعتمدة إلى قصص مستخدم بمعايير قبول." : "Run the Story Agent to turn approved requirements into user stories with acceptance criteria."}</EmptyBay>
       </HudPanel>
     );
   }
@@ -37,9 +40,9 @@ export function StoriesStage({
     <section className="space-y-4">
       <SectionHead
         icon={BookOpen}
-        title="Generated stories"
-        blurb="Gherkin-ready acceptance criteria and INVEST quality scores — ready to fly to your trackers."
-        right={<Chip tone="aura">{project.stories.length} stories</Chip>}
+        title={ar ? "قصص المستخدم المُولّدة" : "Generated stories"}
+        blurb={ar ? "معايير قبول جاهزة لـ Gherkin ودرجات جودة INVEST، ويمكن نقلها إلى أدوات تتبع العمل." : "Gherkin-ready acceptance criteria and INVEST quality scores — ready to fly to your trackers."}
+        right={<Chip tone="aura">{project.stories.length} {ar ? "قصص" : "stories"}</Chip>}
       />
 
       <ul className="grid gap-3 xl:grid-cols-2">
@@ -51,11 +54,11 @@ export function StoriesStage({
                 <Badge variant="outline" className="border-aura/40 bg-aura/5 font-mono text-xs text-aura">
                   {s.refId}
                 </Badge>
-                <Chip tone="muted">from {req?.refId ?? "—"}</Chip>
+                <Chip tone="muted">{ar ? "من " : "from "}{req?.refId ?? "—"}</Chip>
                 {s.investScore !== null && s.investScore !== undefined && (
                   <Chip tone={investTone(s.investScore)}>INVEST {s.investScore}</Chip>
                 )}
-                {s.status === "approved" && <Chip tone="verify">approved</Chip>}
+                {s.status === "approved" && <Chip tone="verify">{ar ? "معتمدة" : "approved"}</Chip>}
               </div>
 
               <h4 className="mt-2 font-display text-sm font-bold tracking-tight" dir="auto">
@@ -68,7 +71,7 @@ export function StoriesStage({
               {s.acceptance && (
                 <div className="mt-3">
                   <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Acceptance criteria
+                    {ar ? "معايير القبول" : "Acceptance criteria"}
                   </span>
                   <ul className="mt-1.5 space-y-1">
                     {s.acceptance.split("\n").filter(Boolean).map((ac, i) => (

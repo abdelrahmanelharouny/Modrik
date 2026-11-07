@@ -7,8 +7,9 @@
 // (answer / proceed with recorded assumption / reopen).
 // ─────────────────────────────────────────────────────────────
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { createOfflineEvidenceOperation, createOfflineEvidenceMutationOperation, rebaseOfflineEvidenceUpdateOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, withOfflineEvidenceSyncLock, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
@@ -231,13 +232,121 @@ export function ElicitationStage({
   const [experimentResult, setExperimentResult] = useState<PlannerExperimentView | null>(null);
   const [evidenceQuery, setEvidenceQuery] = useState("");
   const [evidenceTypeFilter, setEvidenceTypeFilter] = useState("all");
+  const [pendingOffline, setPendingOffline] = useState<OfflineEvidenceOperation[]>([]);
+  const [syncingOffline, setSyncingOffline] = useState(false);
+  // Mount + the browser online event can fire close together. Keep one sync
+  // worker per mounted project so queue rows are never concurrently acked or
+  // have their retry counters overwritten by this component instance.
+  const offlineSyncInFlightRef = useRef(false);
+  const offlineRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteOperationIdsRef = useRef(new Map<string, string>());
+
+  const loadOfflineQueue = useCallback(async () => {
+    try { setPendingOffline(await listOfflineEvidenceOperations(project.id)); }
+    catch (error) { toast({ title: "Offline queue unavailable", description: (error as Error).message, variant: "destructive" }); }
+  }, [project.id, toast]);
+
+  const syncOfflineEvidence = useCallback(async () => {
+    if (offlineSyncInFlightRef.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+    if (offlineRetryTimerRef.current) {
+      clearTimeout(offlineRetryTimerRef.current);
+      offlineRetryTimerRef.current = null;
+    }
+    offlineSyncInFlightRef.current = true;
+    setSyncingOffline(true);
+    let changed = false;
+    try {
+      await withOfflineEvidenceSyncLock(project.id, async (lease) => {
+        const operations = await listOfflineEvidenceOperations(project.id);
+        for (const operation of operations) {
+          try {
+            await lease.assertLease();
+            const endpoint = `/api/projects/${project.id}/evidence`;
+            if (operation.kind === "delete") {
+              await api(`${endpoint}?evidenceId=${encodeURIComponent(operation.evidenceId)}&expectedRevisionVersion=${operation.expectedRevisionVersion}&clientOperationId=${operation.operationId}`, { method: "DELETE" });
+            } else if (operation.kind === "update") {
+              await api(endpoint, { method: "PATCH", body: JSON.stringify({ evidenceId: operation.evidenceId, expectedRevisionVersion: operation.expectedRevisionVersion, ...operation.payload, changeNote: operation.changeNote ?? "", clientOperationId: operation.operationId }) });
+            } else {
+              await api(endpoint, { method: "POST", body: JSON.stringify({ ...operation.payload, clientOperationId: operation.operationId }) });
+            }
+            if (await lease.acknowledge(operation)) changed = true;
+            else break;
+          } catch (error) {
+            if ((error as Error & { code?: string }).code === "OFFLINE_SYNC_LEASE_LOST") throw error;
+            const message = (error as Error).message;
+            const attempts = operation.attempts + 1;
+            await lease.recordFailure(operation, {
+              ...operation,
+              attempts,
+              lastError: message.slice(0, 240),
+            });
+            // Revision/authorization/validation failures need human action.
+            // Network and service failures retry with capped exponential backoff.
+            const requiresReview = /conflict|changed in another session|not found|forbidden|unauthorized|validation|permission/i.test(message);
+            if (!requiresReview && typeof window !== "undefined" && navigator.onLine) {
+              const delay = Math.min(5 * 60_000, 5_000 * (2 ** Math.min(attempts - 1, 6)));
+              offlineRetryTimerRef.current = setTimeout(() => {
+                offlineRetryTimerRef.current = null;
+                void syncOfflineEvidence();
+              }, delay);
+            }
+            break;
+          }
+        }
+        await loadOfflineQueue();
+      });
+      if (changed) await refresh();
+    } catch (error) {
+      toast({ title: "Could not sync offline evidence", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      offlineSyncInFlightRef.current = false;
+      setSyncingOffline(false);
+    }
+  }, [project.id, loadOfflineQueue, refresh, toast]);
+
+  useEffect(() => {
+    let disposed = false;
+    const recover = () => {
+      if (disposed || document.visibilityState === "hidden" || !navigator.onLine) return;
+      void loadOfflineQueue();
+      void syncOfflineEvidence();
+    };
+    void loadOfflineQueue();
+    void syncOfflineEvidence();
+    window.addEventListener("online", recover);
+    window.addEventListener("focus", recover);
+    window.addEventListener("pageshow", recover);
+    document.addEventListener("visibilitychange", recover);
+    // A suspended tab may miss its online/focus event; this bounded heartbeat
+    // rechecks persisted work without keeping an always-running sync loop.
+    const recoveryInterval = window.setInterval(recover, 60_000);
+    return () => {
+      disposed = true;
+      window.removeEventListener("online", recover);
+      window.removeEventListener("focus", recover);
+      window.removeEventListener("pageshow", recover);
+      document.removeEventListener("visibilitychange", recover);
+      window.clearInterval(recoveryInterval);
+      if (offlineRetryTimerRef.current) clearTimeout(offlineRetryTimerRef.current);
+    };
+  }, [loadOfflineQueue, syncOfflineEvidence]);
 
   const addEvidence = async () => {
     if (!title.trim() || !content.trim()) return;
+    const payload = { title: title.trim(), sourceType, language, content: content.trim(), consent };
+    const operationId = crypto.randomUUID();
     try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const operation = createOfflineEvidenceOperation(project.id, payload, operationId);
+        await putOfflineEvidenceOperation(operation);
+        await loadOfflineQueue();
+        setTitle(""); setContent(""); setConsent(false); setOpen(false);
+        toast({ title: "Evidence saved on this device", description: "It is queued privately in this browser and will sync when you reconnect. This browser profile must remain available until sync completes. Local browser storage is not separately encrypted; avoid queuing highly sensitive material on shared devices." });
+        return;
+      }
       await api(`/api/projects/${project.id}/evidence`, {
         method: "POST",
-        body: JSON.stringify({ title, sourceType, language, content, consent }),
+        body: JSON.stringify({ ...payload, clientOperationId: operationId }),
       });
       setTitle("");
       setContent("");
@@ -251,16 +360,51 @@ export function ElicitationStage({
           : "Stored in the project library, but its content is excluded from AI analysis until permission is recorded.",
       });
     } catch (e) {
-      toast({ title: "Could not add evidence", description: (e as Error).message, variant: "destructive" });
+      const error = e as Error;
+      if (error instanceof TypeError) {
+        try {
+          await putOfflineEvidenceOperation(createOfflineEvidenceOperation(project.id, payload, operationId));
+          await loadOfflineQueue();
+          setTitle(""); setContent(""); setConsent(false); setOpen(false);
+          toast({ title: "Connection interrupted — evidence queued", description: "The same operation ID will be reused on retry to prevent duplicate sources." });
+          return;
+        } catch (queueError) {
+          toast({ title: "Could not preserve evidence offline", description: (queueError as Error).message, variant: "destructive" });
+          return;
+        }
+      }
+      toast({ title: "Could not add evidence", description: error.message, variant: "destructive" });
     }
   };
 
   const removeEvidence = async (id: string) => {
+    const evidence = project.evidences.find((item) => item.id === id);
+    if (!evidence) return;
+    const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      try {
+        const operationId = deleteOperationIdsRef.current.get(id) ?? crypto.randomUUID();
+        await putOfflineEvidenceOperation(createOfflineEvidenceMutationOperation(project.id, "delete", id, expectedRevisionVersion, undefined, operationId));
+        deleteOperationIdsRef.current.set(id, operationId);
+        await loadOfflineQueue();
+        toast({ title: "Deletion queued", description: "The source will be removed after reconnecting. Its revision is pinned; a conflict will pause the queue for review." });
+      } catch (error) { toast({ title: "Could not queue deletion", description: (error as Error).message, variant: "destructive" }); }
+      return;
+    }
+    if (!deleteOperationIdsRef.current.has(id)) deleteOperationIdsRef.current.set(id, crypto.randomUUID());
+    const clientOperationId = deleteOperationIdsRef.current.get(id)!;
     try {
-      await api(`/api/projects/${project.id}/evidence?evidenceId=${id}`, { method: "DELETE" });
+      await api(`/api/projects/${project.id}/evidence?evidenceId=${encodeURIComponent(id)}&expectedRevisionVersion=${expectedRevisionVersion}&clientOperationId=${clientOperationId}`, { method: "DELETE" });
+      deleteOperationIdsRef.current.delete(id);
       await refresh();
     } catch (e) {
-      toast({ title: "Could not remove evidence", description: (e as Error).message, variant: "destructive" });
+      const message = (e as Error).message;
+      if (message.includes("EVIDENCE_REVISION_CONFLICT") || message.includes("changed in another session")) {
+        await refresh();
+        toast({ title: "Evidence changed before deletion", description: "The source was not removed. The latest revision has been loaded; review it before trying again.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Could not remove evidence", description: message, variant: "destructive" });
     }
   };
 
@@ -427,6 +571,93 @@ export function ElicitationStage({
           }
         />
 
+        {pendingOffline.length > 0 && (
+          <section className="mb-4 rounded-md border border-aura/30 bg-aura/5 p-3" aria-label="Offline evidence outbox">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold">{pendingOffline.length} pending evidence operation(s)</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  FIFO outbox · {pendingOffline.reduce((sum, item) => sum + item.attempts, 0)} total retry attempt(s) · IndexedDB is not separately encrypted
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={syncOfflineEvidence} disabled={syncingOffline || (typeof navigator !== "undefined" && !navigator.onLine)}>
+                {syncingOffline ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Undo2 className="mr-1.5 h-3.5 w-3.5" />}
+                {syncingOffline ? "Syncing…" : "Retry queue"}
+              </Button>
+            </div>
+            <ol className="mt-3 space-y-2">
+              {pendingOffline.map((operation, index) => {
+                const target = operation.kind === "update" || operation.kind === "delete"
+                  ? project.evidences.find((item) => item.id === operation.evidenceId)
+                  : undefined;
+                const conflict = /EVIDENCE_REVISION_CONFLICT|changed in another session|revision.*conflict/i.test(operation.lastError ?? "");
+                const canRebase = operation.kind === "update" && !!target && conflict;
+                const operationTitle = operation.kind === "delete"
+                  ? target?.title ?? operation.evidenceId
+                  : operation.payload.title;
+                const expectedVersion = "expectedRevisionVersion" in operation ? operation.expectedRevisionVersion : "—";
+                return (
+                  <li key={operation.operationId} className="rounded border border-border/70 bg-background/60 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="font-mono">{index + 1} · {(operation.kind ?? "create").toUpperCase()}</Badge>
+                          <span className="text-xs font-medium">{operationTitle}</span>
+                          {conflict ? <Badge variant="destructive">Revision conflict</Badge> : operation.lastError ? <Badge variant="secondary">Needs attention</Badge> : <Badge variant="outline">Waiting</Badge>}
+                        </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          Queued {new Date(operation.createdAt).toLocaleString()} · {operation.attempts} attempt(s) · expected v{expectedVersion}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {canRebase && (
+                          <Button size="sm" variant="outline" onClick={async () => {
+                            try {
+                              const latestVersion = target.revisions?.[0]?.version ?? 0;
+                              await updateOfflineEvidenceOperation(rebaseOfflineEvidenceUpdateOperation(operation, latestVersion));
+                              await loadOfflineQueue();
+                              toast({ title: "Update rebased", description: `The queued draft now targets revision v${latestVersion}. Review the comparison below, then retry the queue.` });
+                            } catch (error) {
+                              toast({ title: "Could not rebase update", description: (error as Error).message, variant: "destructive" });
+                            }
+                          }}>
+                            Rebase to v{target?.revisions?.[0]?.version ?? 0}
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={async () => {
+                          await removeOfflineEvidenceOperation(operation.operationId);
+                          await loadOfflineQueue();
+                          toast({ title: "Queued operation discarded", description: "The local operation was removed; the server source was not changed." });
+                        }}>Discard</Button>
+                      </div>
+                    </div>
+                    {operation.lastError && <p className="mt-2 break-words text-xs text-coral" role="alert">{operation.lastError}</p>}
+                    {conflict && operation.kind === "update" && (
+                      <div className="mt-3 grid gap-2 border-t border-border/60 pt-3 md:grid-cols-2">
+                        <div className="min-w-0 rounded bg-secondary/40 p-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Queued draft · v{operation.expectedRevisionVersion} base</p>
+                          <p className="mt-1 text-xs font-medium" dir="auto">{operation.payload.title}</p>
+                          <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-[11px] text-muted-foreground" dir="auto">{operation.payload.content}</p>
+                        </div>
+                        <div className="min-w-0 rounded bg-secondary/40 p-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Current server source · v{target?.revisions?.[0]?.version ?? 0}</p>
+                          <p className="mt-1 text-xs font-medium" dir="auto">{target?.title ?? "Source no longer exists"}</p>
+                          <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-[11px] text-muted-foreground" dir="auto">{target?.content ?? "The source is unavailable. Discard this queued update."}</p>
+                        </div>
+                      </div>
+                    )}
+                    {conflict && operation.kind === "delete" && (
+                      <p className="mt-2 text-xs text-muted-foreground">Deletion is deliberately not auto-rebased. Review the current source in the library; discard this operation if the newer source should be retained.</p>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="mt-3 text-[10px] leading-4 text-muted-foreground">
+              A revision conflict pauses the FIFO queue. Rebase is available only for updates and preserves the draft and operation ID; deletions require a fresh, deliberate decision.
+            </p>
+          </section>
+        )}
         {project.evidences.length > 0 && (
           <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_190px]">
             <div className="relative">
@@ -501,6 +732,7 @@ export function ElicitationStage({
                   projectId={project.id}
                   evidence={ev}
                   onSaved={refresh}
+                  onQueueOffline={async (operation) => { await putOfflineEvidenceOperation(operation); await loadOfflineQueue(); }}
                 />
                 <EvidenceClaimsPanel
                   projectId={project.id}

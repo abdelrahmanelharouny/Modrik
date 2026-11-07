@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { createOfflineEvidenceMutationOperation } from "@/lib/evidence/offline-queue.mjs";
 import type { EvidenceDTO } from "@/lib/rp";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,10 +14,12 @@ export function EvidenceRevisionPanel({
   projectId,
   evidence,
   onSaved,
+  onQueueOffline,
 }: {
   projectId: string;
   evidence: EvidenceDTO;
   onSaved: () => Promise<void>;
+  onQueueOffline?: (operation: ReturnType<typeof createOfflineEvidenceMutationOperation>) => Promise<void>;
 }) {
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -26,21 +29,40 @@ export function EvidenceRevisionPanel({
   const [language, setLanguage] = useState(evidence.language);
   const [consent, setConsent] = useState(evidence.consent);
   const [changeNote, setChangeNote] = useState("");
+  const pendingOperationRef = useRef<{ fingerprint: string; id: string } | null>(null);
 
   const save = async () => {
     setBusy(true);
     try {
+      const expectedRevisionVersion = evidence.revisions?.[0]?.version ?? 0;
+      const requestFingerprint = JSON.stringify({ evidenceId: evidence.id, expectedRevisionVersion, title, content, language, consent, changeNote });
+      if (!pendingOperationRef.current || pendingOperationRef.current.fingerprint !== requestFingerprint) {
+        pendingOperationRef.current = { fingerprint: requestFingerprint, id: crypto.randomUUID() };
+      }
+      const clientOperationId = pendingOperationRef.current.id;
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (!onQueueOffline) throw new Error("Offline editing queue is unavailable");
+        await onQueueOffline(createOfflineEvidenceMutationOperation(projectId, "update", evidence.id, expectedRevisionVersion, { title, content, sourceType: evidence.sourceType, language, consent }, clientOperationId, changeNote));
+        pendingOperationRef.current = null;
+        setEditing(false);
+        toast({ title: "Revision queued", description: "Your edit is stored locally and will sync in order after reconnecting. The expected revision is pinned." });
+        return;
+      }
       const result = await api<{ revision: number }>(`/api/projects/${projectId}/evidence`, {
         method: "PATCH",
         body: JSON.stringify({
           evidenceId: evidence.id,
+          expectedRevisionVersion,
           title,
           content,
           language,
           consent,
           changeNote,
+          clientOperationId,
         }),
       });
+      pendingOperationRef.current = null;
       await onSaved();
       setEditing(false);
       setChangeNote("");
@@ -49,7 +71,25 @@ export function EvidenceRevisionPanel({
         description: `Version ${result.revision} is now current. Previous versions remain available below.`,
       });
     } catch (error) {
-      toast({ title: "Could not save evidence", description: (error as Error).message, variant: "destructive" });
+      const message = (error as Error).message;
+      if (message.includes("changed in another session")) {
+        // Refresh the server snapshot/version but keep the unsaved local form values.
+        await onSaved();
+        toast({
+          title: "Newer evidence version found",
+          description: "Your draft is still here. Compare it with the refreshed history, then save again to create the next revision.",
+          variant: "destructive",
+        });
+      } else if (error instanceof TypeError && onQueueOffline) {
+        try {
+          await onQueueOffline(createOfflineEvidenceMutationOperation(projectId, "update", evidence.id, evidence.revisions?.[0]?.version ?? 0, { title, content, sourceType: evidence.sourceType, language, consent }, pendingOperationRef.current?.id ?? crypto.randomUUID(), changeNote));
+          pendingOperationRef.current = null;
+          setEditing(false);
+          toast({ title: "Revision queued", description: "Connection interrupted; the operation ID is preserved for safe retry." });
+        } catch (queueError) { toast({ title: "Could not preserve revision offline", description: (queueError as Error).message, variant: "destructive" }); }
+      } else {
+        toast({ title: "Could not save evidence", description: message, variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }

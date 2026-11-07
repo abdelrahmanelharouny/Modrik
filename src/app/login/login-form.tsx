@@ -4,8 +4,11 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useLang } from "@/lib/i18n";
 
 export function LoginForm() {
+  const { lang, toggle } = useLang();
+  const ar = lang === "ar";
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,9 +38,10 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4">
+    <form onSubmit={submit} dir={ar ? "rtl" : "ltr"} lang={ar ? "ar" : "en"} className="grid gap-4">
+      <div className="flex justify-end"><button type="button" onClick={toggle} aria-label={ar ? "تغيير اللغة إلى الإنجليزية" : "Switch language to Arabic"} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary">{ar ? "English" : "العربية"}</button></div>
       <label className="grid gap-2 text-sm">
-        <span>Email</span>
+        <span>{ar ? "البريد الإلكتروني" : "Email"}</span>
         <input
           type="email"
           autoComplete="username"
@@ -49,7 +53,7 @@ export function LoginForm() {
         />
       </label>
       <label className="grid gap-2 text-sm">
-        <span>Password</span>
+        <span>{ar ? "كلمة المرور" : "Password"}</span>
         <input
           type="password"
           autoComplete="current-password"
@@ -62,14 +66,14 @@ export function LoginForm() {
       </label>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       <div className="flex justify-end -mt-1">
-        <Link href="/reset-password" className="text-xs text-primary underline-offset-4 hover:underline">Forgot password?</Link>
+        <Link href="/reset-password" className="text-xs text-primary underline-offset-4 hover:underline">{ar ? "نسيت كلمة المرور؟" : "Forgot password?"}</Link>
       </div>
       <button
         type="submit"
         disabled={busy}
         className="mt-2 h-11 rounded-lg bg-primary px-4 font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {busy ? "Signing in…" : "Sign in"}
+        {busy ? (ar ? "جارٍ تسجيل الدخول…" : "Signing in…") : (ar ? "تسجيل الدخول" : "Sign in")}
       </button>
     </form>
   );

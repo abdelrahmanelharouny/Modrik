@@ -49,6 +49,10 @@ jobs:
         env:
           DATABASE_URL: file:${{ github.workspace }}/ci.db
         run: bun run db:push
+      - name: SQLite organization memory repair and reconciliation integration
+        env:
+          DATABASE_URL: file:${{ github.workspace }}/ci.db
+        run: node --test tests/organization-memory-sqlite.integration.mjs
       - name: TypeScript
         run: bunx tsc --noEmit
       - name: Lint
@@ -65,6 +69,8 @@ jobs:
         run: |
           npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
           npx playwright install --with-deps chromium
+      - name: Browser multi-tab offline evidence lease integration
+        run: node scripts/test-offline-evidence-multitab-browser.mjs
       - name: Prepare standalone static assets for browser E2E
         run: |
           mkdir -p .next/standalone/.next
@@ -127,4 +133,13 @@ jobs:
         run: bunx prisma generate --schema prisma/schema.postgres.prisma
       - name: Push schema to PostgreSQL 16
         run: bunx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
+      - name: PostgreSQL organization memory isolation and governance integration
+        run: node --test tests/organization-memory-postgres.integration.mjs
+      - name: Benchmark PostgreSQL organization memory retrieval
+        run: node scripts/benchmark-organization-memory-postgres.mjs --sizes=1000 --repeats=2 --output=/tmp/organization-memory-postgres-benchmark.json
+      - name: Upload PostgreSQL retrieval benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: organization-memory-postgres-benchmark
+          path: /tmp/organization-memory-postgres-benchmark.json
 

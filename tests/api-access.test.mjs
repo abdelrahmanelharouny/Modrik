@@ -9,6 +9,9 @@ test("only explicit credential and participant-token endpoints bypass owner auth
   assert.equal(isPublicApiPath("/api/auth/password-reset/complete"), true);
   assert.equal(isPublicApiPath("/api/auth/session"), true);
   assert.equal(isPublicApiPath("/api/study/respond"), true);
+  assert.equal(isPublicApiPath("/api/webhooks/github/project_123"), true);
+  assert.equal(isPublicApiPath("/api/webhooks/jira/project_123"), true);
+  assert.equal(isPublicApiPath("/api/webhooks/github/project_123/extra"), false);
   assert.equal(isPublicApiPath("/api/projects"), false);
   assert.equal(isPublicApiPath("/api/projects/demo"), false);
   assert.equal(isPublicApiPath("/api/study"), false);
@@ -22,4 +25,9 @@ test("public password recovery exemptions are method-specific", () => {
   assert.equal(isPublicApiRequest("/api/auth/password-reset/complete", "POST"), true);
   assert.equal(isPublicApiRequest("/api/auth/password-reset/request", "GET"), false);
   assert.equal(isPublicApiRequest("/api/auth/password-reset/complete", "DELETE"), false);
+  assert.equal(isPublicApiRequest("/api/webhooks/github/project_123", "POST"), true);
+  assert.equal(isPublicApiRequest("/api/webhooks/jira/project_123", "POST"), true);
+  assert.equal(isPublicApiRequest("/api/webhooks/github/project_123", "GET"), false);
+  assert.equal(isPublicApiRequest("/api/webhooks/jira/project_123", "GET"), false);
+  assert.equal(isPublicApiRequest("/api/webhooks/github/project_123/extra", "POST"), false);
 });

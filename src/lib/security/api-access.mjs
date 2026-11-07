@@ -9,10 +9,12 @@ const PUBLIC_API_METHODS = Object.freeze({
 });
 
 export function isPublicApiPath(pathname) {
-  return typeof pathname === "string" && Object.hasOwn(PUBLIC_API_METHODS, pathname);
+  return typeof pathname === "string" &&
+    (Object.hasOwn(PUBLIC_API_METHODS, pathname) || /^\/api\/webhooks\/(?:github|jira)\/[^/]+$/.test(pathname));
 }
 
 export function isPublicApiRequest(pathname, method) {
   if (typeof pathname !== "string" || typeof method !== "string") return false;
+  if (/^\/api\/webhooks\/(?:github|jira)\/[^/]+$/.test(pathname)) return method.toUpperCase() === "POST";
   return PUBLIC_API_METHODS[pathname]?.has(method.toUpperCase()) ?? false;
 }

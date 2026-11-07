@@ -6,6 +6,7 @@ import { encryptSecret, decryptSecret, isEncryptedSecret } from "../src/lib/secu
 import { csvCell } from "../src/lib/security/csv.mjs";
 import { validateJiraBaseUrl, buildJiraUrl, jiraFetchOptions } from "../src/lib/security/jira-url.mjs";
 import { isPublicApiPath } from "../src/lib/security/api-access.mjs";
+import { hasOrganizationPermission } from "../src/lib/security/organization-access.mjs";
 import {
   createSessionToken,
   createIdentitySessionToken,
@@ -216,4 +217,28 @@ test("state-changing request origin validation uses the actual request host", ()
   assert.equal(isSameOriginMutation(hostMismatch, "http:"), false);
   const missingHost = new Headers({ origin: "https://app.example.com", "x-forwarded-proto": "https" });
   assert.equal(isSameOriginMutation(missingHost, "http:"), false);
+});
+
+test("audit exports require the explicit audit:read permission and an active tenant membership", () => {
+ const base={organizationId:"org_1",status:"active",userStatus:"active",organizationStatus:"active"};
+ for (const role of ["owner","admin","reviewer","approver"]) {
+  assert.equal(hasOrganizationPermission({...base,role},"audit:read"),true,role);
+ }
+ for (const role of ["engineer","viewer"]) {
+  assert.equal(hasOrganizationPermission({...base,role},"audit:read"),false,role);
+ }
+ assert.equal(hasOrganizationPermission({...base,role:"owner",status:"suspended"},"audit:read"),false);
+ assert.equal(hasOrganizationPermission({...base,role:"reviewer",organizationStatus:"suspended"},"audit:read"),false);
+});
+
+
+test("active root proxy stays aligned with the source proxy security policy", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const [activeProxy, sourceProxy] = await Promise.all([
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/proxy.ts", import.meta.url), "utf8"),
+  ]);
+  assert.equal(activeProxy, sourceProxy, "root proxy and src proxy must remain identical");
+  assert.ok(activeProxy.includes('route === "audit/export"'));
+  assert.ok(activeProxy.includes('route === "traceability/reverse"'));
 });

@@ -33,6 +33,7 @@ model User {
   projectsCreated Project[]    @relation("ProjectCreator")
   invitationsSent OrganizationInvitation[] @relation("InvitationSender")
   invitationsReceived OrganizationInvitation[] @relation("InvitationRecipient")
+  organizationAuditEvents OrganizationAuditEvent[]
   passwordResetTokens PasswordResetToken[]
 
   @@index([status, createdAt])
@@ -48,6 +49,7 @@ model Organization {
   memberships Membership[]
   projects    Project[]
   invitations OrganizationInvitation[]
+  auditEvents OrganizationAuditEvent[]
 
   @@index([status, createdAt])
 }
@@ -104,6 +106,7 @@ model Project {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  evidenceOperations EvidenceOperation[]
   evidences  Evidence[]
   questions  Question[]
   candidates ProblemCandidate[]
@@ -124,6 +127,8 @@ model Project {
   evidenceClaims EvidenceClaim[]
   requirementClaims RequirementClaim[]
   knowledgeNodes KnowledgeNode[]
+  organizationMemorySearchDocuments OrganizationMemorySearchDocument[]
+  organizationMemorySearchIndexState OrganizationMemorySearchIndexState?
   knowledgeEdges KnowledgeEdge[]
   knowledgeNodeClaims KnowledgeNodeClaim[]
   knowledgeRequirements KnowledgeRequirement[]
@@ -136,6 +141,8 @@ model Project {
 
   @@index([organizationId, updatedAt])
   @@index([createdByUserId])
+  organizationMemoryEmbeddings OrganizationMemoryEmbedding[]
+  organizationMemoryEmbeddingJobs OrganizationMemoryEmbeddingJob[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -315,11 +322,70 @@ model KnowledgeNode {
   incoming    KnowledgeEdge[] @relation("KnowledgeEdgeTo")
   claims      KnowledgeNodeClaim[]
   requirements KnowledgeRequirement[]
+  organizationMemorySearchDocument OrganizationMemorySearchDocument?
 
   @@unique([projectId, nodeRef])
   @@unique([id, projectId])
   @@index([projectId, kind, status])
   @@index([projectId, updatedAt])
+  @@index([projectId, status, updatedAt, id])
+  organizationMemoryEmbeddings OrganizationMemoryEmbedding[]
+}
+
+/// Provider-neutral lexical search index. KnowledgeNode remains authoritative.
+model OrganizationMemorySearchDocument {
+  id                String   @id @default(cuid())
+  nodeId            String   @unique
+  projectId         String
+  status            String
+  normalizedText    String
+  tokenCount        Int
+  contentHash       String
+  normalizerVersion Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  node              KnowledgeNode @relation(fields: [nodeId, projectId], references: [id, projectId], onDelete: Cascade)
+  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  postings          OrganizationMemorySearchPosting[]
+  @@unique([id, projectId])
+  @@unique([nodeId, projectId])
+  @@index([projectId, status, id])
+  @@index([projectId, status, normalizerVersion])
+}
+model OrganizationMemorySearchPosting {
+  id         String   @id @default(cuid())
+  documentId String
+  term       String
+  frequency  Int
+  document   OrganizationMemorySearchDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  @@unique([documentId, term])
+  @@index([term, documentId])
+}
+
+
+/// Durable per-project cursor for resumable lexical-index backfills.
+model OrganizationMemorySearchIndexState {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cursorNodeId      String?
+  scannedCount      Int      @default(0)
+  indexedCount      Int      @default(0)
+  normalizerVersion Int      @default(1)
+  status            String   @default("pending") // pending | running | completed
+  lastError         String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  reconciliationStatus String @default("pending") // pending | running | completed | failed
+  reconciliationPhase String @default("nodes") // nodes | documents | completed
+  reconciliationCursorNodeId String?
+  reconciliationCursorDocumentId String?
+  reconciliationMismatchCount Int @default(0)
+  reconciliationNormalizerVersion Int @default(0)
+  reconciliationStartedAt DateTime?
+  reconciliationCompletedAt DateTime?
+  updatedAt         DateTime @updatedAt
+  @@index([status, updatedAt])
 }
 
 model KnowledgeEdge {
@@ -796,4 +862,103 @@ model PasswordResetToken {
 
   @@index([userId, usedAt, revokedAt])
   @@index([expiresAt, usedAt, revokedAt])
+}
+
+
+// Durable idempotency ledger. Records outlive evidence deletion so a delayed
+// retry cannot recreate a source after its original operation was completed.
+model EvidenceOperation {
+  operationId String   @id // client-generated UUID; globally unique like Evidence IDs
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  action      String   // create | update | delete
+  requestHash String   // SHA-256 of canonical project/action/payload semantics
+  status      String   @default("processing") // processing | completed
+  responseJson String? // immutable successful response snapshot for exact replay
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
+}
+
+
+// Organization-scoped audit events. projectId is a scalar snapshot so project
+// deletion cannot cascade-delete the organization audit history.
+model OrganizationAuditEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUserId    String?
+  actor          User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  eventType      String
+  resourceType   String
+  resourceId     String
+  projectId      String?
+  summary        String       @default("")
+  metadata       String       @default("{}")
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt, id])
+  @@index([organizationId, eventType, createdAt])
+  @@index([organizationId, actorUserId, createdAt])
+  @@index([organizationId, projectId, createdAt])
+  @@index([organizationId, resourceType, resourceId])
+}
+
+
+// Provider-neutral semantic memory vectors. Vectors are JSON-encoded to keep
+// SQLite/PostgreSQL schema parity; production adapters must filter tenant scope
+// in SQL before loading/ranking candidate vectors.
+model OrganizationMemoryEmbedding {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  nodeId         String
+  model          String
+  dimensions     Int
+  vector         String   // JSON number[]; validated at provider boundary
+  norm           Float
+  contentHash    String
+  normalizerVersion Int   @default(1)
+  status         String   @default("ready") // ready | stale | failed
+  embeddedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  node           KnowledgeNode @relation(fields: [nodeId, projectId], references: [id, projectId], onDelete: Cascade)
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([nodeId, model, dimensions])
+  @@index([organizationId, projectId, model, dimensions, status])
+  @@index([projectId, nodeId, contentHash])
+  @@index([status, updatedAt])
+}
+
+// Durable outbox for embedding generation and deletion. nodeId is deliberately
+// not a foreign key so a deletion tombstone survives source-node deletion.
+model OrganizationMemoryEmbeddingJob {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  nodeId         String
+  operation      String   // upsert | delete
+  model          String
+  dimensions     Int
+  contentHash    String   @default("")
+  idempotencyKey String   @unique
+  status         String   @default("pending") // pending | processing | completed | dead
+  attempts       Int      @default(0)
+  maxAttempts    Int      @default(8)
+  availableAt    DateTime @default(now())
+  lockedAt       DateTime?
+  leaseExpiresAt DateTime?
+  lockedBy       String?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt, createdAt])
+  @@index([organizationId, projectId, nodeId, status])
+  @@index([lockedAt, status])
 }

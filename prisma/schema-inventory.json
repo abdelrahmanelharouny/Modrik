@@ -8,12 +8,12 @@
     "sqlite": {
       "provider": "sqlite",
       "schemaPath": "prisma/schema.prisma",
-      "sha256": "1b3f35217ea2d466e37c6c4b94828844788d2431e6db4ce8fade7a71518d84fb"
+      "sha256": "896248397fd45fdc56e3b1b16e9e3133eea839956018c1063739d44cee28fdfa"
     },
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "3538abc2fc29db211e29a1edcd5003f1a471aa7f48e845bc2acec9893d1df3b2"
+      "sha256": "3755b1d45338c6e576819dfc1ae9b8ce0733d3ad7e9aa6af657f14294e273fdb"
     }
   },
   "models": [
@@ -31,6 +31,9 @@
     "EvidenceClaim",
     "RequirementClaim",
     "KnowledgeNode",
+    "OrganizationMemorySearchDocument",
+    "OrganizationMemorySearchPosting",
+    "OrganizationMemorySearchIndexState",
     "KnowledgeEdge",
     "KnowledgeNodeClaim",
     "KnowledgeRequirement",
@@ -54,6 +57,10 @@
     "Integration",
     "SyncMap",
     "OrganizationInvitation",
-    "PasswordResetToken"
+    "PasswordResetToken",
+    "EvidenceOperation",
+    "OrganizationAuditEvent",
+    "OrganizationMemoryEmbedding",
+    "OrganizationMemoryEmbeddingJob"
   ]
 }
