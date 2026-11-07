@@ -85,6 +85,44 @@ try {
   await Promise.all([first.evaluate(() => window.releaseSync()), second.evaluate(() => window.releaseSync())]);
   await Promise.all([first.evaluate(() => window.syncTask), second.evaluate(() => window.syncTask)]);
 
+
+  // Simulate an abruptly terminated tab: its lease remains in IndexedDB until
+  // expiry. A later tab must recover it with a strictly newer fencing token.
+  await startTask(first, "browser-project-crash-recovery", "tab-crashed");
+  await waitFor(() => events.some((event) => event.startsWith("tab-crashed:start:")), "crash-test tab to acquire its lease");
+  const crashedToken = Number(events.find((event) => event.startsWith("tab-crashed:start:")).split(":").at(-1));
+  await first.close(); // abrupt page termination: task/finally/heartbeat no longer execute
+  const recoveryTab = await context.newPage();
+  await recoveryTab.goto(origin);
+  await recoveryTab.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("modrik-offline", 2);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("sync-leases", "readwrite");
+      const store = tx.objectStore("sync-leases");
+      const key = "modrik:offline-evidence-sync:browser-project-crash-recovery";
+      const request = store.get(key);
+      request.onsuccess = () => {
+        if (!request.result) { tx.abort(); return; }
+        store.put({ ...request.result, leaseUntil: Date.now() - 1 });
+      };
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("Could not expire crashed-tab lease"));
+    });
+    db.close();
+  });
+  await startTask(recoveryTab, "browser-project-crash-recovery", "tab-recovered");
+  await waitFor(() => events.some((event) => event.startsWith("tab-recovered:start:")), "new tab to recover the expired lease");
+  const recoveredToken = Number(events.find((event) => event.startsWith("tab-recovered:start:")).split(":").at(-1));
+  assert.ok(recoveredToken > crashedToken, "recovery after tab termination must advance the fencing generation");
+  await recoveryTab.evaluate(() => window.releaseSync());
+  await recoveryTab.evaluate(() => window.syncTask);
+  await recoveryTab.close();
+
   // A long-closed browser must not silently expire user-authored work.
   const retained = await first.evaluate(async () => {
     const { createOfflineEvidenceOperation, putOfflineEvidenceOperation, listOfflineEvidenceOperations } = await import("/offline-queue.mjs");
