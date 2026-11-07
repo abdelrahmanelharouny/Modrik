@@ -1250,4 +1250,5 @@ try {
   await prisma.$disconnect();
   child.kill("SIGTERM");
   await Promise.race([new Promise(resolve => child.once("exit", resolve)), delay(5000)]);
+  await new Promise(resolve => mockProvider.close(resolve));
 }
