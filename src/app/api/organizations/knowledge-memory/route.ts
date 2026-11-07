@@ -210,7 +210,10 @@ export async function GET(req: NextRequest) {
       const indexedWithSemantic = indexedEnabled ? await runHybrid(indexed) : indexed;
       if (shadowEnabled) {
         const streamingBase = await runStreaming();
-        const streaming = await runHybrid(streamingBase);
+        // When indexed reads are authoritative, the indexed hybrid result is
+        // already computed above. Keep shadow parity lexical-only and avoid a
+        // second paid embedding-provider request for the streaming baseline.
+        const streaming = indexedEnabled ? streamingBase : await runHybrid(streamingBase);
         const parity = compareOrganizationMemoryRetrievalParity(streamingBase.rows, indexed.rows);
         return {
           ...(indexedEnabled ? indexedWithSemantic : streaming),
