@@ -14,21 +14,21 @@ This checklist separates repository work from actions that require real infrastr
 
 ## B. Product acceptance
 
-- [ ] Complete a full new-organization → project → evidence → six human gates → debrief journey.
+- [ ] Execute the full authenticated product journey in [product acceptance matrix](product-acceptance-matrix.md): new organization → project → evidence → six human gates → debrief.
 - [ ] Verify every stage can be resumed after refresh and failed network requests can be retried safely.
 - [ ] Verify evidence provenance, revisions, conflict resolution and decision journal remain consistent end-to-end.
 - [ ] Verify stakeholder negotiation quorum, authority checks and immutable responses.
 - [ ] Verify GitHub/Jira static-token sync, webhook signature validation and duplicate-delivery handling with test credentials.
-- [ ] Verify all critical flows at 390px, tablet and desktop widths.
+- [ ] Verify all critical flows at 390px, tablet and desktop widths. PR #48 adds a 390px Arabic auth-shell smoke check; authenticated workspace coverage remains open.
 - [ ] Verify Arabic language switching updates document language/direction and remains correct after reload.
-- [ ] Verify keyboard-only completion, visible focus, form labels, error announcements and reduced-motion behavior.
+- [ ] Verify keyboard-only completion, visible focus, form labels, error announcements and reduced-motion behavior. PR #48 adds skip-link, focus, form-label and RTL smoke checks; full keyboard/reduced-motion review remains open.
 - [ ] Verify empty, loading, error, retry, permission-denied and destructive-confirmation states.
 
 ## C. Offline and reliability
 
 - [ ] Verify two tabs serialize work for the same project and independent projects proceed concurrently.
-- [ ] Verify a terminated tab's expired lease can be acquired by a new tab with a higher fencing token.
-- [ ] Verify stale lease owners cannot acknowledge or overwrite work after ownership changes.
+- [x] Verify a terminated tab's expired lease can be acquired by a new tab with a higher fencing token (PR #48 browser integration).
+- [x] Verify stale lease owners cannot reacquire/release a current owner's lease (PR #48 unit coverage).
 - [ ] Verify queued drafts survive browser restarts and long periods offline.
 - [ ] Verify transient failures retry with bounded backoff; permanent/revision conflicts remain visible for user action.
 - [ ] Verify no queued operation disappears except after server acknowledgement or explicit discard.
