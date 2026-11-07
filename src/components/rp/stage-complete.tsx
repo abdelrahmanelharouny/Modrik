@@ -17,6 +17,7 @@ import { useLang } from "@/lib/i18n";
 import { HudPanel, Eyebrow, Chip, CountUp, Meter, SectionHead, EmptyBay, Reveal, type Tone } from "@/components/rp/hud";
 import { ICONS } from "@/components/rp/icons";
 import { PlannerLab, CalibrationPanel, ExecutabilitySim, SelfAuditPanel, IntegrationsConsole } from "@/components/rp/debrief-instruments";
+import { KnowledgeGraphExplorer } from "@/components/rp/knowledge-graph-explorer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -698,6 +699,9 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
             <TabsContent value="constellation" className="mt-0">
               <SectionHead icon={Waypoints} title={ar ? "خريطة الأبراج" : "Constellation graph"} blurb={ar ? insMeta("constellation").descAr : insMeta("constellation").desc} />
               <Constellation project={project} />
+              <div className="mt-6 border-t border-border/70 pt-6">
+                <KnowledgeGraphExplorer project={project} />
+              </div>
             </TabsContent>
 
             {/* planner lab (item 7 — the research heart) */}

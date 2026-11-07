@@ -40,6 +40,12 @@ model Project {
   memories MemoryEntry[]
   integrations Integration[]
   traceLinks TraceLink[]
+  evidenceClaims EvidenceClaim[]
+  requirementClaims RequirementClaim[]
+  knowledgeNodes KnowledgeNode[]
+  knowledgeEdges KnowledgeEdge[]
+  knowledgeNodeClaims KnowledgeNodeClaim[]
+  knowledgeRequirements KnowledgeRequirement[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -112,6 +118,7 @@ model Evidence {
   origin     String   @default("human") // human | file | synthetic
   createdAt  DateTime @default(now())
   traceLinks TraceLink[]
+  claims     EvidenceClaim[]
   revisions  EvidenceRevision[]
   @@unique([projectId, code])
 }
@@ -136,6 +143,146 @@ model EvidenceRevision {
 
   @@unique([evidenceId, version])
   @@index([evidenceId, createdAt])
+  claims      EvidenceClaim[]
+}
+
+
+// Verbatim claims extracted from a specific immutable evidence revision.
+// Offsets are JavaScript UTF-16 code-unit offsets into EvidenceRevision.content.
+model EvidenceClaim {
+  id                    String   @id @default(cuid())
+  projectId             String
+  project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  evidenceId            String
+  evidence              Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  revisionId            String
+  revision              EvidenceRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  claimRef              String
+  claimText             String
+  quote                 String
+  quoteStart            Int
+  quoteEnd              Int
+  offsetUnit            String   @default("utf16")
+  sourceRevisionVersion Int
+  claimKind             String   // need | goal | constraint | preference | risk | metric | pain_point | assumption | fact
+  polarity              String   @default("neutral") // affirmative | negative | neutral
+  modality              String   @default("reported") // must | should | may | wants | reported | hypothetical
+  speaker               String?
+  extractionConfidence  Float    @default(0.5)
+  status                String   @default("proposed") // proposed | in_review | accepted | rejected | needs_clarification
+  extractionNote        String   @default("")
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  reviewNote            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  requirementLinks      RequirementClaim[]
+
+  @@unique([projectId, claimRef])
+  @@unique([id, projectId])
+  @@unique([revisionId, quoteStart, quoteEnd, claimText])
+  @@index([projectId, status, claimKind])
+  @@index([evidenceId, revisionId])
+  knowledgeNodes KnowledgeNodeClaim[]
+}
+
+model RequirementClaim {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirementId String
+  requirement   Requirement   @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  claimId       String
+  claim         EvidenceClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  relationship  String        @default("supports") // supports | contradicts | qualifies | derives
+  note          String        @default("")
+  createdAt     DateTime      @default(now())
+
+  @@unique([requirementId, claimId])
+  @@index([projectId, claimId])
+}
+
+ 
+// Project-scoped knowledge graph. Composite foreign keys include projectId,
+// so edges and provenance links cannot accidentally cross project boundaries.
+model KnowledgeNode {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nodeRef     String
+  kind        String   // stakeholder | goal | assumption | constraint | decision | risk | metric | system | domain_concept | process | policy
+  label       String
+  description String   @default("")
+  status      String   @default("proposed") // proposed | in_review | accepted | rejected | archived
+  origin      String   @default("human") // human | agent | derived
+  confidence  Float    @default(0.5)
+  owner       String?
+  attributes  String   @default("{}") // JSON-encoded extensible attributes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  outgoing    KnowledgeEdge[] @relation("KnowledgeEdgeFrom")
+  incoming    KnowledgeEdge[] @relation("KnowledgeEdgeTo")
+  claims      KnowledgeNodeClaim[]
+  requirements KnowledgeRequirement[]
+
+  @@unique([projectId, nodeRef])
+  @@unique([id, projectId])
+  @@index([projectId, kind, status])
+  @@index([projectId, updatedAt])
+}
+
+model KnowledgeEdge {
+  id             String       @id @default(cuid())
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromNodeId     String
+  fromNode       KnowledgeNode @relation("KnowledgeEdgeFrom", fields: [fromNodeId, projectId], references: [id, projectId], onDelete: Cascade)
+  toNodeId       String
+  toNode         KnowledgeNode @relation("KnowledgeEdgeTo", fields: [toNodeId, projectId], references: [id, projectId], onDelete: Cascade)
+  relationType   String       // influences | depends_on | constrains | contradicts | mitigates | implements | affects | informs | owns | part_of | derived_from | supersedes | collaborates_with
+  status         String       @default("proposed") // proposed | accepted | rejected
+  origin         String       @default("human") // human | agent | derived
+  confidence     Float        @default(0.5)
+  note           String       @default("")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([fromNodeId, toNodeId, relationType])
+  @@index([projectId, relationType, status])
+  @@index([projectId, fromNodeId])
+  @@index([projectId, toNodeId])
+}
+
+model KnowledgeNodeClaim {
+  id           String        @id @default(cuid())
+  projectId    String
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nodeId       String
+  node         KnowledgeNode @relation(fields: [nodeId, projectId], references: [id, projectId], onDelete: Cascade)
+  claimId      String
+  claim        EvidenceClaim @relation(fields: [claimId, projectId], references: [id, projectId], onDelete: Cascade)
+  relationship String        @default("supports") // supports | contradicts | qualifies | context
+  note         String        @default("")
+  createdAt    DateTime      @default(now())
+
+  @@unique([nodeId, claimId])
+  @@index([projectId, claimId])
+}
+
+model KnowledgeRequirement {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nodeId        String
+  node          KnowledgeNode @relation(fields: [nodeId, projectId], references: [id, projectId], onDelete: Cascade)
+  requirementId String
+  requirement   Requirement   @relation(fields: [requirementId, projectId], references: [id, projectId], onDelete: Cascade)
+  role          String        @default("informs") // implements | constrains | mitigates | affects | informs | validates
+  note          String        @default("")
+  createdAt     DateTime      @default(now())
+
+  @@unique([nodeId, requirementId, role])
+  @@index([projectId, requirementId])
 }
 
 // Agent-generated clarifying questions, answered by the human (HITL gate 1)
@@ -248,6 +395,9 @@ model Requirement {
   edgeTo    ReqEdge[]    @relation("edgeTo")
   execScenarios ExecScenario[]
   syncMaps  SyncMap[]
+  claimLinks RequirementClaim[]
+  @@unique([id, projectId])
+  knowledgeNodes KnowledgeRequirement[]
 }
 
 // Evidence traceability: which source grounds which requirement
