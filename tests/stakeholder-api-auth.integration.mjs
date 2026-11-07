@@ -692,6 +692,15 @@ try {
       note: "Human-reviewed source link for approval-gate integration.",
     },
   });
+  await prisma.traceLink.create({
+    data: {
+      projectId: pipelineProjectId,
+      requirementId: secondPipelineRequirement.id,
+      evidenceId: pipelineEvidence.id,
+      evidenceCode: pipelineEvidence.code,
+      note: "Second requirement grounded in the same interview source.",
+    },
+  });
   await approveAndExpect("AMBIGUITY", "evidence-grounded human-verified requirements approval");
 
   await setPipelineReview();
