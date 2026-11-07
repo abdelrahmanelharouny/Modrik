@@ -45,8 +45,30 @@ import {
   ShieldCheck,
   Undo2,
   Waves,
+  FlaskConical,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface PlannerExperimentView {
+  experimentId: string;
+  seed: string;
+  materializedArm: string;
+  candidatePoolHash: string;
+  candidateCount: number;
+  arms: {
+    arm: string;
+    candidates: number;
+    estTokens: number;
+    latencyMs: number;
+    metrics: {
+      avgUtility: number;
+      utilityPerCost: number;
+      evidenceCoverage: number;
+      redundancyRate: number;
+      dialectFit: number;
+    };
+  }[];
+}
 
 // ── WAV encoding helpers (16 kHz mono) ───────────────────────
 function floatTo16BitPCM(view: DataView, offset: number, input: Float32Array) {
@@ -202,6 +224,8 @@ export function ElicitationStage({
   const [content, setContent] = useState("");
   const [consent, setConsent] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [experimenting, setExperimenting] = useState(false);
+  const [experimentResult, setExperimentResult] = useState<PlannerExperimentView | null>(null);
 
   const addEvidence = async () => {
     if (!title.trim() || !content.trim()) return;
@@ -215,7 +239,12 @@ export function ElicitationStage({
       setConsent(false);
       setOpen(false);
       await refresh();
-      toast({ title: "Evidence logged", description: "The agent will ground its output in this source." });
+      toast({
+        title: "Evidence logged",
+        description: consent
+          ? "This source is eligible for AI analysis."
+          : "Stored in the project library, but its content is excluded from AI analysis until permission is recorded.",
+      });
     } catch (e) {
       toast({ title: "Could not add evidence", description: (e as Error).message, variant: "destructive" });
     }
@@ -264,6 +293,35 @@ export function ElicitationStage({
       await refresh();
     } catch (e) {
       toast({ title: "Could not reopen", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  const runResearchExperiment = async () => {
+    if (!isCurrent || experimenting) return;
+    setExperimenting(true);
+    setExperimentResult(null);
+    try {
+      const result = await api<PlannerExperimentView & { ok: boolean }>(
+        `/api/projects/${project.id}/planner/experiment`,
+        {
+          method: "POST",
+          body: JSON.stringify({ materializeArm: "impact_aware" }),
+        }
+      );
+      setExperimentResult(result);
+      await refresh();
+      toast({
+        title: "Four-arm experiment completed",
+        description: `Shared ${result.candidateCount}-candidate pool · seed ${result.seed} · materialized ${result.materializedArm}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Planner experiment failed",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setExperimenting(false);
     }
   };
 
@@ -334,9 +392,12 @@ export function ElicitationStage({
                   <div className="flex items-center gap-2">
                     <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} />
                     <Label htmlFor="consent" className="text-sm text-muted-foreground">
-                      Stakeholder consent recorded for this source
+                      I have permission to send this source's content to the configured AI provider
                     </Label>
                   </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Leave this unchecked when permission is missing or uncertain. The source remains in the private project library, but its content is never sent to an AI model or used to generate requirements.
+                  </p>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpen(false)}>
@@ -407,6 +468,20 @@ export function ElicitationStage({
           blurb="Every question carries an ask-cost and a fallback assumption — you decide what is worth asking, and what you are willing to assume."
           right={
             <>
+              {isCurrent && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={runResearchExperiment}
+                  disabled={experimenting || project.questions.some((question) => question.answered)}
+                  title="Runs all four arms against one immutable pool. Available before stakeholder answers are recorded."
+                >
+                  {experimenting
+                    ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    : <FlaskConical className="mr-1.5 h-3.5 w-3.5" />}
+                  {experimenting ? "Running study…" : "4-arm experiment"}
+                </Button>
+              )}
               <Chip tone={answered === project.questions.length && project.questions.length > 0 ? "verify" : "signal"}>
                 {answered}/{project.questions.length} answered
               </Chip>
@@ -418,6 +493,49 @@ export function ElicitationStage({
             </>
           }
         />
+
+        {experimentResult && (
+          <div className="mb-5 rounded-md border border-aura/30 bg-aura/5 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Research comparison completed</p>
+                <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                  {experimentResult.experimentId} · seed {experimentResult.seed} · pool {experimentResult.candidatePoolHash.slice(0, 12)}
+                </p>
+              </div>
+              <Chip tone="verify">materialized: {experimentResult.materializedArm}</Chip>
+            </div>
+            <p className="mb-3 text-xs leading-5 text-muted-foreground">
+              random, llm and impact_aware used the same {experimentResult.candidateCount}-question candidate pool and shared signal scores. single_shot is an independent direct-generation baseline.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-xs">
+                <thead className="text-muted-foreground">
+                  <tr>
+                    <th className="pb-2 pr-3">Arm</th>
+                    <th className="pb-2 pr-3">Avg utility</th>
+                    <th className="pb-2 pr-3">Coverage</th>
+                    <th className="pb-2 pr-3">Redundancy</th>
+                    <th className="pb-2 pr-3">Dialect fit</th>
+                    <th className="pb-2">Est. tokens</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {experimentResult.arms.map((arm) => (
+                    <tr key={arm.arm} className="border-t border-border/60">
+                      <td className="py-2 pr-3 font-mono">{arm.arm}</td>
+                      <td className="py-2 pr-3">{arm.metrics.avgUtility}</td>
+                      <td className="py-2 pr-3">{arm.metrics.evidenceCoverage}%</td>
+                      <td className="py-2 pr-3">{arm.metrics.redundancyRate}%</td>
+                      <td className="py-2 pr-3">{arm.metrics.dialectFit}%</td>
+                      <td className="py-2">{arm.estTokens.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {project.questions.length === 0 ? (
           <EmptyBay>

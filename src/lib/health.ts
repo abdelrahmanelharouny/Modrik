@@ -17,6 +17,7 @@
 //   executability   — scenarios the baseline cannot define
 // ─────────────────────────────────────────────────────────────
 import { db } from "@/lib/db";
+import { computeHealthScores } from "@/lib/health/metrics.mjs";
 
 export interface DebtContribution {
   refId: string;
@@ -28,7 +29,9 @@ export interface DebtContribution {
 export interface DebtDimension {
   id: string;
   label: string;
-  score: number; // 0 (clean) .. 100 (deep debt)
+  score: number | null; // null means not assessed; otherwise 0 (clean) .. 100 (deep debt)
+  assessed: boolean;
+  coverage: number | null; // percentage of records actually measured
   detail: string;
   contributions: DebtContribution[];
 }
@@ -60,131 +63,140 @@ export async function computeDebtProfile(projectId: string): Promise<DebtProfile
       conflicts: true,
       stories: true,
       execScenarios: true,
+      artifacts: { where: { stage: "CONFLICTS" }, select: { id: true }, take: 1 },
     },
   });
 
   const reqs = project.reqs;
   const total = reqs.length;
-  const assessed = reqs.filter((r) => r.ambiguity >= 0);
+  const scores = computeHealthScores({
+    requirements: reqs,
+    questions: project.questions,
+    conflicts: project.conflicts,
+    scenarios: project.execScenarios,
+    conflictDetectionComplete: project.artifacts.length > 0,
+  });
+
+  const assessed = reqs.filter((r) => r.ambiguity >= 0 && r.ambiguity <= 100);
   const avgAmbiguity = assessed.length
-    ? Math.round(assessed.reduce((s, r) => s + r.ambiguity, 0) / assessed.length)
+    ? Math.round(assessed.reduce((sum, r) => sum + r.ambiguity, 0) / assessed.length)
     : null;
-
-  // ── ambiguity debt ────────────────────────────────────────
   const ambiguous = assessed.filter((r) => r.ambiguity >= 30);
-  const ambiguityScore = total ? Math.round((ambiguous.reduce((s, r) => s + (r.ambiguity - 30 + 30), 0) / (total * 100)) * 100) : 0;
-  const ambiguity: DebtDimension = {
-    id: "ambiguity",
-    label: "Ambiguity debt",
-    score: Math.min(100, ambiguityScore),
-    detail: ambiguous.length
-      ? `${ambiguous.length} of ${total} requirement(s) scored >= 30 ambiguity`
-      : avgAmbiguity === null
-        ? "Ambiguity not yet assessed"
-        : "All assessed requirements are crisp (< 30)",
-    contributions: ambiguous.map((r) => ({
-      refId: r.refId,
-      text: r.text,
-      amount: r.ambiguity,
-      note: r.ambiguityNote ?? "",
-    })),
-  };
-
-  // ── verification debt ─────────────────────────────────────
   const weak = reqs.filter((r) => r.verifyStatus === "weak");
   const unverified = reqs.filter((r) => r.verifyStatus === "unverified");
-  const verificationScore = total
-    ? Math.round(((weak.length * 1 + unverified.length * 0.5) / total) * 100)
-    : 0;
-  const verification: DebtDimension = {
-    id: "verification",
-    label: "Verification debt",
-    score: Math.min(100, verificationScore),
-    detail: `${weak.length} weak + ${unverified.length} unverified of ${total}`,
-    contributions: [...weak, ...unverified].map((r) => ({
+  const uncertain = project.questions.filter((q) => q.resolution === "proceed_with_uncertainty");
+  const open = project.conflicts.filter((conflict) => conflict.status === "open");
+  const untraced = reqs.filter((requirement) =>
+    !requirement.links.some((link) => typeof link.evidenceId === "string" && link.evidenceId.length > 0)
+  );
+  const undef = project.execScenarios.filter((scenario) => scenario.resolution === "undefined");
+  const definedCount = project.execScenarios.filter((scenario) => scenario.resolution === "defined").length;
+
+  const dimension = (
+    id: string,
+    label: string,
+    detail: string,
+    metric: { score: number | null; assessed: boolean; coverage: number | null },
+    contributions: DebtContribution[]
+  ): DebtDimension => ({
+    id,
+    label,
+    detail,
+    score: metric.score,
+    assessed: metric.assessed,
+    coverage: metric.coverage,
+    contributions,
+  });
+
+  const ambiguity = dimension(
+    "ambiguity",
+    "Ambiguity debt",
+    scores.ambiguity.assessed
+      ? `${ambiguous.length} of ${total} requirement(s) flagged >= 30; measured ${assessed.length}/${total}`
+      : "Ambiguity not yet assessed",
+    scores.ambiguity,
+    ambiguous.map((r) => ({ refId: r.refId, text: r.text, amount: r.ambiguity, note: r.ambiguityNote ?? "" }))
+  );
+
+  const verification = dimension(
+    "verification",
+    "Verification debt",
+    total ? `${weak.length} weak + ${unverified.length} unverified of ${total}` : "No requirements to verify",
+    scores.verification,
+    [...weak, ...unverified].map((r) => ({
       refId: r.refId,
       text: r.text,
       amount: r.verifyStatus === "weak" ? 100 : 50,
-      note: r.verifyNote ?? (r.verifyStatus === "unverified" ? "Critic pass has not judged this requirement yet" : ""),
-    })),
-  };
+      note: r.verifyNote ?? (r.verifyStatus === "unverified" ? "Verifier has not produced a result" : ""),
+    }))
+  );
 
-  // ── uncertainty debt (assumptions carried) ────────────────
-  const uncertain = project.questions.filter((q) => q.resolution === "proceed_with_uncertainty");
-  const uncertainty: DebtDimension = {
-    id: "uncertainty",
-    label: "Uncertainty ledger debt",
-    score: Math.min(100, uncertain.length * 15),
-    detail: uncertain.length
-      ? `${uncertain.length} assumption(s) carried without asking`
-      : "No assumptions carried — every unknown was asked or explicitly skipped",
-    contributions: uncertain.map((q) => ({
+  const uncertainty = dimension(
+    "uncertainty",
+    "Uncertainty ledger debt",
+    scores.uncertainty.assessed
+      ? `${uncertain.length} assumption(s) among ${scores.counts.decidedQuestions} explicit decisions; ${scores.counts.pendingQuestions} still pending`
+      : "No reviewed elicitation decisions yet",
+    scores.uncertainty,
+    uncertain.map((q) => ({
       refId: "LEDGER",
       text: q.text,
       amount: (q.askCost ?? 3) * 20,
       note: q.fallbackAssumption ?? "",
-    })),
-  };
+    }))
+  );
 
-  // ── conflict debt ─────────────────────────────────────────
-  const open = project.conflicts.filter((c) => c.status === "open");
-  const conflictWeight = open.reduce((s, c) => s + (SEVERITY_WEIGHT[c.severity] ?? 2), 0);
-  const conflict: DebtDimension = {
-    id: "conflict",
-    label: "Conflict pressure",
-    score: Math.min(100, conflictWeight * 10),
-    detail: open.length
-      ? `${open.length} open conflict(s) — weighted pressure ${conflictWeight}`
-      : project.conflicts.length
-        ? "All conflicts resolved"
-        : "No conflicts detected",
-    contributions: open.map((c) => {
-      const a = reqs.find((r) => r.id === c.reqAId);
-      const b = reqs.find((r) => r.id === c.reqBId);
+  const conflict = dimension(
+    "conflict",
+    "Conflict pressure",
+    !scores.conflict.assessed
+      ? "Conflict analysis has not been run"
+      : open.length
+        ? `${open.length} open conflict(s) among ${project.conflicts.length} detected`
+        : project.conflicts.length
+          ? "All conflicts resolved"
+          : "No conflicts detected",
+    scores.conflict,
+    open.map((item) => {
+      const a = reqs.find((r) => r.id === item.reqAId);
+      const b = reqs.find((r) => r.id === item.reqBId);
+      const severityWeight = SEVERITY_WEIGHT[item.severity] ?? 2;
       return {
         refId: `${a?.refId ?? "?"} ↔ ${b?.refId ?? "?"}`,
-        text: c.description,
-        amount: (SEVERITY_WEIGHT[c.severity] ?? 2) * 33,
-        note: `${c.kind}${c.taxonomy ? ` · ${c.taxonomy}` : ""} — severity ${c.severity}`,
+        text: item.description,
+        amount: severityWeight * 33,
+        note: `${item.kind}${item.taxonomy ? ` · ${item.taxonomy}` : ""} — severity ${item.severity}`,
       };
-    }),
-  };
+    })
+  );
 
-  // ── traceability debt ─────────────────────────────────────
-  const untraced = reqs.filter((r) => r.links.length === 0);
-  const traceability: DebtDimension = {
-    id: "traceability",
-    label: "Traceability debt",
-    score: total ? Math.round((untraced.length / total) * 100) : 0,
-    detail: total ? `${untraced.length} of ${total} requirement(s) have no evidence link` : "No requirements yet",
-    contributions: untraced.map((r) => ({
+  const traceability = dimension(
+    "traceability",
+    "Traceability debt",
+    total ? `${untraced.length} of ${total} requirement(s) have no active Evidence ID link` : "No requirements yet",
+    scores.traceability,
+    untraced.map((r) => ({
       refId: r.refId,
       text: r.text,
       amount: 100,
-      note: "No evidence citations — grounding unproven",
-    })),
-  };
+      note: "No active Evidence ID trace — grounding unproven",
+    }))
+  );
 
-  // ── executability debt ────────────────────────────────────
-  const undef = project.execScenarios.filter((s) => s.resolution === "undefined");
-  const definedCount = project.execScenarios.filter((s) => s.resolution === "defined").length;
-  const execScore = project.execScenarios.length
-    ? Math.round((undef.length / project.execScenarios.length) * 100)
-    : 0;
-  const executability: DebtDimension = {
-    id: "executability",
-    label: "Executability debt",
-    score: execScore,
-    detail: project.execScenarios.length
-      ? `${undef.length} of ${project.execScenarios.length} simulated scenario(s) UNDEFINED — each is a discovery candidate`
-      : "Run the executability simulator to populate this dimension",
-    contributions: undef.map((s) => ({
-      refId: s.refId,
-      text: `${s.given} → ${s.when} → ${s.then}`,
+  const executability = dimension(
+    "executability",
+    "Executability debt",
+    project.execScenarios.length
+      ? `${undef.length} of ${project.execScenarios.length} scenario(s) are undefined`
+      : "Executability simulator has not populated this dimension",
+    scores.executability,
+    undef.map((scenario) => ({
+      refId: scenario.refId,
+      text: `${scenario.given} → ${scenario.when} → ${scenario.then}`,
       amount: 100,
-      note: s.discovery ?? s.undefinedReason ?? "",
-    })),
-  };
+      note: scenario.discovery ?? scenario.undefinedReason ?? "",
+    }))
+  );
 
   return {
     dimensions: [ambiguity, verification, uncertainty, conflict, traceability, executability],

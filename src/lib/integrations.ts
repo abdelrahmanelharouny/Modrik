@@ -18,6 +18,101 @@
 // ─────────────────────────────────────────────────────────────
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
+import { decryptSecret, encryptSecret } from "@/lib/security/secret-box.mjs";
+import { buildJiraUrl, validateJiraBaseUrl } from "@/lib/security/jira-url.mjs";
+import { makeSyncKey, makeSyncMarker } from "@/lib/integrations/sync-key.mjs";
+
+
+interface SyncReservationInput {
+  projectId: string;
+  kind: "github" | "jira";
+  localItemId: string;
+  localLabel: string;
+  title: string;
+  requirementId?: string;
+  storyId?: string;
+}
+
+async function acquireSyncReservation(input: SyncReservationInput): Promise<{ id: string; syncKey: string; acquired: boolean }> {
+  const syncKey = makeSyncKey(input.projectId, input.kind, input.localItemId);
+  let row = await db.syncMap.findUnique({ where: { idempotencyKey: syncKey }, select: { id: true, direction: true } });
+
+  if (!row) {
+    try {
+      const created = await db.syncMap.create({
+        data: {
+          projectId: input.projectId,
+          kind: input.kind,
+          direction: "pending",
+          requirementId: input.requirementId,
+          storyId: input.storyId,
+          localLabel: input.localLabel,
+          externalKey: "PENDING",
+          externalUrl: "",
+          title: input.title.slice(0, 200),
+          idempotencyKey: syncKey,
+        },
+        select: { id: true, direction: true },
+      });
+      row = created;
+    } catch (error) {
+      // Two requests may race to create the same reservation. The unique
+      // idempotency key elects one row; the loser reads the winner's row.
+      row = await db.syncMap.findUnique({ where: { idempotencyKey: syncKey }, select: { id: true, direction: true } });
+      if (!row) throw error;
+    }
+  }
+
+  if (row.direction === "pushed") return { id: row.id, syncKey, acquired: false };
+  const now = new Date();
+  const leaseExpiresAt = new Date(now.getTime() + 2 * 60 * 1000);
+  const claimed = await db.syncMap.updateMany({
+    where: {
+      id: row.id,
+      direction: { not: "pushed" },
+      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
+    },
+    data: {
+      direction: "creating",
+      leaseExpiresAt,
+      externalKey: "PENDING",
+      externalUrl: "",
+      syncedAt: now,
+    },
+  });
+  return { id: row.id, syncKey, acquired: claimed.count === 1 };
+}
+
+async function completeSyncReservation(
+  reservationId: string,
+  externalKey: string,
+  externalUrl: string,
+  title: string
+): Promise<void> {
+  await db.syncMap.update({
+    where: { id: reservationId },
+    data: {
+      direction: "pushed",
+      externalKey,
+      externalUrl,
+      title: title.slice(0, 200),
+      leaseExpiresAt: null,
+      syncedAt: new Date(),
+    },
+  });
+}
+
+async function failSyncReservation(reservationId: string): Promise<void> {
+  try {
+    await db.syncMap.update({
+      where: { id: reservationId },
+      data: { direction: "failed", leaseExpiresAt: null },
+    });
+  } catch {
+    // Keep the original tracker error; the lease eventually expires if even
+    // this recovery write cannot complete.
+  }
+}
 
 // ── Credential resolution ────────────────────────────────────
 
@@ -37,11 +132,27 @@ export interface JiraConfig {
 async function loadConfig(projectId: string, kind: "github" | "jira"): Promise<GithubConfig | JiraConfig | null> {
   const row = await db.integration.findFirst({ where: { projectId, kind }, orderBy: { createdAt: "desc" } });
   if (row) {
+    let config: Record<string, unknown>;
     try {
-      return JSON.parse(row.config);
+      config = JSON.parse(row.config) as Record<string, unknown>;
     } catch {
-      /* fall through to env */
+      throw new Error(`Saved ${kind} configuration is corrupt. Re-save the integration before retrying.`);
     }
+    // Do not silently fall back to deployment credentials when ciphertext is
+    // corrupt or the encryption key is wrong; that would target another account.
+    if (typeof config.token === "string") config.token = decryptSecret(config.token);
+    if (kind === "github") {
+      const owner = String(config.owner ?? "");
+      const repo = String(config.repo ?? "");
+      if (!/^[A-Za-z0-9-]{1,39}$/.test(owner) ||
+          !/^[A-Za-z0-9_.-]{1,100}$/.test(repo) || repo === "." || repo === "..") {
+        throw new Error("Saved GitHub owner/repository values are invalid; re-save the integration.");
+      }
+    } else {
+      if (typeof config.baseUrl !== "string") throw new Error("Saved Jira base URL is missing");
+      validateJiraBaseUrl(config.baseUrl);
+    }
+    return config as unknown as GithubConfig | JiraConfig;
   }
   // Environment fallback (deployment-level credentials, university lab / demo)
   if (kind === "github" && process.env.RP_GITHUB_TOKEN && process.env.RP_GITHUB_OWNER && process.env.RP_GITHUB_REPO) {
@@ -141,46 +252,77 @@ export async function githubPush(projectId: string): Promise<{ pushed: { refId: 
   });
   const pushed: { refId: string; issue: number; url: string }[] = [];
   let skipped = 0;
-  for (const r of reqs) {
-    if (r.syncMaps.length > 0) {
-      skipped += 1; // already mapped — push is idempotent
+
+  for (const requirement of reqs) {
+    if (requirement.syncMaps.some((map) => map.direction === "pushed")) {
+      skipped += 1;
       continue;
     }
-    const res = await fetch(`${GH_API}/repos/${cfg.owner}/${cfg.repo}/issues`, {
-      method: "POST",
-      headers: ghHeaders(cfg.token),
-      body: JSON.stringify({
-        title: `[${r.refId}] ${r.text.slice(0, 120)}`,
-        body: requirementBody(r),
-        labels: [
-          `moscow:${r.priority.toLowerCase()}`,
-          `verify:${r.verifyStatus}`,
-          `type:${r.type}`,
-          "modrik",
-        ],
-      }),
-      signal: AbortSignal.timeout(30_000),
+
+    const reservation = await acquireSyncReservation({
+      projectId,
+      kind: "github",
+      localItemId: requirement.id,
+      localLabel: requirement.refId,
+      requirementId: requirement.id,
+      title: requirement.text,
     });
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(`GitHub push failed for ${r.refId} (HTTP ${res.status}): ${detail.slice(0, 200)}`);
+    if (!reservation.acquired) {
+      skipped += 1;
+      continue;
     }
-    const issue = (await res.json()) as { number: number; html_url: string };
-    await db.syncMap.create({
-      data: {
-        projectId,
-        kind: "github",
-        direction: "pushed",
-        requirementId: r.id,
-        localLabel: r.refId,
-        externalKey: String(issue.number),
-        externalUrl: issue.html_url,
-        title: r.text.slice(0, 200),
-      },
-    });
-    pushed.push({ refId: r.refId, issue: issue.number, url: issue.html_url });
+
+    const marker = makeSyncMarker(reservation.syncKey);
+    try {
+      // A prior request may have created the issue but lost its response or
+      // failed before persisting SyncMap. Search before creating another issue.
+      const query = new URLSearchParams({
+        q: `repo:${cfg.owner}/${cfg.repo} is:issue in:body ${marker}`,
+        per_page: "5",
+      });
+      const searchResponse = await fetch(`${GH_API}/search/issues?${query.toString()}`, {
+        headers: ghHeaders(cfg.token),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!searchResponse.ok) {
+        throw new Error(`GitHub idempotency lookup failed (HTTP ${searchResponse.status}): ${(await searchResponse.text()).slice(0, 200)}`);
+      }
+      const searchData = await searchResponse.json() as {
+        items?: { number: number; html_url: string; body?: string | null }[];
+      };
+      let issue = searchData.items?.find((item) => item.body?.includes(marker));
+
+      if (!issue) {
+        const response = await fetch(`${GH_API}/repos/${cfg.owner}/${cfg.repo}/issues`, {
+          method: "POST",
+          headers: ghHeaders(cfg.token),
+          body: JSON.stringify({
+            title: `[${requirement.refId}] ${requirement.text.slice(0, 120)}`,
+            body: `${requirementBody(requirement)}\n\nModrik sync reference: ${marker}`,
+            labels: [
+              `moscow:${requirement.priority.toLowerCase()}`,
+              `verify:${requirement.verifyStatus}`,
+              `type:${requirement.type}`,
+              "modrik",
+            ],
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!response.ok) {
+          throw new Error(`GitHub push failed for ${requirement.refId} (HTTP ${response.status}): ${(await response.text()).slice(0, 200)}`);
+        }
+        issue = await response.json() as { number: number; html_url: string; body?: string | null };
+      }
+
+      await completeSyncReservation(reservation.id, String(issue.number), issue.html_url, requirement.text);
+      pushed.push({ refId: requirement.refId, issue: issue.number, url: issue.html_url });
+    } catch (error) {
+      await failSyncReservation(reservation.id);
+      throw error;
+    }
   }
-  await logDecision(projectId, "LIFECYCLE", "system", "github_push", `Pushed ${pushed.length} requirement(s) to GitHub Issues (${cfg.owner}/${cfg.repo}); ${skipped} already mapped.`);
+
+  await logDecision(projectId, "LIFECYCLE", "system", "github_push", `Pushed/recovered ${pushed.length} requirement(s) to GitHub Issues (${cfg.owner}/${cfg.repo}); ${skipped} already mapped or currently claimed.`);
   return { pushed, skipped };
 }
 
@@ -230,62 +372,107 @@ export async function jiraPush(projectId: string): Promise<{ pushed: { label: st
   if (!cfg) throw new Error("Jira not configured — save baseUrl, email, token and projectKey first");
   const stories = await db.userStory.findMany({
     where: { projectId },
-    include: { requirement: { include: { links: true, syncMaps: { where: { kind: "jira" } } } } },
+    include: {
+      requirement: { include: { links: true } },
+      syncMaps: { where: { kind: "jira" } },
+    },
   });
   const pushed: { label: string; key: string; url: string }[] = [];
   let skipped = 0;
-  for (const s of stories) {
-    if (s.requirement.syncMaps.length > 0) {
+
+  for (const story of stories) {
+    // The map belongs to the story, not its parent requirement: one
+    // requirement may legitimately produce several independently tracked stories.
+    if (story.syncMaps.some((map) => map.direction === "pushed")) {
       skipped += 1;
       continue;
     }
-    const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, "")}/rest/api/3/issue`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${jiraAuth(cfg)}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fields: {
-          project: { key: cfg.projectKey },
-          summary: `[${s.requirement.refId}] ${s.title.slice(0, 180)}`,
-          issuetype: { name: "Task" },
-          description: jiraDescription({
-            refId: s.requirement.refId,
-            text: s.requirement.text,
-            priority: s.requirement.priority,
-            verifyStatus: s.requirement.verifyStatus,
-            links: s.requirement.links,
-            acceptance: s.acceptance,
-          }),
-          labels: [`moscow-${s.requirement.priority.toLowerCase()}`, "modrik"],
-        },
-      }),
-      signal: AbortSignal.timeout(30_000),
+
+    const reservation = await acquireSyncReservation({
+      projectId,
+      kind: "jira",
+      localItemId: story.id,
+      localLabel: story.refId,
+      storyId: story.id,
+      requirementId: story.requirement.id,
+      title: story.title,
     });
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(`Jira push failed for ${s.requirement.refId} (HTTP ${res.status}): ${detail.slice(0, 200)}`);
+    if (!reservation.acquired) {
+      skipped += 1;
+      continue;
     }
-    const issue = (await res.json()) as { key: string; self: string };
-    const url = `${cfg.baseUrl.replace(/\/+$/, "")}/browse/${issue.key}`;
-    await db.syncMap.create({
-      data: {
-        projectId,
-        kind: "jira",
-        direction: "pushed",
-        storyId: s.id,
-        requirementId: s.requirement.id,
-        localLabel: s.requirement.refId,
-        externalKey: issue.key,
-        externalUrl: url,
-        title: s.title.slice(0, 200),
-      },
-    });
-    pushed.push({ label: s.requirement.refId, key: issue.key, url });
+
+    const marker = makeSyncMarker(reservation.syncKey);
+    try {
+      const searchResponse = await fetch(buildJiraUrl(cfg.baseUrl, "rest/api/3/search"), {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${jiraAuth(cfg)}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jql: `project = ${cfg.projectKey} AND labels = "${marker}" ORDER BY created DESC`,
+          maxResults: 5,
+          fields: ["summary"],
+        }),
+        signal: AbortSignal.timeout(30_000),
+        redirect: "manual",
+      });
+      if (!searchResponse.ok) {
+        throw new Error(`Jira idempotency lookup failed (HTTP ${searchResponse.status}): ${(await searchResponse.text()).slice(0, 200)}`);
+      }
+      const searchData = await searchResponse.json() as { issues?: { key: string }[] };
+      let issueKey = searchData.issues?.[0]?.key;
+
+      if (!issueKey) {
+        const response = await fetch(buildJiraUrl(cfg.baseUrl, "rest/api/3/issue"), {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${jiraAuth(cfg)}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fields: {
+              project: { key: cfg.projectKey },
+              summary: `[${story.refId}] ${story.title.slice(0, 160)}`,
+              issuetype: { name: "Task" },
+              description: jiraDescription({
+                refId: story.requirement.refId,
+                text: story.requirement.text,
+                priority: story.requirement.priority,
+                verifyStatus: story.requirement.verifyStatus,
+                links: story.requirement.links,
+                acceptance: story.acceptance,
+              }),
+              labels: [
+                `moscow-${story.requirement.priority.toLowerCase()}`,
+                "modrik",
+                marker,
+              ],
+            },
+          }),
+          signal: AbortSignal.timeout(30_000),
+          redirect: "manual",
+        });
+        if (!response.ok) {
+          throw new Error(`Jira push failed for ${story.refId} (HTTP ${response.status}): ${(await response.text()).slice(0, 200)}`);
+        }
+        const created = await response.json() as { key: string };
+        issueKey = created.key;
+      }
+
+      const url = buildJiraUrl(cfg.baseUrl, `browse/${encodeURIComponent(issueKey)}`);
+      await completeSyncReservation(reservation.id, issueKey, url, story.title);
+      pushed.push({ label: story.refId, key: issueKey, url });
+    } catch (error) {
+      await failSyncReservation(reservation.id);
+      throw error;
+    }
   }
-  await logDecision(projectId, "LIFECYCLE", "system", "jira_push", `Pushed ${pushed.length} story/statement(s) to Jira (${cfg.projectKey}); ${skipped} already mapped.`);
+
+  await logDecision(projectId, "LIFECYCLE", "system", "jira_push", `Pushed/recovered ${pushed.length} story(s) to Jira (${cfg.projectKey}); ${skipped} already mapped or currently claimed.`);
   return { pushed, skipped };
 }
 
@@ -293,7 +480,7 @@ export async function jiraPull(projectId: string, limit = 20): Promise<{ issues:
   const cfg = (await loadConfig(projectId, "jira")) as JiraConfig | null;
   if (!cfg) throw new Error("Jira not configured — save baseUrl, email, token and projectKey first");
   const jql = `project = ${cfg.projectKey} ORDER BY created DESC`;
-  const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, "")}/rest/api/3/search?maxResults=${limit}`, {
+  const res = await fetch(buildJiraUrl(cfg.baseUrl, `rest/api/3/search?maxResults=${encodeURIComponent(String(limit))}`), {
     method: "POST",
     headers: {
       Authorization: `Basic ${jiraAuth(cfg)}`,
@@ -302,6 +489,7 @@ export async function jiraPull(projectId: string, limit = 20): Promise<{ issues:
     },
     body: JSON.stringify({ jql, fields: ["summary", "status", "description"] }),
     signal: AbortSignal.timeout(30_000),
+    redirect: "manual",
   });
   if (!res.ok) {
     throw new Error(`Jira pull failed (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`);
@@ -313,7 +501,7 @@ export async function jiraPull(projectId: string, limit = 20): Promise<{ issues:
     key: i.key,
     title: i.fields.summary,
     state: i.fields.status?.name ?? "unknown",
-    url: `${cfg.baseUrl.replace(/\/+$/, "")}/browse/${i.key}`,
+    url: buildJiraUrl(cfg.baseUrl, `browse/${encodeURIComponent(i.key)}`),
     body: JSON.stringify(i.fields.description ?? {}).slice(0, 2000),
   }));
   await logDecision(projectId, "LIFECYCLE", "system", "jira_pull", `Pulled ${rows.length} issue(s) from Jira (${cfg.projectKey}) for human review.`);
@@ -334,9 +522,10 @@ export async function testConnection(projectId: string, kind: "github" | "jira")
         : { ok: false, detail: `HTTP ${res.status} — ${(await res.text()).slice(0, 160)}` };
     }
     const c = cfg as JiraConfig;
-    const res = await fetch(`${c.baseUrl.replace(/\/+$/, "")}/rest/api/3/myself`, {
+    const res = await fetch(buildJiraUrl(c.baseUrl, "rest/api/3/myself"), {
       headers: { Authorization: `Basic ${jiraAuth(c)}`, Accept: "application/json" },
       signal: AbortSignal.timeout(20_000),
+      redirect: "manual",
     });
     return res.ok
       ? { ok: true, detail: `${c.projectKey} at ${c.baseUrl} reachable` }
@@ -351,14 +540,38 @@ export async function testConnection(projectId: string, kind: "github" | "jira")
 export async function saveConfig(projectId: string, kind: "github" | "jira", config: Record<string, string>) {
   const clean =
     kind === "github"
-      ? { token: String(config.token ?? ""), owner: String(config.owner ?? "").trim(), repo: String(config.repo ?? "").trim() }
+      ? { token: String(config.token ?? "").trim(), owner: String(config.owner ?? "").trim(), repo: String(config.repo ?? "").trim() }
       : {
           baseUrl: String(config.baseUrl ?? "").trim(),
           email: String(config.email ?? "").trim(),
-          token: String(config.token ?? ""),
+          token: String(config.token ?? "").trim(),
           projectKey: String(config.projectKey ?? "").trim().toUpperCase(),
         };
-  await db.integration.create({ data: { projectId, kind, config: JSON.stringify(clean) } });
+
+  if (kind === "github") {
+    const github = clean as GithubConfig;
+    if (!github.token || !/^[A-Za-z0-9-]{1,39}$/.test(github.owner) ||
+        !/^[A-Za-z0-9_.-]{1,100}$/.test(github.repo) || github.repo === "." || github.repo === "..") {
+      throw new Error("GitHub configuration requires a token and valid owner/repository names");
+    }
+  } else {
+    const jira = clean as JiraConfig;
+    validateJiraBaseUrl(jira.baseUrl);
+    if (!jira.email || !jira.token || !/^[A-Z][A-Z0-9_]{0,9}$/.test(jira.projectKey)) {
+      throw new Error("Jira configuration requires an email, token and valid project key");
+    }
+  }
+
+  const encrypted = { ...clean, token: clean.token ? encryptSecret(clean.token) : "" };
+  // Replace all previous rows for this project/provider atomically. This both
+  // prevents unbounded duplicate configs and scrubs legacy plaintext tokens
+  // after an owner re-enters the credential with MODRIK_ENCRYPTION_KEY set.
+  await db.$transaction(async (tx) => {
+    await tx.integration.deleteMany({ where: { projectId, kind } });
+    await tx.integration.create({
+      data: { projectId, kind, config: JSON.stringify(encrypted) },
+    });
+  });
   await logDecision(projectId, "LIFECYCLE", "human", "integration_config", `${kind} credentials saved (masked: ${kind === "github" ? `${clean.owner && (clean as GithubConfig).owner}/${(clean as GithubConfig).repo}` : (clean as JiraConfig).projectKey}).`);
   return maskedStatus(projectId);
 }

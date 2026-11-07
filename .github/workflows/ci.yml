@@ -1,0 +1,86 @@
+name: Modrik CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modrik-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Synchronize generated design tokens
+        run: bun run tokens:sync
+      - name: Regression tests
+        run: bun run test
+      - name: Validate and push SQLite schema
+        env:
+          DATABASE_URL: file:./ci.db
+        run: bun run db:push
+      - name: TypeScript
+        run: bunx tsc --noEmit
+      - name: Lint
+        run: bun run lint
+      - name: Production build (SQLite schema)
+        env:
+          DATABASE_URL: file:./db/ci.db
+          MODRIK_ADMIN_EMAIL: ci@example.invalid
+          MODRIK_ADMIN_PASSWORD_HASH: '$scrypt$16384$8$1$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000'
+          MODRIK_AUTH_SECRET: 0123456789abcdef0123456789abcdef
+          MODRIK_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+        run: bun run build
+
+  postgres-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: modrik_ci
+          POSTGRES_USER: modrik
+          POSTGRES_PASSWORD: modrik_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U modrik -d modrik_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://modrik:modrik_ci_password@localhost:5432/modrik_ci?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Generate PostgreSQL Prisma schema
+        run: bun run db:sync:pg
+      - name: Validate PostgreSQL Prisma schema
+        run: bunx prisma validate --schema prisma/schema.postgres.prisma
+      - name: Generate PostgreSQL Prisma client
+        run: bunx prisma generate --schema prisma/schema.postgres.prisma
+      - name: Push schema to PostgreSQL 16
+        run: bunx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
