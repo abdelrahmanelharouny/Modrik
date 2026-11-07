@@ -61,3 +61,14 @@ Run the same critical journey at 390×844, 768×1024 and 1440×900:
 For every executed row, record: commit SHA, environment/database type, browser/version, viewport, locale, fixture identifier, pass/fail, duration, artifact links, and reviewer. Keep manual screen-reader and visual sign-off distinct from automated checks.
 
 **Release rule:** this matrix is not itself proof of acceptance. The full authenticated journey, debrief checks, and live-provider/staging rehearsal remain open until executed and recorded against a clean release candidate.
+
+
+## Verified repository evidence — post PR #56 merge (2026-11-07)
+
+- **PR #56 is merged** into canonical `main` at merge commit `0133d10145468237e1db6127737cc1b3af9910b3`. Its exact-head CI run [42394350241](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42394350241) passed `quality` and `postgres-schema`. Arabic RTL coverage now includes all seven authenticated workspace views at 390px and locale/direction persistence after reload.
+- PR #54 provides the deterministic six-stage agent/API integration journey with six human approval gates; this is not the same as a single browser-driven journey from project creation through all six stages.
+- PR #61 adds a browser bridge from the completed deterministic agent journey into authenticated Mission Control and Debrief, including evidence/requirement constellation assertions. It is still a separate open PR and must not be represented as merged.
+- PR #62 adds Chromium/IndexedDB coverage for expired-lease takeover and stale acknowledgement rejection. It is still a separate open PR and must not be represented as merged.
+- The reliability implementation already includes capped exponential retry (5 seconds to 5 minutes), FIFO head-of-queue blocking, human-review pauses for revision/permission/validation failures, and explicit update rebase/discard controls. The remaining test gap is direct coverage that lifecycle recovery events do not bypass a scheduled backoff and that the retry/review policy remains stable.
+
+These facts describe repository code and CI evidence only. The complete create-project → evidence → six human gates → Debrief browser journey, manual screen-reader review, real-provider checks, participant research and staging rehearsal remain open until executed against a clean release candidate with retained artifacts.
