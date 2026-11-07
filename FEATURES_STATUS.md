@@ -95,3 +95,14 @@ See [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) a
 ## Release decision
 
 **Ready for focused P0 completion and staging preparation; not production-cleared.** Do not run production schema mutation, rotate live secrets, activate OAuth/semantic retrieval, or deploy without the relevant environment, backup/restore rehearsal and explicit release authorization.
+
+
+---
+
+## Addendum — canonical status after PR #56 merge (2026-11-07)
+
+- Canonical `main` includes PR #56 at `0133d10145468237e1db6127737cc1b3af9910b3`; all seven authenticated workspace views have Arabic RTL 390px browser assertions and locale/direction reload-persistence coverage.
+- PR #61 (completed agent journey surfaced in authenticated Debrief) and PR #62 (interrupted multi-tab offline lease recovery) remain separate open PRs. Their exact-head CI must be rechecked after integration; neither is part of `main` yet.
+- Offline sync currently implements capped exponential retry from 5 seconds to 5 minutes, preserves FIFO by stopping after the first failed operation, pauses automatic retries for conflict/authorization/validation failures, and exposes explicit update rebase/discard actions. A new reliability change isolates this policy and prevents periodic focus/visibility recovery from bypassing a pending backoff.
+- The current repository is an advanced MVP candidate, not a production-cleared release. Production migration baseline reconciliation, tested backup restore, live credentials/provider verification, isolated staging rehearsal, monitoring, and deployment-specific security/privacy/legal review remain external gates.
+- OAuth provider activation/token lifecycle and semantic/vector retrieval activation remain intentionally deferred. Do not run production schema mutation, activate deferred providers or deploy without explicit release authorization.
