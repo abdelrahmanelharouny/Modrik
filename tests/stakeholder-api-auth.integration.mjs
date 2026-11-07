@@ -1224,6 +1224,25 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
       "authenticated workspace must not overflow at desktop width");
 
+    // Connect the already-exercised six-agent + six-approval backend journey
+    // to the authenticated browser workspace. This proves the persisted,
+    // completed project can be reopened from Mission Control and its
+    // evidence-grounded outputs reach the real Debrief UI.
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    const completedAgentMission = page.getByRole("button", { name: "Open mission Full agent pipeline acceptance" });
+    await completedAgentMission.waitFor({ state: "visible" });
+    await completedAgentMission.click();
+    await page.getByRole("heading", { name: "Full agent pipeline acceptance" }).waitFor();
+    await page.getByRole("heading", { name: /Debrief/ }).waitFor();
+    await page.getByRole("img", { name: "Requirement constellation" }).waitFor();
+    const constellationLabels = await page.locator('svg[aria-label="Requirement constellation"] text').allTextContents();
+    assert.ok(constellationLabels.some(label => label.includes("E-AGENT-01")),
+      "Debrief constellation must render the source evidence code");
+    assert.ok(constellationLabels.some(label => label.includes("REQ-01")),
+      "Debrief constellation must render the generated requirement references");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "completed agent pipeline Debrief must not overflow at desktop width");
+
     await page.getByRole("button", { name: /Toggle language/ }).click();
     await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
     await page.setViewportSize({ width: 390, height: 844 });
