@@ -37,7 +37,7 @@ test("workspace renders one reviewable cockpit for every canonical stage plus De
 
   for (const [stage, component] of Object.entries(components)) {
     const renderPattern = stage === "CONFLICTS"
-      ? /viewing === "CONFLICTS" && <>\\s*<ConflictsStage\\b/
+      ? /viewing === "CONFLICTS" && <>\s*<ConflictsStage\b/
       : new RegExp(`viewing === "${stage}" && <${component}\\\\b`);
     assert.match(workspace, renderPattern, `${stage} must be wired to ${component}`);
     assert.match(workspace, new RegExp(`import \\{ ${component} \} from "@\/components\/rp\/`),
