@@ -87,11 +87,11 @@ test("provider requires non-empty bounded input before making a request", async 
 test("provider normalizes request and response-body aborts as timeouts", async () => {
   const abort = Object.assign(new Error("internal endpoint details"), { name: "AbortError" });
   const requestProvider = await createOrganizationMemoryEmbeddingProvider({ env, fetch: async () => { throw abort; } });
-  await assert.rejects(() => requestProvider.embed("text"), /Embedding provider request timed out\\./);
+  await assert.rejects(() => requestProvider.embed("text"), /Embedding provider request timed out\./);
 
   const bodyProvider = await createOrganizationMemoryEmbeddingProvider({
     env,
     fetch: async () => ({ ok: true, json: async () => { throw abort; } }),
   });
-  await assert.rejects(() => bodyProvider.embed("text"), /Embedding provider request timed out\\./);
+  await assert.rejects(() => bodyProvider.embed("text"), /Embedding provider request timed out\./);
 });
