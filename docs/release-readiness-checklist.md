@@ -5,10 +5,11 @@ This checklist separates repository work from actions that require real infrastr
 ## A. Repository and build gates
 
 - [x] Canonical integration PRs #27–#46 merged into `main` in dependency order.
-- [x] P0 QA PRs #48–#51 merged; #49–#51 passed exact-head CI before merge.
+- [x] P0 QA PRs #48–#54 merged; #49–#54 passed exact-head CI before merge.
 - [x] Exact-main CI run 42382272606 passed: quality and PostgreSQL schema jobs.
 - [x] Regression suite, TypeScript, lint, production build, offline multi-tab browser test and stakeholder API/browser integration are part of CI.
 - [ ] Verify post-merge `main` CI for combined PRs #49–#51 (run 42389383572 was still in progress at the time of this update).
+- [x] Run full six-stage agent-pipeline integration using a deterministic local OpenAI-compatible fixture provider (PR #54, Run 42390256255).
 - [ ] Re-run exact-head CI after the remaining P0 QA changes.
 - [ ] Inspect and archive the final CI artifacts and test diagnostics.
 - [ ] Build the final release candidate from a clean checkout using the lockfile.
@@ -16,7 +17,7 @@ This checklist separates repository work from actions that require real infrastr
 
 ## B. Product acceptance
 
-- [ ] Execute the full authenticated product journey in [product acceptance matrix](product-acceptance-matrix.md): new organization → project → evidence → six human gates → debrief.
+- [ ] Execute the full authenticated browser journey in [product acceptance matrix](product-acceptance-matrix.md): new organization → project → evidence → six human gates → debrief. PR #54 now exercises the real six stage agents, evidence traceability, human approvals and memory harvest through the API with a deterministic local fixture provider; organization onboarding and the Debrief UI still need one continuous browser journey.
 - [ ] Verify every stage can be resumed after refresh and failed network requests can be retried safely.
 - [ ] Verify evidence provenance, revisions, conflict resolution and decision journal remain consistent end-to-end.
 - [ ] Verify stakeholder negotiation quorum, authority checks and immutable responses.
@@ -30,6 +31,7 @@ This checklist separates repository work from actions that require real infrastr
 ## C. Offline and reliability
 
 - [ ] Verify two tabs serialize work for the same project and independent projects proceed concurrently.
+- [x] Verify concurrent final approval and concurrent completed-baseline reopen have single-winner compare-and-swap semantics (PRs #51 and #52).
 - [x] Verify a terminated tab's expired lease can be acquired by a new tab with a higher fencing token (PR #48 browser integration).
 - [x] Verify stale lease owners cannot reacquire/release a current owner's lease (PR #48 unit coverage).
 - [ ] Verify queued drafts survive browser restarts and long periods offline.
@@ -52,7 +54,7 @@ This checklist separates repository work from actions that require real infrastr
 - [ ] Verify bounded retries, timeouts, cost limits and provider failure handling.
 - [ ] Store secrets in the hosting provider's secret manager; never commit production values or copy them into logs.
 - [ ] Run `bun run security:release-check` inside the deployment environment.
-- [x] Add a public, read-only database readiness probe at `GET|HEAD /api/health`; CI exercises it against the standalone production server.
+- [x] Add a public, read-only database readiness probe at `GET|HEAD /api/health`; CI exercises it against the standalone production server (PR #53).
 - [ ] Verify readiness probe behavior from the actual deployed runtime, plus structured logs, alerting, error reporting, retention and incident ownership.
 
 ## E. Staging release rehearsal
