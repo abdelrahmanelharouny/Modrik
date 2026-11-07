@@ -88,3 +88,10 @@ test("semantic hybrid retrieval is opt-in and reports BM25 fallback diagnostics"
   assert.match(source, /semanticFallbackReason/);
   assert.match(source, /fuseOrganizationMemoryRankings/);
 });
+
+test("indexed shadow mode does not make a duplicate semantic provider request", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /const indexedWithSemantic = indexedEnabled \? await runHybrid\(indexed\) : indexed/);
+  assert.match(source, /const streaming = indexedEnabled \? streamingBase : await runHybrid\(streamingBase\)/);
+  assert.match(source, /compareOrganizationMemoryRetrievalParity\(streamingBase\.rows, indexed\.rows\)/);
+});
