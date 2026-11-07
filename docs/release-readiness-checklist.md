@@ -48,7 +48,8 @@ This checklist separates repository work from actions that require real infrastr
 - [ ] Verify bounded retries, timeouts, cost limits and provider failure handling.
 - [ ] Store secrets in the hosting provider's secret manager; never commit production values or copy them into logs.
 - [ ] Run `bun run security:release-check` inside the deployment environment.
-- [ ] Verify health endpoints, structured logs, alerting, error reporting, retention and incident ownership.
+- [x] Add a public, read-only database readiness probe at `GET|HEAD /api/health`; CI exercises it against the standalone production server.
+- [ ] Verify readiness probe behavior from the actual deployed runtime, plus structured logs, alerting, error reporting, retention and incident ownership.
 
 ## E. Staging release rehearsal
 
