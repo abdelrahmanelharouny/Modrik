@@ -852,6 +852,121 @@ try {
 
   process.stdout.write("Pipeline approval integration: six human gates, blocked preflights, concurrent final-approval and reopen protection passed.\\n");
 
+  // Full data-populated product pipeline using the real stage agents and a
+  // deterministic OpenAI-compatible fixture provider. Only the model transport
+  // is mocked; routing, persistence, evidence links, human gates and memory
+  // harvesting all execute through the real application code.
+  const agentProjectId = randomUUID();
+  projectIds.push(agentProjectId);
+  await prisma.project.create({
+    data: {
+      id: agentProjectId,
+      name: "Full agent pipeline acceptance",
+      brief: "An operations team needs an evidence-grounded request approval workflow with auditable ownership and decisions.",
+      currentStage: "ELICITATION",
+      stageStatus: "awaiting_input",
+      status: "active",
+    },
+  });
+  await prisma.evidence.create({
+    data: {
+      projectId: agentProjectId,
+      code: "E-AGENT-01",
+      title: "Operations lead interview",
+      sourceType: "interview",
+      language: "en",
+      content: "The operations lead owns request approvals. Every approval decision must be recorded with its owner so the team can audit the workflow.",
+      consent: true,
+    },
+  });
+  const agentPipelineUrl = `${baseUrl}/api/projects/${agentProjectId}/pipeline`;
+  const pipelineAction = action => fetch(agentPipelineUrl, {
+    method: "POST", headers, body: JSON.stringify({ action }),
+  });
+  const runAgentStage = async expectedStage => {
+    const response = await pipelineAction("run");
+    await expectStatus(response, 200, `run real ${expectedStage} stage agent`);
+    const project = await prisma.project.findUnique({ where: { id: agentProjectId } });
+    assert.equal(project.currentStage, expectedStage);
+    assert.equal(project.stageStatus, "awaiting_review", `${expectedStage} agent output must wait for human review`);
+    const latestRun = await prisma.pipelineRun.findFirst({
+      where: { projectId: agentProjectId, stage: expectedStage },
+      orderBy: { createdAt: "desc" },
+    });
+    assert.equal(latestRun.status, "done", `${expectedStage} agent run must be persisted as done`);
+  };
+  const approveAgentStage = async expectedNextStage => {
+    const response = await pipelineAction("approve");
+    await expectStatus(response, 200, `human approval advances to ${expectedNextStage ?? "completed baseline"}`);
+    const body = await json(response);
+    assert.equal(body.nextStage, expectedNextStage);
+  };
+
+  await runAgentStage("ELICITATION");
+  const generatedQuestions = await prisma.question.findMany({ where: { projectId: agentProjectId } });
+  assert.equal(generatedQuestions.length, 5, "impact-aware planner must materialize its five selected questions");
+  await prisma.question.updateMany({
+    where: { projectId: agentProjectId },
+    data: {
+      answer: "The operations lead is accountable for each approval.",
+      answered: true,
+      resolution: "answered",
+      answerSource: "human",
+    },
+  });
+  await approveAgentStage("PROBLEM_SELECTION");
+
+  await runAgentStage("PROBLEM_SELECTION");
+  const generatedCandidates = await prisma.problemCandidate.findMany({ where: { projectId: agentProjectId } });
+  assert.equal(generatedCandidates.length, 3);
+  await prisma.problemCandidate.update({
+    where: { id: generatedCandidates[0].id },
+    data: { selected: true, humanEdited: true },
+  });
+  await approveAgentStage("EXTRACTION");
+
+  await runAgentStage("EXTRACTION");
+  const generatedRequirements = await prisma.requirement.findMany({ where: { projectId: agentProjectId }, include: { links: true } });
+  assert.equal(generatedRequirements.length, 8);
+  assert.ok(generatedRequirements.every(requirement => requirement.links.some(link => link.evidenceId)),
+    "extraction agent must persist evidence trace links for every requirement");
+  assert.ok(generatedRequirements.every(requirement => requirement.verifyStatus === "supported" && requirement.verificationSource === "agent"),
+    "critic-verifier pass must return supported verdicts before human review");
+  await prisma.requirement.updateMany({
+    where: { projectId: agentProjectId },
+    data: { verifyStatus: "supported", verificationSource: "human" },
+  });
+  await approveAgentStage("AMBIGUITY");
+
+  await runAgentStage("AMBIGUITY");
+  const assessedRequirements = await prisma.requirement.findMany({ where: { projectId: agentProjectId } });
+  assert.ok(assessedRequirements.every(requirement => requirement.ambiguity === 12),
+    "ambiguity agent must persist scores for the complete requirement set");
+  await approveAgentStage("STORIES");
+
+  await runAgentStage("STORIES");
+  const generatedStories = await prisma.userStory.findMany({ where: { projectId: agentProjectId } });
+  assert.equal(generatedStories.length, 8, "story agent must produce one story per eligible requirement");
+  await approveAgentStage("CONFLICTS");
+
+  await runAgentStage("CONFLICTS");
+  const detectedConflicts = await prisma.conflict.findMany({ where: { projectId: agentProjectId } });
+  assert.equal(detectedConflicts.length, 0, "fixture provider reports no unsupported conflict");
+  await approveAgentStage(null);
+
+  const completedAgentProject = await prisma.project.findUnique({ where: { id: agentProjectId } });
+  assert.equal(completedAgentProject.status, "complete");
+  assert.equal(completedAgentProject.currentStage, "CONFLICTS");
+  assert.equal(completedAgentProject.stageStatus, "approved");
+  const allAgentRuns = await prisma.pipelineRun.findMany({ where: { projectId: agentProjectId } });
+  assert.equal(allAgentRuns.length, 12, "six agent runs and six human approvals must be persisted");
+  assert.ok(allAgentRuns.every(run => run.status === "done"), "every real stage-agent and approval run must finish successfully");
+  assert.ok(await prisma.memoryEntry.count({ where: { projectId: agentProjectId } }) > 0,
+    "completed baseline must run project-scoped memory harvesting");
+  assert.ok(await prisma.artifact.count({ where: { projectId: agentProjectId } }) >= 6,
+    "each stage must persist its generated artifact");
+  process.stdout.write("Full agent pipeline E2E: six real stage runners, planner, critic-verifier, evidence traceability, six human approvals, final memory harvest passed using a deterministic local provider.\\n");
+
   const browser = await chromium.launch({ headless: true });
   try {
     const guestContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
