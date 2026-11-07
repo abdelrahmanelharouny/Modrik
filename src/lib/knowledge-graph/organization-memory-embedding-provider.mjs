@@ -34,8 +34,9 @@ export async function createOrganizationMemoryEmbeddingProvider(options = {}) {
       if (typeof text !== "string" || !text.trim() || text.length > 24_000) throw new TypeError("Embedding input text is invalid.");
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      let response;
       try {
-        const response = await fetchImpl(`${config.endpoint}/embeddings`, {
+        response = await fetchImpl(`${config.endpoint}/embeddings`, {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -44,22 +45,30 @@ export async function createOrganizationMemoryEmbeddingProvider(options = {}) {
           body: JSON.stringify({ model: config.model, input: text, dimensions: config.dimensions }),
           signal: controller.signal,
         });
-        if (!response.ok) throw new Error(`Embedding provider request failed with HTTP ${response.status}.`);
-        const payload = await response.json();
-        const vector = payload?.data?.[0]?.embedding;
-        const returnedModel = typeof payload?.model === "string" ? payload.model : config.model;
-        return validateOrganizationMemoryVector({
-          model: returnedModel,
-          dimensions: Array.isArray(vector) ? vector.length : 0,
-          vector,
-        }, { model: config.model, dimensions: config.dimensions });
       } catch (error) {
         if (error?.name === "AbortError") throw new Error("Embedding provider request timed out.");
-        if (error instanceof TypeError) throw error;
-        throw new Error(error instanceof Error ? error.message : "Embedding provider request failed.");
+        // Fetch implementations may include endpoint details in transport errors. Never relay them.
+        throw new Error("Embedding provider request failed.");
       } finally {
         clearTimeout(timeout);
       }
+      if (!response?.ok) {
+        const status = Number.isInteger(response?.status) ? response.status : 0;
+        throw new Error(`Embedding provider request failed with HTTP ${status}.`);
+      }
+      let payload;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new Error("Embedding provider returned invalid JSON.");
+      }
+      const vector = payload?.data?.[0]?.embedding;
+      const returnedModel = typeof payload?.model === "string" ? payload.model : config.model;
+      return validateOrganizationMemoryVector({
+        model: returnedModel,
+        dimensions: Array.isArray(vector) ? vector.length : 0,
+        vector,
+      }, { model: config.model, dimensions: config.dimensions });
     },
   };
 }
