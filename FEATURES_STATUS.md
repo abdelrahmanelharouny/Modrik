@@ -2,7 +2,7 @@
 
 **Canonical branch:** `main`  
 **Verified main commit:** `0133d10145468237e1db6127737cc1b3af9910b3` (post-#56 Arabic RTL merge).  
-**Latest verified CI:** #56 post-merge [Run 42394350241](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42394350241) passed `quality` and `postgres-schema`. Follow-up PR exact-head CI: #63 [Run 42426833632](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426833632), #64 [Run 42426812092](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426812092), #65 [Run 42405751701](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42405751701), #66 [Run 42426873607](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426873607), #67 [Run 42406625574](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42406625574), and #68 [Run 42427686519](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42427686519) all passed both required jobs on their exact heads. These six PRs remain open and are not part of `main`.  
+**Latest verified CI:** #56 post-merge [Run 42394350241](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42394350241) passed `quality` and `postgres-schema`. Exact-head CI passed both jobs for #63 [Run 42426833632](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426833632), #64 [Run 42426812092](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426812092), #65 [Run 42405751701](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42405751701), #67 [Run 42406625574](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42406625574), and #68 [Run 42427686519](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42427686519). PR #66's last green run [42426873607](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426873607) predates its latest documentation-only status correction; that final docs commit has not been rerun. All six PRs remain open and are not part of `main`.  
 **Integration:** PRs #27–#56 are merged except the intentionally excluded divergent PR #47; PRs #63–#68 are open follow-ups.  
 **Release status:** repository implementation is substantially complete; production is **not yet cleared** because live infrastructure, database-baseline reconciliation, staging rehearsal and external-service verification require deployment access.
 
@@ -103,7 +103,7 @@ See [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) a
 ## Current integration snapshot — 2026-11-08 (supersedes older PR-status notes)
 
 - Canonical `main` is verified at post-#56 merge commit `0133d10145468237e1db6127737cc1b3af9910b3`.
-- PRs #63–#68 are based on that canonical main, remain open, and have exact-head `quality` + `postgres-schema` CI success.
+- PRs #63–#68 are based on that canonical main and remain open. Exact-head `quality` + `postgres-schema` CI is green for #63–#65 and #67–#68; #66's latest documentation-only correction has not been rerun.
 - #67 verifies the completed deterministic agent fixture in authenticated Debrief; full browser-driven project creation and all six stages remain unverified.
 - #68 verifies lease takeover, stale-owner rejection, and mocked server-confirmation behavior; it does not exercise the live application backend.
 - #64 tests retry policy helpers; browser-level lifecycle scheduling/backoff remains open.
