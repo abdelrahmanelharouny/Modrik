@@ -1,12 +1,12 @@
 # Modrik feature and release status
 
 **Canonical branch:** `main`  
-**Verified main commit:** `7d0d667284651f4cd2417c2f9af42590d8c0acee`  
-**Latest verified CI:** PR #48 [Run 42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616), post-merge #48 [Run 42386023748](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748), and main after #49–#51 [Run 42389383572](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42389383572) passed. PRs #49–#53 passed exact-head CI before merge. PR #54 full agent-pipeline E2E [Run 42390256255](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42390256255) passed both `quality` and `postgres-schema`; post-merge main CI for `7d0d667284651f4cd2417c2f9af42590d8c0acee` is pending.  
-**Integration:** PRs #27–#46 and #48–#54 are merged. PR #47 is a divergent Phase 4 replay and is intentionally excluded.  
+**Verified main commit:** `0133d10145468237e1db6127737cc1b3af9910b3` (post-#56 Arabic RTL merge).  
+**Latest verified CI:** #56 post-merge [Run 42394350241](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42394350241) passed `quality` and `postgres-schema`. Exact-head CI passed both jobs for #63 [Run 42426833632](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426833632), #64 [Run 42426812092](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426812092), #65 [Run 42405751701](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42405751701), #67 [Run 42406625574](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42406625574), and #68 [Run 42427686519](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42427686519). PR #66's last green run [42426873607](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42426873607) predates its latest documentation-only status correction; that final docs commit has not been rerun. All six PRs remain open and are not part of `main`.  
+**Integration:** PRs #27–#56 are merged except the intentionally excluded divergent PR #47; PRs #63–#68 are open follow-ups.  
 **Release status:** repository implementation is substantially complete; production is **not yet cleared** because live infrastructure, database-baseline reconciliation, staging rehearsal and external-service verification require deployment access.
 
-This file describes the repository at the verified main commit above. A green CI run verifies the tested commit and configured CI environment; it does not prove live provider connectivity, production migration safety, participant research or a production deployment.
+This file describes canonical `main` at the verified commit above. Follow-up PRs #63–#68 are proposed changes only until merged. A green CI run verifies only the tested commit and configured CI environment; it does not prove live provider connectivity, production migration safety, participant research or a production deployment.
 
 ## 1. Implemented product capabilities
 
@@ -45,13 +45,13 @@ This file describes the repository at the verified main commit above. A green CI
 
 These are the remaining repository-quality tasks, not missing historical PRs:
 
-1. Extend the real-app Playwright journey from view-navigation smoke tests into a data-populated create → evidence → six human gates → debrief flow with real stage-agent execution. PR #50 covers all seven workspace views and responsive overflow; PR #51 covers all six API approval gates with deterministic fixtures. The complete authenticated, data-populated agent journey remains open.
-2. Expand Arabic/RTL checks beyond Briefing and Debrief to all seven authenticated workspace views and validate persisted locale after reload. PR #50 covers all seven views in English at 390px, tablet/desktop overflow, and Arabic Briefing/Debrief at 390px.
-3. Add repeatable accessibility checks for labels, keyboard navigation, focus visibility, landmarks, contrast and reduced motion; PR #48 covers skip-link keyboard behavior, visible focus, labels and auth-shell RTL smoke checks, but a full workspace audit and screen-reader review remain open.
-4. Stress offline queue recovery after tab termination and lease expiry is now covered by PR #48; suspended-tab, interrupted-request, backoff and revision-conflict recovery still need end-to-end coverage.
-5. Add representative concurrency/load checks for project, evidence, graph and organization-memory reads. PRs #51 and #52 cover stage approval and completed-baseline reopen compare-and-swap races; broad workload/load tests remain open.
-6. Review onboarding, empty/loading/error/retry states and destructive-action confirmations.
-7. Re-run exact-head CI after the final P0 changes and preserve its test artifacts.
+1. Complete the authenticated browser journey from project creation through evidence intake, all six human approval gates and Debrief. PR #54 covers the deterministic six-stage API/agent journey; PR #67 verifies that a completed fixture reopens in authenticated Mission Control and renders Debrief provenance. The full create-to-completion browser-driven journey remains open.
+2. Arabic RTL coverage for all seven authenticated workspace views at 390px and locale/direction persistence after reload is merged in PR #56. Keep broader viewport, long-content and manual visual checks in the release evidence record.
+3. PR #65 adds an accessibility verification protocol; it does not execute or certify a full workspace audit. Keyboard-only, screen-reader, contrast and reduced-motion evidence still requires manual execution.
+4. PR #68 adds Chromium/IndexedDB coverage for interrupted multi-tab lease takeover, stale acknowledgement rejection, and retaining queued work after a mocked 503 until a mocked 200 confirmation. PR #64 adds unit coverage for retry backoff and lifecycle deferral; browser-level lifecycle timer integration and revision-conflict recovery remain open.
+5. Add representative concurrency/load checks for project, evidence, graph and organization-memory reads. Existing approval/reopen compare-and-swap tests cover focused races; broad workload/load tests remain open.
+6. Review onboarding, empty/loading/error/retry states and destructive-action confirmations against real user workflows.
+7. Preserve exact-head CI artifacts for every follow-up; #63–#68 currently pass their required `quality` and `postgres-schema` jobs, but these PRs are not merged.
 
 ## 3. P1 — intentionally outside MVP critical path
 
@@ -86,12 +86,26 @@ See [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) a
 
 ## 6. Integration and CI
 
-- Canonical merge chain: **#27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46 → #48**.
-- All twenty-one canonical PRs are merged (including #48). Do not merge the old PRs #1–#26 again; their capabilities are represented in the reconciled canonical chain.
-- PR #47 is not part of the canonical chain and should not be merged wholesale.
-- Verified main SHA after #48: `26c31acfd8594671d226a4a99b430fe5859de9ee`.
-- PR #48 exact-head CI: [42385319616](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42385319616), with both `quality` and `postgres-schema` successful. Post-merge `main` push CI [42386023748](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42386023748) passed on `26c31acfd8594671d226a4a99b430fe5859de9ee`.
+- Historical pre-#56 canonical integration chain: **#27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46 → #48 → #49 → #50 → #51 → #52 → #53 → #54 → #56**.
+- PR #56 is merged at `0133d10145468237e1db6127737cc1b3af9910b3`; this is the canonical main SHA for the current follow-up batch.
+- PR #47 remains a divergent Phase 4 replay and is intentionally excluded; do not merge it wholesale.
+- PRs #63–#68 are independent, open follow-ups based on the post-#56 main commit. They have exact-head green CI but require explicit merge approval.
+- Original PRs #61/#62 are older versions of the browser Debrief and interrupted offline-sync tests; current-main reapplications are #67/#68. Their diffs are superseded, but keep the old PRs open until their unique commit content is conclusively reconciled and closure is authorized.
 
 ## Release decision
 
 **Ready for focused P0 completion and staging preparation; not production-cleared.** Do not run production schema mutation, rotate live secrets, activate OAuth/semantic retrieval, or deploy without the relevant environment, backup/restore rehearsal and explicit release authorization.
+
+
+
+---
+
+## Current integration snapshot — 2026-11-08 (supersedes older PR-status notes)
+
+- Canonical `main` is verified at post-#56 merge commit `0133d10145468237e1db6127737cc1b3af9910b3`.
+- PRs #63–#68 are based on that canonical main and remain open. Exact-head `quality` + `postgres-schema` CI is green for #63–#65 and #67–#68; #66's latest documentation-only correction has not been rerun.
+- #67 verifies the completed deterministic agent fixture in authenticated Debrief; full browser-driven project creation and all six stages remain unverified.
+- #68 verifies lease takeover, stale-owner rejection, and mocked server-confirmation behavior; it does not exercise the live application backend.
+- #64 tests retry policy helpers; browser-level lifecycle scheduling/backoff remains open.
+- #61/#62 are superseded in intent by #67/#68, but their old branches diverge. Do not close them until their unique commits are reconciled and closure is authorized.
+- Production remains blocked on staging, database-baseline reconciliation, backup restore rehearsal, live provider verification, monitoring and security/privacy/legal sign-off. OAuth and semantic/vector retrieval activation remain deferred.
