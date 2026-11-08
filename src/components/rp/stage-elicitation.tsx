@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { createOfflineEvidenceOperation, createOfflineEvidenceMutationOperation, rebaseOfflineEvidenceUpdateOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, withOfflineEvidenceSyncLock, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
+import { getOfflineEvidenceRetryDelay, offlineEvidenceFailureRequiresReview, shouldDeferOfflineEvidenceSync } from "@/lib/evidence/offline-retry.mjs";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
@@ -246,9 +247,12 @@ export function ElicitationStage({
     catch (error) { toast({ title: "Offline queue unavailable", description: (error as Error).message, variant: "destructive" }); }
   }, [project.id, toast]);
 
-  const syncOfflineEvidence = useCallback(async () => {
+  const syncOfflineEvidence = useCallback(async (force = false) => {
     if (offlineSyncInFlightRef.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+    // Lifecycle recovery events must not bypass a scheduled exponential backoff.
+    // An explicit user retry may intentionally override the delay.
     if (offlineRetryTimerRef.current) {
+      if (shouldDeferOfflineEvidenceSync(true, force)) return;
       clearTimeout(offlineRetryTimerRef.current);
       offlineRetryTimerRef.current = null;
     }
@@ -282,9 +286,9 @@ export function ElicitationStage({
             });
             // Revision/authorization/validation failures need human action.
             // Network and service failures retry with capped exponential backoff.
-            const requiresReview = /conflict|changed in another session|not found|forbidden|unauthorized|validation|permission/i.test(message);
+            const requiresReview = offlineEvidenceFailureRequiresReview(message);
             if (!requiresReview && typeof window !== "undefined" && navigator.onLine) {
-              const delay = Math.min(5 * 60_000, 5_000 * (2 ** Math.min(attempts - 1, 6)));
+              const delay = getOfflineEvidenceRetryDelay(attempts);
               offlineRetryTimerRef.current = setTimeout(() => {
                 offlineRetryTimerRef.current = null;
                 void syncOfflineEvidence();
@@ -580,7 +584,7 @@ export function ElicitationStage({
                   FIFO outbox · {pendingOffline.reduce((sum, item) => sum + item.attempts, 0)} total retry attempt(s) · IndexedDB is not separately encrypted
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={syncOfflineEvidence} disabled={syncingOffline || (typeof navigator !== "undefined" && !navigator.onLine)}>
+              <Button size="sm" variant="outline" onClick={() => void syncOfflineEvidence(true)} disabled={syncingOffline || (typeof navigator !== "undefined" && !navigator.onLine)}>
                 {syncingOffline ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Undo2 className="mr-1.5 h-3.5 w-3.5" />}
                 {syncingOffline ? "Syncing…" : "Retry queue"}
               </Button>
