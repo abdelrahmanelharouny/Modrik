@@ -1177,6 +1177,11 @@ try {
     assert.equal(await prisma.pipelineRun.count({ where: { projectId: browserCreatedProject.id, stage: "ELICITATION", status: "done" } }), 1,
       "the browser-launched agent run must be persisted");
 
+    // Return to Mission Control before opening the independent seeded
+    // stakeholder-collaboration fixture used by the remainder of this test.
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "New Mission" }).waitFor();
+
     const missionCard = page.getByRole("button", { name: "Open mission Phase 4 integration A" });
     try {
       await missionCard.waitFor({ state: "visible", timeout: 15000 });
