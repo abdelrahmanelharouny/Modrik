@@ -1276,9 +1276,6 @@ try {
     await page.getByRole("heading", { name: /الإحاطة/ }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
       "Arabic authenticated workspace must not overflow at 390px");
-    await page.getByRole("button", { name: /الجلسة الختامية/ }).click();
-    await page.getByRole("heading", { name: /الجلسة الختامية/ }).waitFor();
-
     // Extend RTL coverage from the two critical screens above to every
     // authenticated workspace view. Toggle per view so navigation remains
     // deterministic while the content itself is rendered in Arabic.
