@@ -1141,6 +1141,42 @@ try {
     await missionControlLanguageToggle.click();
     await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
 
+    // Start a fresh project through the real Mission Control UI, capture an
+    // evidence source through the elicitation cockpit, and launch the first
+    // agent from the human-gated workspace. The remaining five agent stages
+    // and approval gates are exercised below through the real HTTP pipeline.
+    await page.getByRole("button", { name: "New Mission" }).click();
+    await page.getByPlaceholder("Mission name").fill("Browser-created acceptance journey");
+    await page.getByPlaceholder(/Project brief/).fill("A support team needs an auditable intake and approval workflow. Every request must have a named owner and a recorded decision.");
+    const createProjectResponse = page.waitForResponse(response =>
+      response.url().endsWith("/api/projects") && response.request().method() === "POST" && response.status() === 201
+    );
+    await page.getByRole("button", { name: "Launch", exact: true }).click();
+    const createdProjectResponse = await createProjectResponse;
+    const browserCreatedProject = (await createdProjectResponse.json()).project;
+    assert.ok(browserCreatedProject?.id, "Mission Control must create a persisted project");
+    projectIds.push(browserCreatedProject.id);
+    await page.getByRole("heading", { name: "Browser-created acceptance journey" }).waitFor();
+
+    await page.getByRole("button", { name: "Add evidence" }).click();
+    await page.getByPlaceholder(/Source title/).fill("Support team discovery interview");
+    await page.getByPlaceholder(/Paste transcript/).fill("The support lead owns every incoming request. The team needs each decision recorded with the responsible person and a clear approval outcome.");
+    await page.getByLabel("I have permission to send this source's content to the configured AI provider").check();
+    await page.getByRole("button", { name: "Add source", exact: true }).click();
+    await page.getByText("Support team discovery interview", { exact: true }).waitFor();
+    const persistedBrowserEvidence = await prisma.evidence.findMany({ where: { projectId: browserCreatedProject.id } });
+    assert.equal(persistedBrowserEvidence.length, 1, "evidence intake must persist exactly one source");
+    assert.equal(persistedBrowserEvidence[0].consent, true, "the UI consent choice must be persisted with the source");
+
+    await page.getByRole("button", { name: "Run Questioner Agent" }).click();
+    await page.getByRole("button", { name: "Approve & continue" }).waitFor({ state: "visible", timeout: 30000 });
+    const browserCreatedAfterAgent = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
+    assert.equal(browserCreatedAfterAgent.currentStage, "ELICITATION");
+    assert.equal(browserCreatedAfterAgent.stageStatus, "awaiting_review",
+      "the first browser-launched agent must stop at the human approval gate");
+    assert.equal(await prisma.pipelineRun.count({ where: { projectId: browserCreatedProject.id, stage: "ELICITATION", status: "done" } }), 1,
+      "the browser-launched agent run must be persisted");
+
     const missionCard = page.getByRole("button", { name: "Open mission Phase 4 integration A" });
     try {
       await missionCard.waitFor({ state: "visible", timeout: 15000 });
