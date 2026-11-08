@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { createOfflineEvidenceOperation, createOfflineEvidenceMutationOperation, rebaseOfflineEvidenceUpdateOperation, listOfflineEvidenceOperations, putOfflineEvidenceOperation, removeOfflineEvidenceOperation, updateOfflineEvidenceOperation, withOfflineEvidenceSyncLock, type OfflineEvidenceOperation } from "@/lib/evidence/offline-queue.mjs";
 import { getOfflineEvidenceRetryDelay, offlineEvidenceFailureRequiresReview, shouldDeferOfflineEvidenceSync } from "@/lib/evidence/offline-retry.mjs";
+import { createOfflineEvidenceRetryScheduler } from "@/lib/evidence/offline-retry-scheduler.mjs";
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
@@ -239,7 +240,8 @@ export function ElicitationStage({
   // worker per mounted project so queue rows are never concurrently acked or
   // have their retry counters overwritten by this component instance.
   const offlineSyncInFlightRef = useRef(false);
-  const offlineRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const offlineRetrySchedulerRef = useRef<ReturnType<typeof createOfflineEvidenceRetryScheduler> | null>(null);
+  if (!offlineRetrySchedulerRef.current) offlineRetrySchedulerRef.current = createOfflineEvidenceRetryScheduler();
   const deleteOperationIdsRef = useRef(new Map<string, string>());
 
   const loadOfflineQueue = useCallback(async () => {
@@ -251,11 +253,9 @@ export function ElicitationStage({
     if (offlineSyncInFlightRef.current || (typeof navigator !== "undefined" && !navigator.onLine)) return;
     // Lifecycle recovery events must not bypass a scheduled exponential backoff.
     // An explicit user retry may intentionally override the delay.
-    if (offlineRetryTimerRef.current) {
-      if (shouldDeferOfflineEvidenceSync(true, force)) return;
-      clearTimeout(offlineRetryTimerRef.current);
-      offlineRetryTimerRef.current = null;
-    }
+    const retryPending = offlineRetrySchedulerRef.current?.isPending() ?? false;
+    if (shouldDeferOfflineEvidenceSync(retryPending, force)) return;
+    if (force) offlineRetrySchedulerRef.current?.cancel();
     offlineSyncInFlightRef.current = true;
     setSyncingOffline(true);
     let changed = false;
@@ -289,10 +289,9 @@ export function ElicitationStage({
             const requiresReview = offlineEvidenceFailureRequiresReview(message);
             if (!requiresReview && typeof window !== "undefined" && navigator.onLine) {
               const delay = getOfflineEvidenceRetryDelay(attempts);
-              offlineRetryTimerRef.current = setTimeout(() => {
-                offlineRetryTimerRef.current = null;
+              offlineRetrySchedulerRef.current?.schedule(delay, () => {
                 void syncOfflineEvidence();
-              }, delay);
+              });
             }
             break;
           }
@@ -331,7 +330,7 @@ export function ElicitationStage({
       window.removeEventListener("pageshow", recover);
       document.removeEventListener("visibilitychange", recover);
       window.clearInterval(recoveryInterval);
-      if (offlineRetryTimerRef.current) clearTimeout(offlineRetryTimerRef.current);
+      offlineRetrySchedulerRef.current?.cancel();
     };
   }, [loadOfflineQueue, syncOfflineEvidence]);
 
