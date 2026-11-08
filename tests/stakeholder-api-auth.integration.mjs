@@ -1177,6 +1177,37 @@ try {
     assert.equal(await prisma.pipelineRun.count({ where: { projectId: browserCreatedProject.id, stage: "ELICITATION", status: "done" } }), 1,
       "the browser-launched agent run must be persisted");
 
+    // Supply one genuine stakeholder decision as deterministic fixture data,
+    // then exercise the human approval itself through the browser control.
+    const generatedBrowserQuestions = await prisma.question.findMany({
+      where: { projectId: browserCreatedProject.id },
+      orderBy: { createdAt: "asc" },
+    });
+    assert.ok(generatedBrowserQuestions.length > 0, "the browser-launched planner must materialize reviewable questions");
+    await prisma.question.update({
+      where: { id: generatedBrowserQuestions[0].id },
+      data: {
+        answered: true,
+        answer: "The operations lead is accountable for each approval.",
+        resolution: "answered",
+        answerSource: "human",
+      },
+    });
+    await page.getByRole("button", { name: "Approve & continue" }).click();
+    await page.getByRole("button", { name: "Run Scope Agent" }).waitFor({ state: "visible", timeout: 15000 });
+    const browserCreatedAfterApproval = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
+    assert.equal(browserCreatedAfterApproval.currentStage, "PROBLEM_SELECTION",
+      "the browser approval must advance the project to the next stage");
+    assert.equal(browserCreatedAfterApproval.stageStatus, "awaiting_input",
+      "the next stage must unlock for input after human approval");
+    const browserApprovalDecision = await prisma.decisionEntry.findFirst({
+      where: { projectId: browserCreatedProject.id, stage: "ELICITATION", actor: "human", action: "approved_stage" },
+    });
+    assert.ok(browserApprovalDecision, "the browser approval must be recorded in the decision journal");
+    assert.equal(await prisma.pipelineRun.count({
+      where: { projectId: browserCreatedProject.id, stage: "ELICITATION", status: "done" },
+    }), 2, "agent execution and human approval must each leave a completed pipeline run");
+
     // Return to Mission Control before opening the independent seeded
     // stakeholder-collaboration fixture used by the remainder of this test.
     await page.goto(baseUrl, { waitUntil: "networkidle" });
