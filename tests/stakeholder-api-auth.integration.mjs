@@ -1286,7 +1286,6 @@ try {
       "Turbulence Scan",
       "Payload",
       "Clearance",
-      "Debrief",
     ];
     await page.getByRole("button", { name: /Toggle language/ }).click();
     await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
