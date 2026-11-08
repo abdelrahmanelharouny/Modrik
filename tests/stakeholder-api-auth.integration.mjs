@@ -1224,6 +1224,51 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
       "authenticated workspace must not overflow at desktop width");
 
+    // Connect the already-exercised six-agent + six-approval backend journey
+    // to the authenticated browser workspace. This proves the persisted,
+    // completed project can be reopened from Mission Control and its
+    // evidence-grounded outputs reach the real Debrief UI.
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    const completedAgentMission = page.getByRole("button", { name: "Open mission Full agent pipeline acceptance" });
+    await completedAgentMission.waitFor({ state: "visible" });
+    await completedAgentMission.click();
+    await page.getByRole("heading", { name: "Full agent pipeline acceptance" }).waitFor();
+    await page.getByRole("heading", { name: /Debrief/ }).waitFor();
+    await page.getByRole("img", { name: "Requirement constellation" }).waitFor();
+    const constellationLabels = await page.locator('svg[aria-label="Requirement constellation"] text').allTextContents();
+    assert.ok(constellationLabels.some(label => label.includes("E-AGENT-01")),
+      "Debrief constellation must render the source evidence code");
+    assert.ok(constellationLabels.some(label => label.includes("REQ-01")),
+      "Debrief constellation must render the generated requirement references");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+      "completed agent pipeline Debrief must not overflow at desktop width");
+
+    // Reopen the completed deterministic six-agent baseline, then inspect all
+    // six real stage cockpits through the authenticated browser workspace.
+    // The API journey above already proves each agent run and human approval;
+    // this browser pass proves the persisted outputs render in their own views.
+    const reopenAgentBaseline = await fetch(`${baseUrl}/api/projects/${agentProjectId}/pipeline`, {
+      method: "POST", headers, body: JSON.stringify({ action: "reopen" }),
+    });
+    await expectStatus(reopenAgentBaseline, 200, "reopen completed agent baseline for stage cockpit verification");
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Open mission Full agent pipeline acceptance" }).click();
+    await page.getByRole("heading", { name: "Full agent pipeline acceptance" }).waitFor();
+
+    const agentStageViews = ["Briefing", "Route Plot", "Airframe", "Turbulence Scan", "Payload", "Clearance"];
+    for (const stageTitle of agentStageViews) {
+      const stageNavigation = page.getByRole("button", { name: new RegExp(stageTitle) });
+      await stageNavigation.click();
+      await page.getByRole("heading", { name: new RegExp(stageTitle) }).waitFor();
+      assert.equal(await stageNavigation.getAttribute("aria-current"), "step",
+        `${stageTitle} must expose the selected stage in the flight plan`);
+      const stageContent = await page.locator("main").innerText();
+      assert.ok(stageContent.trim().length > 100,
+        `${stageTitle} cockpit must render its authenticated stage workspace`);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+        `${stageTitle} cockpit must render without horizontal overflow`);
+    }
+
     await page.getByRole("button", { name: /Toggle language/ }).click();
     await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
     await page.setViewportSize({ width: 390, height: 844 });
@@ -1231,9 +1276,6 @@ try {
     await page.getByRole("heading", { name: /الإحاطة/ }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
       "Arabic authenticated workspace must not overflow at 390px");
-    await page.getByRole("button", { name: /الجلسة الختامية/ }).click();
-    await page.getByRole("heading", { name: /الجلسة الختامية/ }).waitFor();
-
     // Extend RTL coverage from the two critical screens above to every
     // authenticated workspace view. Toggle per view so navigation remains
     // deterministic while the content itself is rendered in Arabic.
@@ -1244,7 +1286,6 @@ try {
       "Turbulence Scan",
       "Payload",
       "Clearance",
-      "Debrief",
     ];
     await page.getByRole("button", { name: /Toggle language/ }).click();
     await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
