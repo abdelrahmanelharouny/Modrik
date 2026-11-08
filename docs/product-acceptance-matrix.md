@@ -61,3 +61,15 @@ Run the same critical journey at 390×844, 768×1024 and 1440×900:
 For every executed row, record: commit SHA, environment/database type, browser/version, viewport, locale, fixture identifier, pass/fail, duration, artifact links, and reviewer. Keep manual screen-reader and visual sign-off distinct from automated checks.
 
 **Release rule:** this matrix is not itself proof of acceptance. The full authenticated journey, debrief checks, and live-provider/staging rehearsal remain open until executed and recorded against a clean release candidate.
+
+
+## Verified repository evidence — post PR #56 merge (2026-11-07)
+
+- **PR #56 is merged** into canonical `main` at merge commit `0133d10145468237e1db6127737cc1b3af9910b3`. Its exact-head CI run [42394350241](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42394350241) passed `quality` and `postgres-schema`. Arabic RTL coverage now includes all seven authenticated workspace views at 390px and locale/direction persistence after reload.
+- PR #54 provides the deterministic six-stage agent/API integration journey with six human approval gates; this is not the same as a single browser-driven journey from project creation through all six stages.
+- PR #67 is the current-main reapplication of the PR #61 browser bridge from the completed deterministic agent journey into authenticated Mission Control and Debrief, including evidence/requirement constellation assertions. It remains open and is not part of `main`.
+- PR #68 is the current-main reapplication of PR #62 Chromium/IndexedDB coverage for expired-lease takeover and stale acknowledgement rejection; it now requires a successful mocked server confirmation before the recovery owner acknowledges. It remains open and is not part of `main`.
+- Original PRs #61/#62 are stale-base duplicates of #67/#68 respectively; verify no unique commits remain before closing them.
+- The reliability implementation includes capped exponential retry (5 seconds to 5 minutes), FIFO head-of-queue blocking, human-review pauses for revision/permission/validation/idempotency failures, and explicit update rebase/discard controls. PR #64 adds unit coverage for delay progression, failure classification and the lifecycle-deferral/manual-override policy; browser-level timer/lifecycle integration remains unverified.
+
+These facts describe repository code and CI evidence only. The complete create-project → evidence → six human gates → Debrief browser journey, manual screen-reader review, real-provider checks, participant research and staging rehearsal remain open until executed against a clean release candidate with retained artifacts.
