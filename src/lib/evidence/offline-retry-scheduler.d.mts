@@ -4,6 +4,6 @@ export interface OfflineEvidenceRetryScheduler {
   cancel(): boolean;
 }
 export function createOfflineEvidenceRetryScheduler(options?: {
-  setTimeoutFn?: (callback: () => void, delayMs: number) => unknown;
-  clearTimeoutFn?: (handle: unknown) => void;
+  setTimeoutFn?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+  clearTimeoutFn?: (handle: ReturnType<typeof setTimeout>) => void;
 }): OfflineEvidenceRetryScheduler;
