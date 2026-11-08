@@ -1243,6 +1243,37 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
       "completed agent pipeline Debrief must not overflow at desktop width");
 
+    // Reopen the completed deterministic six-agent baseline, then inspect all
+    // six real stage cockpits through the authenticated browser workspace.
+    // The API journey above already proves each agent run and human approval;
+    // this browser pass proves the persisted outputs render in their own views.
+    const reopenAgentBaseline = await fetch(`${baseUrl}/api/projects/${agentProjectId}/pipeline`, {
+      method: "POST", headers, body: JSON.stringify({ action: "reopen" }),
+    });
+    await expectStatus(reopenAgentBaseline, 200, "reopen completed agent baseline for stage cockpit verification");
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Open mission Full agent pipeline acceptance" }).click();
+    await page.getByRole("heading", { name: "Full agent pipeline acceptance" }).waitFor();
+
+    const agentStageViews = [
+      { title: "Briefing", evidence: "Operations lead interview" },
+      { title: "Route Plot", evidence: "Slow manual approvals" },
+      { title: "Airframe", evidence: "REQ-01" },
+      { title: "Turbulence Scan", evidence: "REQ-01" },
+      { title: "Payload", evidence: "Record approval decision 1" },
+      { title: "Clearance", evidence: "REQ-01" },
+    ];
+    for (const stageView of agentStageViews) {
+      const stageNavigation = page.getByRole("button", { name: new RegExp(stageView.title) });
+      await stageNavigation.click();
+      await page.getByRole("heading", { name: new RegExp(stageView.title) }).waitFor();
+      assert.equal(await stageNavigation.getAttribute("aria-current"), "step",
+        `${stageView.title} must expose the selected stage in the flight plan`);
+      await page.getByText(stageView.evidence, { exact: false }).first().waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true,
+        `${stageView.title} agent output must render without horizontal overflow`);
+    }
+
     await page.getByRole("button", { name: /Toggle language/ }).click();
     await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
     await page.setViewportSize({ width: 390, height: 844 });
