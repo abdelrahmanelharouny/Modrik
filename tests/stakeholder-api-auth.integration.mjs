@@ -1262,8 +1262,26 @@ try {
     const humanReviewCount = await humanReviewButtons.count();
     assert.equal(humanReviewCount, browserRequirements.length,
       "each evidence-linked requirement must expose an independent human verification action");
+    // A requirement may already carry a human-supported verdict from a
+    // prior refresh/state reconciliation. Exercise the actual decision
+    // control deterministically by moving each row to weak, then back to
+    // supported; the final persisted decision must be human-supported.
+    const requirementRows = page.locator("li").filter({ has: page.getByRole("button", { name: "Human: supported" }) });
+    assert.ok(await requirementRows.count() >= browserRequirements.length,
+      "each extracted requirement must render its own human review row");
     for (let i = 0; i < humanReviewCount; i += 1) {
-      await page.locator('button:not(:disabled)').filter({ hasText: "Human: supported" }).first().click();
+      const row = requirementRows.nth(i);
+      const weakButton = row.getByRole("button", { name: "Human: weak" });
+      if (await weakButton.isEnabled()) {
+        await weakButton.click();
+      } else {
+        const supportedButton = row.getByRole("button", { name: "Human: supported" });
+        assert.equal(await supportedButton.isEnabled(), false,
+          "a row with neither review action enabled must be investigated");
+      }
+      await row.getByRole("button", { name: "Human: supported" }).waitFor({ state: "visible" });
+      const supportedButton = row.getByRole("button", { name: "Human: supported" });
+      if (await supportedButton.isEnabled()) await supportedButton.click();
     }
     const humanVerifiedRequirements = await prisma.requirement.findMany({
       where: { projectId: browserCreatedProject.id },
