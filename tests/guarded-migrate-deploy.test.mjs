@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
 
 const script = fileURLToPath(new URL("../scripts/guarded-migrate-deploy.mjs", import.meta.url));
 
