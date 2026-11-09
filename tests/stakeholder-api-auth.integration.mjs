@@ -1181,7 +1181,7 @@ try {
     // then exercise the human approval itself through the browser control.
     const generatedBrowserQuestions = await prisma.question.findMany({
       where: { projectId: browserCreatedProject.id },
-      orderBy: { createdAt: "asc" },
+      orderBy: { order: "asc" },
     });
     assert.ok(generatedBrowserQuestions.length > 0, "the browser-launched planner must materialize reviewable questions");
     await prisma.question.update({
@@ -1215,7 +1215,7 @@ try {
     await page.getByRole("button", { name: "Approve & continue" }).waitFor({ state: "visible", timeout: 30000 });
     const browserCandidates = await prisma.problemCandidate.findMany({
       where: { projectId: browserCreatedProject.id },
-      orderBy: { createdAt: "asc" },
+      orderBy: { id: "asc" },
     });
     assert.ok(browserCandidates.length >= 2, "the browser-launched Scope Agent must materialize multiple candidate routes");
     assert.equal(browserCandidates.filter((candidate) => candidate.selected).length, 0,
