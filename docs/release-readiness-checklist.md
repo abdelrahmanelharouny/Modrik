@@ -78,3 +78,35 @@ This checklist separates repository work from actions that require real infrastr
 ## Release authorization
 
 A successful CI run or staging smoke test does not authorize production deployment. Production release requires a separately approved target, verified backup/restore, reconciled database baseline, real provider credentials, staging evidence and explicit release authorization.
+
+## Current verified status — 2026-11-09
+
+This section supersedes any older PR-number or workflow-status statements in the historical checklist above.
+
+### Repository and automated acceptance
+
+- [x] PRs #63–#72 are merged into canonical `main` (verified main SHA: `92563c367705317463bcf641d25bc0c95f4183ee`).
+- [x] PR #72 exact-head CI passed both `quality` and `postgres-schema` in [run 42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703). It covers fresh Mission Control project creation, consented evidence, Questioner/Scope/Extraction UI runs and their first three human gates.
+- [x] Original stacked PR #74 exact-head CI passed both `quality` and `postgres-schema` in [run 42546370129](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42546370129), proving the six-stage extension on its stacked tree.
+- [x] PR #72 merged into `main` at `2be5bde4080615468f980171c3239fc0536d496b`.
+- [x] PR #75 is the rebased one-commit follow-on for Ambiguity, Stories, Consistency, all six human approvals and Debrief; it is merged into `main` and exact-head CI [42641490698](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42641490698) passed both jobs. Original stacked PR #74 is closed as superseded.
+- [ ] PR #73 is the documentation reconciliation PR and remains open until its latest exact-head CI passes and its contents are reviewed.
+- [ ] Run exact-head CI on the final combined `main` release candidate after integration.
+
+### Product acceptance still requiring execution
+
+- [ ] Manual keyboard-only and screen-reader review across the authenticated journey.
+- [ ] Contrast, reduced-motion, target-size and visual review in both themes and both locales.
+- [ ] Representative load/concurrency testing beyond focused compare-and-swap and isolated integration tests.
+- [ ] Usability sessions with representative users; synthetic fixtures are not participant evidence.
+- [ ] Live-provider verification and full staging rehearsal with retained evidence.
+
+### Operational release blockers
+
+- [ ] Hosting, domain, production PostgreSQL and Redis are provisioned and verified.
+- [ ] Existing database schema/history is inventoried; a provider-specific baseline and migration runner are reviewed and tested.
+- [ ] Backup restore, migration, rollback and recovery are rehearsed on staging.
+- [ ] Email, LLM, session/encryption secrets, monitoring, alerting and incident ownership are configured and tested.
+- [ ] Security, privacy and legal review is complete; release owner explicitly authorizes deployment.
+
+OAuth/provider activation and semantic/vector retrieval remain intentionally deferred. No production migration or deployment is authorized by this checklist.
