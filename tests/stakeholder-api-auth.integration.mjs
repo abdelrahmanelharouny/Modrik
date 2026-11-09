@@ -1281,20 +1281,39 @@ try {
       assert.equal(response.status(), 200,
         `the human ${verdict} decision must be accepted by the item API`);
     };
+    const waitForEnabled = async (button, label) => {
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        if (await button.isEnabled()) return;
+        await delay(100);
+      }
+      throw new Error(`Timed out waiting for ${label} review action to become enabled after the prior PATCH completed`);
+    };
     for (let i = 0; i < humanReviewCount; i += 1) {
       const row = requirementRows.nth(i);
       const weakButton = row.getByRole("button", { name: "Human: weak" });
-      if (await weakButton.isEnabled()) {
-        await waitForHumanVerdict(weakButton, "weak");
-      } else {
-        const supportedButton = row.getByRole("button", { name: "Human: supported" });
-        assert.equal(await supportedButton.isEnabled(), false,
-          "a row with neither review action enabled must be investigated");
-      }
       const supportedButton = row.getByRole("button", { name: "Human: supported" });
-      if (await supportedButton.isEnabled()) {
-        await waitForHumanVerdict(supportedButton, "supported");
+      if (!(await weakButton.isEnabled())) {
+        // A previously persisted human-supported verdict is a valid idempotent
+        // state. Do not infer success from disabled controls alone: verify the
+        // database record for this exact requirement before accepting it.
+        const persisted = await prisma.requirement.findUnique({
+          where: { id: browserRequirements[i].id },
+        });
+        assert.equal(await supportedButton.isEnabled(), false,
+          "when weak review is unavailable, supported review must also be unavailable");
+        assert.equal(persisted?.verifyStatus, "supported",
+          "disabled review controls are acceptable only for an already-supported requirement");
+        assert.equal(persisted?.verificationSource, "human",
+          "the pre-existing supported verdict must be explicitly human-authored");
+        continue;
       }
+      await waitForHumanVerdict(weakButton, "weak");
+      // The PATCH response confirms server persistence, but React may not yet
+      // have committed the refreshed row state. Wait for the supported action
+      // to become enabled before clicking it; otherwise the test can silently
+      // leave the requirement in the temporary weak state.
+      await waitForEnabled(supportedButton, "human-supported");
+      await waitForHumanVerdict(supportedButton, "supported");
     }
     const humanVerifiedRequirements = await prisma.requirement.findMany({
       where: { projectId: browserCreatedProject.id },
