@@ -74,12 +74,12 @@ For every executed row, record: commit SHA, environment/database type, browser/v
 
 These facts describe repository code and CI evidence only. The complete create-project → evidence → six human gates → Debrief browser journey, manual screen-reader review, real-provider checks, participant research and staging rehearsal remain open until executed against a clean release candidate with retained artifacts.
 
-## Verified browser coverage — PR #72 and PR #74 (2026-11-09)
+## Verified browser coverage — PR #72 and rebased follow-on PR #75 (2026-11-09)
 
-- PR #72 head `b3856705a470e6dc1de7449bbbdd462c2dda537b` passed exact-head GitHub Actions run [42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703): both `quality` and `postgres-schema` succeeded, including production build, TypeScript, lint, regression, offline browser integrations and stakeholder API/browser E2E.
+- PR #72 head `b3856705a470e6dc1de7449bbbdd462c2dda537b` passed exact-head GitHub Actions run [42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703): both `quality` and `postgres-schema` succeeded, including production build, TypeScript, lint, regression, offline browser integrations and stakeholder API/browser E2E. PR #72 is now merged into `main` at `2be5bde4080615468f980171c3239fc0536d496b`.
 - The browser journey creates a fresh project through Mission Control, captures evidence with persisted consent, runs Questioner/Scope/Extraction from the UI, and exercises their human review/approval gates. Assertions cover decision-journal persistence, no silent problem-route selection, evidence-linked requirements and human verification.
-- PR #74 extends this same browser-created project through Ambiguity, Stories and Consistency via browser controls, approves the remaining human gates, and verifies completion, 12 persisted pipeline runs, six human approvals and Debrief provenance. Its exact-head run [42546370129](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42546370129) passed both `quality` and `postgres-schema`.
-- PR #74 is stacked on #72; both remain open and unmerged. This evidence is not yet in canonical `main`.
+- The follow-on test extension runs Ambiguity, Stories and Consistency via browser controls, approves the remaining human gates, and verifies completion, 12 persisted pipeline runs, six human approvals and Debrief provenance. Original stacked PR #74 passed exact-head run [42546370129](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42546370129), then was closed as superseded because its branch retained the pre-squash PR #72 ancestry. The same incremental test change was rebased directly onto current `main` as PR #75; its fresh exact-head CI is pending.
+- PR #75 is a one-commit follow-on against current `main`, containing only the incremental browser journey changes. Do not treat the original #74 CI run as proof for the rebased branch.
 - **Still open:** manual accessibility/screen-reader review; live-provider checks; participant research; representative load/concurrency checks; and staging rehearsal. Re-run the full journey on a clean release candidate after the stacked PRs are integrated.
 
 This is verified repository/CI evidence only. It does not establish production readiness or complete product acceptance.
