@@ -1,8 +1,8 @@
 # Modrik feature and release status
 
 **Canonical branch:** `main`  
-**Verified main commit:** `aa80880b062b3bb497907e6f5d2806a937f42ca6` (PRs #63–#68 merged after the Arabic RTL baseline).  
-**Integration status:** PRs #63, #64, #65, #66, #67 and #68 are merged. PRs #61 and #62 were closed as superseded by the current-main reapplications #67 and #68. PR #47 remains intentionally excluded because it is a divergent replay.  
+**Verified main commit:** `f1f24b3fed6fbe07b97d9e9324bf796bbac430c4` (PRs #63–#71 merged after the Arabic RTL baseline).  
+**Integration status:** PRs #63–#71 are merged. PRs #61 and #62 were closed as superseded by the current-main reapplications #67 and #68. PR #72 is open and exact-head CI-passing; it is not part of `main`. PR #47 remains intentionally excluded because it is a divergent replay.  
 **Release status:** the repository has broad automated coverage and a successful CI merge path, but it is **not production-cleared**. Production infrastructure, migration-baseline reconciliation, staging rehearsal, live-provider verification and operational/security sign-off remain external gates.
 
 This document distinguishes implemented repository behavior, automated evidence, manual acceptance and external release prerequisites. A passing CI run proves only the tested commit and configured CI environment; it does not prove live-provider behavior, user acceptance or production readiness.
@@ -43,7 +43,7 @@ This document distinguishes implemented repository behavior, automated evidence,
 
 ## 2. P0 — remaining product-confidence work
 
-1. **Full browser-driven creation-to-completion journey:** the deterministic integration suite exercises all six real stage runners, planner/critic-verifier, evidence traceability, six human approvals and memory harvest. Browser coverage reopens a completed project and verifies Debrief provenance plus all six stage cockpits. The browser does not yet create a new project and drive every agent run and human approval end-to-end.
+1. **Full browser-driven creation-to-completion journey:** PR #72 now creates a new project in Mission Control, captures consented evidence, and drives Questioner, Scope and Extraction plus their human gates through browser controls. The deterministic integration suite covers all six real stage runners and human approvals; existing browser coverage verifies stakeholder collaboration and Debrief on its seeded project. A single browser journey on the same newly created project through all six agents, all six human gates and Debrief remains open.
 2. **Offline retry lifecycle integration:** PR #64 adds unit coverage for capped backoff, human-review classification, lifecycle deferral and manual override. The scheduler used by the actual component is covered by deterministic timer tests. A browser-level timing test across OS tab suspension/resume remains additional confidence work, not a claim of verified background execution.
 3. **Offline recovery confirmation:** PR #68 verifies Chromium/IndexedDB lease takeover, fencing-token progression, stale acknowledgement rejection and queued-item retention after a local mocked 503 until a local mocked 200. This is not a live application-backend or production network test.
 4. **Accessibility execution:** PR #65 adds a verification protocol. Keyboard, screen-reader, contrast and reduced-motion checks still need documented manual execution; no WCAG conformance claim is made.
@@ -85,9 +85,10 @@ See [docs/production-preflight-runbook.md](docs/production-preflight-runbook.md)
 
 - Historical canonical integration chain through the Arabic RTL baseline: **#27 → #28 → #29 → #30 → #31 → #32 → #33 → #34 → #35 → #36 → #37 → #38 → #39 → #40 → #41 → #42 → #43 → #44 → #45 → #46 → #48 → #49 → #50 → #51 → #52 → #53 → #54 → #56**.
 - PR #56 delivered authenticated workspace Arabic RTL coverage and locale/direction persistence.
-- PRs #63–#68 and #70 are now merged into `main`: acceptance evidence reconciliation, offline retry reliability, accessibility/RTL protocol, production preflight, authenticated Debrief/stage cockpit browser coverage, and interrupted offline-sync browser coverage.
+- PRs #63–#71 are now merged into `main`, covering acceptance evidence reconciliation, offline retry reliability, accessibility/RTL protocol, production preflight, authenticated Debrief/stage cockpit browser coverage, interrupted offline-sync browser coverage and subsequent reliability/status work.
+- PR #72 adds exact-head-green browser coverage for fresh-project creation and the first three human-gated stages; it remains open and unmerged.
 - PRs #61/#62 are closed as superseded by #67/#68. PR #47 remains excluded as a divergent replay.
-- Exact-head CI was green for the merged follow-up commits, including #70. The post-merge `main` workflow for the latest documentation reconciliation is still queued and remains the final integration signal for the combined tree.
+- PR #72 exact-head CI run [42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703) passed both `quality` and `postgres-schema`. Its changes are not yet in `main`.
 
 ## Release decision
 
