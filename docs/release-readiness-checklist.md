@@ -85,13 +85,14 @@ This section supersedes any older PR-number or workflow-status statements in the
 
 ### Repository and automated acceptance
 
-- [x] PRs #63–#72 are merged into canonical `main` (verified main SHA: `92563c367705317463bcf641d25bc0c95f4183ee`).
+- [x] PRs #63–#73, #75 and #76 are merged into canonical `main` (verified main SHA: `524a3ff989135e7e7e285e33d3f1b638d230f297`).
 - [x] PR #72 exact-head CI passed both `quality` and `postgres-schema` in [run 42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703). It covers fresh Mission Control project creation, consented evidence, Questioner/Scope/Extraction UI runs and their first three human gates.
 - [x] Original stacked PR #74 exact-head CI passed both `quality` and `postgres-schema` in [run 42546370129](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42546370129), proving the six-stage extension on its stacked tree.
 - [x] PR #72 merged into `main` at `2be5bde4080615468f980171c3239fc0536d496b`.
 - [x] PR #75 is the rebased one-commit follow-on for Ambiguity, Stories, Consistency, all six human approvals and Debrief; it is merged into `main` and exact-head CI [42641490698](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42641490698) passed both jobs. Original stacked PR #74 is closed as superseded.
-- [ ] PR #73 is the documentation reconciliation PR and remains open until its latest exact-head CI passes and its contents are reviewed.
-- [ ] Run exact-head CI on the final combined `main` release candidate after integration.
+- [x] PR #73 documentation reconciliation is merged.
+- [x] PR #76 human-verification browser timing-race fix is merged after exact-head CI passed.
+- [x] Final combined `main` exact-head CI passed both jobs in [run 42643067721](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42643067721).
 
 ### Product acceptance still requiring execution
 
@@ -110,3 +111,15 @@ This section supersedes any older PR-number or workflow-status statements in the
 - [ ] Security, privacy and legal review is complete; release owner explicitly authorizes deployment.
 
 OAuth/provider activation and semantic/vector retrieval remain intentionally deferred. No production migration or deployment is authorized by this checklist.
+
+
+### Final main verification — 2026-11-09 (supersedes the historical status above)
+
+- [x] Canonical `main` is `524a3ff989135e7e7e285e33d3f1b638d230f297`.
+- [x] PRs #72, #73, #75 and #76 are merged. PR #74 is closed as superseded by #75; no unique implementation was dropped.
+- [x] Final CI run [42643067721](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42643067721) completed successfully: `quality` and `postgres-schema` both green. The quality job completed regression tests, benchmark validation, release-config shape validation, SQLite schema/integration, TypeScript, lint, production build, offline browser integrations and stakeholder API/browser E2E.
+- [ ] Human keyboard/screen-reader, contrast, reduced-motion and representative-user acceptance remain manual tasks.
+- [ ] Staging deployment, live-provider verification, production database baseline reconciliation, backup/restore rehearsal, monitoring and security/privacy/legal sign-off remain external operational gates.
+- [ ] Production deployment and production schema mutation are not authorized by this checklist.
+
+OAuth/provider activation and semantic/vector retrieval remain intentionally deferred from the MVP.
