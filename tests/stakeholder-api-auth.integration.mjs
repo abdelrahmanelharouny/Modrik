@@ -1239,6 +1239,42 @@ try {
       where: { projectId: browserCreatedProject.id, stage: "PROBLEM_SELECTION", status: "done" },
     }), 2, "Scope Agent execution and human approval must both be persisted");
 
+    // Exercise the third agent and the per-requirement human verification
+    // controls before allowing the extraction gate to advance.
+    await page.getByRole("button", { name: "Run Extraction Agent" }).click();
+    await page.getByRole("button", { name: "Approve & continue" }).waitFor({ state: "visible", timeout: 30000 });
+    const browserRequirements = await prisma.requirement.findMany({
+      where: { projectId: browserCreatedProject.id },
+      include: { links: true },
+      orderBy: { refId: "asc" },
+    });
+    assert.ok(browserRequirements.length >= 2, "Extraction Agent must materialize reviewable requirements");
+    assert.ok(browserRequirements.every((requirement) => requirement.links.some((link) => link.evidenceId)),
+      "every extracted requirement must retain evidence traceability");
+    assert.ok(browserRequirements.every((requirement) => requirement.verifyStatus === "supported" && requirement.verificationSource === "agent"),
+      "the critic-verifier must finish before the human review controls are offered");
+    const humanReviewButtons = page.getByRole("button", { name: "Human: supported" });
+    const humanReviewCount = await humanReviewButtons.count();
+    assert.equal(humanReviewCount, browserRequirements.length,
+      "each evidence-linked requirement must expose an independent human verification action");
+    for (let i = 0; i < humanReviewCount; i += 1) {
+      await page.locator('button:not(:disabled)').filter({ hasText: "Human: supported" }).first().click();
+    }
+    const humanVerifiedRequirements = await prisma.requirement.findMany({
+      where: { projectId: browserCreatedProject.id },
+    });
+    assert.ok(humanVerifiedRequirements.every((requirement) => requirement.verifyStatus === "supported" && requirement.verificationSource === "human"),
+      "human verification decisions must persist for every extracted requirement");
+    await page.getByRole("button", { name: "Approve & continue" }).click();
+    await page.getByRole("button", { name: "Run Ambiguity Agent" }).waitFor({ state: "visible", timeout: 15000 });
+    const extractionApproval = await prisma.decisionEntry.findFirst({
+      where: { projectId: browserCreatedProject.id, stage: "EXTRACTION", actor: "human", action: "approved_stage" },
+    });
+    assert.ok(extractionApproval, "the extraction human gate must be recorded in the decision journal");
+    const browserCreatedAfterExtraction = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
+    assert.equal(browserCreatedAfterExtraction.currentStage, "AMBIGUITY");
+    assert.equal(browserCreatedAfterExtraction.stageStatus, "awaiting_input");
+
     // Return to Mission Control before opening the independent seeded
     // stakeholder-collaboration fixture used by the remainder of this test.
     await page.goto(baseUrl, { waitUntil: "networkidle" });
