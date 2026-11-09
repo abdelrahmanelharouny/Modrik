@@ -1,8 +1,8 @@
 # Modrik feature and release status
 
 **Canonical branch:** `main`  
-**Verified main commit:** `2be5bde4080615468f980171c3239fc0536d496b` (PR #72 merged after PRs #63–#71).  
-**Integration status:** PRs #63–#72 are merged. PRs #61 and #62 were closed as superseded by the current-main reapplications #67 and #68. Original stacked PR #74 was closed as superseded after its follow-on changes were rebased into PR #75. PR #75 is open against `main`; its exact-head CI is pending. PR #73 is the documentation reconciliation PR. PR #47 remains intentionally excluded because it is a divergent replay.  
+**Verified main commit:** `92563c367705317463bcf641d25bc0c95f4183ee` (PR #75 merged after PR #72).  
+**Integration status:** PRs #63–#72 and #75 are merged. PRs #61 and #62 were closed as superseded by the current-main reapplications #67 and #68. Original stacked PR #74 was closed as superseded after its follow-on changes were rebased into PR #75. PR #73 is the remaining documentation reconciliation PR. PR #47 remains intentionally excluded because it is a divergent replay.  
 **Release status:** the repository has broad automated coverage and a successful CI merge path, but it is **not production-cleared**. Production infrastructure, migration-baseline reconciliation, staging rehearsal, live-provider verification and operational/security sign-off remain external gates.
 
 This document distinguishes implemented repository behavior, automated evidence, manual acceptance and external release prerequisites. A passing CI run proves only the tested commit and configured CI environment; it does not prove live-provider behavior, user acceptance or production readiness.
@@ -43,7 +43,7 @@ This document distinguishes implemented repository behavior, automated evidence,
 
 ## 2. P0 — remaining product-confidence work
 
-1. **Full browser-driven creation-to-completion journey:** PR #72 is merged into `main`, covering fresh Mission Control creation, consented evidence, Questioner, Scope and Extraction with their human gates. PR #75 is the rebased follow-on against current `main`, extending the same browser-created project through Ambiguity, Stories, Consistency, all six human approvals and Debrief. Its fresh exact-head CI is pending. Manual accessibility/research acceptance and a clean release-candidate run remain open.
+1. **Full browser-driven creation-to-completion journey:** PR #72 and rebased follow-on PR #75 are merged into `main`. Together they cover fresh Mission Control creation, consented evidence, all six agents, all six human approvals and Debrief provenance. PR #75 exact-head CI run [42641490698](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42641490698) passed both `quality` and `postgres-schema`. Manual accessibility/research acceptance and a clean release-candidate run remain open.
 2. **Offline retry lifecycle integration:** PR #64 adds unit coverage for capped backoff, human-review classification, lifecycle deferral and manual override. The scheduler used by the actual component is covered by deterministic timer tests. A browser-level timing test across OS tab suspension/resume remains additional confidence work, not a claim of verified background execution.
 3. **Offline recovery confirmation:** PR #68 verifies Chromium/IndexedDB lease takeover, fencing-token progression, stale acknowledgement rejection and queued-item retention after a local mocked 503 until a local mocked 200. This is not a live application-backend or production network test.
 4. **Accessibility execution:** PR #65 adds a verification protocol. Keyboard, screen-reader, contrast and reduced-motion checks still need documented manual execution; no WCAG conformance claim is made.
@@ -87,9 +87,10 @@ See [docs/production-preflight-runbook.md](docs/production-preflight-runbook.md)
 - PR #56 delivered authenticated workspace Arabic RTL coverage and locale/direction persistence.
 - PRs #63–#71 are now merged into `main`, covering acceptance evidence reconciliation, offline retry reliability, accessibility/RTL protocol, production preflight, authenticated Debrief/stage cockpit browser coverage, interrupted offline-sync browser coverage and subsequent reliability/status work.
 - PR #72 is merged at `2be5bde4080615468f980171c3239fc0536d496b`; exact-head CI run [42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703) passed both `quality` and `postgres-schema`.
-- PR #75 is a clean one-commit rebase of the follow-on browser journey directly onto current `main`; it contains only the incremental test change (78 additions, 3 deletions) and awaits fresh exact-head CI. Original stacked PR #74 was closed as superseded to avoid merging duplicated ancestry.
+- PR #75 was a clean one-commit rebase of the follow-on browser journey directly onto `main`, containing only the incremental test change (78 additions, 3 deletions). It is now merged at `92563c367705317463bcf641d25bc0c95f4183ee`; exact-head CI run [42641490698](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42641490698) passed both jobs. Original stacked PR #74 was closed as superseded to avoid merging duplicated ancestry.
 - PRs #61/#62 are closed as superseded by #67/#68. PR #47 remains excluded as a divergent replay.
-- PR #72 exact-head CI run [42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703) passed both `quality` and `postgres-schema`; its changes are now in `main`.
+- PR #72 exact-head CI run [42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703) passed both `quality` and `postgres-schema`; its changes are in `main`.
+- PR #75 exact-head CI run [42641490698](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42641490698) passed both jobs; its rebased incremental browser journey is now in `main`.
 
 ## Release decision
 
