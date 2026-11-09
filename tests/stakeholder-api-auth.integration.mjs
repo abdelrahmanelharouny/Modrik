@@ -38,9 +38,14 @@ function mockAgentCompletion(prompt) {
     ] };
   }
   if (prompt.includes("TASK: Extract 8-12 atomic requirements")) {
+    // The browser-created project receives a generated evidence code. Read the
+    // actual code from the prompt so the deterministic provider exercises the
+    // same citation-to-record mapping as a real provider instead of returning
+    // a fixture-only code that cannot resolve to this project's source.
+    const evidenceCode = prompt.match(/\\[(E-[A-Z0-9]{8})\\]/)?.[1] ?? "E-AGENT-01";
     return { requirements: Array.from({ length: 8 }, (_, i) => ({
       text: `The system shall record approval decision ${i + 1} with its responsible operations lead.`,
-      type: "functional", priority: i < 5 ? "Must" : "Should", evidenceCodes: ["E-AGENT-01"], confidence: 92, language: "en",
+      type: "functional", priority: i < 5 ? "Must" : "Should", evidenceCodes: [evidenceCode], confidence: 92, language: "en",
     })) };
   }
   if (prompt.includes("TASK: Score each requirement for ambiguity")) {
