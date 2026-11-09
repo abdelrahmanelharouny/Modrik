@@ -1208,6 +1208,37 @@ try {
       where: { projectId: browserCreatedProject.id, stage: "ELICITATION", status: "done" },
     }), 2, "agent execution and human approval must each leave a completed pipeline run");
 
+    // Continue the browser journey through the second agent and its
+    // domain-specific human gate: a problem route must be selected before
+    // approval can unlock requirement extraction.
+    await page.getByRole("button", { name: "Run Scope Agent" }).click();
+    await page.getByRole("button", { name: "Approve & continue" }).waitFor({ state: "visible", timeout: 30000 });
+    const browserCandidates = await prisma.problemCandidate.findMany({
+      where: { projectId: browserCreatedProject.id },
+      orderBy: { createdAt: "asc" },
+    });
+    assert.ok(browserCandidates.length >= 2, "the browser-launched Scope Agent must materialize multiple candidate routes");
+    assert.equal(browserCandidates.filter((candidate) => candidate.selected).length, 0,
+      "candidate generation must not silently choose a route for the human");
+    await page.getByRole("radio").first().click();
+    await page.getByRole("button", { name: "Approve & continue" }).click();
+    await page.getByRole("button", { name: "Run Extraction Agent" }).waitFor({ state: "visible", timeout: 15000 });
+    const browserSelectedCandidates = await prisma.problemCandidate.findMany({
+      where: { projectId: browserCreatedProject.id, selected: true },
+    });
+    assert.equal(browserSelectedCandidates.length, 1,
+      "the human must commit exactly one candidate route before the next stage");
+    const browserScopeApproval = await prisma.decisionEntry.findFirst({
+      where: { projectId: browserCreatedProject.id, stage: "PROBLEM_SELECTION", actor: "human", action: "approved_stage" },
+    });
+    assert.ok(browserScopeApproval, "the second browser approval must be recorded in the decision journal");
+    const browserCreatedAfterScope = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
+    assert.equal(browserCreatedAfterScope.currentStage, "EXTRACTION");
+    assert.equal(browserCreatedAfterScope.stageStatus, "awaiting_input");
+    assert.equal(await prisma.pipelineRun.count({
+      where: { projectId: browserCreatedProject.id, stage: "PROBLEM_SELECTION", status: "done" },
+    }), 2, "Scope Agent execution and human approval must both be persisted");
+
     // Return to Mission Control before opening the independent seeded
     // stakeholder-collaboration fixture used by the remainder of this test.
     await page.goto(baseUrl, { waitUntil: "networkidle" });
