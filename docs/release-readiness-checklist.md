@@ -85,11 +85,12 @@ This section supersedes any older PR-number or workflow-status statements in the
 
 ### Repository and automated acceptance
 
-- [x] PRs #63–#71 are merged into canonical `main` (verified main SHA: `f1f24b3fed6fbe07b97d9e9324bf796bbac430c4`).
+- [x] PRs #63–#72 are merged into canonical `main` (verified main SHA: `2be5bde4080615468f980171c3239fc0536d496b`).
 - [x] PR #72 exact-head CI passed both `quality` and `postgres-schema` in [run 42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703). It covers fresh Mission Control project creation, consented evidence, Questioner/Scope/Extraction UI runs and their first three human gates.
-- [x] Stacked PR #74 exact-head CI passed both `quality` and `postgres-schema` in [run 42546370129](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42546370129). It extends the same browser-created project through Ambiguity, Stories, Consistency, six total human approvals and Debrief provenance.
-- [ ] PRs #72 and #74 are still open and are not part of `main`; integrate #72 first, then retarget/revalidate #74 against `main` before merge.
-- [ ] PR #73 is the documentation reconciliation PR and remains open until its exact-head CI passes and its contents are reviewed.
+- [x] Original stacked PR #74 exact-head CI passed both `quality` and `postgres-schema` in [run 42546370129](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42546370129), proving the six-stage extension on its stacked tree.
+- [x] PR #72 merged into `main` at `2be5bde4080615468f980171c3239fc0536d496b`.
+- [ ] PR #75 is the rebased one-commit follow-on for Ambiguity, Stories, Consistency, all six human approvals and Debrief; exact-head CI is pending. Original stacked PR #74 is closed as superseded.
+- [ ] PR #73 is the documentation reconciliation PR and remains open until its latest exact-head CI passes and its contents are reviewed.
 - [ ] Run exact-head CI on the final combined `main` release candidate after integration.
 
 ### Product acceptance still requiring execution
