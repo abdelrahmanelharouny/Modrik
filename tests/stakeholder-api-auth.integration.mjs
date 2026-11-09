@@ -1269,19 +1269,32 @@ try {
     const requirementRows = page.locator("li").filter({ has: page.getByRole("button", { name: "Human: supported" }) });
     assert.ok(await requirementRows.count() >= browserRequirements.length,
       "each extracted requirement must render its own human review row");
+    const waitForHumanVerdict = async (button, verdict) => {
+      const responsePromise = page.waitForResponse((response) => {
+        const request = response.request();
+        return response.url().includes(`/api/projects/${browserCreatedProject.id}/items`)
+          && request.method() === "PATCH"
+          && request.postData()?.includes(`"verificationDecision":"${verdict}"`);
+      }, { timeout: 15000 });
+      await button.click();
+      const response = await responsePromise;
+      assert.equal(response.status(), 200,
+        `the human ${verdict} decision must be accepted by the item API`);
+    };
     for (let i = 0; i < humanReviewCount; i += 1) {
       const row = requirementRows.nth(i);
       const weakButton = row.getByRole("button", { name: "Human: weak" });
       if (await weakButton.isEnabled()) {
-        await weakButton.click();
+        await waitForHumanVerdict(weakButton, "weak");
       } else {
         const supportedButton = row.getByRole("button", { name: "Human: supported" });
         assert.equal(await supportedButton.isEnabled(), false,
           "a row with neither review action enabled must be investigated");
       }
-      await row.getByRole("button", { name: "Human: supported" }).waitFor({ state: "visible" });
       const supportedButton = row.getByRole("button", { name: "Human: supported" });
-      if (await supportedButton.isEnabled()) await supportedButton.click();
+      if (await supportedButton.isEnabled()) {
+        await waitForHumanVerdict(supportedButton, "supported");
+      }
     }
     const humanVerifiedRequirements = await prisma.requirement.findMany({
       where: { projectId: browserCreatedProject.id },
