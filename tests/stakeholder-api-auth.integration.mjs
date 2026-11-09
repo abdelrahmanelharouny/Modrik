@@ -1269,19 +1269,32 @@ try {
     const requirementRows = page.locator("li").filter({ has: page.getByRole("button", { name: "Human: supported" }) });
     assert.ok(await requirementRows.count() >= browserRequirements.length,
       "each extracted requirement must render its own human review row");
+    const waitForHumanVerdict = async (button, verdict) => {
+      const responsePromise = page.waitForResponse((response) => {
+        const request = response.request();
+        return response.url().includes(`/api/projects/${browserCreatedProject.id}/items`)
+          && request.method() === "PATCH"
+          && request.postData()?.includes(`"verificationDecision":"${verdict}"`);
+      }, { timeout: 15000 });
+      await button.click();
+      const response = await responsePromise;
+      assert.equal(response.status(), 200,
+        `the human ${verdict} decision must be accepted by the item API`);
+    };
     for (let i = 0; i < humanReviewCount; i += 1) {
       const row = requirementRows.nth(i);
       const weakButton = row.getByRole("button", { name: "Human: weak" });
       if (await weakButton.isEnabled()) {
-        await weakButton.click();
+        await waitForHumanVerdict(weakButton, "weak");
       } else {
         const supportedButton = row.getByRole("button", { name: "Human: supported" });
         assert.equal(await supportedButton.isEnabled(), false,
           "a row with neither review action enabled must be investigated");
       }
-      await row.getByRole("button", { name: "Human: supported" }).waitFor({ state: "visible" });
       const supportedButton = row.getByRole("button", { name: "Human: supported" });
-      if (await supportedButton.isEnabled()) await supportedButton.click();
+      if (await supportedButton.isEnabled()) {
+        await waitForHumanVerdict(supportedButton, "supported");
+      }
     }
     const humanVerifiedRequirements = await prisma.requirement.findMany({
       where: { projectId: browserCreatedProject.id },
@@ -1297,6 +1310,68 @@ try {
     const browserCreatedAfterExtraction = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
     assert.equal(browserCreatedAfterExtraction.currentStage, "AMBIGUITY");
     assert.equal(browserCreatedAfterExtraction.stageStatus, "awaiting_input");
+
+    // Continue the very same browser-created project through the remaining
+    // three agent stages and their human gates. This closes the gap between
+    // the six-stage HTTP integration and the browser-created first-three-stage
+    // journey: every transition below is initiated through the real UI.
+    await page.getByRole("button", { name: "Run Ambiguity Agent" }).click();
+    await page.getByRole("button", { name: "Approve & continue" }).waitFor({ state: "visible", timeout: 30000 });
+    const browserAmbiguityResults = await prisma.requirement.findMany({ where: { projectId: browserCreatedProject.id } });
+    assert.ok(browserAmbiguityResults.length > 0 && browserAmbiguityResults.every((requirement) => requirement.ambiguity !== null),
+      "the browser-launched Ambiguity Agent must persist a score for every requirement");
+    await page.getByRole("button", { name: "Approve & continue" }).click();
+    await page.getByRole("button", { name: "Run Story Agent" }).waitFor({ state: "visible", timeout: 15000 });
+    const browserAfterAmbiguityApproval = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
+    assert.equal(browserAfterAmbiguityApproval.currentStage, "STORIES");
+    assert.equal(browserAfterAmbiguityApproval.stageStatus, "awaiting_input");
+    assert.ok(await prisma.decisionEntry.findFirst({
+      where: { projectId: browserCreatedProject.id, stage: "AMBIGUITY", actor: "human", action: "approved_stage" },
+    }), "the ambiguity human gate must be recorded in the decision journal");
+
+    await page.getByRole("button", { name: "Run Story Agent" }).click();
+    await page.getByRole("button", { name: "Approve & continue" }).waitFor({ state: "visible", timeout: 30000 });
+    const browserCreatedStories = await prisma.userStory.findMany({ where: { projectId: browserCreatedProject.id } });
+    assert.equal(browserCreatedStories.length, browserRequirements.length,
+      "the browser-launched Story Agent must materialize a story for each extracted requirement");
+    assert.ok(browserCreatedStories.every((story) => story.requirementId),
+      "every browser-created story must retain its requirement relationship");
+    await page.getByRole("button", { name: "Approve & continue" }).click();
+    await page.getByRole("button", { name: "Run Consistency Agent" }).waitFor({ state: "visible", timeout: 15000 });
+    const browserAfterStoriesApproval = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
+    assert.equal(browserAfterStoriesApproval.currentStage, "CONFLICTS");
+    assert.equal(browserAfterStoriesApproval.stageStatus, "awaiting_input");
+    assert.ok(await prisma.decisionEntry.findFirst({
+      where: { projectId: browserCreatedProject.id, stage: "STORIES", actor: "human", action: "approved_stage" },
+    }), "the stories human gate must be recorded in the decision journal");
+
+    await page.getByRole("button", { name: "Run Consistency Agent" }).click();
+    await page.getByRole("button", { name: "Approve & continue" }).waitFor({ state: "visible", timeout: 30000 });
+    const browserCreatedConflicts = await prisma.conflict.findMany({ where: { projectId: browserCreatedProject.id } });
+    assert.equal(browserCreatedConflicts.length, 0,
+      "the deterministic browser fixture has no conflict findings requiring a human-authored resolution");
+    await page.getByRole("button", { name: "Approve & continue" }).click();
+    await page.getByRole("heading", { name: /Debrief/ }).waitFor({ state: "visible", timeout: 20000 });
+    const completedBrowserProject = await prisma.project.findUnique({ where: { id: browserCreatedProject.id } });
+    assert.equal(completedBrowserProject.status, "complete",
+      "the sixth browser human gate must complete the same project created at the start of the journey");
+    assert.equal(completedBrowserProject.currentStage, "CONFLICTS");
+    assert.equal(completedBrowserProject.stageStatus, "approved");
+    const browserJourneyRuns = await prisma.pipelineRun.findMany({ where: { projectId: browserCreatedProject.id } });
+    assert.equal(browserJourneyRuns.length, 12,
+      "the same browser-created project must persist six agent runs and six human approvals");
+    assert.ok(browserJourneyRuns.every((run) => run.status === "done"));
+    const browserJourneyApprovals = await prisma.decisionEntry.findMany({
+      where: { projectId: browserCreatedProject.id, actor: "human", action: "approved_stage" },
+    });
+    assert.equal(browserJourneyApprovals.length, 6,
+      "all six browser-driven human approvals must be recorded in the decision journal");
+    await page.getByRole("img", { name: "Requirement constellation" }).waitFor();
+    const browserJourneyConstellation = await page.locator('svg[aria-label="Requirement constellation"] text').allTextContents();
+    assert.ok(browserJourneyConstellation.some((label) => label.includes(browserRequirements[0].refId)),
+      "the completed browser-created project must expose its extracted requirements in Debrief");
+    assert.ok(browserJourneyConstellation.some((label) => label.includes(persistedBrowserEvidence[0].code)),
+      "the completed browser-created project must retain its source evidence in Debrief");
 
     // Return to Mission Control before opening the independent seeded
     // stakeholder-collaboration fixture used by the remainder of this test.
