@@ -42,7 +42,7 @@ function mockAgentCompletion(prompt) {
     // actual code from the prompt so the deterministic provider exercises the
     // same citation-to-record mapping as a real provider instead of returning
     // a fixture-only code that cannot resolve to this project's source.
-    const evidenceCode = prompt.match(/\\[(E-[A-Z0-9]{8})\\]/)?.[1] ?? "E-AGENT-01";
+    const evidenceCode = prompt.match(/\[(E-[A-Z0-9]{8})\]/)?.[1] ?? "E-AGENT-01";
     return { requirements: Array.from({ length: 8 }, (_, i) => ({
       text: `The system shall record approval decision ${i + 1} with its responsible operations lead.`,
       type: "functional", priority: i < 5 ? "Must" : "Should", evidenceCodes: [evidenceCode], confidence: 92, language: "en",
