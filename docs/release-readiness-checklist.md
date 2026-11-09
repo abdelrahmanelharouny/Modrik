@@ -85,11 +85,11 @@ This section supersedes any older PR-number or workflow-status statements in the
 
 ### Repository and automated acceptance
 
-- [x] PRs #63–#72 are merged into canonical `main` (verified main SHA: `2be5bde4080615468f980171c3239fc0536d496b`).
+- [x] PRs #63–#72 are merged into canonical `main` (verified main SHA: `92563c367705317463bcf641d25bc0c95f4183ee`).
 - [x] PR #72 exact-head CI passed both `quality` and `postgres-schema` in [run 42545077703](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42545077703). It covers fresh Mission Control project creation, consented evidence, Questioner/Scope/Extraction UI runs and their first three human gates.
 - [x] Original stacked PR #74 exact-head CI passed both `quality` and `postgres-schema` in [run 42546370129](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42546370129), proving the six-stage extension on its stacked tree.
 - [x] PR #72 merged into `main` at `2be5bde4080615468f980171c3239fc0536d496b`.
-- [ ] PR #75 is the rebased one-commit follow-on for Ambiguity, Stories, Consistency, all six human approvals and Debrief; exact-head CI is pending. Original stacked PR #74 is closed as superseded.
+- [x] PR #75 is the rebased one-commit follow-on for Ambiguity, Stories, Consistency, all six human approvals and Debrief; it is merged into `main` and exact-head CI [42641490698](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42641490698) passed both jobs. Original stacked PR #74 is closed as superseded.
 - [ ] PR #73 is the documentation reconciliation PR and remains open until its latest exact-head CI passes and its contents are reviewed.
 - [ ] Run exact-head CI on the final combined `main` release candidate after integration.
 
