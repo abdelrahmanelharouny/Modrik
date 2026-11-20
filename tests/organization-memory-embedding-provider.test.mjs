@@ -144,3 +144,35 @@ test("E5 query instruction rejects empty and overlong configuration", async () =
     /query instruction/i,
   );
 });
+
+
+test("Granite multilingual R2 sends unprefixed Arabic, English and code-switched query/document text", async () => {
+  const model = "ibm-granite/granite-embedding-97m-multilingual-r2";
+  const graniteEnv = {
+    ...env,
+    ORGANIZATION_MEMORY_EMBEDDING_MODEL: model,
+    ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS: "384",
+  };
+  const requests = [];
+  const vector = [1, ...Array(383).fill(0)];
+  const provider = await createOrganizationMemoryEmbeddingProvider({
+    env: graniteEnv,
+    fetch: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return {
+        ok: true,
+        json: async () => ({ model, data: [{ embedding: vector }] }),
+      };
+    },
+  });
+
+  const query = "ازاي نراجع القرار المرتبط بال OAuth callback؟";
+  const document = "kind: decision\nlabel: OAuth callback review\ndescription: Verify PKCE and state";
+  await provider.embed(query, { role: "query" });
+  await provider.embed(document, { role: "document" });
+
+  assert.equal(requests[0].input, query);
+  assert.equal(requests[1].input, document);
+  assert.equal(requests[0].model, model);
+  assert.equal(requests[0].dimensions, 384);
+});
