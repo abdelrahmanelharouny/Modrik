@@ -176,3 +176,23 @@ test("Granite multilingual R2 sends unprefixed Arabic, English and code-switched
   assert.equal(requests[0].model, model);
   assert.equal(requests[0].dimensions, 384);
 });
+
+
+test("Granite configuration does not require the E5-only query instruction", async () => {
+  const model = "ibm-granite/granite-embedding-97m-multilingual-r2";
+  const provider = await createOrganizationMemoryEmbeddingProvider({
+    env: {
+      ...env,
+      ORGANIZATION_MEMORY_EMBEDDING_MODEL: model,
+      ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS: "384",
+      ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: "",
+    },
+    fetch: async () => ({
+      ok: true,
+      json: async () => ({ model, data: [{ embedding: [1, ...Array(383).fill(0)] }] }),
+    }),
+  });
+  assert.equal(provider.model, model);
+  assert.equal(provider.dimensions, 384);
+  assert.equal((await provider.embed("قرار مراجعة صلاحيات GitHub", { role: "query" })).dimensions, 384);
+});
