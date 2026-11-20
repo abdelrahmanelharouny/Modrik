@@ -40,6 +40,10 @@ jobs:
             echo "::error::Set MODRIK_WORKER_DATABASE_URL before enabling the embedding worker."
             exit 1
           fi
+          if [[ "$DATABASE_URL" != postgres://* && "$DATABASE_URL" != postgresql://* ]]; then
+            echo "::error::The embedding worker requires the production PostgreSQL database URL."
+            exit 1
+          fi
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -82,7 +86,7 @@ jobs:
       - name: Install dependencies and generate Prisma client
         run: |
           bun install --frozen-lockfile
-          bunx prisma generate
+          bun run db:generate:pg
 
       - name: Queue initial backfill (manual dispatch only)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill == true }}
