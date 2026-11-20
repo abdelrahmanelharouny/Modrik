@@ -98,3 +98,12 @@ See [docs/production-preflight-runbook.md](docs/production-preflight-runbook.md)
 ## Release decision
 
 **Automated repository acceptance is green; ready for staging preparation, not production-cleared.** Do not run production schema mutation, rotate live secrets, activate OAuth/semantic retrieval, or deploy without the relevant environment, backup/restore rehearsal and explicit release authorization.
+
+
+## Release follow-up — 2026-11-20
+
+- PR #77 carries the reconciliation above, but its latest recorded CI run [42671064664](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42671064664) concluded with failure. The connector did not return job details, so the failing job and root cause are **not yet established**; do not describe this PR as CI-green.
+- PR #78 proposes the Frankfurt staging topology (Render + Neon PostgreSQL + Upstash Redis + Resend). Its exact-head workflow run [42725548832](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42725548832) completed successfully. PR #78 remains open and unmerged.
+- No hosting service, database, Redis instance, domain, email sender or credential has been provisioned. The topology is a proposal, not a deployment.
+- The PostgreSQL migration guard remains intentionally fail-closed. No production migration, `prisma db push`, OAuth activation or semantic/vector retrieval activation is authorized by this documentation update.
+- Next safe release steps: resolve and rerun PR #77 CI; review/merge the deployment proposal; obtain explicit provider/budget approval; then implement and independently verify the PostgreSQL baseline/runner before any staging schema mutation.
