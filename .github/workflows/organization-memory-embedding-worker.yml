@@ -28,10 +28,9 @@ jobs:
       DATABASE_URL: ${{ secrets.MODRIK_WORKER_DATABASE_URL }}
       ORGANIZATION_MEMORY_EMBEDDING_ENDPOINT: http://127.0.0.1:8080/v1
       ORGANIZATION_MEMORY_EMBEDDING_API_KEY: ""
-      ORGANIZATION_MEMORY_EMBEDDING_MODEL: intfloat/multilingual-e5-large-instruct
-      ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS: "1024"
+      ORGANIZATION_MEMORY_EMBEDDING_MODEL: ibm-granite/granite-embedding-97m-multilingual-r2
+      ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS: "384"
       ORGANIZATION_MEMORY_EMBEDDING_ALLOW_LOCAL_HTTP: "true"
-      ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: Given a project or organization query, retrieve relevant accepted knowledge memories that answer it, including decisions, requirements, evidence, risks, owners, and prior outcomes.
     steps:
       - name: Require database secret
         shell: bash
@@ -57,7 +56,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /home/runner/.cache/huggingface
-          key: modrik-e5-large-instruct-${{ runner.os }}-v1
+          key: modrik-granite-embedding-97m-r2-${{ runner.os }}-v1
 
       - name: Start Hugging Face TEI CPU server
         shell: bash
@@ -68,8 +67,8 @@ jobs:
             -v /home/runner/.cache/huggingface:/data \
             -e HF_HOME=/data \
             ghcr.io/huggingface/text-embeddings-inference:cpu-1.9 \
-            --model-id intfloat/multilingual-e5-large-instruct \
-            --served-model-name intfloat/multilingual-e5-large-instruct
+            --model-id ibm-granite/granite-embedding-97m-multilingual-r2 \
+            --served-model-name ibm-granite/granite-embedding-97m-multilingual-r2
 
           for attempt in $(seq 1 180); do
             if curl --fail --silent http://127.0.0.1:8080/health >/dev/null; then
