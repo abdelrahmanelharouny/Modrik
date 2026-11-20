@@ -12,7 +12,7 @@ function readConfig(env = process.env) {
   if (!rawEndpoint || !model || !Number.isSafeInteger(dimensions) || dimensions < 2 || dimensions > 8192) {
     throw new Error("Organization memory embedding provider is not fully configured.");
   }
-  if (!queryInstruction || queryInstruction.length > 500) {
+  if (model === E5_INSTRUCT_MODEL && (!queryInstruction || queryInstruction.length > 500)) {
     throw new Error("Embedding query instruction must contain 1 to 500 characters.");
   }
   let endpoint;
