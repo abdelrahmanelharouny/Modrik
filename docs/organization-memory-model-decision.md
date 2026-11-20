@@ -36,6 +36,10 @@ Zero recurring-cost target options:
 
 A $0 deployment cannot honestly promise always-on, low-latency inference on a 512 MB web-service instance. Do not load the model into the Next.js web process. Keep inference separate from web requests and run the durable outbox worker in bounded batches.
 
+**Important distinction:** the GitHub Actions TEI workflow in this PR solves *document embedding jobs* only. Its TEI server listens on loopback inside a temporary runner and disappears when the job ends. The current knowledge-memory GET route also embeds each search query at request time. Therefore, the batch worker alone does **not** make live semantic reads available. To enable semantic reads, Modrik still needs either (a) a reachable always-on embedding endpoint, or (b) a browser-side query-embedding path that computes the vector locally and submits it to a tenant-scoped search endpoint. Until one of those paths is implemented and evaluated, keep `ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED=false`.
+
+For a strict $0 deployment, the best next experiment is a browser-side `Xenova/multilingual-e5-small` int8 ONNX model (118 MB) with the matching `intfloat/multilingual-e5-small` document model, 384 dimensions and the required `query:` / `passage:` prefixes. The Hub provides a Transformers.js-compatible ONNX repository and the base model reports Arabic Mr. TyDi MRR@10 of 71.5. This would reduce inference cost by moving query computation to the user's browser, but it requires a dedicated API contract and must be implemented before it is considered supported. It is a possible zero-cost alternative, not the selected model in this PR.
+
 ## Current implementation fit
 
 The repository already contains:
