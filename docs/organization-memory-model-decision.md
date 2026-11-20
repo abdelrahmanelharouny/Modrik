@@ -1,79 +1,95 @@
 # Organization Memory — embedding model and zero-cost operating decision
 
-**Decision:** use `intfloat/multilingual-e5-large-instruct` as Modrik's canonical embedding model. It is multilingual (Arabic and English included), 1,024-dimensional, and explicitly listed as compatible with Hugging Face Text Embeddings Inference (TEI). Keep lexical BM25 as the authoritative baseline and use semantic retrieval in shadow mode until a real judged evaluation demonstrates that hybrid retrieval improves relevance without weakening tenant isolation.
+**Selected first deployment model:** `ibm-granite/granite-embedding-97m-multilingual-r2`.
 
-## Why this model fits Modrik
+For Modrik, this is a better first $0 deployment choice than the earlier E5 Large Instruct proposal. It has 97M parameters, 384-dimensional vectors, Apache-2.0 licensing, explicit Arabic and English support, retrieval training for programming code, a 32,768-token context window, and a Hugging Face TEI-compatible model card. IBM reports 60.3 on Multilingual MTEB Retrieval and 60.4 on MTEB Code Retrieval. It is designed for latency-sensitive/edge deployment.
 
-Modrik stores short knowledge-graph nodes (kind, label and description), not arbitrary long documents. Queries and evidence may be Arabic, English or code-switched. The E5 large instruct model has 24 XLM-RoBERTa layers, 1,024-dimensional embeddings, and a 512-token limit. That context limit is sufficient for the current compact knowledge-node representation. Its model card explicitly specifies a task instruction on the query side and no instruction on the document side; the provider adapter now applies that distinction.
+Keep lexical BM25 as the authoritative baseline. Semantic retrieval remains disabled until a real, human-judged Arabic/Egyptian Arabic, English and code-switched evaluation proves that hybrid retrieval improves relevance without weakening tenant isolation.
+
+## Why Granite 97M fits Modrik
+
+Modrik knowledge memory stores compact graph nodes (kind, label and description), with queries and evidence in Arabic, English and code-switched language. Modrik also contains technical artifacts, code and integration decisions. Granite 97M is trained for multilingual retrieval and code retrieval, is small enough for CPU inference, and produces compact 384-dimensional vectors.
 
 | Candidate | Strengths | Trade-offs | Decision |
 |---|---|---|---|
-| `intfloat/multilingual-e5-large-instruct` | 94 languages shown on the Hub page (Arabic included); 1,024 dimensions; 560M-class XLM-R encoder; official TEI compatibility; task-specific query instructions | Larger/slower than small encoders; query must carry a one-sentence task instruction; 512-token maximum | **Selected for the first TEI-backed deployment** |
-| `BAAI/bge-m3` | Multilingual; dense, sparse and ColBERT-style representations; 1,024 dimensions; up to 8,192 tokens; no query prefix required for dense retrieval | Not currently listed in TEI's official supported-model examples; requires a compatible FlagEmbedding/alternative serving runtime; current Modrik adapter consumes dense vectors only | Strong challenger for a later controlled benchmark, not the initial deployment default |
-| `intfloat/multilingual-e5-small` | Small multilingual encoder; 384 dimensions; supports 100 languages | Model card warns low-resource languages may degrade; 512-token limit; query/passage prefixes must be handled correctly; TEI compatibility should be verified against the chosen image | Lower-memory fallback if the large model proves too slow |
-| `Alibaba-NLP/gte-multilingual-reranker-base` | Multilingual cross-encoder reranker and listed by TEI as a supported reranking model | Adds a second model and inference latency; reranking is not needed until we have a judged candidate set | **Preferred future reranker candidate**, only if evaluation proves a measurable gain |
-| `jinaai/jina-embeddings-v3` | Strong multilingual embedding alternative | Model-specific task adapters and serving compatibility need separate verification | Keep as a benchmark challenger |
+| `ibm-granite/granite-embedding-97m-multilingual-r2` | 97M parameters; 384 dimensions; Arabic + English + code retrieval; 32K context; Apache-2.0; TEI-compatible; 60.3 Multilingual MTEB Retrieval and 60.4 Code Retrieval in IBM's published results | Newer than E5/BGE; Modrik-specific Egyptian Arabic evaluation still required | **Selected for the first $0 CPU deployment** |
+| `ibm-granite/granite-embedding-311m-multilingual-r2` | Higher published multilingual retrieval score (65.2); 768 dimensions; Matryoshka output sizes; 32K context; Apache-2.0 | 311M parameters; more CPU/RAM and 768-d vectors | Quality challenger if the 97M model underperforms |
+| `Horizon-Labs/multilingual-embedding-small` | 141M parameters; Arabic included; 1,024 dimensions; distilled from BGE-M3; Transformers.js and TEI tags; good multilingual MIRACL results | 269 MB quantized ONNX file; smaller community evaluation set; not explicitly trained for code retrieval | Strong browser-side challenger |
+| `BAAI/bge-m3` | 568M; 1,024 dimensions; dense, sparse and ColBERT-style representations; 100+ languages; 8K context | Larger CPU footprint and Modrik currently stores dense vectors only | Quality benchmark challenger, not first free deployment |
+| `intfloat/multilingual-e5-large-instruct` | Strong multilingual model; Arabic/English; 1,024 dimensions; explicit query instruction; TEI compatibility | 560M-class model; 512-token limit; query instruction adds complexity and CPU cost | Retain as a quality challenger, not the $0 default |
+| `intfloat/multilingual-e5-small` | 118M parameters; 384 dimensions; Arabic Mr. TyDi MRR@10 reported as 71.5; Transformers.js ONNX export | 512-token limit; query/passage prefixes required; lower published multilingual retrieval score than Granite 97M | Compact alternative if Granite integration fails |
+| `Alibaba-NLP/gte-multilingual-reranker-base` | 306M; Apache-2.0; 75 languages including Arabic; 85.03 average on cited Arabic IR reranking leaderboard | Cross-encoder adds latency and a second model; not an embedding model | **Optional future reranker**, only if human-judged results show measurable gain |
+| `BAAI/bge-reranker-v2-m3` | Strong multilingual reranker; 87.44 average on cited Arabic IR leaderboard | ~568M parameters and ~2.16 GB full model | Not suitable for first $0 CPU deployment |
 
-Model references:
+## Hugging Face model references
+
+- Granite 97M: https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2
+- Granite 311M: https://huggingface.co/ibm-granite/granite-embedding-311m-multilingual-r2
+- Granite ONNX / Transformers.js: https://huggingface.co/onnx-community/granite-embedding-97m-multilingual-r2-ONNX
+- Horizon multilingual small: https://huggingface.co/Horizon-Labs/multilingual-embedding-small
+- BGE-M3: https://huggingface.co/BAAI/bge-m3
 - E5 Large Instruct: https://huggingface.co/intfloat/multilingual-e5-large-instruct
 - E5 Small: https://huggingface.co/intfloat/multilingual-e5-small
-- BGE-M3: https://huggingface.co/BAAI/bge-m3
 - GTE multilingual reranker: https://huggingface.co/Alibaba-NLP/gte-multilingual-reranker-base
-- Jina Embeddings v3: https://huggingface.co/jinaai/jina-embeddings-v3
+- BGE reranker v2 M3: https://huggingface.co/BAAI/bge-reranker-v2-m3
+- Arabic IR leaderboard: https://huggingface.co/spaces/Navid-AI/The-Arabic-IR-Leaderboard
+- Granite paper: https://arxiv.org/abs/2605.13521
 
-The selected model's model card instructs that each query include a one-sentence task instruction, while document text is embedded without that instruction. Modrik now applies the query instruction only when the selected model ID is `intfloat/multilingual-e5-large-instruct`; BGE-M3 and other models remain unmodified unless separately configured.
+### Why not select BGE-M3 first?
+
+BGE-M3 is a powerful general-purpose multilingual model. It offers dense, sparse and multi-vector outputs over 100+ languages and long inputs, but it is about 568M parameters and Modrik's current adapter stores dense embeddings only. Its additional output modes would require additional schema, ranking and evaluation work. Granite 97M provides a better quality/CPU/implementation balance for the first $0 release and explicitly includes code retrieval training.
+
+### Why not select E5 Large Instruct first?
+
+E5 Large Instruct is also strong, but its ~560M parameter footprint is unnecessarily expensive for a small CPU VM. Granite 97M is roughly 5.8 times smaller by parameter count, uses 384 dimensions, includes code retrieval training, and does not require query prefixes or task instructions. E5 remains supported by the adapter as a benchmark alternative.
 
 ## Hugging Face hosting and actual cost
 
-Hugging Face is the model distribution source, not a promise of free production inference. The current Inference Providers pricing documentation states that Free accounts have no included monthly inference credits; usage requires purchased credits. Therefore, a Hugging Face hosted endpoint is **not** a verified $0 production path for a Free account.
+Hugging Face is the model distribution source, not a promise of free production inference. Hugging Face Inference Providers do not include free monthly inference credits for Free accounts. Therefore, a hosted HF inference endpoint is **not** a verified $0 production path.
 
-Zero recurring-cost target options:
+Zero recurring-cost options:
 
-1. **Local development:** run the official TEI CPU container with the selected model and point `ORGANIZATION_MEMORY_EMBEDDING_ENDPOINT` to its OpenAI-compatible `/v1` origin. TEI supports CPU inference and its OpenAI-compatible `/v1/embeddings` route.
-2. **Self-managed compute:** run TEI on a machine already owned and controlled by the project owner. This avoids per-request provider billing but is not free in electricity, availability or maintenance.
-3. **Scheduled batch execution:** use a GitHub-hosted runner for bounded worker batches only if database credentials and connectivity are configured. Modrik's repository is public; GitHub documents standard hosted runners as free for public repositories. This is a batch worker, not a continuously available inference API. The model must still be downloaded/loaded during the job, and each run is time-bound.
-4. **Hosted model endpoint:** easiest operationally, but paid/usage-based. Do not choose it while the hard constraint is zero cost.
+1. **Local development:** run the official Hugging Face TEI CPU container with Granite 97M and point `ORGANIZATION_MEMORY_EMBEDDING_ENDPOINT` to its OpenAI-compatible `/v1` origin.
+2. **Self-managed compute:** run TEI on the OCI Always Free VM recommended in `docs/free-deployment-decision.md`. The VM has a persistent endpoint for both document and query embeddings.
+3. **GitHub Actions:** use the gated worker for bounded outbox batches and backfills only. The model server listens on the temporary runner and disappears at job completion; it is not a live query endpoint.
+4. **Hosted inference endpoint:** operationally simple, but usage-based/paid. Do not select it under the strict $0 requirement.
 
-A $0 deployment cannot honestly promise always-on, low-latency inference on a 512 MB web-service instance. Do not load the model into the Next.js web process. Keep inference separate from web requests and run the durable outbox worker in bounded batches.
-
-**Important distinction:** the GitHub Actions TEI workflow in this PR solves *document embedding jobs* only. Its TEI server listens on loopback inside a temporary runner and disappears when the job ends. The current knowledge-memory GET route also embeds each search query at request time. Therefore, the batch worker alone does **not** make live semantic reads available. To enable semantic reads, Modrik still needs either (a) a reachable always-on embedding endpoint, or (b) a browser-side query-embedding path that computes the vector locally and submits it to a tenant-scoped search endpoint. Until one of those paths is implemented and evaluated, keep `ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED=false`.
-
-For a strict $0 deployment, the best next experiment is a browser-side `Xenova/multilingual-e5-small` int8 ONNX model (118 MB) with the matching `intfloat/multilingual-e5-small` document model, 384 dimensions and the required `query:` / `passage:` prefixes. The Hub provides a Transformers.js-compatible ONNX repository and the base model reports Arabic Mr. TyDi MRR@10 of 71.5. This would reduce inference cost by moving query computation to the user's browser, but it requires a dedicated API contract and must be implemented before it is considered supported. It is a possible zero-cost alternative, not the selected model in this PR.
+The GitHub Actions worker now uses `ibm-granite/granite-embedding-97m-multilingual-r2` with 384 dimensions. It processes document embedding jobs only. Live semantic search still requires the persistent TEI endpoint on the deployment host; keep `ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED=false` until it is configured and evaluated.
 
 ## Current implementation fit
 
 The repository already contains:
-- A provider-neutral embedding model and JSON vector storage that preserve SQLite/PostgreSQL schema parity.
-- An OpenAI-compatible embedding adapter.
+- A provider-neutral embedding model and JSON vector storage preserving SQLite/PostgreSQL schema parity.
+- An OpenAI-compatible embeddings adapter.
 - A transactional embedding outbox, retry/lease worker, backfill command and content-hash validation.
 - Tenant/project/model/dimension filters before vector ranking.
 - A bounded exact-cosine semantic search and reciprocal-rank fusion helper.
 - A judged retrieval evaluator and benchmark tooling.
 
-The adapter applies the E5 task instruction to query text and leaves document text unchanged. The exact instruction is configurable through `ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION`. Model IDs and dimensions are stored with every vector; changing models requires a fresh backfill and reconciliation before semantic reads can be enabled.
+The adapter preserves the model's required input convention. Granite 97M uses the same unprefixed text for queries and documents; the E5 Large Instruct branch remains supported and receives its task instruction on queries only. Model ID and dimensions are stored with every vector. Changing models requires a fresh backfill and reconciliation before semantic reads can be enabled.
 
 The schema stores vectors as JSON to remain portable. Do not add pgvector or a new vector database merely for feature completeness: the current portable exact-scan path is simpler and preserves both database providers. Revisit pgvector/HNSW only when real corpus size and latency measurements show the bounded exact scan is no longer appropriate. A future pgvector adapter must keep tenant/project authorization inside the database query before top-K selection.
 
 ## Activation settings
 
-The example environment now selects:
-- `ORGANIZATION_MEMORY_EMBEDDING_MODEL=intfloat/multilingual-e5-large-instruct`
-- `ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS=1024`
-- `ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION` — the domain-specific retrieval instruction used only for E5 queries.
+The example environment and gated worker now select:
+- `ORGANIZATION_MEMORY_EMBEDDING_MODEL=ibm-granite/granite-embedding-97m-multilingual-r2`
+- `ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS=384`
+- `ORGANIZATION_MEMORY_EMBEDDING_ENDPOINT` — private TEI `/v1` endpoint on the deployment host.
 
-The following remain intentionally disabled until an endpoint is configured and acceptance gates pass:
+The following remain intentionally disabled until endpoint configuration, backfill and acceptance gates pass:
 - `ORGANIZATION_MEMORY_EMBEDDINGS_ENABLED=false`
 - `ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED=false`
 
-For TEI, use the official CPU image documented for the current release and serve the selected model through `/v1/embeddings`. Set TEI's `--served-model-name` to `intfloat/multilingual-e5-large-instruct` (the default is the model ID) so the returned model name matches Modrik's model identity check. The endpoint must return the exact configured model ID and a finite 1,024-element vector. Do not point the app at a general chat-completions endpoint.
+For TEI, use the official CPU image documented for the current release and serve the exact selected model through `/v1/embeddings`. Set `--served-model-name` to `ibm-granite/granite-embedding-97m-multilingual-r2` so the returned model identity matches Modrik's strict check. The endpoint must return a finite 384-element vector. Do not point the app at a general chat-completions endpoint.
 
 ## Safe rollout sequence
 
-1. Start with local TEI CPU inference using the selected model and run the provider unit tests plus a real smoke test against non-sensitive sample nodes.
+1. Run a real local TEI CPU smoke test against non-sensitive Arabic, English and code-switched examples.
 2. Enable embedding writes only in a non-production environment; keep semantic reads disabled.
 3. Run the resumable backfill for one test organization, then reconcile source hashes, model IDs, dimensions and job states.
 4. Verify worker restart, lease expiry, retries, provider timeout, stale content, deletion tombstones and organization/project isolation.
-5. Capture Arabic, English and code-switched queries with human-judged relevance labels. Compare BM25 against semantic and hybrid RRF using Recall@K, MRR and NDCG@K; report per-language results and confidence intervals where sample size allows.
+5. Capture human-judged Arabic/Egyptian Arabic, English and code-switched queries. Compare BM25 against semantic and hybrid RRF using Recall@K, MRR and NDCG@K; report per-language results.
 6. Keep BM25 as the serving default unless hybrid improves judged quality and passes parity, latency and tenant-isolation gates.
 7. Only then enable semantic reads for a small canary organization, with immediate rollback to BM25.
 
@@ -81,10 +97,9 @@ Synthetic fixtures validate code behavior; they are not evidence of retrieval qu
 
 ## Research sources
 
-- Hugging Face model card — E5 Large Instruct: https://huggingface.co/intfloat/multilingual-e5-large-instruct
-- Hugging Face supported TEI models: https://huggingface.co/docs/text-embeddings-inference/supported_models
-- Hugging Face TEI quick tour/API: https://huggingface.co/docs/text-embeddings-inference/quick_tour
-- Hugging Face model card — BGE-M3: https://huggingface.co/BAAI/bge-m3
-- Hugging Face model card — multilingual E5 Small: https://huggingface.co/intfloat/multilingual-e5-small
+- IBM Granite 97M model card: https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2
+- IBM Granite paper: https://arxiv.org/abs/2605.13521
+- Hugging Face TEI supported models: https://huggingface.co/docs/text-embeddings-inference/supported_models
+- Hugging Face TEI quick tour: https://huggingface.co/docs/text-embeddings-inference/quick_tour
 - Hugging Face Inference Providers pricing: https://huggingface.co/docs/inference-providers/main/pricing
 - GitHub Actions hosted runner pricing: https://docs.github.com/en/actions/billing-and-usage
