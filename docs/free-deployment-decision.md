@@ -120,9 +120,11 @@ Published model benchmarks are not a substitute for testing Modrik's own Arabic/
 - **Email:** Resend Free (3,000 emails/month, 100/day) for password recovery. Configure sender verification; do not promise delivery before setup.
 - **Object storage:** Cloudflare R2 Free includes 10 GB-month Standard storage, 1M Class A operations, 10M Class B operations and no egress charge. Use only if Modrik adds durable file uploads; do not store user files on ephemeral application filesystems.
 - **Redis:** Upstash Free includes 250 MB, 10 GB bandwidth and 500K commands/month. Alternatively, run private Redis on the OCI VM after adding a supported self-hosted Redis adapter.
-- **DNS/TLS:** use a free subdomain and Caddy/Let's Encrypt; a custom domain is not required for the first demo, but OAuth callback URLs must use the stable HTTPS origin.
+- **DNS/TLS:** use a free DuckDNS subdomain pointed at the VM's ephemeral public IP and Caddy/Let's Encrypt for HTTPS. A paid custom domain is not required for the first demo. Keep the subdomain stable for GitHub/Atlassian OAuth callbacks; if the VM is terminated and recreated with a new IP, update DNS and provider callback settings.
 
 Sources:
+- DuckDNS: https://www.duckdns.org/spec.jsp
+- Let's Encrypt: https://letsencrypt.org/docs/faq/
 - Resend: https://resend.com/pricing
 - R2: https://developers.cloudflare.com/r2/pricing/
 - Upstash: https://upstash.com/pricing/redis
