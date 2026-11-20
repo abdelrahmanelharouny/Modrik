@@ -69,3 +69,39 @@ test("production release configuration requires an explicitly usable LLM provide
   assert.ok(incompleteLocal.errors.some((error) => error.startsWith("RP_LOCAL_BASE_URL")));
   assert.ok(incompleteLocal.errors.some((error) => error.startsWith("RP_LOCAL_MODEL")));
 });
+
+
+test("OAuth provider credentials are optional but must be complete and share the canonical app origin", () => {
+  const githubReady = {
+    ...validEnv,
+    MODRIK_APP_URL: "https://app.example.test",
+    MODRIK_GITHUB_CLIENT_ID: "github-client-id",
+    MODRIK_GITHUB_CLIENT_SECRET: "github-client-secret",
+  };
+  assert.equal(validateProductionEnv(githubReady).ok, true);
+
+  const partial = validateProductionEnv({
+    ...validEnv,
+    MODRIK_GITHUB_CLIENT_ID: "github-client-id",
+  });
+  assert.ok(partial.errors.some((error) => error.includes("MODRIK_GITHUB_CLIENT_ID and MODRIK_GITHUB_CLIENT_SECRET")));
+
+  const missingCallbackOrigin = validateProductionEnv({
+    ...validEnv,
+    MODRIK_ATLASSIAN_CLIENT_ID: "atlassian-client-id",
+    MODRIK_ATLASSIAN_CLIENT_SECRET: "atlassian-client-secret",
+  });
+  assert.ok(missingCallbackOrigin.errors.some((error) => error.startsWith("MODRIK_APP_URL is required")));
+
+  const mismatchedOrigin = validateProductionEnv({
+    ...githubReady,
+    MODRIK_APP_URL: "https://other.example.test",
+  });
+  assert.ok(mismatchedOrigin.errors.some((error) => error.includes("same origin as APP_URL")));
+
+  const insecureCallback = validateProductionEnv({
+    ...githubReady,
+    MODRIK_APP_URL: "http://app.example.test",
+  });
+  assert.ok(insecureCallback.errors.some((error) => error.startsWith("MODRIK_APP_URL must be an HTTPS URL")));
+});
