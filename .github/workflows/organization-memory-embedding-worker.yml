@@ -1,0 +1,101 @@
+name: Organization Memory Embedding Worker
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: "Queue a resumable full backfill before processing the worker queue"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: organization-memory-embedding-worker
+  cancel-in-progress: false
+
+jobs:
+  embedding-worker:
+    # Add the repository variable only after the database secret and worker configuration are ready.
+    if: ${{ vars.MODRIK_EMBEDDING_WORKER_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.MODRIK_WORKER_DATABASE_URL }}
+      ORGANIZATION_MEMORY_EMBEDDING_ENDPOINT: http://127.0.0.1:8080/v1
+      ORGANIZATION_MEMORY_EMBEDDING_API_KEY: ""
+      ORGANIZATION_MEMORY_EMBEDDING_MODEL: ibm-granite/granite-embedding-97m-multilingual-r2
+      ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS: "384"
+      ORGANIZATION_MEMORY_EMBEDDING_ALLOW_LOCAL_HTTP: "true"
+    steps:
+      - name: Require database secret
+        shell: bash
+        run: |
+          if [[ -z "$DATABASE_URL" ]]; then
+            echo "::error::Set MODRIK_WORKER_DATABASE_URL before enabling the embedding worker."
+            exit 1
+          fi
+          if [[ "$DATABASE_URL" != postgres://* && "$DATABASE_URL" != postgresql://* ]]; then
+            echo "::error::The embedding worker requires the production PostgreSQL database URL."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Hugging Face model weights
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/huggingface
+          key: modrik-granite-embedding-97m-r2-${{ runner.os }}-v1
+
+      - name: Start Hugging Face TEI CPU server
+        shell: bash
+        run: |
+          mkdir -p /home/runner/.cache/huggingface
+          docker run -d --name modrik-embedding-tei \
+            -p 8080:80 \
+            -v /home/runner/.cache/huggingface:/data \
+            -e HF_HOME=/data \
+            ghcr.io/huggingface/text-embeddings-inference:cpu-1.9 \
+            --model-id ibm-granite/granite-embedding-97m-multilingual-r2 \
+            --served-model-name ibm-granite/granite-embedding-97m-multilingual-r2
+
+          for attempt in $(seq 1 180); do
+            if curl --fail --silent http://127.0.0.1:8080/health >/dev/null; then
+              echo "Embedding model is ready."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          docker logs modrik-embedding-tei
+          echo "::error::Embedding model did not become healthy within 15 minutes."
+          exit 1
+
+      - name: Install dependencies and generate Prisma client
+        run: |
+          bun install --frozen-lockfile
+          bun run db:generate:pg
+
+      - name: Queue initial backfill (manual dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill == true }}
+        run: bun scripts/backfill-organization-memory-embeddings.mjs --all --batch-size=100
+
+      - name: Process pending embedding jobs
+        run: bun scripts/run-organization-memory-embedding-worker.mjs --limit=500
+
+      - name: Collect inference diagnostics
+        if: always()
+        run: |
+          docker logs --tail 100 modrik-embedding-tei || true
+          docker rm -f modrik-embedding-tei || true
