@@ -11,7 +11,7 @@ test("worker strips helper-only retry metadata and asserts lease ownership", () 
 
 test("worker revalidates project, accepted status, and source hash after provider latency", () => {
   const source = fs.readFileSync(new URL("../scripts/run-organization-memory-embedding-worker.mjs", import.meta.url), "utf8");
-  const providerCall = source.indexOf("const embedding = await provider.embed(canonical.content)");
+  const providerCall = source.indexOf('const embedding = await provider.embed(canonical.content, { role: "document" })');
   const transaction = source.indexOf("return prisma.$transaction(async (tx) => {", providerCall);
   const projectCheck = source.indexOf("const latestProject =", transaction);
   const nodeCheck = source.indexOf("const latestNode =", transaction);
