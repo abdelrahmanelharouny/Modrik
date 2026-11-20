@@ -123,3 +123,15 @@ OAuth/provider activation and semantic/vector retrieval remain intentionally def
 - [ ] Production deployment and production schema mutation are not authorized by this checklist.
 
 OAuth/provider activation and semantic/vector retrieval remain intentionally deferred from the MVP.
+
+
+### Release follow-up — 2026-11-20
+
+- [x] PR #78 deployment-architecture proposal exact-head CI passed in [run 42725548832](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42725548832).
+- [ ] PR #78 review and merge; the proposed Render/Neon/Upstash/Resend stack is not approved or provisioned yet.
+- [ ] Resolve PR #77 CI failure. Run [42671064664](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/42671064664) is failed, but job details were unavailable during this reconciliation; root cause remains unknown.
+- [ ] Provision staging resources only after explicit provider and budget approval.
+- [ ] Implement and review the provider-specific PostgreSQL baseline and guarded migration runner; verify against an empty database and a representative existing-data fixture.
+- [ ] Verify backup/restore and rollback on staging before any production consideration.
+
+No provider resource or secret has been created by this work. No production migration/deployment is authorized. OAuth and semantic/vector retrieval remain intentionally deferred.
