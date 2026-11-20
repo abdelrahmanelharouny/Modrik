@@ -95,3 +95,52 @@ test("provider normalizes request and response-body aborts as timeouts", async (
   });
   await assert.rejects(() => bodyProvider.embed("text"), /Embedding provider request timed out\./);
 });
+
+
+test("E5 Large Instruct applies the configured task instruction to queries only", async () => {
+  const instruction = "Retrieve accepted project decisions and evidence relevant to the query.";
+  const e5Env = {
+    ...env,
+    ORGANIZATION_MEMORY_EMBEDDING_MODEL: "intfloat/multilingual-e5-large-instruct",
+    ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS: "1024",
+    ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: instruction,
+  };
+  const requests = [];
+  const vector = [1, ...Array(1023).fill(0)];
+  const provider = await createOrganizationMemoryEmbeddingProvider({
+    env: e5Env,
+    fetch: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return {
+        ok: true,
+        json: async () => ({
+          model: "intfloat/multilingual-e5-large-instruct",
+          data: [{ embedding: vector }],
+        }),
+      };
+    },
+  });
+
+  await provider.embed("Where was the risk accepted?", { role: "query" });
+  await provider.embed("kind: decision\nlabel: Risk acceptance", { role: "document" });
+
+  assert.equal(requests[0].input, `Instruct: ${instruction}\nQuery: Where was the risk accepted?`);
+  assert.equal(requests[1].input, "kind: decision\nlabel: Risk acceptance");
+  assert.equal(requests[0].model, "intfloat/multilingual-e5-large-instruct");
+  assert.equal(requests[0].dimensions, 1024);
+});
+
+test("E5 query instruction rejects empty and overlong configuration", async () => {
+  await assert.rejects(
+    () => createOrganizationMemoryEmbeddingProvider({
+      env: { ...env, ORGANIZATION_MEMORY_EMBEDDING_MODEL: "intfloat/multilingual-e5-large-instruct", ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: " " },
+    }),
+    /query instruction/i,
+  );
+  await assert.rejects(
+    () => createOrganizationMemoryEmbeddingProvider({
+      env: { ...env, ORGANIZATION_MEMORY_EMBEDDING_MODEL: "intfloat/multilingual-e5-large-instruct", ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: "x".repeat(501) },
+    }),
+    /query instruction/i,
+  );
+});
