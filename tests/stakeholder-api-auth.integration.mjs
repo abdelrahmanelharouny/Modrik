@@ -333,6 +333,45 @@ try {
   assert.equal(identityStatusBody.authenticated, true);
   assert.equal(identityStatusBody.organizationId, tenantA.id);
   assert.equal(identityStatusBody.role, "owner");
+  const ownerIntegrationStatus = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/integrations`, {
+    headers: { cookie: identityCookie },
+  });
+  await expectStatus(ownerIntegrationStatus, 200, "owner integration console access");
+  assert.equal((await json(ownerIntegrationStatus)).canManageIntegrations, true);
+
+  const tenantBMembership = await prisma.membership.findUnique({
+    where: { userId_organizationId: { userId: identityUser.id, organizationId: tenantB.id } },
+  });
+  assert.ok(tenantBMembership, "the second tenant membership must exist");
+  const engineerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: {
+      id: engineerSessionId,
+      userId: identityUser.id,
+      membershipId: tenantBMembership.id,
+      expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
+    },
+  });
+  const engineerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: identityUser.email,
+    userId: identityUser.id,
+    organizationId: tenantB.id,
+    membershipId: tenantBMembership.id,
+    role: "engineer",
+    sessionId: engineerSessionId,
+  }, secret)}`;
+  const engineerIntegrationStatus = await fetch(`${baseUrl}/api/projects/${tenantDemoB.id}/integrations`, {
+    headers: { cookie: engineerCookie },
+  });
+  await expectStatus(engineerIntegrationStatus, 200, "engineer read-only integration console access");
+  assert.equal((await json(engineerIntegrationStatus)).canManageIntegrations, false);
+  const engineerIntegrationMutation = await fetch(`${baseUrl}/api/projects/${tenantDemoB.id}/integrations`, {
+    method: "POST",
+    headers: { cookie: engineerCookie, origin: baseUrl, "content-type": "application/json" },
+    body: JSON.stringify({ kind: "github", action: "push" }),
+  });
+  await expectStatus(engineerIntegrationMutation, 403, "engineers cannot execute integration mutations");
+
 
 
   // Password recovery: token is hashed, single-use, short-lived, and revokes sessions.
