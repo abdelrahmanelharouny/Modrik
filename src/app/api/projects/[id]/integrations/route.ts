@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { oauthActivationReady } from "@/lib/security/oauth-lifecycle.mjs";
+import { resolveIdentitySession, type IdentityPrincipal } from "@/lib/security/identity";
+import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/security/session.mjs";
 import {
   maskedStatus,
   saveConfig,
@@ -16,12 +19,34 @@ import {
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const [status, maps] = await Promise.all([maskedStatus(id), listSyncMaps(id)]);
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  let identity: IdentityPrincipal | null = null;
+  try {
+    identity = await resolveIdentitySession(token);
+  } catch {
+    // The project route has already passed the proxy authorization boundary.
+    // A DB/session read failure must not grant management controls.
+  }
+  const signedSession = verifySessionToken(token, process.env.MODRIK_AUTH_SECRET);
+  const configuredEmail = process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase();
+  const legacyOwner = Boolean(
+    signedSession?.type === "legacy-owner" &&
+    configuredEmail &&
+    signedSession.email === configuredEmail
+  );
+  const canManageIntegrations = legacyOwner || Boolean(identity && hasOrganizationPermission({
+    role: identity.role,
+    status: "active",
+    userStatus: "active",
+    organizationStatus: "active",
+  }, "integrations:manage"));
   return NextResponse.json({
     status,
     maps,
+    canManageIntegrations,
     oauthAvailable: {
       github: oauthActivationReady("github"),
       jira: oauthActivationReady("jira"),

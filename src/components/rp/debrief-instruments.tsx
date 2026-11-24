@@ -617,13 +617,15 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   const [targetOwners, setTargetOwners] = useState<Record<string, string>>({});
   const [targetBusy, setTargetBusy] = useState<string | null>(null);
   const [oauthAvailable, setOauthAvailable] = useState({ github: false, jira: false });
+  const [canManageIntegrations, setCanManageIntegrations] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ status: IntegrationStatus; maps: SyncMapDTO[]; oauthAvailable?: { github: boolean; jira: boolean } }>(`/api/projects/${projectId}/integrations`);
+      const d = await api<{ status: IntegrationStatus; maps: SyncMapDTO[]; oauthAvailable?: { github: boolean; jira: boolean }; canManageIntegrations?: boolean }>(`/api/projects/${projectId}/integrations`);
       setStatus(d.status);
       setMaps(d.maps);
       setOauthAvailable(d.oauthAvailable ?? { github: false, jira: false });
+      setCanManageIntegrations(d.canManageIntegrations === true);
     } catch {
       /* ignore */
     }
@@ -662,6 +664,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   };
 
   const act = async (kind: "github" | "jira", action: string, extra?: object, okMsg?: string) => {
+    if (!canManageIntegrations) return null;
     setBusy(`${kind}:${action}`);
     try {
       const d = await api<Record<string, unknown>>(`/api/projects/${projectId}/integrations`, {
@@ -681,6 +684,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   };
 
   const chooseOAuthTarget = async (kind: "github" | "jira") => {
+    if (!canManageIntegrations) return;
     const value = (targetValues[kind] ?? "").trim();
     if (!value) return;
     setTargetBusy(kind);
@@ -702,6 +706,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   };
 
   const disconnectOAuth = async (kind: "github" | "jira") => {
+    if (!canManageIntegrations) return;
     setTargetBusy(kind);
     try {
       await api(`/api/projects/${projectId}/integrations/oauth/${kind}/target`, { method: "DELETE" });
@@ -715,7 +720,7 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
   };
 
   const saveCfg = async () => {
-    if (!cfgKind) return;
+    if (!cfgKind || !canManageIntegrations) return;
     const d = await act(cfgKind, "save-config", { config: cfg }, ar ? "تم حفظ بيانات الاعتماد على الخادم مع إخفاء الأسرار" : "Credentials saved (server-side, masked)");
     if (!d) return;
     if (cfg.webhookSecret?.trim()) {
@@ -729,6 +734,13 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4">
+      {status && !canManageIntegrations ? (
+        <p role="status" className="rounded-md border border-border/70 bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
+          {ar
+            ? "لديك صلاحية عرض حالة التكاملات وخريطة المزامنة فقط. إدارة الاعتمادات والمزامنة متاحة لمالك المؤسسة أو مسؤولها."
+            : "You can view integration status and sync history. Credential management and sync actions are restricted to organization owners and admins."}
+        </p>
+      ) : null}
       <div className="grid gap-3 lg:grid-cols-2">
         {(["github", "jira"] as const).map((kind) => {
           const st: TrackerStatus | undefined = status?.[kind];
@@ -759,38 +771,38 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                   </div>
                   {st.oauth.pendingTarget && (
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      {kind === "github" ? <Input aria-label="GitHub owner or organization" value={targetOwners.github ?? st.oauth.account} onChange={(event) => setTargetOwners((current) => ({ ...current, github: event.target.value }))} placeholder="Owner / organization" /> : null}
-                      <Input aria-label={kind === "github" ? "GitHub repository" : "Jira project key"} value={targetValues[kind] ?? ""} onChange={(event) => setTargetValues((current) => ({ ...current, [kind]: event.target.value }))} placeholder={kind === "github" ? (ar ? "اسم المستودع" : "Repository name") : (ar ? "مفتاح مشروع Jira" : "Jira project key")} />
-                      <Button size="sm" disabled={targetBusy !== null || !targetValues[kind]?.trim() || (kind === "github" && !(targetOwners.github ?? st.oauth.account).trim())} onClick={() => void chooseOAuthTarget(kind)} className="shrink-0 bg-aura text-primary-foreground hover:bg-aura/85">
+                      {kind === "github" ? <Input aria-label="GitHub owner or organization" disabled={!canManageIntegrations} value={targetOwners.github ?? st.oauth.account} onChange={(event) => setTargetOwners((current) => ({ ...current, github: event.target.value }))} placeholder="Owner / organization" /> : null}
+                      <Input aria-label={kind === "github" ? "GitHub repository" : "Jira project key"} disabled={!canManageIntegrations} value={targetValues[kind] ?? ""} onChange={(event) => setTargetValues((current) => ({ ...current, [kind]: event.target.value }))} placeholder={kind === "github" ? (ar ? "اسم المستودع" : "Repository name") : (ar ? "مفتاح مشروع Jira" : "Jira project key")} />
+                      <Button size="sm" disabled={!canManageIntegrations || targetBusy !== null || !targetValues[kind]?.trim() || (kind === "github" && !(targetOwners.github ?? st.oauth.account).trim())} onClick={() => void chooseOAuthTarget(kind)} className="shrink-0 bg-aura text-primary-foreground hover:bg-aura/85">
                         {targetBusy === kind ? <Loader2 className="me-2 h-3.5 w-3.5 animate-spin" /> : null}{ar ? "تحقق واعتماد" : "Verify target"}
                       </Button>
                     </div>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" disabled={!oauthAvailable[kind]} onClick={() => { window.location.href = `/api/projects/${projectId}/integrations/oauth/${kind}`; }}>{ar ? "إعادة التفويض" : "Reauthorize"}</Button>
-                    <Button size="sm" variant="outline" disabled={targetBusy !== null} onClick={() => void disconnectOAuth(kind)}>{ar ? "فصل الاتصال" : "Disconnect"}</Button>
+                    <Button size="sm" variant="outline" disabled={!canManageIntegrations || !oauthAvailable[kind]} onClick={() => { window.location.href = `/api/projects/${projectId}/integrations/oauth/${kind}`; }}>{ar ? "إعادة التفويض" : "Reauthorize"}</Button>
+                    <Button size="sm" variant="outline" disabled={!canManageIntegrations || targetBusy !== null} onClick={() => void disconnectOAuth(kind)}>{ar ? "فصل الاتصال" : "Disconnect"}</Button>
                   </div>
                 </div>
               ) : (
                 <div className="mb-3 w-full rounded-lg border border-border/70 bg-secondary/20 p-3">
                   <p className="text-xs font-medium">{ar ? "الربط الآمن عبر OAuth" : "Secure OAuth connection"}</p>
                   <p className="mt-1 text-[10px] text-muted-foreground">{oauthAvailable[kind] ? (ar ? "اربط حسابك دون إدخال Personal Access Token." : "Authorize your account without entering a personal access token.") : (ar ? "الربط الخارجي مؤجل حتى إعداد بيانات تطبيق المزود في بيئة النشر." : "External activation is deferred until provider application credentials are configured in the deployment environment.")}</p>
-                  <Button size="sm" className="mt-2 bg-aura text-primary-foreground hover:bg-aura/85" disabled={!oauthAvailable[kind]} onClick={() => { window.location.href = `/api/projects/${projectId}/integrations/oauth/${kind}`; }}>
+                  <Button size="sm" className="mt-2 bg-aura text-primary-foreground hover:bg-aura/85" disabled={!canManageIntegrations || !oauthAvailable[kind]} onClick={() => { window.location.href = `/api/projects/${projectId}/integrations/oauth/${kind}`; }}>
                     <Plug className="me-1.5 h-3.5 w-3.5" />{ar ? "ربط الحساب" : `Connect ${kind === "github" ? "GitHub" : "Jira"}`}
                   </Button>
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => { setCfgKind(kind); setCfg({}); }} className="border-border">
+                <Button size="sm" variant="outline" disabled={!canManageIntegrations} onClick={() => { setCfgKind(kind); setCfg({}); }} className="border-border">
                   <Plug className="me-1.5 h-3.5 w-3.5" /> {configured ? (ar ? "تحديث" : "Update") : (ar ? "إعداد" : "Configure")}
                 </Button>
-                <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "test", {}, ar ? "اختبار الاتصال" : ar ? "اختبار الاتصال" : "Connection test")} className="border-border">
+                <Button size="sm" variant="outline" disabled={!canManageIntegrations || !configured || busy !== null} onClick={() => act(kind, "test", {}, ar ? "اختبار الاتصال" : ar ? "اختبار الاتصال" : "Connection test")} className="border-border">
                   {busy === `${kind}:test` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <GitBranch className="me-1.5 h-3.5 w-3.5" />} Test
                 </Button>
-                <Button size="sm" disabled={!configured || busy !== null} onClick={() => act(kind, "push", {}, ar ? `اكتمل الإرسال إلى ${kind === "github" ? "GitHub" : "Jira"}` : `${kind} push complete`)} className="bg-aura font-semibold text-primary-foreground hover:bg-aura/85">
+                <Button size="sm" disabled={!canManageIntegrations || !configured || busy !== null} onClick={() => act(kind, "push", {}, ar ? `اكتمل الإرسال إلى ${kind === "github" ? "GitHub" : "Jira"}` : `${kind} push complete`)} className="bg-aura font-semibold text-primary-foreground hover:bg-aura/85">
                   {busy === `${kind}:push` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="me-1.5 h-3.5 w-3.5" />} Push
                 </Button>
-                <Button size="sm" variant="outline" disabled={!configured || busy !== null} onClick={() => act(kind, "pull", {}, ar ? `اكتمل الاستيراد من ${kind === "github" ? "GitHub" : "Jira"}` : `${kind} pull complete`)} className="border-border">
+                <Button size="sm" variant="outline" disabled={!canManageIntegrations || !configured || busy !== null} onClick={() => act(kind, "pull", {}, ar ? `اكتمل الاستيراد من ${kind === "github" ? "GitHub" : "Jira"}` : `${kind} pull complete`)} className="border-border">
                   {busy === `${kind}:pull` ? <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="me-1.5 h-3.5 w-3.5" />} Pull
                 </Button>
               </div>

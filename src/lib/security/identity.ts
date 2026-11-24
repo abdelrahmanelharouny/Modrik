@@ -71,6 +71,106 @@ export async function resolveIdentitySession(token: string | undefined | null): 
   };
 }
 
+export async function switchIdentitySession(identity: IdentityPrincipal, targetOrganizationId: string) {
+  if (!targetOrganizationId || targetOrganizationId.length > 128) return null;
+  const now = new Date();
+  return db.$transaction(async (tx) => {
+    const current = await tx.authSession.findFirst({
+      where: {
+        id: identity.sessionId,
+        userId: identity.userId,
+        membershipId: identity.membershipId,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      select: { id: true },
+    });
+    if (!current) throw new Error("CURRENT_SESSION_CHANGED");
+
+    const membership = await tx.membership.findFirst({
+      where: {
+        userId: identity.userId,
+        organizationId: targetOrganizationId,
+        status: "active",
+        user: { status: "active" },
+        organization: { status: "active" },
+      },
+      select: {
+        id: true,
+        organizationId: true,
+        role: true,
+        organization: { select: { id: true, name: true, slug: true } },
+      },
+    });
+    if (!membership) return null;
+
+    const sessionId = randomBytes(32).toString("hex");
+    const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000);
+    const token = createIdentitySessionToken({
+      email: identity.email,
+      userId: identity.userId,
+      organizationId: membership.organizationId,
+      membershipId: membership.id,
+      role: membership.role,
+      sessionId,
+    }, process.env.MODRIK_AUTH_SECRET!);
+
+    await tx.authSession.create({
+      data: { id: sessionId, userId: identity.userId, membershipId: membership.id, expiresAt },
+    });
+    const revoked = await tx.authSession.updateMany({
+      where: { id: identity.sessionId, userId: identity.userId, revokedAt: null, expiresAt: { gt: now } },
+      data: { revokedAt: now },
+    });
+    if (revoked.count !== 1) throw new Error("CURRENT_SESSION_CHANGED");
+
+    // Preserve both sides of the tenant boundary in the organization audit
+    // stream. These records are committed with the session rotation.
+    await tx.organizationAuditEvent.create({
+      data: {
+        organizationId: identity.organizationId,
+        actorUserId: identity.userId,
+        eventType: "auth.organization_switch_out",
+        resourceType: "auth_session",
+        resourceId: identity.sessionId,
+        summary: "User switched away from this organization",
+        metadata: JSON.stringify({
+          fromOrganizationId: identity.organizationId,
+          toOrganizationId: membership.organizationId,
+          replacementSessionId: sessionId,
+        }),
+      },
+    });
+    await tx.organizationAuditEvent.create({
+      data: {
+        organizationId: membership.organizationId,
+        actorUserId: identity.userId,
+        eventType: "auth.organization_switch_in",
+        resourceType: "auth_session",
+        resourceId: sessionId,
+        summary: "User switched into this organization",
+        metadata: JSON.stringify({
+          fromOrganizationId: identity.organizationId,
+          toOrganizationId: membership.organizationId,
+          previousSessionId: identity.sessionId,
+        }),
+      },
+    });
+
+    return {
+      token,
+      expiresAt,
+      sessionId,
+      organization: {
+        id: membership.organization.id,
+        name: membership.organization.name,
+        slug: membership.organization.slug,
+        role: membership.role,
+      },
+    };
+  });
+}
+
 export async function revokeIdentitySession(sessionId: string | null | undefined) {
   if (!sessionId) return;
   await db.authSession.updateMany({

@@ -14,7 +14,7 @@ export async function GET(req:NextRequest,{params}:Context) {
  const project=await db.project.findUnique({where:{id:projectId},select:{id:true,organizationId:true}});
  if(!project) return NextResponse.json({error:"Project not found"},{status:404});
  if(!project.organizationId||project.organizationId!==identity.organizationId) return NextResponse.json({error:"Project is outside the active organization"},{status:403});
- if(!hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"projects:update"))
+ if(!hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"integrations:manage"))
   return NextResponse.json({error:"Insufficient permission to manage integrations"},{status:403});
  const config=oauthProviderConfig(provider);
  if(!config) return NextResponse.json({error:"OAuth provider activation is deferred. Configure the provider client credentials when enabling external connections.",code:"OAUTH_PROVIDER_NOT_CONFIGURED"},{status:503});

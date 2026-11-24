@@ -47,7 +47,13 @@ test("sensitive non-project routes require the intended least-privilege role per
   assert.equal(resolveOrganizationRoutePermission("/api/telemetry", "GET"), "audit:read");
   assert.equal(resolveOrganizationRoutePermission("/api/study", "POST"), "organization:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/providers", "GET"), "organization:read");
-  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/:provider/callback", "GET"), "projects:update");
+  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/github/callback", "GET"), "integrations:manage");
+  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/jira/callback", "GET"), "integrations:manage");
+  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/unknown/callback", "GET"), null);
+  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/github/callback/extra", "GET"), null);
+  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/github/callback", "POST"), null);
+  assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/:provider/callback", "GET"), "integrations:manage");
+  assert.equal(resolveOrganizationRoutePermission("/api/auth/organization/switch", "POST"), "organization:read");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "GET"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "POST"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations/revoke", "POST"), "members:manage");
@@ -78,4 +84,32 @@ test("organization audit route rejects incomplete tenant identity before databas
   const firstQuery = source.search(/db\\.organizationAuditEvent\\./);
   assert.ok(guard >= 0, "audit route must verify organization, actor and role scope");
   assert.ok(firstQuery < 0 || guard < firstQuery, "identity guard must run before audit database access");
+});
+
+
+test("integration management is restricted to owner and admin roles", async () => {
+  const { hasOrganizationPermission } = await import("../src/lib/security/organization-access.mjs");
+  const active = (role) => ({
+    organizationId: "org_1", role, status: "active", userStatus: "active", organizationStatus: "active",
+  });
+  assert.equal(hasOrganizationPermission(active("owner"), "integrations:manage"), true);
+  assert.equal(hasOrganizationPermission(active("admin"), "integrations:manage"), true);
+  assert.equal(hasOrganizationPermission(active("engineer"), "integrations:manage"), false);
+  assert.equal(hasOrganizationPermission(active("reviewer"), "integrations:manage"), false);
+  assert.equal(hasOrganizationPermission(active("approver"), "integrations:manage"), false);
+  assert.equal(hasOrganizationPermission(active("viewer"), "integrations:manage"), false);
+});
+
+
+test("OAuth start, target and callback handlers enforce integration-management permission", () => {
+  const oauthHandlers = [
+    path.join(apiRoot, "projects", "[id]", "integrations", "oauth", "[provider]", "route.ts"),
+    path.join(apiRoot, "projects", "[id]", "integrations", "oauth", "[provider]", "target", "route.ts"),
+    path.join(apiRoot, "integrations", "oauth", "[provider]", "callback", "route.ts"),
+  ];
+  for (const file of oauthHandlers) {
+    const source = fs.readFileSync(file, "utf8");
+    assert.match(source, /hasOrganizationPermission[\s\S]*?"integrations:manage"/);
+    assert.doesNotMatch(source, /hasOrganizationPermission[\s\S]*?"projects:update"/);
+  }
 });

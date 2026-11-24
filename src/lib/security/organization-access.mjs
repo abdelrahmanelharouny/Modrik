@@ -18,14 +18,14 @@ const ROLE_PERMISSIONS = Object.freeze({
   owner: new Set([
     "organization:read", "organization:manage",
     "members:read", "members:manage",
-    "projects:create", "projects:read", "projects:update", "projects:delete",
+    "projects:create", "projects:read", "projects:update", "projects:delete", "integrations:manage",
     "requirements:read", "requirements:write", "requirements:review", "requirements:approve",
     "audit:read",
   ]),
   admin: new Set([
     "organization:read",
     "members:read", "members:manage",
-    "projects:create", "projects:read", "projects:update", "projects:delete",
+    "projects:create", "projects:read", "projects:update", "projects:delete", "integrations:manage",
     "requirements:read", "requirements:write", "requirements:review", "requirements:approve",
     "audit:read",
   ]),

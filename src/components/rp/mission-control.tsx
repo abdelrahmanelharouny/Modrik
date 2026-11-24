@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SignOutButton } from "@/components/rp/sign-out-button";
+import { OrganizationSwitcher } from "@/components/rp/organization-switcher";
 import { ICONS } from "@/components/rp/icons";
 import type { ProjectSummary } from "@/lib/rp";
 
@@ -254,6 +255,7 @@ export function MissionControl({
           </nav>
           <div className="flex items-center gap-2">
             <Link href="/settings/members" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-2 text-xs text-muted-foreground hover:text-aura md:hidden"><Users className="h-4 w-4" /><span>Members</span></Link>
+          <OrganizationSwitcher />
             <Chip tone="plasma" className="hidden sm:inline-flex">
               <LiveDot tone="plasma" /> {ar ? "بوابة بشرية في كل مرحلة" : "human-gated · evidence-driven"}
             </Chip>

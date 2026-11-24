@@ -12,6 +12,7 @@ import { STAGES, type ProjectDTO, type Stage } from "@/lib/rp";
 import { FLIGHT_PLAN, STATUS_CHIP } from "@/lib/registry";
 import { useLang } from "@/lib/i18n";
 import { SignOutButton } from "@/components/rp/sign-out-button";
+import { OrganizationSwitcher } from "@/components/rp/organization-switcher";
 import { HudPanel, Eyebrow, Chip, LiveDot, type Tone } from "@/components/rp/hud";
 import { FlightPath } from "@/components/rp/flightpath";
 import { ICONS } from "@/components/rp/icons";
@@ -123,6 +124,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
           <Chip tone={stageStatusTone} className="hidden sm:inline-flex">
             <LiveDot tone={stageStatusTone} /> {stageStatusChip.label}
           </Chip>
+          <OrganizationSwitcher />
           <Button variant="outline" size="sm" onClick={toggle} aria-label={ar ? "Toggle language — تغيير اللغة إلى الإنجليزية" : "Toggle language — Switch language to Arabic"} className="px-2">
             <span className="font-mono text-xs">{ar ? "EN" : "ع"}</span>
           </Button>

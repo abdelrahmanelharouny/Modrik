@@ -14,7 +14,7 @@ async function authorized(req:NextRequest,projectId:string){
  const project=await db.project.findUnique({where:{id:projectId},select:{id:true,organizationId:true}});
  if(!project) return {error:NextResponse.json({error:"Project not found"},{status:404})} as const;
  if(!project.organizationId||project.organizationId!==identity.organizationId||
- !hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"projects:update"))
+ !hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"integrations:manage"))
   return {error:NextResponse.json({error:"Insufficient permission for this project"},{status:403})} as const;
  return {identity,project} as const;
 }

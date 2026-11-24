@@ -225,11 +225,93 @@ try {
   identityCleanup.organizations.push(tenantA.id);
   const tenantB = await prisma.organization.create({ data: { name: "Identity Tenant B", slug: `identity-b-${randomUUID()}` } });
   identityCleanup.organizations.push(tenantB.id);
-  const identityUser = await prisma.user.create({ data: { email: `identity-owner-${randomUUID()}@example.invalid`, status: "active" } });
+  const identityUser = await prisma.user.create({ data: { email: `identity-owner-${randomUUID()}@example.invalid`, passwordHash: process.env.MODRIK_ADMIN_PASSWORD_HASH, status: "active" } });
   identityCleanup.users.push(identityUser.id);
   const identityMembership = await prisma.membership.create({
     data: { userId: identityUser.id, organizationId: tenantA.id, role: "owner", status: "active", activatedAt: new Date() },
   });
+  await prisma.membership.create({
+    data: { userId: identityUser.id, organizationId: tenantB.id, role: "engineer", status: "active", activatedAt: new Date() },
+  });
+  const loginWithoutOrganization = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: identityUser.email, password: "Integration-Owner-Password-42!" }),
+  });
+  await expectStatus(loginWithoutOrganization, 409, "multi-tenant user must choose an organization");
+  const loginChoices = await json(loginWithoutOrganization);
+  assert.equal(loginChoices.requiresOrganizationSelection, true);
+  assert.deepEqual(loginChoices.organizations.map((item) => item.id).sort(), [tenantA.id, tenantB.id].sort());
+
+  const tenantBLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      email: identityUser.email,
+      password: "Integration-Owner-Password-42!",
+      organizationId: tenantB.id,
+    }),
+  });
+  await expectStatus(tenantBLogin, 200, "multi-tenant login with selected organization");
+  const tenantBLoginCookie = tenantBLogin.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
+  assert.ok(tenantBLoginCookie, "selected organization login must issue a session cookie");
+  const tenantBLoginStatus = await fetch(`${baseUrl}/api/auth/session`, {
+    headers: { cookie: `modrik_session=${tenantBLoginCookie}` },
+  });
+  await expectStatus(tenantBLoginStatus, 200, "selected tenant session details");
+  const tenantBLoginBody = await json(tenantBLoginStatus);
+  assert.equal(tenantBLoginBody.organizationId, tenantB.id);
+  assert.equal(tenantBLoginBody.organizations.length, 2);
+
+  const unrelatedTenant = await prisma.organization.create({
+    data: { name: "Unrelated identity tenant", slug: `identity-unrelated-${randomUUID()}` },
+  });
+  identityCleanup.organizations.push(unrelatedTenant.id);
+  const rejectedSwitch = await fetch(`${baseUrl}/api/auth/organization/switch`, {
+    method: "POST",
+    headers: {
+      cookie: `modrik_session=${tenantBLoginCookie}`,
+      origin: baseUrl,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ organizationId: unrelatedTenant.id }),
+  });
+  await expectStatus(rejectedSwitch, 403, "organization switch must reject a tenant without membership");
+
+  const acceptedSwitch = await fetch(`${baseUrl}/api/auth/organization/switch`, {
+    method: "POST",
+    headers: {
+      cookie: `modrik_session=${tenantBLoginCookie}`,
+      origin: baseUrl,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ organizationId: tenantA.id }),
+  });
+  await expectStatus(acceptedSwitch, 200, "organization switch to a second active membership");
+  const switchedTenantCookie = acceptedSwitch.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
+  assert.ok(switchedTenantCookie, "organization switch must issue a rotated session cookie");
+  const oldTenantSession = await fetch(`${baseUrl}/api/auth/session`, {
+    headers: { cookie: `modrik_session=${tenantBLoginCookie}` },
+  });
+  assert.equal((await json(oldTenantSession)).authenticated, false, "the pre-switch session must be revoked");
+  const newTenantSession = await fetch(`${baseUrl}/api/auth/session`, {
+    headers: { cookie: `modrik_session=${switchedTenantCookie}` },
+  });
+  assert.equal((await json(newTenantSession)).organizationId, tenantA.id, "the replacement session must carry the selected tenant");
+  const switchAuditEvents = await prisma.organizationAuditEvent.findMany({
+    where: {
+      actorUserId: identityUser.id,
+      eventType: { in: ["auth.organization_switch_out", "auth.organization_switch_in"] },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  assert.equal(switchAuditEvents.length, 2, "both tenant sides of a switch must be audited");
+  assert.deepEqual(
+    switchAuditEvents.map((event) => event.eventType).sort(),
+    ["auth.organization_switch_in", "auth.organization_switch_out"],
+  );
+  assert.ok(switchAuditEvents.every((event) => event.metadata.includes(tenantA.id) && event.metadata.includes(tenantB.id)));
+
   const identitySessionId = randomUUID().replaceAll("-", "");
   await prisma.authSession.create({
     data: { id: identitySessionId, userId: identityUser.id, membershipId: identityMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
@@ -251,6 +333,45 @@ try {
   assert.equal(identityStatusBody.authenticated, true);
   assert.equal(identityStatusBody.organizationId, tenantA.id);
   assert.equal(identityStatusBody.role, "owner");
+  const ownerIntegrationStatus = await fetch(`${baseUrl}/api/projects/${tenantProjectA.id}/integrations`, {
+    headers: { cookie: identityCookie },
+  });
+  await expectStatus(ownerIntegrationStatus, 200, "owner integration console access");
+  assert.equal((await json(ownerIntegrationStatus)).canManageIntegrations, true);
+
+  const tenantBMembership = await prisma.membership.findUnique({
+    where: { userId_organizationId: { userId: identityUser.id, organizationId: tenantB.id } },
+  });
+  assert.ok(tenantBMembership, "the second tenant membership must exist");
+  const engineerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: {
+      id: engineerSessionId,
+      userId: identityUser.id,
+      membershipId: tenantBMembership.id,
+      expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
+    },
+  });
+  const engineerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: identityUser.email,
+    userId: identityUser.id,
+    organizationId: tenantB.id,
+    membershipId: tenantBMembership.id,
+    role: "engineer",
+    sessionId: engineerSessionId,
+  }, secret)}`;
+  const engineerIntegrationStatus = await fetch(`${baseUrl}/api/projects/${tenantDemoB.id}/integrations`, {
+    headers: { cookie: engineerCookie },
+  });
+  await expectStatus(engineerIntegrationStatus, 200, "engineer read-only integration console access");
+  assert.equal((await json(engineerIntegrationStatus)).canManageIntegrations, false);
+  const engineerIntegrationMutation = await fetch(`${baseUrl}/api/projects/${tenantDemoB.id}/integrations`, {
+    method: "POST",
+    headers: { cookie: engineerCookie, origin: baseUrl, "content-type": "application/json" },
+    body: JSON.stringify({ kind: "github", action: "push" }),
+  });
+  await expectStatus(engineerIntegrationMutation, 403, "engineers cannot execute integration mutations");
+
 
 
   // Password recovery: token is hashed, single-use, short-lived, and revokes sessions.
@@ -1577,7 +1698,10 @@ try {
   for (const id of [...projectIds, ...identityCleanup.projects]) {
     try { await prisma.project.delete({ where: { id } }); } catch {}
   }
-  for (const id of identityCleanup.organizations) { try { await prisma.organization.delete({ where: { id } }); } catch {} }
+  for (const id of identityCleanup.organizations) {
+    try { await prisma.organizationAuditEvent.deleteMany({ where: { organizationId: id } }); } catch {}
+    try { await prisma.organization.delete({ where: { id } }); } catch {}
+  }
   for (const id of identityCleanup.users) { try { await prisma.user.delete({ where: { id } }); } catch {} }
   await prisma.$disconnect();
   child.kill("SIGTERM");

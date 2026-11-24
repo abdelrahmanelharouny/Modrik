@@ -5,6 +5,7 @@ import {
   verifySessionToken,
 } from "@/lib/security/session.mjs";
 import { resolveIdentitySession } from "@/lib/security/identity";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,19 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const identity = await resolveIdentitySession(token);
   if (identity) {
+    const memberships = await db.membership.findMany({
+      where: {
+        userId: identity.userId,
+        status: "active",
+        organization: { status: "active" },
+      },
+      select: {
+        organizationId: true,
+        role: true,
+        organization: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: { organization: { name: "asc" } },
+    });
     return NextResponse.json(
       {
         configured: true,
@@ -25,6 +39,12 @@ export async function GET(req: NextRequest) {
         email: identity.email,
         role: identity.role,
         organizationId: identity.organizationId,
+        organizations: memberships.map((membership) => ({
+          id: membership.organizationId,
+          name: membership.organization.name,
+          slug: membership.organization.slug,
+          role: membership.role,
+        })),
         expiresAt: identity.expiresAt,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }

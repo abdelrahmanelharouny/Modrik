@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createIdentitySession } from "@/lib/security/identity";
+import { resolveOrganizationMembership } from "@/lib/security/organization-selection.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import { consumeRateLimit } from "@/lib/security/rate-limit.mjs";
 import {
@@ -52,6 +53,14 @@ export async function POST(req: NextRequest) {
   }
   const email = typeof body?.email === "string" ? body.email.slice(0, 254).trim().toLowerCase() : "";
   const password = typeof body?.password === "string" ? body.password.slice(0, 1024) : "";
+  const requestedOrganizationId = body.organizationId === undefined
+    ? null
+    : typeof body.organizationId === "string" && body.organizationId.trim().length <= 128
+      ? body.organizationId.trim()
+      : undefined;
+  if (requestedOrganizationId === undefined) {
+    return NextResponse.json({ error: "organizationId must be a valid organization identifier" }, { status: 400 });
+  }
 
   const ip = clientKey(req);
   const ipLimit = await consumeRateLimit({ scope: "auth:login:ip", identifier: ip, limit: 5, windowMs: 15 * 60 * 1000 });
@@ -78,7 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
 
-  const identity = await db.$transaction(async (tx) => {
+  const provisioned = await db.$transaction(async (tx) => {
     const resolvedUser = user
       ? await tx.user.update({
           where: { id: user.id },
@@ -93,56 +102,78 @@ export async function POST(req: NextRequest) {
             emailVerifiedAt: new Date(),
           },
         });
-    const organization = configuredOwner
-      ? await tx.organization.upsert({
-          where: { slug: "modrik-default" },
-          create: { name: "Modrik Workspace", slug: "modrik-default", status: "active" },
-          update: {},
-        })
-      : await tx.organization.findUnique({ where: { slug: "modrik-default" } });
-    if (!organization) throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
-    const membershipWhere = {
-      userId_organizationId: { userId: resolvedUser.id, organizationId: organization.id },
-    };
-    const membership = configuredOwner && resolvedUser.email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase()
-      ? await tx.membership.upsert({
-          where: membershipWhere,
-          create: {
-            userId: resolvedUser.id,
-            organizationId: organization.id,
-            role: "owner",
-            status: "active",
-            activatedAt: new Date(),
-          },
-          update: {},
-        })
-      : await tx.membership.findUnique({ where: membershipWhere });
-    if (!membership || membership.status !== "active") {
-      throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
-    }
-    // One-time safe adoption of legacy unassigned projects into the bootstrap
-    // workspace. Never reassign projects already owned by another tenant.
-    if (membership.role === "owner" && configuredOwner) {
+
+    // Bootstrap only the configured owner workspace. Ordinary accounts resolve
+    // all of their own active memberships instead of being pinned to one slug.
+    if (configuredOwner && resolvedUser.email === process.env.MODRIK_ADMIN_EMAIL?.trim().toLowerCase()) {
+      const organization = await tx.organization.upsert({
+        where: { slug: "modrik-default" },
+        create: { name: "Modrik Workspace", slug: "modrik-default", status: "active" },
+        update: {},
+      });
+      const ownerMembership = await tx.membership.upsert({
+        where: { userId_organizationId: { userId: resolvedUser.id, organizationId: organization.id } },
+        create: {
+          userId: resolvedUser.id, organizationId: organization.id, role: "owner",
+          status: "active", activatedAt: new Date(),
+        },
+        update: {},
+      });
+      if (ownerMembership.status !== "active") throw new Error("ACCOUNT_MEMBERSHIP_INACTIVE");
+
+      // One-time safe adoption of legacy unassigned projects into the bootstrap
+      // workspace. Projects already assigned to another tenant are never moved.
       await tx.project.updateMany({
         where: { organizationId: null },
         data: { organizationId: organization.id, createdByUserId: resolvedUser.id },
       });
     }
-    return {
-      userId: resolvedUser.id,
-      email: resolvedUser.email,
-      organizationId: organization.id,
-      membershipId: membership.id,
-      role: membership.role,
-    };
+
+    const memberships = await tx.membership.findMany({
+      where: {
+        userId: resolvedUser.id,
+        status: "active",
+        organization: { status: "active" },
+      },
+      include: {
+        organization: { select: { id: true, name: true, slug: true, status: true } },
+      },
+      orderBy: { organization: { name: "asc" } },
+    });
+
+    return { userId: resolvedUser.id, email: resolvedUser.email, memberships };
   }).catch((error) => {
     if (error instanceof Error && error.message === "ACCOUNT_MEMBERSHIP_INACTIVE") return null;
     throw error;
   });
 
-  if (!identity) {
+  if (!provisioned) {
     return NextResponse.json({ error: "Organization membership is inactive" }, { status: 403 });
   }
+
+  const selection = resolveOrganizationMembership(provisioned.memberships, requestedOrganizationId);
+  if (selection.kind === "none") {
+    return NextResponse.json({ error: "No active organization membership is available" }, { status: 403 });
+  }
+  if (selection.kind === "invalid") {
+    return NextResponse.json({ error: "You do not have an active membership in that organization" }, { status: 403 });
+  }
+  if (selection.kind === "selection_required") {
+    return NextResponse.json({
+      error: "Choose the organization you want to open.",
+      requiresOrganizationSelection: true,
+      organizations: selection.organizations,
+    }, { status: 409, headers: { "Cache-Control": "no-store, max-age=0" } });
+  }
+
+  const identity = {
+    userId: provisioned.userId,
+    email: provisioned.email,
+    organizationId: selection.membership.organizationId,
+    membershipId: selection.membership.id,
+    role: selection.membership.role,
+  };
+
   const session = await createIdentitySession(identity);
   const response = NextResponse.json({ ok: true });
   response.cookies.set({

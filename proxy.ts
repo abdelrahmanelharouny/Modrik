@@ -40,10 +40,10 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
     return "projects:update";
   }
   if (route.startsWith("integrations/oauth/")) {
-    return "projects:update";
+    return "integrations:manage";
   }
   if (route === "integrations") {
-    return method === "GET" ? "projects:read" : "members:manage";
+    return method === "GET" || method === "HEAD" ? "projects:read" : "integrations:manage";
   }
   if (route === "audit/export") {
     return method === "GET" || method === "HEAD" ? "audit:read" : "organization:manage";
