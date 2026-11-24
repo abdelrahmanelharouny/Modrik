@@ -225,11 +225,80 @@ try {
   identityCleanup.organizations.push(tenantA.id);
   const tenantB = await prisma.organization.create({ data: { name: "Identity Tenant B", slug: `identity-b-${randomUUID()}` } });
   identityCleanup.organizations.push(tenantB.id);
-  const identityUser = await prisma.user.create({ data: { email: `identity-owner-${randomUUID()}@example.invalid`, status: "active" } });
+  const identityUser = await prisma.user.create({ data: { email: `identity-owner-${randomUUID()}@example.invalid`, passwordHash: process.env.MODRIK_ADMIN_PASSWORD_HASH, status: "active" } });
   identityCleanup.users.push(identityUser.id);
   const identityMembership = await prisma.membership.create({
     data: { userId: identityUser.id, organizationId: tenantA.id, role: "owner", status: "active", activatedAt: new Date() },
   });
+  const secondIdentityMembership = await prisma.membership.create({
+    data: { userId: identityUser.id, organizationId: tenantB.id, role: "engineer", status: "active", activatedAt: new Date() },
+  });
+  const loginWithoutOrganization = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: identityUser.email, password: "Integration-Owner-Password-42!" }),
+  });
+  await expectStatus(loginWithoutOrganization, 409, "multi-tenant user must choose an organization");
+  const loginChoices = await json(loginWithoutOrganization);
+  assert.equal(loginChoices.requiresOrganizationSelection, true);
+  assert.deepEqual(loginChoices.organizations.map((item) => item.id).sort(), [tenantA.id, tenantB.id].sort());
+
+  const tenantBLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      email: identityUser.email,
+      password: "Integration-Owner-Password-42!",
+      organizationId: tenantB.id,
+    }),
+  });
+  await expectStatus(tenantBLogin, 200, "multi-tenant login with selected organization");
+  const tenantBLoginCookie = tenantBLogin.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
+  assert.ok(tenantBLoginCookie, "selected organization login must issue a session cookie");
+  const tenantBLoginStatus = await fetch(`${baseUrl}/api/auth/session`, {
+    headers: { cookie: `modrik_session=${tenantBLoginCookie}` },
+  });
+  await expectStatus(tenantBLoginStatus, 200, "selected tenant session details");
+  const tenantBLoginBody = await json(tenantBLoginStatus);
+  assert.equal(tenantBLoginBody.organizationId, tenantB.id);
+  assert.equal(tenantBLoginBody.organizations.length, 2);
+
+  const unrelatedTenant = await prisma.organization.create({
+    data: { name: "Unrelated identity tenant", slug: `identity-unrelated-${randomUUID()}` },
+  });
+  identityCleanup.organizations.push(unrelatedTenant.id);
+  const rejectedSwitch = await fetch(`${baseUrl}/api/auth/organization/switch`, {
+    method: "POST",
+    headers: {
+      cookie: `modrik_session=${tenantBLoginCookie}`,
+      origin: baseUrl,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ organizationId: unrelatedTenant.id }),
+  });
+  await expectStatus(rejectedSwitch, 403, "organization switch must reject a tenant without membership");
+
+  const acceptedSwitch = await fetch(`${baseUrl}/api/auth/organization/switch`, {
+    method: "POST",
+    headers: {
+      cookie: `modrik_session=${tenantBLoginCookie}`,
+      origin: baseUrl,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ organizationId: tenantA.id }),
+  });
+  await expectStatus(acceptedSwitch, 200, "organization switch to a second active membership");
+  const switchedTenantCookie = acceptedSwitch.headers.get("set-cookie")?.match(/modrik_session=([^;]+)/)?.[1];
+  assert.ok(switchedTenantCookie, "organization switch must issue a rotated session cookie");
+  const oldTenantSession = await fetch(`${baseUrl}/api/auth/session`, {
+    headers: { cookie: `modrik_session=${tenantBLoginCookie}` },
+  });
+  assert.equal((await json(oldTenantSession)).authenticated, false, "the pre-switch session must be revoked");
+  const newTenantSession = await fetch(`${baseUrl}/api/auth/session`, {
+    headers: { cookie: `modrik_session=${switchedTenantCookie}` },
+  });
+  assert.equal((await json(newTenantSession)).organizationId, tenantA.id, "the replacement session must carry the selected tenant");
+
   const identitySessionId = randomUUID().replaceAll("-", "");
   await prisma.authSession.create({
     data: { id: identitySessionId, userId: identityUser.id, membershipId: identityMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
