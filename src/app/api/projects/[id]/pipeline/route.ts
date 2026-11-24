@@ -292,7 +292,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
     }
     return NextResponse.json({ ok: true, nextStage: finalization.next });
-    return NextResponse.json({ ok: true, nextStage: next });
   } catch (error) {
     await db.pipelineRun.update({
       where: { id: run.id },
