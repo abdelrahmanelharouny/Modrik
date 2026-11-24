@@ -32,7 +32,7 @@ export async function GET(req:NextRequest,{params}:Context){
  const identity=await resolveIdentitySession(req.cookies.get(SESSION_COOKIE)?.value);
  if(!identity||identity.userId!==tx.userId||identity.organizationId!==tx.organizationId) return fail(req,provider,"Modrik session changed during authorization. Start again.",tx.projectId);
  const project=await db.project.findUnique({where:{id:tx.projectId},select:{id:true,organizationId:true}});
- if(!project||project.organizationId!==identity.organizationId||!hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"projects:update"))
+ if(!project||project.organizationId!==identity.organizationId||!hasOrganizationPermission({organizationId:identity.organizationId,status:"active",userStatus:"active",organizationStatus:"active",role:identity.role},"integrations:manage"))
   return fail(req,provider,"You no longer have permission to connect this project.",tx.projectId);
  const config=oauthProviderConfig(provider); if(!config) return fail(req,provider,"OAuth provider credentials are not configured.",tx.projectId);
  // Atomically consume the server-side state ledger before exchanging the code.
