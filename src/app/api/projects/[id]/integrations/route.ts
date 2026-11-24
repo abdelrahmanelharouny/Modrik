@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { oauthActivationReady } from "@/lib/security/oauth-lifecycle.mjs";
-import { resolveIdentitySession } from "@/lib/security/identity";
+import { resolveIdentitySession, type IdentityPrincipal } from "@/lib/security/identity";
 import { hasOrganizationPermission } from "@/lib/security/organization-access.mjs";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/security/session.mjs";
 import {
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const [status, maps] = await Promise.all([maskedStatus(id), listSyncMaps(id)]);
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  let identity = null;
+  let identity: IdentityPrincipal | null = null;
   try {
     identity = await resolveIdentitySession(token);
   } catch {
