@@ -99,3 +99,17 @@ test("integration management is restricted to owner and admin roles", async () =
   assert.equal(hasOrganizationPermission(active("approver"), "integrations:manage"), false);
   assert.equal(hasOrganizationPermission(active("viewer"), "integrations:manage"), false);
 });
+
+
+test("OAuth start, target and callback handlers enforce integration-management permission", () => {
+  const oauthHandlers = [
+    path.join(apiRoot, "projects", "[id]", "integrations", "oauth", "[provider]", "route.ts"),
+    path.join(apiRoot, "projects", "[id]", "integrations", "oauth", "[provider]", "target", "route.ts"),
+    path.join(apiRoot, "integrations", "oauth", "[provider]", "callback", "route.ts"),
+  ];
+  for (const file of oauthHandlers) {
+    const source = fs.readFileSync(file, "utf8");
+    assert.match(source, /hasOrganizationPermission[\\s\\S]*?"integrations:manage"/);
+    assert.doesNotMatch(source, /hasOrganizationPermission[\\s\\S]*?"projects:update"/);
+  }
+});
