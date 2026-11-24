@@ -109,7 +109,7 @@ test("OAuth start, target and callback handlers enforce integration-management p
   ];
   for (const file of oauthHandlers) {
     const source = fs.readFileSync(file, "utf8");
-    assert.match(source, /hasOrganizationPermission[\\s\\S]*?"integrations:manage"/);
-    assert.doesNotMatch(source, /hasOrganizationPermission[\\s\\S]*?"projects:update"/);
+    assert.match(source, /hasOrganizationPermission[\s\S]*?"integrations:manage"/);
+    assert.doesNotMatch(source, /hasOrganizationPermission[\s\S]*?"projects:update"/);
   }
 });
