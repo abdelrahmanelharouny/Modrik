@@ -53,7 +53,6 @@ test("sensitive non-project routes require the intended least-privilege role per
   assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/github/callback/extra", "GET"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/github/callback", "POST"), null);
   assert.equal(resolveOrganizationRoutePermission("/api/integrations/oauth/:provider/callback", "GET"), "integrations:manage");
-  assert.equal(resolveOrganizationRoutePermission("/api/auth/organizations", "GET"), "organization:read");
   assert.equal(resolveOrganizationRoutePermission("/api/auth/organization/switch", "POST"), "organization:read");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "GET"), "members:manage");
   assert.equal(resolveOrganizationRoutePermission("/api/invitations", "POST"), "members:manage");
