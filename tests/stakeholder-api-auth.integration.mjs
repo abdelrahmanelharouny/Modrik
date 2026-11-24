@@ -230,7 +230,7 @@ try {
   const identityMembership = await prisma.membership.create({
     data: { userId: identityUser.id, organizationId: tenantA.id, role: "owner", status: "active", activatedAt: new Date() },
   });
-  const secondIdentityMembership = await prisma.membership.create({
+  await prisma.membership.create({
     data: { userId: identityUser.id, organizationId: tenantB.id, role: "engineer", status: "active", activatedAt: new Date() },
   });
   const loginWithoutOrganization = await fetch(`${baseUrl}/api/auth/login`, {
