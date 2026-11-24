@@ -10,6 +10,7 @@ const ROUTE_PERMISSIONS = Object.freeze({
   }),
   "/api/self-audit": Object.freeze({ GET: "organization:manage", HEAD: "organization:manage" }),
   "/api/providers": Object.freeze({ GET: "organization:read", HEAD: "organization:read" }),
+  "/api/integrations/oauth/:provider/callback": Object.freeze({ GET: "integrations:manage" }),
   "/api/auth/organizations": Object.freeze({ GET: "organization:read", HEAD: "organization:read" }),
   "/api/auth/organization/switch": Object.freeze({ POST: "organization:read" }),
   "/api/invitations": Object.freeze({ GET: "members:manage", HEAD: "members:manage", POST: "members:manage" }),
