@@ -298,6 +298,19 @@ try {
     headers: { cookie: `modrik_session=${switchedTenantCookie}` },
   });
   assert.equal((await json(newTenantSession)).organizationId, tenantA.id, "the replacement session must carry the selected tenant");
+  const switchAuditEvents = await prisma.organizationAuditEvent.findMany({
+    where: {
+      actorUserId: identityUser.id,
+      eventType: { in: ["auth.organization_switch_out", "auth.organization_switch_in"] },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  assert.equal(switchAuditEvents.length, 2, "both tenant sides of a switch must be audited");
+  assert.deepEqual(
+    switchAuditEvents.map((event) => event.eventType).sort(),
+    ["auth.organization_switch_in", "auth.organization_switch_out"],
+  );
+  assert.ok(switchAuditEvents.every((event) => event.metadata.includes(tenantA.id) && event.metadata.includes(tenantB.id)));
 
   const identitySessionId = randomUUID().replaceAll("-", "");
   await prisma.authSession.create({
