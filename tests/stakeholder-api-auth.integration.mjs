@@ -1698,7 +1698,10 @@ try {
   for (const id of [...projectIds, ...identityCleanup.projects]) {
     try { await prisma.project.delete({ where: { id } }); } catch {}
   }
-  for (const id of identityCleanup.organizations) { try { await prisma.organization.delete({ where: { id } }); } catch {} }
+  for (const id of identityCleanup.organizations) {
+    try { await prisma.organizationAuditEvent.deleteMany({ where: { organizationId: id } }); } catch {}
+    try { await prisma.organization.delete({ where: { id } }); } catch {}
+  }
   for (const id of identityCleanup.users) { try { await prisma.user.delete({ where: { id } }); } catch {} }
   await prisma.$disconnect();
   child.kill("SIGTERM");
