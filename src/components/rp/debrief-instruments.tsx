@@ -771,8 +771,8 @@ export function IntegrationsConsole({ projectId }: { projectId: string }) {
                   </div>
                   {st.oauth.pendingTarget && (
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      {kind === "github" ? <Input aria-label="GitHub owner or organization" value={targetOwners.github ?? st.oauth.account} onChange={(event) => setTargetOwners((current) => ({ ...current, github: event.target.value }))} placeholder="Owner / organization" /> : null}
-                      <Input aria-label={kind === "github" ? "GitHub repository" : "Jira project key"} value={targetValues[kind] ?? ""} onChange={(event) => setTargetValues((current) => ({ ...current, [kind]: event.target.value }))} placeholder={kind === "github" ? (ar ? "اسم المستودع" : "Repository name") : (ar ? "مفتاح مشروع Jira" : "Jira project key")} />
+                      {kind === "github" ? <Input aria-label="GitHub owner or organization" disabled={!canManageIntegrations} value={targetOwners.github ?? st.oauth.account} onChange={(event) => setTargetOwners((current) => ({ ...current, github: event.target.value }))} placeholder="Owner / organization" /> : null}
+                      <Input aria-label={kind === "github" ? "GitHub repository" : "Jira project key"} disabled={!canManageIntegrations} value={targetValues[kind] ?? ""} onChange={(event) => setTargetValues((current) => ({ ...current, [kind]: event.target.value }))} placeholder={kind === "github" ? (ar ? "اسم المستودع" : "Repository name") : (ar ? "مفتاح مشروع Jira" : "Jira project key")} />
                       <Button size="sm" disabled={!canManageIntegrations || targetBusy !== null || !targetValues[kind]?.trim() || (kind === "github" && !(targetOwners.github ?? st.oauth.account).trim())} onClick={() => void chooseOAuthTarget(kind)} className="shrink-0 bg-aura text-primary-foreground hover:bg-aura/85">
                         {targetBusy === kind ? <Loader2 className="me-2 h-3.5 w-3.5 animate-spin" /> : null}{ar ? "تحقق واعتماد" : "Verify target"}
                       </Button>
