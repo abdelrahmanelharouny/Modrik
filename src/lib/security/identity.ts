@@ -124,6 +124,39 @@ export async function switchIdentitySession(identity: IdentityPrincipal, targetO
     });
     if (revoked.count !== 1) throw new Error("CURRENT_SESSION_CHANGED");
 
+    // Preserve both sides of the tenant boundary in the organization audit
+    // stream. These records are committed with the session rotation.
+    await tx.organizationAuditEvent.create({
+      data: {
+        organizationId: identity.organizationId,
+        actorUserId: identity.userId,
+        eventType: "auth.organization_switch_out",
+        resourceType: "auth_session",
+        resourceId: identity.sessionId,
+        summary: "User switched away from this organization",
+        metadata: JSON.stringify({
+          fromOrganizationId: identity.organizationId,
+          toOrganizationId: membership.organizationId,
+          replacementSessionId: sessionId,
+        }),
+      },
+    });
+    await tx.organizationAuditEvent.create({
+      data: {
+        organizationId: membership.organizationId,
+        actorUserId: identity.userId,
+        eventType: "auth.organization_switch_in",
+        resourceType: "auth_session",
+        resourceId: sessionId,
+        summary: "User switched into this organization",
+        metadata: JSON.stringify({
+          fromOrganizationId: identity.organizationId,
+          toOrganizationId: membership.organizationId,
+          previousSessionId: identity.sessionId,
+        }),
+      },
+    });
+
     return {
       token,
       expiresAt,
