@@ -44,3 +44,7 @@ The default provider remains the existing ZAI ASR service. A deployment may expl
 The candidate model `openai/whisper-large-v3-turbo` is Arabic-capable according to its Hub language metadata, but that is not evidence of Egyptian dialect accuracy on Modrik's stakeholder audio. Keep the existing human transcript review gate. The optional feedback path captures only original and corrected transcript text after separate user consent; it never accepts or stores audio. Email addresses and Egyptian mobile patterns are redacted, but this is not full anonymization: users must remove names and any other identifiers themselves. Use only content the contributor is authorized to share.
 
 Evaluate any provider/model on a consented, speaker-disjoint Egyptian Arabic corpus with human references. Report WER, CER, code-switch and dialect slices, plus hallucination/omission review. Do not report model accuracy improvements from script-ratio or lexical-cue checks alone.
+
+## 7. ASR transcript scoring
+
+`src/lib/asr/evaluation.mjs` implements deterministic, text-only WER/CER after NFKC, diacritic/tatweel removal, alef/ya/hamza normalization, ta-marbuta normalization, punctuation removal and whitespace normalization. Corpus aggregation is micro-averaged and segmented by language and ASR provider; empty references are excluded and explicitly reported. This supports evaluating pairs collected under the separate ASR-research consent. It is not evidence of model performance until a representative, speaker-disjoint reference set has been collected and scored.
