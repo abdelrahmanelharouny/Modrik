@@ -31,7 +31,7 @@ Phase 4 moves Modrik from a capable project workspace toward a multi-organizatio
 - Idempotent usage ledger entries are written by the durable agent worker in the same transaction as successful job completion.
 - Usage and estimated cost are exposed in the organization portfolio and usage endpoints.
 
-**Billing boundary:** token and dollar values are estimates from the existing agent telemetry, not provider invoices or actual payment amounts. No checkout, payment method, charge, tax calculation, invoice issuance, payment webhook, dunning or payment-provider credentials are active. Plans remain manual entitlement records until a payment provider and finance/legal configuration are approved. Token quotas are visible/advisory; hard token reservation requires preflight estimation and atomic budget reservation before an LLM call.
+**Billing boundary:** the Stripe integration is implemented but inactive until the organization supplies its own Stripe secret, webhook signing secret and recurring Price IDs. No real customer, payment method, charge, tax configuration, refund, proration or dunning flow has been activated or live-tested. Usage-token and model-cost values remain estimates from agent telemetry; they are not invoices or authoritative Stripe consumption. Stripe invoice amounts are stored as provider-reported integer minor units. Token quotas are visible/advisory; hard token reservation requires preflight estimation and atomic budget reservation before an LLM call.
 
 ### Governance and compliance
 - Organization policy for evidence/data/audit retention windows, AI-processing enablement, permitted AI providers and default locale.
@@ -46,7 +46,7 @@ Phase 4 moves Modrik from a capable project workspace toward a multi-organizatio
 
 - SAML/OIDC enterprise SSO, IdP metadata, JIT/SCIM provisioning, domain verification and tenant-specific login policy.
 - MFA enrollment/recovery/step-up and enterprise session controls.
-- Payment-provider integration, checkout, webhook signature verification, invoices, refunds, taxes, proration, dunning and a billing reconciliation ledger.
+- Live Stripe account configuration, checkout and webhook end-to-end rehearsal, refund/dispute handling, tax registration, proration policy, dunning, and a reconciliation process for invoices and failed payments.
 - Atomic token-budget reservation and hard quota enforcement for long-running LLM tasks.
 - Automated retention/erasure executor with legal-hold precedence, dry-run, approvals, tombstones, retry, audit and backup lifecycle integration.
 - Full portfolio filtering/search/pagination and team-level workload, cycle-time, quality, risk and capacity trends.

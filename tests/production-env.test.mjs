@@ -86,3 +86,29 @@ test("OAuth production credentials are paired and callbacks share the canonical 
   const validOAuth = validateProductionEnv({ ...validEnv, MODRIK_APP_URL: validEnv.APP_URL, MODRIK_GITHUB_CLIENT_ID: "id", MODRIK_GITHUB_CLIENT_SECRET: "secret", MODRIK_ATLASSIAN_CLIENT_ID: "jira-id", MODRIK_ATLASSIAN_CLIENT_SECRET: "jira-secret" });
   assert.equal(validOAuth.ok, true, validOAuth.errors.join("; "));
 });
+
+test("Stripe production billing credentials must be configured as a complete provider bundle", () => {
+  const partial = validateProductionEnv({ ...validEnv, STRIPE_SECRET_KEY: "sk_test_example" });
+  assert.ok(partial.errors.some((error) => error.startsWith("STRIPE_WEBHOOK_SECRET")));
+  assert.ok(partial.errors.some((error) => error.startsWith("STRIPE_PRICE_TEAM")));
+
+  const invalidKey = validateProductionEnv({
+    ...validEnv,
+    STRIPE_SECRET_KEY: "pk_test_not_secret",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    STRIPE_PRICE_TEAM: "price_team",
+    STRIPE_PRICE_BUSINESS: "price_business",
+    STRIPE_PRICE_ENTERPRISE: "price_enterprise",
+  });
+  assert.ok(invalidKey.errors.some((error) => error.startsWith("STRIPE_SECRET_KEY")));
+
+  const complete = validateProductionEnv({
+    ...validEnv,
+    STRIPE_SECRET_KEY: "sk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    STRIPE_PRICE_TEAM: "price_team",
+    STRIPE_PRICE_BUSINESS: "price_business",
+    STRIPE_PRICE_ENTERPRISE: "price_enterprise",
+  });
+  assert.equal(complete.ok, true, complete.errors.join("; "));
+});
