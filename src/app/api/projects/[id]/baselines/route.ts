@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveIdentitySession } from "@/lib/security/identity";
 import { SESSION_COOKIE } from "@/lib/security/session.mjs";
-import { compareBaselineSnapshots } from "@/lib/phase4/baseline-diff.mjs";
+import { compareBaselineSnapshots, verifyBaselineSnapshotIntegrity } from "@/lib/phase4/baseline-diff.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +26,9 @@ export async function GET(req:NextRequest,{params}:Params){
    db.baselineSnapshot.findFirst({where:{projectId:id,organizationId:identity.organizationId,version:to}}),
   ]);
   if(!before||!after)return fail("One or both baseline versions were not found",404);
+  if (!verifyBaselineSnapshotIntegrity(before.snapshotJson, before.contentHash) || !verifyBaselineSnapshotIntegrity(after.snapshotJson, after.contentHash)) {
+   return fail("Baseline integrity verification failed; comparison was blocked", 409);
+  }
   const left=safeSnapshot(before.snapshotJson),right=safeSnapshot(after.snapshotJson);
   if(!left||!right)return fail("A stored baseline snapshot is invalid",500);
   return NextResponse.json({comparison:compareBaselineSnapshots(left,right),hashes:{from:before.contentHash,to:after.contentHash}},{headers:noStore});
@@ -36,9 +39,10 @@ export async function GET(req:NextRequest,{params}:Params){
   if(!Number.isSafeInteger(version)||version<1)return fail("version must be a positive integer",400);
   const snapshot=await db.baselineSnapshot.findFirst({where:{projectId:id,organizationId:identity.organizationId,version}});
   if(!snapshot)return fail("Baseline version not found",404);
+  if (!verifyBaselineSnapshotIntegrity(snapshot.snapshotJson, snapshot.contentHash)) return fail("Baseline integrity verification failed", 409);
   const content=safeSnapshot(snapshot.snapshotJson);
   if(!content)return fail("Stored baseline snapshot is invalid",500);
-  return NextResponse.json({snapshot:{...snapshot,snapshotJson:undefined,content}},{headers:noStore});
+  return NextResponse.json({snapshot:{...snapshot,snapshotJson:undefined,content},integrity:{algorithm:"SHA-256",verified:true,contentHash:snapshot.contentHash}},{headers:noStore});
  }
  const snapshots=await db.baselineSnapshot.findMany({
   where:{projectId:id,organizationId:identity.organizationId},orderBy:{version:"desc"},take:100,

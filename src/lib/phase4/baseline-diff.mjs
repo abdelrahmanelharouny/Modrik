@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 function object(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function byKey(rows, key) {
   const map = new Map();
@@ -38,4 +39,10 @@ export function compareBaselineSnapshots(beforeInput, afterInput) {
     requirements, stories, conflicts,
     totalChanges: requirements.totalChanges + stories.totalChanges + conflicts.totalChanges,
   };
+}
+
+export function verifyBaselineSnapshotIntegrity(snapshotJson, expectedHash) {
+  if (typeof snapshotJson !== "string" || typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/i.test(expectedHash)) return false;
+  const actual = createHash("sha256").update(snapshotJson, "utf8").digest("hex");
+  return actual === expectedHash.toLowerCase();
 }
