@@ -6,6 +6,7 @@ import { normalizeChangeImpactInput, resolveChangeImpactTriage, changeImpactFind
 test("change-impact queue input is bounded and source-attributed",()=>{
   const input=normalizeChangeImpactInput({projectId:"project-1",source:"github",idempotencyKey:"github-webhook:hash",signal:"API contract changed",externalKey:"delivery-1",title:"Issue 42"});
   assert.equal(input.source,"github");assert.equal(input.externalKey,"delivery-1");
+  assert.equal(normalizeChangeImpactInput({projectId:"p",source:"scheduled",idempotencyKey:"scheduled:rev-1",signal:"Consented evidence revision"}).source,"scheduled");
   assert.throws(()=>normalizeChangeImpactInput({projectId:"p",source:"github",idempotencyKey:"k",signal:""}),/signal/);
   assert.throws(()=>normalizeChangeImpactInput({projectId:"p",source:"unknown",idempotencyKey:"k",signal:"x"}),/source/);
   assert.throws(()=>normalizeChangeImpactInput({projectId:"p",source:"jira",idempotencyKey:"k",signal:"x".repeat(2001)}),/2000/);
