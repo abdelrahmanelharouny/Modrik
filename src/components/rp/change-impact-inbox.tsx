@@ -42,6 +42,23 @@ export function ChangeImpactInbox({ projectId }: { projectId: string }) {
     const timer = window.setInterval(() => { void load(true); }, 10000);
     return () => window.clearInterval(timer);
   }, [load]);
+  async function submitSignal() {
+    if (!signal.trim() || submitting) return;
+    setSubmitting(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/projects/" + projectId + "/drift", {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ signal: signal.trim() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not queue the change signal.");
+      setSignal("");
+      setNotice(ar ? "تمت إضافة إشارة التغيير إلى قائمة التحليل." : "Change signal queued for background analysis.");
+      await load(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not queue the change signal.");
+    } finally { setSubmitting(false); }
+  }
   async function review(finding: Finding, action: "confirm" | "dismiss" | "resolve") {
     setBusyId(finding.id); setError(""); setNotice("");
     try {
@@ -69,6 +86,12 @@ export function ChangeImpactInbox({ projectId }: { projectId: string }) {
           <Button size="sm" variant="outline" disabled={refreshing} onClick={() => void load(true)}><RefreshCw className={"mr-1.5 h-3.5 w-3.5 " + (refreshing ? "animate-spin" : "")} />{ar ? "تحديث" : "Refresh"}</Button>
         </div>
       </div>
+      <form onSubmit={(event) => { event.preventDefault(); void submitSignal(); }} className="grid gap-2 rounded-lg border border-border/60 bg-background/50 p-3 sm:grid-cols-[1fr_auto]">
+        <label className="grid gap-1 text-xs text-muted-foreground">{ar ? "إشارة تغيير يدوية" : "Manual change signal"}
+          <textarea value={signal} onChange={(event) => setSignal(event.target.value.slice(0, 2000))} maxLength={2000} rows={2} required placeholder={ar ? "صف التغيير الذي قد يؤثر على المتطلبات..." : "Describe a change that may affect requirements..."} className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary" />
+        </label>
+        <Button type="submit" disabled={submitting || !signal.trim()} className="self-end">{submitting ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}{ar ? "إضافة للتحليل" : "Queue analysis"}</Button>
+      </form>
       {error ? <p role="alert" className="rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">{error}</p> : null}
       {notice ? <p role="status" className="rounded border border-primary/30 bg-primary/5 p-2 text-xs text-primary">{notice}</p> : null}
       {!jobs.length ? <p className="rounded border border-dashed border-border p-4 text-center text-xs text-muted-foreground">{ar ? "لا توجد أحداث تغيير بعد. ستظهر هنا أحداث GitHub وJira أو الإشارات اليدوية بعد إضافتها." : "No change events yet. GitHub/Jira deliveries and manual change signals will appear here."}</p> : null}

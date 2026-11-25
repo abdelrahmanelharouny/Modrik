@@ -172,7 +172,7 @@ async function executeJob(job:AgentJob,workerId:string){
     if(job.jobKind==="change_impact"){
       const payload=JSON.parse(job.payload||"{}") as {signal?:string};
       if(typeof payload.signal!=="string"||!payload.signal.trim())throw new Error("Change-impact job has no valid signal.");
-      const result=await analyzeDrift(job.projectId,payload.signal);
+      const result=await analyzeDrift(job.projectId,payload.signal,job.pipelineRunId);
       await guard();
       await completeJob(job,result);
     }else{
