@@ -15,7 +15,7 @@ export async function GET(req:NextRequest){
  let from:Date|undefined;
  if(fromRaw){from=new Date(fromRaw);if(!Number.isFinite(from.getTime()))return NextResponse.json({error:"from must be a valid ISO date"},{status:400});}
  const organizationId=identity.organizationId;
- const [organization,members,projects,events,baselines,usage,holds]=await Promise.all([
+ const [organization,members,projects,events,baselines,usage,holds,subscription,invoices]=await Promise.all([
   db.organization.findUnique({where:{id:organizationId},select:{id:true,name:true,slug:true,status:true,createdAt:true}}),
   db.membership.findMany({where:{organizationId},orderBy:{createdAt:"asc"},take:1000,select:{id:true,role:true,status:true,createdAt:true,activatedAt:true,user:{select:{id:true,displayName:true,status:true}}}}),
   db.project.findMany({where:{organizationId},orderBy:{createdAt:"asc"},take:1000,select:{id:true,name:true,status:true,currentStage:true,stageStatus:true,createdAt:true,updatedAt:true,_count:{select:{evidences:true,reqs:true,stories:true,conflicts:true,stakeholders:true}}}}),
@@ -23,6 +23,8 @@ export async function GET(req:NextRequest){
   db.baselineSnapshot.findMany({where:{organizationId},orderBy:[{projectId:"asc"},{version:"asc"}],take:5000,select:{id:true,projectId:true,version:true,label:true,contentHash:true,requirementCount:true,storyCount:true,conflictCount:true,createdByUserId:true,createdAt:true}}),
   db.usageEvent.aggregate({where:{organizationId,...(from?{occurredAt:{gte:from}}:{})},_sum:{quantity:true,estimatedCostUsd:true},_count:{_all:true}}),
   db.retentionHold.findMany({where:{organizationId},orderBy:{placedAt:"asc"},take:2000,select:{id:true,projectId:true,resourceType:true,resourceId:true,reason:true,placedAt:true,releasedAt:true,placedByUserId:true,releasedByUserId:true}}),
+  db.organizationSubscription.findUnique({where:{organizationId},select:{planKey:true,status:true,billingProvider:true,currentPeriodStart:true,currentPeriodEnd:true,cancelAtPeriodEnd:true}}),
+  db.billingInvoice.findMany({where:{organizationId},orderBy:[{issuedAt:"desc"},{id:"desc"}],take:500,select:{externalInvoiceId:true,invoiceNumber:true,status:true,currency:true,amountDue:true,amountPaid:true,hostedInvoiceUrl:true,invoicePdfUrl:true,issuedAt:true,paidAt:true}}),
  ]);
  if(!organization)return NextResponse.json({error:"Organization not found"},{status:404});
  const auditTruncated=events.length>10000;
@@ -32,6 +34,7 @@ export async function GET(req:NextRequest){
   projects:projects.map(p=>({...p,createdAt:p.createdAt.toISOString(),updatedAt:p.updatedAt.toISOString()})),
   baselines:baselines.map(b=>({...b,createdAt:b.createdAt.toISOString()})),
   audit:{events:events.slice(0,10000).map(e=>({...e,metadata:(()=>{try{return JSON.parse(e.metadata)}catch{return {unparseable:true}}})(),createdAt:e.createdAt.toISOString(),actor:e.actor})),truncated:auditTruncated},
+  commercial:{subscription,billingInvoices:invoices},
   usage:{eventCount:usage._count._all,quantity:usage._sum.quantity??0,estimatedCostUsd:usage._sum.estimatedCostUsd??0,costIsEstimate:true},
   retentionHolds:holds.map(h=>({...h,placedAt:h.placedAt.toISOString(),releasedAt:h.releasedAt?.toISOString()??null})),
   limitations:["This export is an evidence package, not a legal certification.","Usage cost is estimated, not an invoice.","Retention holds are recorded; automatic erasure is not enabled.","Audit records are capped at 10,000 per export; truncated is explicit."],
