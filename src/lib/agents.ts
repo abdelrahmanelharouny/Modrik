@@ -17,12 +17,15 @@ import ZAI from "z-ai-web-dev-sdk";
 import { z } from "zod";
 import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs"; // retained for direct SDK consumers; agent calls flow through providers.ts
 import { db } from "@/lib/db";
+import { PipelineJobLeaseLostError } from "@/lib/pipeline/job-queue.mjs";
 import { filterEvidenceForAI, isHumanStakeholderAnswer, hasHumanQuestionDecision, hasHumanCandidateEdits, evidenceContentBudget } from "@/lib/security/data-safety.mjs";
 import { logDecision } from "@/lib/journal";
 import { getProvider, type ChatMessage } from "@/lib/providers";
 import type { Stage } from "@/lib/rp";
 
 export const PROMPT_VERSION = "v2.1-audit";
+
+export type PipelineWriteGuard = (tx?: unknown) => Promise<void>;
 
 // ---------- LLM plumbing ----------
 
@@ -295,21 +298,25 @@ function repairTruncatedJson(text: string): string | null {
 }
 
 // Persist usage for the observatory (I13) — best-effort, never throws
-async function recordUsage(runId: string | undefined, u: UsageAcc) {
+async function recordUsage(runId: string | undefined, u: UsageAcc, guard?: PipelineWriteGuard) {
   if (!runId || u.calls === 0) return;
   try {
-    await db.pipelineRun.update({
-      where: { id: runId },
-      data: {
-        latencyMs: u.latencyMs,
-        estTokens: u.estTokens,
-        estCostUsd: +(u.estTokens * 0.0000006).toFixed(6), // blended $0.60 / 1M tokens (estimate)
-        promptVersion: PROMPT_VERSION,
-        log: u.provider ? `provider:${u.provider}` : undefined,
-      },
+    await db.$transaction(async (tx) => {
+      await guard?.(tx);
+      await tx.pipelineRun.update({
+        where: { id: runId },
+        data: {
+          latencyMs: u.latencyMs,
+          estTokens: u.estTokens,
+          estCostUsd: +(u.estTokens * 0.0000006).toFixed(6),
+          promptVersion: PROMPT_VERSION,
+          log: u.provider ? `provider:${u.provider}` : undefined,
+        },
+      });
     });
-  } catch {
-    /* ignore */
+  } catch (error) {
+    if (error instanceof PipelineJobLeaseLostError) throw error;
+    /* observability is best-effort */
   }
 }
 
@@ -371,7 +378,7 @@ export interface AgentQuestion {
   fallbackAssumption: string;
 }
 
-export async function runElicitation(projectId: string, runId?: string): Promise<void> {
+export async function runElicitation(projectId: string, runId?: string, guard?: PipelineWriteGuard): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { evidences: true },
@@ -406,6 +413,7 @@ Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "pr
   if (!qs.length) throw new Error("Elicitation returned no usable questions; the previous question set was preserved.");
 
   await db.$transaction(async (tx) => {
+    await guard?.(tx);
     await tx.question.deleteMany({ where: { projectId } });
     for (const [i, q] of qs.entries()) {
       await tx.question.create({
@@ -421,8 +429,8 @@ Return JSON: {"questions": [{"text": "...", "rationale": "why this matters", "pr
       });
     }
   });
-  await saveArtifact(projectId, "ELICITATION", out);
-  await recordUsage(runId, usage);
+  await saveArtifact(projectId, "ELICITATION", out, guard);
+  await recordUsage(runId, usage, guard);
 }
 
 // ---------- stage 2: PROBLEM_SELECTION ----------
@@ -435,7 +443,7 @@ export interface AgentCandidate {
   suggestedEffort: number;
 }
 
-export async function runProblemSelection(projectId: string, runId?: string): Promise<void> {
+export async function runProblemSelection(projectId: string, runId?: string, guard?: PipelineWriteGuard): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { evidences: true, questions: true },
@@ -473,6 +481,7 @@ Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCod
 
   const clamp = (n: unknown) => Math.min(5, Math.max(1, Math.round(Number(n) || 3)));
   await db.$transaction(async (tx) => {
+    await guard?.(tx);
     await tx.problemCandidate.deleteMany({ where: { projectId } });
     for (const candidate of cs) {
       await tx.problemCandidate.create({
@@ -488,8 +497,8 @@ Return JSON: {"candidates": [{"title": "...", "description": "...", "evidenceCod
       });
     }
   });
-  await saveArtifact(projectId, "PROBLEM_SELECTION", out);
-  await recordUsage(runId, usage);
+  await saveArtifact(projectId, "PROBLEM_SELECTION", out, guard);
+  await recordUsage(runId, usage, guard);
 }
 
 // ---------- stage 3: EXTRACTION (I2 confidence + I3 critic) ----------
@@ -509,7 +518,7 @@ interface Verdict {
   note: string;
 }
 
-export async function runExtraction(projectId: string, runId?: string): Promise<void> {
+export async function runExtraction(projectId: string, runId?: string, guard?: PipelineWriteGuard): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { evidences: true, questions: true, candidates: true },
@@ -561,6 +570,7 @@ Return JSON: {"requirements": [{"text": "...", "type": "functional|nonfunctional
   if (!rs.length) throw new Error("Extraction returned no requirements; the previous requirement set was preserved.");
   const refIndex: { refId: string; id: string; text: string; evidenceCodes: string[] }[] = [];
   await db.$transaction(async (tx) => {
+    await guard?.(tx);
     await tx.requirement.deleteMany({ where: { projectId } });
     let i = 0;
     for (const r of rs) {
@@ -632,25 +642,29 @@ ${verifierCases.join("\n\n---\n\n")}
 Return JSON: {"verdicts": [{"refId": "REQ-01", "verdict": "supported|weak", "note": "one-line justification"}]}`;
 
       const vOut = await callLLMJson<{ verdicts: Verdict[] }>(verifyPrompt, usage, verdictsOutputSchema);
-      for (const v of vOut.verdicts ?? []) {
-        const target = refIndex.find((r) => r.refId === v.refId);
-        if (!target || !target.evidenceCodes.length) continue;
-        await db.requirement.update({
-          where: { id: target.id },
-          data: {
-            verifyStatus: v.verdict === "supported" ? "supported" : "weak",
-            verificationSource: "agent",
-            verifyNote: String(v.note ?? "").slice(0, 400),
-          },
-        });
-      }
+      await db.$transaction(async (tx) => {
+        await guard?.(tx);
+        for (const v of vOut.verdicts ?? []) {
+          const target = refIndex.find((r) => r.refId === v.refId);
+          if (!target || !target.evidenceCodes.length) continue;
+          await tx.requirement.update({
+            where: { id: target.id },
+            data: {
+              verifyStatus: v.verdict === "supported" ? "supported" : "weak",
+              verificationSource: "agent",
+              verifyNote: String(v.note ?? "").slice(0, 400),
+            },
+          });
+        }
+      });
     }
-  } catch {
-    // verifier is best-effort; requirements stay "unverified" on failure
+  } catch (error) {
+    if (error instanceof PipelineJobLeaseLostError) throw error;
+    // verifier is best-effort; requirements stay "unverified" on provider failure
   }
 
-  await saveArtifact(projectId, "EXTRACTION", out);
-  await recordUsage(runId, usage);
+  await saveArtifact(projectId, "EXTRACTION", out, guard);
+  await recordUsage(runId, usage, guard);
 }
 
 // ---------- stage 4: AMBIGUITY (Arabic lexicon, G14) ----------
@@ -662,7 +676,7 @@ export interface AgentAssessment {
   suggestion: string;
 }
 
-export async function runAmbiguity(projectId: string, runId?: string): Promise<void> {
+export async function runAmbiguity(projectId: string, runId?: string, guard?: PipelineWriteGuard): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
@@ -683,21 +697,24 @@ Return JSON: {"assessments": [{"refId": "REQ-01", "score": 42, "issues": "vague 
   const out = await callLLMJson<{ assessments: AgentAssessment[] }>(prompt, usage, assessmentsOutputSchema);
   const map = new Map((out.assessments ?? []).map((a) => [a.refId, a]));
 
-  for (const r of project.reqs) {
-    const a = map.get(r.refId);
-    if (!a) continue;
-    const score = Math.min(100, Math.max(0, Math.round(Number(a.score) || 0)));
-    await db.requirement.update({
-      where: { id: r.id },
-      data: {
-        ambiguity: score,
-        ambiguityNote: String(a.issues ?? "").slice(0, 500),
-        suggestion: score >= 30 ? String(a.suggestion ?? "").slice(0, 800) : null,
-      },
-    });
-  }
-  await saveArtifact(projectId, "AMBIGUITY", out);
-  await recordUsage(runId, usage);
+  await db.$transaction(async (tx) => {
+    await guard?.(tx);
+    for (const r of project.reqs) {
+      const a = map.get(r.refId);
+      if (!a) continue;
+      const score = Math.min(100, Math.max(0, Math.round(Number(a.score) || 0)));
+      await tx.requirement.update({
+        where: { id: r.id },
+        data: {
+          ambiguity: score,
+          ambiguityNote: String(a.issues ?? "").slice(0, 500),
+          suggestion: score >= 30 ? String(a.suggestion ?? "").slice(0, 800) : null,
+        },
+      });
+    }
+  });
+  await saveArtifact(projectId, "AMBIGUITY", out, guard);
+  await recordUsage(runId, usage, guard);
 }
 
 // ---------- stage 5: STORIES (I9 Gherkin-ready) ----------
@@ -711,7 +728,7 @@ export interface AgentStory {
   investNote: string;
 }
 
-export async function runStories(projectId: string, runId?: string): Promise<void> {
+export async function runStories(projectId: string, runId?: string, guard?: PipelineWriteGuard): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
@@ -748,6 +765,7 @@ Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative
     throw new Error("Story generation returned no valid stories; the previous story set was preserved.");
   }
   await db.$transaction(async (tx) => {
+    await guard?.(tx);
     await tx.userStory.deleteMany({ where: { projectId } });
     let i = 0;
     for (const story of validStories) {
@@ -767,8 +785,8 @@ Return JSON: {"stories": [{"refId": "REQ-01", "title": "short title", "narrative
       });
     }
   });
-  await saveArtifact(projectId, "STORIES", out);
-  await recordUsage(runId, usage);
+  await saveArtifact(projectId, "STORIES", out, guard);
+  await recordUsage(runId, usage, guard);
 }
 
 // ---------- stage 6: CONFLICTS ----------
@@ -784,7 +802,7 @@ export interface AgentConflict {
   implications: { option: string; impact: string }[];
 }
 
-export async function runConflicts(projectId: string, runId?: string): Promise<void> {
+export async function runConflicts(projectId: string, runId?: string, guard?: PipelineWriteGuard): Promise<void> {
   const project = await db.project.findUniqueOrThrow({
     where: { id: projectId },
     include: { reqs: { orderBy: { order: "asc" } } },
@@ -823,6 +841,7 @@ Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "
 
   const TAXONOMIES = ["value", "terminology", "scale", "constraint", "precedence", "knowledge"];
   await db.$transaction(async (tx) => {
+    await guard?.(tx);
     await tx.conflict.deleteMany({ where: { projectId } });
     for (const conflict of (out.conflicts ?? []).slice(0, 6)) {
       const a = byRef.get(conflict.reqARef);
@@ -849,8 +868,8 @@ Return JSON: {"conflicts": [{"reqARef": "REQ-01", "reqBRef": "REQ-04", "kind": "
       });
     }
   });
-  await saveArtifact(projectId, "CONFLICTS", out);
-  await recordUsage(runId, usage);
+  await saveArtifact(projectId, "CONFLICTS", out, guard);
+  await recordUsage(runId, usage, guard);
 }
 
 // ---------- I7 synthetic stakeholder wind tunnel ----------
@@ -1122,30 +1141,33 @@ Return JSON: {"glossary": [{"term": "...", "definition": "..."}], "lessons": [{"
 
 // ---------- dispatcher ----------
 
-export async function runStageAgent(stage: Stage, projectId: string, runId?: string): Promise<void> {
+export async function runStageAgent(stage: Stage, projectId: string, runId?: string, guard?: PipelineWriteGuard): Promise<void> {
   switch (stage) {
     case "ELICITATION":
-      return runElicitation(projectId, runId);
+      return runElicitation(projectId, runId, guard);
     case "PROBLEM_SELECTION":
-      return runProblemSelection(projectId, runId);
+      return runProblemSelection(projectId, runId, guard);
     case "EXTRACTION":
-      return runExtraction(projectId, runId);
+      return runExtraction(projectId, runId, guard);
     case "AMBIGUITY":
-      return runAmbiguity(projectId, runId);
+      return runAmbiguity(projectId, runId, guard);
     case "STORIES":
-      return runStories(projectId, runId);
+      return runStories(projectId, runId, guard);
     case "CONFLICTS":
-      return runConflicts(projectId, runId);
+      return runConflicts(projectId, runId, guard);
   }
 }
 
-async function saveArtifact(projectId: string, stage: string, data: unknown): Promise<void> {
-  await db.artifact.create({
-    data: {
-      projectId,
-      stage,
-      kind: "json",
-      content: JSON.stringify(data).slice(0, 20000),
-    },
+async function saveArtifact(projectId: string, stage: string, data: unknown, guard?: PipelineWriteGuard): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await guard?.(tx);
+    await tx.artifact.create({
+      data: {
+        projectId,
+        stage,
+        kind: "json",
+        content: JSON.stringify(data).slice(0, 20000),
+      },
+    });
   });
 }
