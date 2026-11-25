@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
+import { assessArabicTranscriptQuality } from "@/lib/asr/arabic-transcript-quality.mjs";
 
 // I5 multimodal intake — voice notes: in-browser audio capture
 // arrives as base64 (MediaRecorder webm/wav); the GLM ASR service
@@ -44,7 +45,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const audio = String(body.audio ?? "");
-    const expectedLanguage = String(body.expectedLanguage ?? "").trim();
+    const rawLanguage = String(body.expectedLanguage ?? "").trim();
+    const expectedLanguage = ["ar-EG", "codeswitch", "en"].includes(rawLanguage) ? rawLanguage : "";
     if (!audio) {
       return NextResponse.json({ error: "Audio payload (base64) is required" }, { status: 400 });
     }
@@ -85,7 +87,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ text, warning });
+    const quality = assessArabicTranscriptQuality({ text, expectedLanguage: expectedLanguage || "unspecified" });
+    if (quality.reviewRequired && !warning) {
+      warning = "The transcript needs a quick quality review before saving. Check the flagged language, repetition or short-clip signals.";
+    }
+    return NextResponse.json({ text, warning, quality });
   } catch (err) {
     return NextResponse.json(
       { error: String(err instanceof Error ? err.message : err).slice(0, 400) },
