@@ -389,7 +389,7 @@ export function ElicitationStage({
           : "Stored in the project library, but its content is excluded from AI analysis until permission is recorded.",
       });
       if (asrFeedbackSaved) {
-        toast({ title: "ASR correction shared", description: "A text-only, de-identified Egyptian Arabic correction pair was saved under your separate consent." });
+        toast({ title: "ASR correction shared", description: "A text-only, contact-redacted Egyptian Arabic correction pair was saved under your separate consent." });
       }
     } catch (e) {
       const error = e as Error;
@@ -594,7 +594,7 @@ export function ElicitationStage({
                         </Label>
                       </div>
                       <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                        Optional and separate from AI-processing permission. Email addresses and Egyptian mobile numbers are redacted before storage. Unchecking this means no correction sample is retained.
+                        Optional and separate from AI-processing permission. Email addresses and Egyptian mobile numbers are redacted before storage; remove names or other identifiers yourself. This is not full anonymization. Unchecking this means no correction sample is retained.
                       </p>
                     </div>
                   )}
