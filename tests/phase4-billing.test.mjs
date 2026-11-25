@@ -80,7 +80,7 @@ test("Stripe API client uses server secret, idempotency and rejects provider err
   assert.equal(request.init.headers.Authorization,"Bearer sk_test_unit");
   assert.equal(request.init.headers["Idempotency-Key"],"idem-1");
   assert.equal(request.init.body,"mode=subscription");
-  await assert.rejects(()=>stripeApiRequest("checkout/sessions",{secretKey:"sk_test_unit",fetchImpl:async()=>({ok:false,json:async()=>({error:{message:"card declined"}})})}),/STRIPE_API_400/);
+  await assert.rejects(()=>stripeApiRequest("checkout/sessions",{secretKey:"sk_test_unit",fetchImpl:async()=>({ok:false,status:400,json:async()=>({error:{message:"card declined"}})})}),/STRIPE_API_400/);
   await assert.rejects(()=>stripeApiRequest("checkout/sessions",{secretKey:"invalid"}),/STRIPE_SECRET_KEY/);
 });
 
