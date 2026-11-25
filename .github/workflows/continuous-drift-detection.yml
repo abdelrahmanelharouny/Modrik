@@ -27,16 +27,24 @@ jobs:
       DRIFT_SWEEP_MAX_REVISIONS: "250"
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-      - name: Generate Prisma client
-        run: bunx prisma generate
-      - name: Enqueue continuous drift checks
+      - id: preflight
+        name: Check database configuration
         shell: bash
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "::warning::DATABASE_URL secret is not configured; drift sweep was not run."
-            exit 0
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Set DATABASE_URL to activate scheduled continuous drift detection."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
-          bun scripts/run-continuous-drift-sweep.ts
+      - uses: oven-sh/setup-bun@v2
+        if: steps.preflight.outputs.configured == 'true'
+      - name: Install dependencies
+        if: steps.preflight.outputs.configured == 'true'
+        run: bun install --frozen-lockfile
+      - name: Generate Prisma client
+        if: steps.preflight.outputs.configured == 'true'
+        run: bunx prisma generate
+      - name: Enqueue continuous drift checks
+        if: steps.preflight.outputs.configured == 'true'
+        run: bun scripts/run-continuous-drift-sweep.ts
