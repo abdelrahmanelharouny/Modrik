@@ -557,7 +557,7 @@ export function ElicitationStage({
                         <SelectItem value="whiteboard_ocr">Whiteboard OCR</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={language} onValueChange={setLanguage}>
+                    <Select value={language} onValueChange={(value) => { setLanguage(value); setAsrResearchConsent(false); }}>
                       <SelectTrigger aria-label="Language">
                         <SelectValue />
                       </SelectTrigger>
