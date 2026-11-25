@@ -361,7 +361,7 @@ export async function PATCH(req: NextRequest) {
           select: { id: true, projectId: true, nodeRef: true, status: true, kind: true, label: true, description: true, confidence: true, updatedAt: true, origin: true, owner: true },
         });
         if (nodes.length !== ids.length) return { kind: "conflict" as const };
-        const updatedNodes = [];
+        const updatedNodes: (typeof nodes)[number][] = [];
         for (const node of nodes) {
           const transition = resolveOrganizationMemoryTransition("archive", node.status);
           if (!transition) return { kind: "conflict" as const };
