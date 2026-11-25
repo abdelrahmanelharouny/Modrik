@@ -48,6 +48,19 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
   if (route === "audit/export") {
     return method === "GET" || method === "HEAD" ? "audit:read" : "organization:manage";
   }
+  if (route === "agent-evaluation") {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    const action = body && typeof body === "object" ? String((body as Record<string, unknown>).action ?? "") : "";
+    return action === "results" ? "requirements:approve" : "requirements:review";
+  }
+  if (route === "planner/feedback") {
+    if (method === "GET" || method === "HEAD") return "requirements:review";
+    const action = body && typeof body === "object" ? String((body as Record<string, unknown>).action ?? "") : "";
+    return action === "results" ? "requirements:approve" : "requirements:review";
+  }
+  if (route === "planner") {
+    return method === "GET" || method === "HEAD" ? "requirements:approve" : "requirements:write";
+  }
   if (route === "traceability/reverse") {
     return method === "GET" || method === "HEAD" ? "projects:read" : "requirements:review";
   }
@@ -144,7 +157,10 @@ export async function proxy(request: NextRequest) {
       if (!project || project.organizationId !== identity.organizationId) {
         return applySecurityHeaders(NextResponse.json({ error: "Project not found" }, { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } }));
       }
-      const permissionBody = pathname.endsWith("/stakeholders") && request.method === "PATCH"
+      const permissionBody = (
+        (pathname.endsWith("/stakeholders") && request.method === "PATCH") ||
+        ((pathname.endsWith("/planner/feedback") || pathname.endsWith("/agent-evaluation")) && request.method === "POST")
+      )
         ? await request.clone().json().catch(() => null)
         : undefined;
       const permission = projectPermission(pathname, request.method, permissionBody);
