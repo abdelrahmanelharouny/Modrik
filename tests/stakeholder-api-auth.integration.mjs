@@ -1267,7 +1267,7 @@ try {
     assert.equal(recovered.lease.fencingToken, firstToken + 2);
     await contenderPage.close();
 
-    page.on("pageerror", error => browserDiagnostics.pageErrors.push(error.message));
+    page.on("pageerror", error => browserDiagnostics.pageErrors.push(error.stack ?? error.message));
     page.on("requestfailed", request => browserDiagnostics.failedRequests.push({ url: request.url(), error: request.failure()?.errorText }));
     page.on("response", async response => {
       if (response.url().includes("/api/projects")) {
