@@ -1,4 +1,4 @@
-const ALLOWED_SOURCES = new Set(["github", "jira", "manual"]);
+const ALLOWED_SOURCES = new Set(["github", "jira", "manual", "scheduled"]);
 const ALLOWED_TRIAGE = Object.freeze({
   confirm: Object.freeze({ from: ["pending"], to: "confirmed" }),
   dismiss: Object.freeze({ from: ["pending", "confirmed"], to: "dismissed" }),
