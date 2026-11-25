@@ -66,7 +66,7 @@ export function createPlannerHumanReviewPacket(runs, options = {}) {
   const packet = {
     packetId, schemaVersion: 1, rubricVersion: PLANNER_HUMAN_RUBRIC_VERSION, experimentId,
     context: { brief, evidence }, sets, dimensions: PLANNER_HUMAN_DIMENSIONS,
-    blinding: "Arm names, model/provider, utility values, gold labels and candidate-pool metadata are withheld from raters.",
+    blinding: "Arm identities, model/provider, scoring metadata, gold labels and candidate-pool details are withheld from raters.",
   };
   return { packet, answerKey, packetSha256: digest(JSON.stringify(packet)) };
 }
