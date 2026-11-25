@@ -36,3 +36,29 @@ export function isRetentionEligible(input = {}) {
   if (input.held === true) return false;
   return createdAt.getTime() <= now.getTime() - days * 86_400_000;
 }
+
+/**
+ * Re-check organization AI governance inside the worker, not only at the HTTP
+ * proxy. Webhooks, cron sweeps and already-queued jobs bypass the browser path.
+ * A missing policy uses the documented legacy-safe defaults for existing orgs.
+ */
+export function assertOrganizationAiProviderAllowed(policy, provider) {
+  const selected = typeof provider === "string" ? provider.trim() : "";
+  if (!selected) throw new Error("403 ORGANIZATION_AI_PROVIDER_UNCONFIGURED");
+  if (!policy) return true;
+  if (policy.aiProcessingAllowed !== true) {
+    throw new Error("403 ORGANIZATION_AI_PROCESSING_DISABLED");
+  }
+  let permitted;
+  try {
+    permitted = Array.isArray(policy.permittedAiProviders)
+      ? policy.permittedAiProviders
+      : JSON.parse(String(policy.permittedAiProviders ?? "[]"));
+  } catch {
+    throw new Error("403 ORGANIZATION_AI_POLICY_INVALID");
+  }
+  if (!Array.isArray(permitted) || !permitted.includes(selected)) {
+    throw new Error("403 ORGANIZATION_AI_PROVIDER_NOT_PERMITTED");
+  }
+  return true;
+}

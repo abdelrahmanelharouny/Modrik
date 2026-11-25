@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { evaluateOrganizationEntitlements, resolveOrganizationPlan } from "../src/lib/phase4/plans.mjs";
 import { compareBaselineSnapshots } from "../src/lib/phase4/baseline-diff.mjs";
-import { isRetentionEligible, validateOrganizationPolicyPatch } from "../src/lib/phase4/retention.mjs";
+import { assertOrganizationAiProviderAllowed, isRetentionEligible, validateOrganizationPolicyPatch } from "../src/lib/phase4/retention.mjs";
 import { buildCompliancePackage } from "../src/lib/phase4/compliance-package.mjs";
 import { resolveOrganizationRoutePermission } from "../src/lib/security/organization-route-access.mjs";
 
@@ -118,4 +118,16 @@ test("organization portfolio and compliance exports disclose estimate and trunca
   assert.match(usage, /metering_only/);
   assert.match(compliance, /auditTruncated/);
   assert.match(compliance, /not a legal certification/i);
+});
+
+test("AI governance is re-enforced inside the durable worker for queued, webhook and cron jobs", () => {
+  const retention = fs.readFileSync(new URL("../src/lib/phase4/retention.mjs", import.meta.url), "utf8");
+  const worker = fs.readFileSync(new URL("../scripts/run-pipeline-worker.ts", import.meta.url), "utf8");
+  assert.equal(assertOrganizationAiProviderAllowed(null, "glm"), true);
+  assert.equal(assertOrganizationAiProviderAllowed({ aiProcessingAllowed: true, permittedAiProviders: '["zai","glm"]' }, "glm"), true);
+  assert.throws(() => assertOrganizationAiProviderAllowed({ aiProcessingAllowed: false, permittedAiProviders: '["glm"]' }, "glm"), /403 ORGANIZATION_AI_PROCESSING_DISABLED/);
+  assert.throws(() => assertOrganizationAiProviderAllowed({ aiProcessingAllowed: true, permittedAiProviders: '["zai"]' }, "glm"), /403 ORGANIZATION_AI_PROVIDER_NOT_PERMITTED/);
+  assert.throws(() => assertOrganizationAiProviderAllowed({ aiProcessingAllowed: true, permittedAiProviders: "invalid" }, "glm"), /403 ORGANIZATION_AI_POLICY_INVALID/);
+  assert.match(retention, /assertOrganizationAiProviderAllowed/);
+  assert.match(worker, /await assertProjectAiPolicy\(job\.projectId\)/);
 });

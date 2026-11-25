@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { analyzeDrift, runStageAgent } from "@/lib/agents";
+import { assertOrganizationAiProviderAllowed } from "@/lib/phase4/retention.mjs";
 import { ARMS, runPlanner, type PlannerArm } from "@/lib/planner";
 import { STAGES, type Stage } from "@/lib/rp";
 import {
@@ -104,6 +105,21 @@ async function heartbeat(job:AgentJob,lost:{value:boolean}){
   }
 }
 type DriftResult={summary:string;requirements:Array<{refId:string;note:string}>};
+
+/**
+ * Final tenant-policy gate inside the durable worker. This covers queued jobs
+ * from scheduled sweeps and signed provider webhooks as well as normal requests.
+ */
+async function assertProjectAiPolicy(projectId:string) {
+  const project = await db.project.findUnique({ where:{id:projectId}, select:{organizationId:true} });
+  if (!project?.organizationId) return; // legacy unassigned projects retain the bootstrap policy.
+  const policy = await db.organizationPolicy.findUnique({
+    where:{organizationId:project.organizationId},
+    select:{aiProcessingAllowed:true,permittedAiProviders:true},
+  });
+  const provider = process.env.RP_LLM_PROVIDER?.trim() || "glm";
+  assertOrganizationAiProviderAllowed(policy, provider);
+}
 async function completeJob(job:AgentJob,impactResult?:DriftResult){
   await db.$transaction(async tx=>{
     await guardLease(job,tx);
@@ -189,6 +205,7 @@ async function executeJob(job:AgentJob,workerId:string){
   const guard=(tx?:unknown)=>{if(lost.value)return Promise.reject(new PipelineJobLeaseLostError());return guardLease(job,tx);};
   try{
     await guard();
+    await assertProjectAiPolicy(job.projectId);
     if(job.jobKind==="change_impact"){
       const payload=JSON.parse(job.payload||"{}") as {signal?:string};
       if(typeof payload.signal!=="string"||!payload.signal.trim())throw new Error("Change-impact job has no valid signal.");
