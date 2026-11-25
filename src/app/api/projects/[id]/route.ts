@@ -20,8 +20,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       reqs: { orderBy: { order: "asc" }, include: { links: { select: { id: true, evidenceId: true, evidenceCode: true, note: true } } } },
       stories: { orderBy: { refId: "asc" } },
       conflicts: { include: { reqA: true, reqB: true } },
-      // Project DTO needs artifact metadata only. Human-evaluation packets, coordinator keys and rating payloads must never be serialized through this broad project reader.
-      artifacts: { orderBy: { createdAt: "desc" }, select: { id: true, stage: true, kind: true, createdAt: true } },
+      // Preserve ordinary artifact content for existing project views, but never expose reviewer packets, coordinator keys, submitted ratings or separately consented ASR research text through the broad project reader.
+      artifacts: {
+        where: { kind: { notIn: ["planner_human_eval_packet", "planner_human_eval_key", "planner_human_eval_review", "agent_human_eval_review", "asr_human_correction"] } },
+        orderBy: { createdAt: "desc" },
+      },
       decisions: { orderBy: { createdAt: "desc" }, take: 200 },
       runs: { orderBy: { createdAt: "desc" }, take: 50 },
     },
