@@ -20,7 +20,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       reqs: { orderBy: { order: "asc" }, include: { links: { select: { id: true, evidenceId: true, evidenceCode: true, note: true } } } },
       stories: { orderBy: { refId: "asc" } },
       conflicts: { include: { reqA: true, reqB: true } },
-      artifacts: { orderBy: { createdAt: "desc" } },
+      // Project DTO needs artifact metadata only. Human-evaluation packets, coordinator keys and rating payloads must never be serialized through this broad project reader.
+      artifacts: { orderBy: { createdAt: "desc" }, select: { id: true, stage: true, kind: true, createdAt: true } },
       decisions: { orderBy: { createdAt: "desc" }, take: 200 },
       runs: { orderBy: { createdAt: "desc" }, take: 50 },
     },
