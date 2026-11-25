@@ -36,7 +36,7 @@ Phase 4 moves Modrik from a capable project workspace toward a multi-organizatio
 ### Governance and compliance
 - Organization policy for evidence/data/audit retention windows, AI-processing enablement, permitted AI providers and default locale.
 - AI routes are denied when processing is disabled or the configured provider is not allow-listed.
-- Retention holds are scoped to verified organization resources and audited on placement/release.
+- Retention holds are scoped to the verified organization and owning project, and audited on placement/release. Project deletion is blocked while any descendant hold remains active; evidence and requirement deletion are blocked by either a project-wide or exact-resource hold. Hold creation, release, and the destructive checks are transactional.
 - SHA-256 manifested enterprise JSON package includes organization roster, project portfolio, baseline hashes, audit stream, usage totals and retention holds.
 - Export explicitly states caps, truncation and legal limitations.
 

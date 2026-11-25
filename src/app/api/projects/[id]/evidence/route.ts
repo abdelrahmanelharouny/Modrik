@@ -326,7 +326,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const project = await db.project.findUnique({
     where: { id },
-    select: { id: true, stageStatus: true },
+    select: { id: true, organizationId: true, stageStatus: true },
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
   if (["agent_running", "approving"].includes(project.stageStatus)) {

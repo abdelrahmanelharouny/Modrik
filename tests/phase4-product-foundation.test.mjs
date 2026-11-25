@@ -149,3 +149,28 @@ test("retention holds are project-scoped and destructive APIs enforce active hol
   assert.match(policyRoute, /projectId,resourceType,resourceId/);
   assert.match(policyRoute, /isolationLevel:"Serializable"/);
 });
+
+test("retention hold lookup scopes destructive actions to the exact organization and project", async () => {
+  let seen;
+  const client = { retentionHold: { findFirst: async (args) => { seen = args; return null; } } };
+  await findActiveResourceRetentionHold(client, "org-1", "project-1", "evidence", "evidence-1");
+  assert.equal(seen.where.organizationId, "org-1");
+  assert.equal(seen.where.projectId, "project-1");
+  assert.deepEqual(seen.where.OR, [
+    { resourceType: "project", resourceId: "project-1" },
+    { resourceType: "evidence", resourceId: "evidence-1" },
+  ]);
+  await findActiveProjectRetentionHold(client, "org-1", "project-1");
+  assert.deepEqual(seen.where, { organizationId: "org-1", projectId: "project-1", releasedAt: null });
+});
+
+test("project deletion is blocked by any active descendant hold and evidence/requirement deletion is blocked by targeted or project holds", () => {
+  const project = fs.readFileSync(new URL("../src/app/api/projects/[id]/route.ts", import.meta.url), "utf8");
+  const evidence = fs.readFileSync(new URL("../src/app/api/projects/[id]/evidence/route.ts", import.meta.url), "utf8");
+  const items = fs.readFileSync(new URL("../src/app/api/projects/[id]/items/route.ts", import.meta.url), "utf8");
+  assert.match(project, /findActiveProjectRetentionHold\(tx, project\.organizationId, id\)/);
+  assert.match(project, /RETENTION_HOLD_ACTIVE/);
+  assert.match(evidence, /findActiveResourceRetentionHold\(tx, project\.organizationId, id, "evidence", evidence\.id\)/);
+  assert.match(items, /kind === "requirement" \? "requirement" : null/);
+  assert.match(items, /isolationLevel: "Serializable"/);
+});
