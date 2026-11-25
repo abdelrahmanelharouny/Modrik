@@ -37,7 +37,6 @@ async function main() {
   }
   let queued = 0, duplicates = 0, skipped = 0;
   for (const revision of revisions) {
-  for (const revision of revisions) {
     const evidence = revision.evidence, project = evidence?.project;
     if (!project || project.status === "archived" || !project.reqs.length || !revision.content.trim()) { skipped += 1; continue; }
     const signal = [
