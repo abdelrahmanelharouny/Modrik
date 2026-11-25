@@ -55,6 +55,8 @@ model Organization {
   subscription OrganizationSubscription?
   policy OrganizationPolicy?
   retentionHolds RetentionHold[]
+  billingEvents BillingEvent[]
+  billingInvoices BillingInvoice[]
 
   @@index([status, createdAt])
 }
@@ -1150,4 +1152,48 @@ model RetentionHold {
   @@index([organizationId, resourceType, resourceId, releasedAt])
   @@index([organizationId, projectId, releasedAt])
   @@index([organizationId, placedAt])
+}
+
+
+// Stripe webhook event ledger. Provider event IDs are globally unique and
+// make retries safe; only a payload hash and normalized metadata are retained.
+model BillingEvent {
+  id              String   @id @default(cuid())
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  provider        String   @default("stripe")
+  providerEventId String   @unique
+  eventType       String
+  payloadHash     String
+  processingState String   @default("processed") // processed | ignored
+  processedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([provider, eventType, createdAt])
+}
+
+// Normalized invoice projection; Stripe remains the payment/tax authority.
+model BillingInvoice {
+  id                String   @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  provider          String   @default("stripe")
+  externalInvoiceId String   @unique
+  invoiceNumber     String?
+  status            String
+  currency          String   @default("usd")
+  amountDue         Int      @default(0)
+  amountPaid        Int      @default(0)
+  hostedInvoiceUrl  String?
+  invoicePdfUrl     String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  issuedAt          DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([organizationId, issuedAt, id])
+  @@index([organizationId, status, issuedAt])
 }

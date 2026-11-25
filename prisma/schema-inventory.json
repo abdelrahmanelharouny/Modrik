@@ -8,12 +8,12 @@
     "sqlite": {
       "provider": "sqlite",
       "schemaPath": "prisma/schema.prisma",
-      "sha256": "50e507e754b4701f80c0c9364c2fe9de9e6392c7733c0e5a08dfd829146bc769"
+      "sha256": "13ed96639e995dbc6f67593200000000510e527f9b05688c1f83d9ab5be0cd19"
     },
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "8e05c337f28c1bd7914c9ca6f5bdda431de17a4e7675a7ba19d88de09b7a74a6"
+      "sha256": "f8c03f69e4312359bb79441900000000510e527f9b05688c1f83d9ab5be0cd19"
     }
   },
   "models": [
@@ -69,6 +69,8 @@
     "UsageEvent",
     "OrganizationSubscription",
     "OrganizationPolicy",
-    "RetentionHold"
+    "RetentionHold",
+    "BillingEvent",
+    "BillingInvoice"
   ]
 }
