@@ -155,7 +155,7 @@ export function PlannerHumanEvaluation({ projectId }: { projectId: string }) {
             {report && <pre className="max-h-72 overflow-auto rounded-md border border-border p-3 text-[10px] whitespace-pre-wrap">{JSON.stringify(report, null, 2)}</pre>}
           </>
         )}
-        {status && <p className="text-xs text-muted-foreground" role="status">{status}</p>
+        {status && <p className="text-xs text-muted-foreground" role="status">{status}</p>}
         {error && <p className="text-xs text-destructive" role="alert">{error}</p>}
         <p className="text-[10px] leading-4 text-muted-foreground">The packet includes only evidence with explicit AI consent. Ratings are descriptive for one experiment; do not claim statistical superiority from a single four-arm run.</p>
       </CardContent>
