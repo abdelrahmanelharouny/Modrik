@@ -35,3 +35,15 @@ test("analysis requires two complete raters and reports descriptive arm metrics"
   assert.equal(report.inference, "descriptive-only"); assert.equal(Object.keys(report.byArm).length, 4);
   assert.throws(() => analyzePlannerHumanRatings(packet, answerKey, [make(0)]), /Exactly two/);
 });
+
+
+test("four-arm single-experiment ratings withhold weighted kappa as insufficient", () => {
+  const { packet, answerKey } = createPlannerHumanReviewPacket(runs, { packetId: "packet-small" });
+  const make = (value) => ({ ratings: packet.sets.map((set) => ({
+    blindId: set.blindId, scores: scores(value), notes: "",
+  })) });
+  const report = analyzePlannerHumanRatings(packet, answerKey, [make(4), make(4)]);
+  assert.equal(report.interRater.overall.n, 4);
+  assert.equal(report.interRater.overall.weightedKappa, null);
+  assert.equal(report.interRater.overall.reliabilityStatus, "insufficient-independent-items");
+});
