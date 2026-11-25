@@ -8,12 +8,12 @@
     "sqlite": {
       "provider": "sqlite",
       "schemaPath": "prisma/schema.prisma",
-      "sha256": "896248397fd45fdc56e3b1b16e9e3133eea839956018c1063739d44cee28fdfa"
+      "sha256": "d5b0f2faab23d0bd1d536c3b6754b13119f74ded5bb6a4faf95ef3604bb9d536"
     },
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "3755b1d45338c6e576819dfc1ae9b8ce0733d3ad7e9aa6af657f14294e273fdb"
+      "sha256": "bc3d2fce66859629c7bf4d5b1abb9fc94d6d560df01d3667d21f7da49ce5ae40"
     }
   },
   "models": [
@@ -47,6 +47,7 @@
     "ProblemCandidate",
     "Artifact",
     "PipelineRun",
+    "AgentJob",
     "Requirement",
     "RequirementQualityAssessment",
     "TraceLink",
