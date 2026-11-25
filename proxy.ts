@@ -71,7 +71,7 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
     return "requirements:write";
   }
   if (route === "compliance" && method !== "GET") return "requirements:review";
-  if (route === "drift" && method === "DELETE") return "requirements:review";
+  if (route === "drift" && (method === "DELETE" || method === "PATCH")) return "requirements:review";
   if (method === "GET" || method === "HEAD") return "projects:read";
   return "requirements:write";
 }
