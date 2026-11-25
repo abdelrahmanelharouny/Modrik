@@ -122,7 +122,7 @@ export function MissionControl({
 
   const loadLibrary = (signal?: AbortSignal) => {
     api<{ missions: LibraryEntry[]; total: number }>("/api/missions", { signal })
-      .then((d) => setLibrary(d.missions))
+      .then((d) => setLibrary(Array.isArray(d?.missions) ? d.missions : []))
       .catch(() => {
         if (!signal?.aborted) setLibrary([]);
       });
