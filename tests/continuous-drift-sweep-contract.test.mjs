@@ -15,3 +15,11 @@ test("continuous drift workflow is scheduled hourly and fails safe without DB co
   assert.match(workflow, /if \[ -z "\$DATABASE_URL" \]/);
   assert.match(workflow, /bun scripts\/run-continuous-drift-sweep\.ts/);
 });
+
+
+test("continuous drift scans newest revisions and filters already-enqueued idempotency keys", () => {
+  assert.match(source, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+  assert.match(source, /db\.agentJob\.findMany\([\s\S]*?idempotencyKey: \{ in: chunk \}/);
+  assert.match(source, /if \(existingKeys\.has\(idempotencyKey\)\)/);
+  assert.match(source, /if \(queued >= maxRevisions\) break/);
+});
