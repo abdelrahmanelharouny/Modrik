@@ -36,6 +36,7 @@ export function PlannerHumanEvaluation({ projectId }: { projectId: string }) {
   const [ratings, setRatings] = useState<RatingRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [report, setReport] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
 
   const emptyScores = useMemo(() => Object.fromEntries(DIMENSIONS.map(([key]) => [key, 0])) as Record<Dimension, number>, []);
@@ -56,6 +57,7 @@ export function PlannerHumanEvaluation({ projectId }: { projectId: string }) {
         method: "POST", body: JSON.stringify({ action: "create_packet", experimentId }),
       });
       setPacket(result.packet);
+      setReport(null);
       setRatings(result.packet.sets.map((set) => ({ blindId: set.blindId, scores: { ...emptyScores }, notes: "" })));
       setStatus(result.existing ? "Existing blinded packet loaded. Another independent reviewer can use this same packet." : "Blinded packet created. Submit one independent review; a second reviewer must submit separately.");
     } catch (cause) {
@@ -70,6 +72,21 @@ export function PlannerHumanEvaluation({ projectId }: { projectId: string }) {
   const updateNotes = (blindId: string, notes: string) => {
     setRatings((current) => current.map((row) => row.blindId === blindId ? { ...row, notes } : row));
   };
+  const analyze = async () => {
+    if (!packet) return;
+    setBusy(true); setError("");
+    try {
+      const result = await api<{ report: Record<string, unknown> }>("/api/projects/" + projectId + "/planner/feedback", {
+        method: "POST", body: JSON.stringify({ action: "results", packetId: packet.packetId }),
+      });
+      setReport(result.report);
+      setStatus("Both independent reviews are unblinded for an approver. Results are descriptive for this one experiment.");
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(message); toast({ title: "Planner analysis unavailable", description: message, variant: "destructive" });
+    } finally { setBusy(false); }
+  };
+
   const submit = async () => {
     if (!packet) return;
     const complete = ratings.length === packet.sets.length && ratings.every((row) => DIMENSIONS.every(([key]) => Number.isInteger(row.scores[key]) && row.scores[key] >= 1 && row.scores[key] <= 5));
@@ -133,10 +150,12 @@ export function PlannerHumanEvaluation({ projectId }: { projectId: string }) {
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => void submit()} disabled={busy}>{busy ? "Submitting…" : "Submit independent review"}</Button>
               <Button size="sm" variant="outline" onClick={() => setPacket(null)} disabled={busy}>Reload packet</Button>
+              <Button size="sm" variant="outline" onClick={() => void analyze()} disabled={busy}>Approver: analyze two reviews</Button>
             </div>
+            {report && <pre className="max-h-72 overflow-auto rounded-md border border-border p-3 text-[10px] whitespace-pre-wrap">{JSON.stringify(report, null, 2)}</pre>}
           </>
         )}
-        {status && <p className="text-xs text-muted-foreground" role="status">{status}</p>}
+        {status && <p className="text-xs text-muted-foreground" role="status">{status}</p>
         {error && <p className="text-xs text-destructive" role="alert">{error}</p>}
         <p className="text-[10px] leading-4 text-muted-foreground">The packet includes only evidence with explicit AI consent. Ratings are descriptive for one experiment; do not claim statistical superiority from a single four-arm run.</p>
       </CardContent>
