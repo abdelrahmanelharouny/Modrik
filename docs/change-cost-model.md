@@ -36,7 +36,7 @@ Human tracker-to-requirement mappings write a structured decision entry in the s
 
 The estimator returns a per-requirement decomposition: depth weight, typed-relation weight, base exposure, risk multiplier, risk uplift, final contribution and exact risk/uncertainty reasons. Missing or unknown priority, ambiguity, drift and verification states are surfaced. Graph depths beyond the calibrated weight table and unknown/missing relation provenance are explicitly marked as extrapolated/defaulted. Missing-signal coverage counts each input dimension once; multiple unknown relation labels cannot inflate the uncertainty percentage. The planning band widens deterministically from 20% up to 50% as the share of missing input signals increases.
 
-This is a coverage-sensitive heuristic, not a confidence interval, probability, or validated forecast. Historical calibration and an operator-facing UI remain required before operational use.
+This remains a coverage-sensitive heuristic, not a confidence interval, probability, or validated forecast. The operator-facing v3 calibration UI and temporal holdout reporting are implemented; representative completed-change observations and external validation remain required before operational use.
 
 ## Observed-work calibration workflow — v3 temporal evaluation
 
