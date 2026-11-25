@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim().slice(0, 100);
   const where = { organizationId: identity.organizationId, status: { not: "archived" }, ...(q ? { name: { contains: q } } : {}) };
   const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0,0,0,0);
-  const [projects, totalProjects, activeProjects, completedProjects, deadJobs, pendingFindings, subscription, monthlyUsage, activeMembers] = await Promise.all([
+  const [projects, totalProjects, activeProjects, completedProjects, deadJobs, pendingFindings, subscription, monthlyUsage, activeMembers, projectUsage] = await Promise.all([
     db.project.findMany({
       where, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: limit,
       select: {
@@ -39,12 +39,13 @@ export async function GET(req: NextRequest) {
     db.organizationSubscription.findUnique({ where: { organizationId: identity.organizationId }, select: { planKey: true, status: true, currentPeriodEnd: true } }),
     db.usageEvent.aggregate({ where: { organizationId: identity.organizationId, occurredAt: { gte: monthStart } }, _sum: { quantity: true, estimatedCostUsd: true }, _count: { _all: true } }),
     db.membership.count({ where: { organizationId: identity.organizationId, status: "active", user: { status: "active" } } }),
+    db.usageEvent.groupBy({ by: ["projectId"], where: { organizationId: identity.organizationId, occurredAt: { gte: monthStart }, projectId: { not: null } }, _sum: { quantity: true, estimatedCostUsd: true }, _count: { _all: true }, orderBy: { _sum: { quantity: "desc" } }, take: 50 }),
   ]);
   const entitlements = evaluateOrganizationEntitlements({ planKey: subscription?.planKey ?? "free", monthlyTokens: monthlyUsage._sum.quantity ?? 0, activeMembers, activeProjects: totalProjects });
   return NextResponse.json({
     generatedAt: new Date().toISOString(),
     summary: { totalProjects, activeProjects, completedProjects, deadJobs, pendingFindings, activeMembers },
-    usage: { monthlyTokens: monthlyUsage._sum.quantity ?? 0, estimatedCostUsd: monthlyUsage._sum.estimatedCostUsd ?? 0, events: monthlyUsage._count._all },
+    usage: { monthlyTokens: monthlyUsage._sum.quantity ?? 0, estimatedCostUsd: monthlyUsage._sum.estimatedCostUsd ?? 0, events: monthlyUsage._count._all, projectUsage: projectUsage.map(row => ({ projectId: row.projectId, quantity: row._sum.quantity ?? 0, estimatedCostUsd: row._sum.estimatedCostUsd ?? 0, events: row._count._all })) },
     subscription: subscription ?? { planKey: "free", status: "active", currentPeriodEnd: null },
     entitlements,
     projects: projects.map(p => ({

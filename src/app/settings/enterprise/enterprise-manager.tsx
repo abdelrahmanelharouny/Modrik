@@ -8,6 +8,8 @@ import { ArrowLeft, Building2, ChartNoAxesCombined, ClipboardCheck, Download, Re
 type Project={id:string;name:string;status:string;currentStage:string;stageStatus:string;progress:number;_count:{evidences:number;reqs:number;stories:number;conflicts:number;stakeholders:number;baselineSnapshots:number}};
 type Baseline={id:string;version:number;label:string;contentHash:string;requirementCount:number;storyCount:number;conflictCount:number;createdAt:string};
 type Policy={dataRetentionDays:number;evidenceRetentionDays:number;auditRetentionDays:number;aiProcessingAllowed:boolean;permittedAiProviders:string[];defaultLocale:string};
+type Hold={id:string;resourceType:string;resourceId:string;reason:string;placedAt:string};
+type Usage={projectUsage:Array<{projectId:string;quantity:number;estimatedCostUsd:number;events:number}>;totals:{quantity:number;estimatedCostUsd:number;events:number}};
 type Portfolio={summary:{totalProjects:number;completedProjects:number;activeMembers:number;pendingFindings:number;deadJobs:number};usage:{monthlyTokens:number;estimatedCostUsd:number};subscription:{planKey:string;status:string};entitlements:{limits:{monthlyTokens:number;members:number;projects:number}};projects:Project[]};
 async function call<T,>(url:string,init?:RequestInit):Promise<T>{
  const response=await fetch(url,{...init,cache:"no-store",credentials:"same-origin",headers:{"Content-Type":"application/json",...(init?.headers??{})}});
@@ -17,22 +19,25 @@ async function call<T,>(url:string,init?:RequestInit):Promise<T>{
 }
 export function EnterpriseManager(){
  const {lang,toggle}=useLang(),ar=lang==="ar",tx=(en:string,arabic:string)=>ar?arabic:en;
- const [portfolio,setPortfolio]=useState<Portfolio|null>(null),[policy,setPolicy]=useState<Policy|null>(null);
+ const [portfolio,setPortfolio]=useState<Portfolio|null>(null),[policy,setPolicy]=useState<Policy|null>(null),[usage,setUsage]=useState<Usage|null>(null);
  const [organizations,setOrganizations]=useState<Array<{id:string;name:string;role:string;active:boolean}>>([]);
  const [baselines,setBaselines]=useState<Record<string,Baseline[]>>({});
  const [expanded,setExpanded]=useState<string|null>(null);
  const [compare,setCompare]=useState<Record<string,{from:string;to:string;result?:any}>>({});
  const [name,setName]=useState(""),[slug,setSlug]=useState("");
+ const [holds,setHolds]=useState<Hold[]>([]);
+ const [holdType,setHoldType]=useState("project"),[holdId,setHoldId]=useState(""),[holdReason,setHoldReason]=useState("");
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
  const load=useCallback(async()=>{
   setLoading(true);setError("");
   try{
-   const [p,o,g]=await Promise.all([
+   const [p,o,g,u]=await Promise.all([
     call<Portfolio>("/api/organizations/portfolio"),
     call<{organizations:Array<{id:string;name:string;role:string;active:boolean}>}>("/api/organizations"),
-    call<{policy:Policy}>("/api/organizations/policies"),
+    call<{policy:Policy;holds:Hold[]}>("/api/organizations/policies"),
+    call<Usage>("/api/organizations/usage"),
    ]);
-   setPortfolio(p);setOrganizations(o.organizations||[]);setPolicy(g.policy);
+   setPortfolio(p);setOrganizations(o.organizations||[]);setPolicy(g.policy);setHolds(g.holds||[]);setUsage(u);
   }catch(e){setError(e instanceof Error?e.message:"Unable to load enterprise workspace");}
   finally{setLoading(false);}
  },[]);
@@ -77,6 +82,32 @@ export function EnterpriseManager(){
   }catch(err){setError(err instanceof Error?err.message:"Comparison failed");}
   finally{setBusy(false);}
  }
+ async function downloadBaseline(projectId:string,version:number){
+  setBusy(true);setError("");
+  try{
+   const data=await call<{snapshot:{content:unknown};integrity:{verified:boolean;contentHash:string}}>("/api/projects/"+projectId+"/baselines?version="+version);
+   if(!data.integrity?.verified)throw new Error("Baseline integrity was not verified by the server");
+   const blob=new Blob([JSON.stringify({snapshot:data.snapshot.content,integrity:data.integrity},null,2)],{type:"application/json"});
+   const url=URL.createObjectURL(blob),anchor=document.createElement("a");anchor.href=url;anchor.download="modrik-baseline-v"+version+".json";
+   document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
+   setNotice(tx("Verified baseline downloaded.","تم تنزيل خط الأساس بعد التحقق من سلامته."));
+  }catch(err){setError(err instanceof Error?err.message:"Baseline download failed");}
+  finally{setBusy(false);}
+ }
+ async function placeHold(e:FormEvent<HTMLFormElement>){
+  e.preventDefault();setBusy(true);setError("");setNotice("");
+  try{
+   await call("/api/organizations/policies",{method:"PATCH",body:JSON.stringify({action:"place_hold",resourceType:holdType,resourceId:holdId.trim(),reason:holdReason.trim()})});
+   setHoldId("");setHoldReason("");setNotice(tx("Retention hold was recorded and audited.","تم تسجيل أمر الحفظ وتدقيقه."));await load();
+  }catch(err){setError(err instanceof Error?err.message:"Unable to place retention hold");}
+  finally{setBusy(false);}
+ }
+ async function releaseHold(id:string){
+  setBusy(true);setError("");
+  try{await call("/api/organizations/policies",{method:"PATCH",body:JSON.stringify({action:"release_hold",holdId:id})});await load();}
+  catch(err){setError(err instanceof Error?err.message:"Unable to release retention hold");}
+  finally{setBusy(false);}
+ }
  async function exportPackage(){
   setBusy(true);setError("");setNotice("");
   try{
@@ -118,7 +149,7 @@ export function EnterpriseManager(){
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{project._count.evidences} {tx("evidence","دليل")}</span><span>{project._count.reqs} {tx("requirements","متطلب")}</span><span>{project._count.stakeholders} {tx("stakeholders","صاحب مصلحة")}</span><span>{project._count.baselineSnapshots} {tx("baselines","إصدار")}</span></div>
       <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>void loadBaselines(project.id)} className="rounded-lg border border-border px-3 py-2 text-xs hover:bg-secondary">{tx("Baseline registry","سجل خطوط الأساس")}</button>{project.status==="complete"?<button type="button" disabled={busy} onClick={()=>void captureBaseline(project.id)} className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50">{tx("Capture baseline","حفظ إصدار")}</button>:null}</div>
       {expanded===project.id?<div className="mt-4 border-t border-border pt-4">
-       {(baselines[project.id]||[]).map(b=><p key={b.id} className="py-1 text-xs"><strong>{b.label} · v{b.version}</strong><span className="text-muted-foreground"> · {b.requirementCount} req · {b.contentHash.slice(0,12)}…</span></p>)}
+       {(baselines[project.id]||[]).map(b=><div key={b.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 py-2 text-xs"><span><strong>{b.label} · v{b.version}</strong><span className="ml-2 text-muted-foreground"> · {b.requirementCount} req · {b.storyCount} stories · {b.conflictCount} conflicts · {b.contentHash.slice(0,12)}…</span></span><button type="button" onClick={()=>void downloadBaseline(project.id,b.version)} disabled={busy} className="rounded-md border border-border px-2 py-1 hover:bg-secondary disabled:opacity-50">{tx("Verified download","تنزيل موثّق")}</button></div>)}
        {!(baselines[project.id]||[]).length?<p className="text-xs text-muted-foreground">{tx("No snapshots captured yet.","لم يتم حفظ إصدارات بعد.")}</p>:null}
        {(baselines[project.id]||[]).length>1?<div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="grid gap-1 text-xs text-muted-foreground">{tx("From","من")}<select value={compare[project.id]?.from||""} onChange={e=>setCompare(v=>({...v,[project.id]:{from:e.target.value,to:v[project.id]?.to||""}}))} className="h-9 rounded-lg border border-border bg-background px-2 text-foreground">{baselines[project.id].map(b=><option key={b.id} value={b.version}>v{b.version}</option>)}</select></label>
@@ -136,6 +167,11 @@ export function EnterpriseManager(){
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary" style={{width:Math.min(100,portfolio.usage.monthlyTokens/Math.max(1,portfolio.entitlements.limits.monthlyTokens)*100)+"%"}}/></div>
       <p className="mt-2 text-xs text-muted-foreground">{tx("of","من")} {portfolio.entitlements.limits.monthlyTokens.toLocaleString()} · {tx("estimated cost","التكلفة التقديرية")} $ {portfolio.usage.estimatedCostUsd.toFixed(4)}</p>
       <p className="mt-3 text-xs text-muted-foreground">{tx("Metering only; no payment provider or invoice is active.","قياس الاستخدام فقط؛ لا يوجد مزود دفع أو فاتورة نشطة.")}</p>
+      <div className="mt-4 border-t border-border pt-3">
+       <p className="mb-2 text-xs font-medium">{tx("Top project usage this month","أعلى استهلاك للمشروعات هذا الشهر")}</p>
+       {(usage?.projectUsage||[]).slice(0,8).map(row=><div key={row.projectId} className="flex justify-between gap-3 py-1 text-xs"><span className="truncate text-muted-foreground">{portfolio.projects.find(p=>p.id===row.projectId)?.name??row.projectId}</span><span className="shrink-0 font-mono">{row.quantity.toLocaleString()} · ${row.estimatedCostUsd.toFixed(3)}</span></div>)}
+       {!(usage?.projectUsage||[]).length?<p className="text-xs text-muted-foreground">{tx("No metered agent jobs yet.","لا توجد مهام مسجلة بعد.")}</p>:null}
+      </div>
      </div>
      <div className="rounded-2xl border border-border bg-card p-5"><div className="mb-4 flex items-center gap-2"><Building2 className="h-5 w-5 text-primary"/><h2 className="font-semibold">{tx("Create organization","إنشاء مؤسسة")}</h2></div>
       <form onSubmit={createOrganization} className="space-y-3">
@@ -158,6 +194,17 @@ export function EnterpriseManager(){
      <button type="submit" disabled={busy} className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50">{tx("Save governance policy","حفظ سياسة الحوكمة")}</button>
      <p className="text-xs text-muted-foreground sm:col-span-2 xl:col-span-4">{tx("Policies are recorded and audited. Automated deletion is intentionally disabled until a reviewed retention executor and legal approval are available.","يتم تسجيل السياسات وتدقيقها. الحذف الآلي معطل لحين اعتماد آلية تنفيذ وموافقة قانونية.")}</p>
     </form>:null}
+    <div className="mt-6 border-t border-border pt-5">
+     <h3 className="mb-3 font-medium">{tx("Legal & retention holds","أوامر الحفظ القانوني والاحتفاظ")}</h3>
+     <form onSubmit={placeHold} className="grid gap-2 sm:grid-cols-2">
+      <select value={holdType} onChange={e=>setHoldType(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm"><option value="project">Project</option><option value="evidence">Evidence</option><option value="requirement">Requirement</option><option value="baseline_snapshot">Baseline</option></select>
+      <input required value={holdId} onChange={e=>setHoldId(e.target.value)} placeholder={tx("Resource ID","معرّف العنصر")} className="h-10 rounded-lg border border-border bg-background px-3 text-sm"/>
+      <textarea required minLength={12} maxLength={1000} value={holdReason} onChange={e=>setHoldReason(e.target.value)} placeholder={tx("Reason for the hold (at least 12 characters)","سبب الحفظ (12 حرفًا على الأقل)")} className="min-h-20 rounded-lg border border-border bg-background p-3 text-sm sm:col-span-2"/>
+      <button type="submit" disabled={busy||!holdId.trim()||holdReason.trim().length<12} className="h-10 rounded-lg border border-primary/40 px-4 text-sm hover:bg-primary/5 disabled:opacity-50 sm:col-span-2">{tx("Place retention hold","تفعيل أمر الحفظ")}</button>
+     </form>
+     <div className="mt-4 space-y-2">{holds.map(hold=><div key={hold.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 text-xs"><span>{hold.resourceType} · {hold.resourceId}<span className="block text-muted-foreground">{hold.reason}</span></span><button type="button" onClick={()=>void releaseHold(hold.id)} disabled={busy} className="rounded-md border border-border px-2 py-1 hover:bg-secondary">{tx("Release hold","إنهاء الحفظ")}</button></div>)}{!holds.length?<p className="text-xs text-muted-foreground">{tx("No active holds.","لا توجد أوامر حفظ نشطة.")}</p>:null}</div>
+     <p className="mt-3 text-xs text-muted-foreground">{tx("A hold blocks future retention automation. Automatic deletion remains disabled; policy expiry never deletes data by itself.","أمر الحفظ يمنع أي حذف آلي مستقبلًا. الحذف الآلي معطل؛ انتهاء المدة لا يؤدي للحذف تلقائيًا.")}</p>
+    </div>
    </section>
    <section className="rounded-2xl border border-border bg-card p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><div className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary"/><h2 className="font-semibold">{tx("Enterprise audit & compliance package","حزمة تدقيق وامتثال المؤسسات")}</h2></div><p className="mt-2 text-sm text-muted-foreground">{tx("A SHA-256 integrity-manifested export of the organization roster, portfolio, baselines, audit events, usage and holds.","تصدير ببصمة SHA-256 لعضويات المؤسسة ومحفظتها وخطوط أساسها وسجل التدقيق والاستخدام وأوامر الحفظ.")}</p></div><button type="button" disabled={busy} onClick={()=>void exportPackage()} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"><Download className="h-4 w-4"/>{tx("Export package","تصدير الحزمة")}</button></div></section>
   </>}
