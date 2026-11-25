@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { evaluateOrganizationEntitlements, resolveOrganizationPlan } from "../src/lib/phase4/plans.mjs";
 import { compareBaselineSnapshots } from "../src/lib/phase4/baseline-diff.mjs";
 import { assertOrganizationAiProviderAllowed, isRetentionEligible, validateOrganizationPolicyPatch } from "../src/lib/phase4/retention.mjs";
+import { findActiveProjectRetentionHold, findActiveResourceRetentionHold } from "../src/lib/phase4/retention-db.mjs";
 import { buildCompliancePackage } from "../src/lib/phase4/compliance-package.mjs";
 import { resolveOrganizationRoutePermission } from "../src/lib/security/organization-route-access.mjs";
 
