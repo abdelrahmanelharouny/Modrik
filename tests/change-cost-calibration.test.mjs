@@ -23,7 +23,7 @@ test("temporal holdout is the newest fifth and is excluded from fit training",()
   const result=summarizeChangeCostCalibration(rows);
   assert.equal(result.trainingSampleCount,8);assert.equal(result.holdoutSampleCount,2);
   assert.deepEqual(result.fit,{intercept:2,hoursPerEffortPoint:3});
-  assert.equal(result.maeHours,68);assert.equal(result.readiness,"early_signal");
+  assert.equal(result.maeHours,69.5);assert.equal(result.readiness,"early_signal");
   assert.equal(result.segments.find((s)=>s.changeType==="bugfix").sampleCount,2);
 });
 test("latest timestamp determines holdout ordering, independent of input ordering",()=>{

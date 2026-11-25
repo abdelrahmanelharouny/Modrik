@@ -86,4 +86,3 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Could not enqueue change-impact processing; the provider may retry this delivery", deliveryId }, { status: 503 });
   }
 }
-}

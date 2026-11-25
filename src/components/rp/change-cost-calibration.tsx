@@ -18,6 +18,10 @@ interface CalibrationRecord {
 }
 interface CalibrationSummary {
   sampleCount: number;
+  trainingSampleCount: number;
+  holdoutSampleCount: number;
+  segments: { changeType: string; sampleCount: number; rankCorrelation: number | null }[];
+  protocol: string;
   fit: { intercept: number; hoursPerEffortPoint: number } | null;
   maeHours: number | null;
   rmseHours: number | null;
@@ -53,7 +57,7 @@ function OutcomeEditor({ projectId, record, onSaved }: { projectId: string; reco
       <span className="text-muted-foreground">{new Date(record.createdAt).toLocaleDateString()}</span>
       {record.outcome ? <Badge variant="outline" className="border-signal/40 text-signal">{record.outcome.actualHours}h · {record.outcome.changeType ?? "other"}</Badge> : <Badge variant="outline">{ar ? "بانتظار النتيجة" : "outcome pending"}</Badge>}
     </div>
-    {!record.outcome && <div className="mt-2 grid gap-2 sm:grid-cols-[120px_1fr_auto]">
+    {!record.outcome && <div className="mt-2 grid gap-2 sm:grid-cols-[120px_180px_1fr_auto]">
       <Input type="number" min="0" step="0.25" value={hours} onChange={(event) => setHours(event.target.value)} placeholder={ar ? "الساعات الفعلية" : "Actual hours"} aria-label={ar ? "ساعات التنفيذ الفعلية" : "Actual engineering hours"} />
       <select value={changeType} onChange={(event) => setChangeType(event.target.value)} aria-label={ar ? "نوع التغيير" : "Change type"} className="h-10 rounded-md border border-border bg-background px-2 text-xs"><option value="feature">{ar ? "ميزة" : "Feature"}</option><option value="bugfix">{ar ? "إصلاح" : "Bug fix"}</option><option value="refactor">{ar ? "إعادة هيكلة" : "Refactor"}</option><option value="migration">{ar ? "ترحيل" : "Migration"}</option><option value="infrastructure">{ar ? "بنية تحتية" : "Infrastructure"}</option><option value="security">{ar ? "أمان" : "Security"}</option><option value="other">{ar ? "أخرى" : "Other"}</option></select><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder={ar ? "ملاحظة اختيارية عن نطاق العمل" : "Optional scope/context note"} aria-label={ar ? "ملاحظة" : "Outcome note"} />
       <Button size="sm" variant="outline" disabled={busy || !hours.trim() || !Number.isFinite(Number(hours)) || Number(hours) < 0} onClick={save}>{busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="mr-1 h-3 w-3" />}{ar ? "حفظ الفعلي" : "Save actual"}</Button>
@@ -105,6 +109,6 @@ export function ChangeCostCalibration({ projectId, requirementId }: { projectId:
     {summary?.segments?.length ? <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "تقسيم العينات حسب نوع التغيير:" : "Samples by change type:"} {summary.segments.map((item) => item.changeType + " (" + item.sampleCount + ")").join(" · ")}</p> : null}\n    {summary?.fit && <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "الملاءمة الوصفية" : "Descriptive fit"}: actual hours ≈ {summary.fit.intercept.toFixed(2)} + ({summary.fit.hoursPerEffortPoint.toFixed(2)} × effort points). {ar ? "ليست توقعًا معتمدًا." : "Not a validated forecast."}</p>}
     {data?.records.length ? <div className="mt-3 space-y-2">{data.records.slice().reverse().slice(0, 12).map((record) => <OutcomeEditor key={record.id} projectId={projectId} record={record} onSaved={load} />)}</div> : <p className="mt-3 text-[10px] text-muted-foreground">{ar ? "لا توجد تقديرات محفوظة بعد. احفظ تقديرًا قبل بدء العمل، ثم سجّل الساعات الفعلية بعد انتهائه." : "No registered estimates yet. Save an estimate before work starts and record actual hours when it is complete."}</p>}
     {data?.truncated && <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "السجل معروض جزئيًا؛ توجد سجلات أقدم." : "History is capped at the latest 2,000 journal entries."}</p>}
-    <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{ar ? "المقاييس وصفية ومحسوبة على العينات المسجلة نفسها؛ لا تستخدمها كتوقعات تشغيلية قبل جمع عينة ممثلة واختبار منفصل." : summary?.caveat ?? "Metrics are descriptive and in-sample; do not use them as operational forecasts before representative data and held-out validation."}</p>
+    <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{ar ? "مقاييس الخطأ محسوبة على أحدث عينة زمنية محجوبة عن الملاءمة؛ لكنها لا تزال تحتاج تحققًا ممثلًا عبر مشروعات وأنواع تغييرات متعددة." : summary?.caveat ?? "Holdout metrics use only the latest chronological observations; this temporal split is not yet representative multi-project validation."}</p>
   </section>;
 }

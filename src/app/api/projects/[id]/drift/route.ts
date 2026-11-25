@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { enqueueChangeImpactJob } from "@/lib/pipeline/change-impact";
-import { changeImpactFindingIsActive, resolveChangeImpactTriage } from "@/lib/pipeline/change-impact.mjs";
+import { resolveChangeImpactTriage } from "@/lib/pipeline/change-impact.mjs";
 import { resolveIdentitySession } from "@/lib/security/identity";
 import { SESSION_COOKIE } from "@/lib/security/session.mjs";
 
