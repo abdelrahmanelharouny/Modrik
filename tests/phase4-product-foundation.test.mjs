@@ -131,3 +131,21 @@ test("AI governance is re-enforced inside the durable worker for queued, webhook
   assert.match(retention, /assertOrganizationAiProviderAllowed/);
   assert.match(worker, /await assertProjectAiPolicy\(job\.projectId\)/);
 });
+
+test("retention holds are project-scoped and destructive APIs enforce active holds transactionally", () => {
+  const schema = fs.readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
+  const projectDelete = fs.readFileSync(new URL("../src/app/api/projects/[id]/route.ts", import.meta.url), "utf8");
+  const evidenceDelete = fs.readFileSync(new URL("../src/app/api/projects/[id]/evidence/route.ts", import.meta.url), "utf8");
+  const itemDelete = fs.readFileSync(new URL("../src/app/api/projects/[id]/items/route.ts", import.meta.url), "utf8");
+  const policyRoute = fs.readFileSync(new URL("../src/app/api/organizations/policies/route.ts", import.meta.url), "utf8");
+  assert.match(schema, /projectId\s+String\?/);
+  assert.match(schema, /project\s+Project\? @relation\(fields: \[projectId\], references: \[id\], onDelete: SetNull\)/);
+  assert.match(projectDelete, /findActiveProjectRetentionHold/);
+  assert.match(projectDelete, /isolationLevel: "Serializable"/);
+  assert.match(evidenceDelete, /findActiveResourceRetentionHold/);
+  assert.match(evidenceDelete, /RETENTION_HOLD_ACTIVE/);
+  assert.match(itemDelete, /findActiveResourceRetentionHold/);
+  assert.match(itemDelete, /RETENTION_HOLD_ACTIVE/);
+  assert.match(policyRoute, /projectId,resourceType,resourceId/);
+  assert.match(policyRoute, /isolationLevel:"Serializable"/);
+});

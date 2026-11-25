@@ -22,7 +22,7 @@ export async function GET(req:NextRequest){
   db.organizationAuditEvent.findMany({where:{organizationId,...(from?{createdAt:{gte:from}}:{})},orderBy:[{createdAt:"asc"},{id:"asc"}],take:10001,select:{id:true,eventType:true,resourceType:true,resourceId:true,projectId:true,summary:true,metadata:true,createdAt:true,actor:{select:{id:true,displayName:true}}}}),
   db.baselineSnapshot.findMany({where:{organizationId},orderBy:[{projectId:"asc"},{version:"asc"}],take:5000,select:{id:true,projectId:true,version:true,label:true,contentHash:true,requirementCount:true,storyCount:true,conflictCount:true,createdByUserId:true,createdAt:true}}),
   db.usageEvent.aggregate({where:{organizationId,...(from?{occurredAt:{gte:from}}:{})},_sum:{quantity:true,estimatedCostUsd:true},_count:{_all:true}}),
-  db.retentionHold.findMany({where:{organizationId},orderBy:{placedAt:"asc"},take:2000,select:{id:true,resourceType:true,resourceId:true,reason:true,placedAt:true,releasedAt:true,placedByUserId:true,releasedByUserId:true}}),
+  db.retentionHold.findMany({where:{organizationId},orderBy:{placedAt:"asc"},take:2000,select:{id:true,projectId:true,resourceType:true,resourceId:true,reason:true,placedAt:true,releasedAt:true,placedByUserId:true,releasedByUserId:true}}),
  ]);
  if(!organization)return NextResponse.json({error:"Organization not found"},{status:404});
  const auditTruncated=events.length>10000;

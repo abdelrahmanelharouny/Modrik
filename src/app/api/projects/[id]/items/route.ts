@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logDecision } from "@/lib/journal";
+import { findActiveResourceRetentionHold } from "@/lib/phase4/retention-db.mjs";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -360,7 +361,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const projectState = await db.project.findUnique({
     where: { id },
-    select: { stageStatus: true },
+    select: { stageStatus: true, organizationId: true },
   });
   if (!projectState) return NextResponse.json({ error: "Project not found" }, { status: 404 });
   if (["agent_running", "approving"].includes(projectState.stageStatus)) {
@@ -368,35 +369,44 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
   const kind = new URL(req.url).searchParams.get("kind");
   const itemId = new URL(req.url).searchParams.get("itemId");
-  if (!kind || !itemId) {
-    return NextResponse.json({ error: "kind and itemId are required" }, { status: 400 });
-  }
-  if (kind === "requirement") {
-    const r = await db.requirement.findFirst({ where: { id: itemId, projectId: id } });
-    await db.requirement.deleteMany({ where: { id: itemId, projectId: id } });
-    if (r) await logDecision(id, "EXTRACTION", "human", "deleted_requirement", `${r.refId}: ${r.text.slice(0, 200)}`);
-  } else if (kind === "story") {
-    const story = await db.userStory.findFirst({ where: { id: itemId, projectId: id } });
-    await db.userStory.deleteMany({ where: { id: itemId, projectId: id } });
-    if (story) await logDecision(id, "STORIES", "human", "deleted_story", `${story.refId}: ${story.title.slice(0, 180)}`);
-  } else if (kind === "conflict") {
-    const conflict = await db.conflict.findFirst({
-      where: { id: itemId, projectId: id },
-      include: { reqA: true, reqB: true },
-    });
-    await db.conflict.deleteMany({ where: { id: itemId, projectId: id } });
-    if (conflict) {
-      await logDecision(
+  if (!kind || !itemId) return NextResponse.json({ error: "kind and itemId are required" }, { status: 400 });
+  if (!["requirement", "story", "conflict"].includes(kind)) return NextResponse.json({ error: "Unknown item kind" }, { status: 400 });
+
+  const result = await db.$transaction(async (tx) => {
+    if (projectState.organizationId) {
+      const hold = await findActiveResourceRetentionHold(
+        tx,
+        projectState.organizationId,
         id,
-        "CONFLICTS",
-        "human",
-        "deleted_conflict",
-        `${conflict.reqA.refId} ↔ ${conflict.reqB.refId}: ${conflict.description.slice(0, 180)}`
+        kind === "requirement" ? "requirement" : null,
+        kind === "requirement" ? itemId : null,
       );
+      if (hold) return { kind: "held" as const, holdId: hold.id, resourceType: hold.resourceType, resourceId: hold.resourceId };
     }
-  } else {
-    return NextResponse.json({ error: "Unknown item kind" }, { status: 400 });
-  }
-  await db.project.update({ where: { id }, data: { updatedAt: new Date() } });
+    if (kind === "requirement") {
+      const requirement = await tx.requirement.findFirst({ where: { id: itemId, projectId: id } });
+      if (!requirement) return { kind: "missing" as const };
+      const deleted = await tx.requirement.deleteMany({ where: { id: itemId, projectId: id } });
+      if (deleted.count !== 1) return { kind: "missing" as const };
+      await tx.decisionEntry.create({ data: { projectId: id, stage: "EXTRACTION", actor: "human", action: "deleted_requirement", detail: `${requirement.refId}: ${requirement.text.slice(0, 200)}` } });
+    } else if (kind === "story") {
+      const story = await tx.userStory.findFirst({ where: { id: itemId, projectId: id } });
+      if (!story) return { kind: "missing" as const };
+      const deleted = await tx.userStory.deleteMany({ where: { id: itemId, projectId: id } });
+      if (deleted.count !== 1) return { kind: "missing" as const };
+      await tx.decisionEntry.create({ data: { projectId: id, stage: "STORIES", actor: "human", action: "deleted_story", detail: `${story.refId}: ${story.title.slice(0, 180)}` } });
+    } else {
+      const conflict = await tx.conflict.findFirst({ where: { id: itemId, projectId: id }, include: { reqA: true, reqB: true } });
+      if (!conflict) return { kind: "missing" as const };
+      const deleted = await tx.conflict.deleteMany({ where: { id: itemId, projectId: id } });
+      if (deleted.count !== 1) return { kind: "missing" as const };
+      await tx.decisionEntry.create({ data: { projectId: id, stage: "CONFLICTS", actor: "human", action: "deleted_conflict", detail: `${conflict.reqA.refId} ↔ ${conflict.reqB.refId}: ${conflict.description.slice(0, 180)}` } });
+    }
+    await tx.project.update({ where: { id }, data: { updatedAt: new Date() } });
+    return { kind: "deleted" as const };
+  }, { isolationLevel: "Serializable" });
+
+  if (result.kind === "held") return NextResponse.json({ error: "The resource is protected by an active retention hold.", code: "RETENTION_HOLD_ACTIVE", holdId: result.holdId, resourceType: result.resourceType, resourceId: result.resourceId }, { status: 409 });
+  if (result.kind === "missing") return NextResponse.json({ error: "The requested item was not found in this project." }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

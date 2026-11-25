@@ -51,18 +51,28 @@ export async function PATCH(req:NextRequest){
    const resourceId=typeof body.resourceId==="string"?body.resourceId.trim():"";
    const reason=typeof body.reason==="string"?body.reason.trim().slice(0,1000):"";
    if(!["project","evidence","requirement","baseline_snapshot"].includes(resourceType)||!resourceId||resourceId.length>128||reason.length<12)return error("A supported resource, identifier and reason of at least 12 characters are required",400);
-   let belongs=false;
-   if(resourceType==="project")belongs=Boolean(await db.project.findFirst({where:{id:resourceId,organizationId:identity.organizationId},select:{id:true}}));
-   if(resourceType==="evidence")belongs=Boolean(await db.evidence.findFirst({where:{id:resourceId,project:{organizationId:identity.organizationId}},select:{id:true}}));
-   if(resourceType==="requirement")belongs=Boolean(await db.requirement.findFirst({where:{id:resourceId,project:{organizationId:identity.organizationId}},select:{id:true}}));
-   if(resourceType==="baseline_snapshot")belongs=Boolean(await db.baselineSnapshot.findFirst({where:{id:resourceId,organizationId:identity.organizationId},select:{id:true}}));
-   if(!belongs)return error("Resource not found in this organization",404);
-   const hold=await db.$transaction(async tx=>{
-    const created=await tx.retentionHold.create({data:{organizationId:identity.organizationId,resourceType,resourceId,reason,placedByUserId:identity.userId}});
-    await tx.organizationAuditEvent.create({data:{organizationId:identity.organizationId,actorUserId:identity.userId,eventType:"governance.retention_hold_placed",resourceType,resourceId,summary:"Retention hold placed",metadata:JSON.stringify({holdId:created.id,reason})}});
-    return created;
-   });
-   return NextResponse.json({hold},{status:201,headers:noStore});
+   const result=await db.$transaction(async tx=>{
+    let projectId:string|null=null;
+    if(resourceType==="project"){
+     const project=await tx.project.findFirst({where:{id:resourceId,organizationId:identity.organizationId},select:{id:true}});
+     projectId=project?.id??null;
+    }else if(resourceType==="evidence"){
+     const evidence=await tx.evidence.findFirst({where:{id:resourceId,project:{organizationId:identity.organizationId}},select:{projectId:true}});
+     projectId=evidence?.projectId??null;
+    }else if(resourceType==="requirement"){
+     const requirement=await tx.requirement.findFirst({where:{id:resourceId,project:{organizationId:identity.organizationId}},select:{projectId:true}});
+     projectId=requirement?.projectId??null;
+    }else{
+     const baseline=await tx.baselineSnapshot.findFirst({where:{id:resourceId,organizationId:identity.organizationId},select:{projectId:true}});
+     projectId=baseline?.projectId??null;
+    }
+    if(!projectId)return {kind:"missing" as const};
+    const created=await tx.retentionHold.create({data:{organizationId:identity.organizationId,projectId,resourceType,resourceId,reason,placedByUserId:identity.userId}});
+    await tx.organizationAuditEvent.create({data:{organizationId:identity.organizationId,actorUserId:identity.userId,eventType:"governance.retention_hold_placed",resourceType,resourceId,projectId,summary:"Retention hold placed",metadata:JSON.stringify({holdId:created.id,reason})}});
+    return {kind:"created" as const,hold:created};
+   },{isolationLevel:"Serializable"});
+   if(result.kind==="missing")return error("Resource not found in this organization",404);
+   return NextResponse.json({hold:result.hold},{status:201,headers:noStore});
   }
   if(action==="release_hold"){
    const holdId=typeof body.holdId==="string"?body.holdId:"";
