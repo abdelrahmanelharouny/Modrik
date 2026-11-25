@@ -278,7 +278,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
             ) : (
               <>
                 {viewing === "ELICITATION" && <ElicitationStage project={project} isCurrent={isCurrent} refresh={refresh} />}
-                {viewing === "PROBLEM_SELECTION" && <ProblemsStage project={project} isCurrent={isCurrent} refresh={refresh} />}
+                {viewing === "PROBLEM_SELECTION" && <ProblemsStage project={project} isCurrent={isCurrent} refresh={refresh} busy={busy} setBusy={setBusy} />}
                 {viewing === "EXTRACTION" && <ExtractionStage project={project} isCurrent={isCurrent} refresh={refresh} />}
                 {viewing === "AMBIGUITY" && <AmbiguityStage project={project} isCurrent={isCurrent} refresh={refresh} />}
                 {viewing === "STORIES" && <StoriesStage project={project} isCurrent={isCurrent} refresh={refresh} />}
