@@ -62,3 +62,19 @@ test("undated or invalid human labels are not calibration ground truth", () => {
   assert.equal(result.ece, null);
   assert.equal(result.verdict, "insufficient-data");
 });
+
+
+test("human calibration is segmented by language, requirement type and ISO week", () => {
+  const rows = [
+    { confidence: 90, verifyStatus: "supported", verificationSource: "human", verifiedAt: humanReviewedAt, language: "ar-EG", type: "functional" },
+    { confidence: 80, verifyStatus: "supported", verificationSource: "human", verifiedAt: humanReviewedAt, language: "ar-EG", type: "functional" },
+    { confidence: 20, verifyStatus: "weak", verificationSource: "human", verifiedAt: humanReviewedAt, language: "ar-EG", type: "functional" },
+    { confidence: 60, verifyStatus: "supported", verificationSource: "human", verifiedAt: humanReviewedAt, language: "en", type: "constraint" },
+  ];
+  const result = calculateHumanCalibration(rows);
+  assert.equal(result.byLanguage.find((row) => row.segment === "ar-EG").n, 3);
+  assert.equal(result.byType.find((row) => row.segment === "functional").n, 3);
+  assert.equal(result.weekly.length, 1);
+  assert.equal(result.weekly[0].n, 4);
+  assert.equal(result.byLanguage.find((row) => row.segment === "en").verdict, "insufficient-data");
+});
