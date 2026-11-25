@@ -56,6 +56,10 @@ jobs:
         env:
           DATABASE_URL: file:${{ github.workspace }}/ci.db
         run: node --test tests/organization-memory-sqlite.integration.mjs
+      - name: Durable pipeline queue SQLite integration
+        env:
+          DATABASE_URL: file:${{ github.workspace }}/ci.db
+        run: node tests/pipeline-job-queue-db.integration.mjs
       - name: TypeScript
         run: bunx tsc --noEmit
       - name: Lint
@@ -138,6 +142,8 @@ jobs:
         run: bunx prisma generate --schema prisma/schema.postgres.prisma
       - name: Push schema to PostgreSQL 16
         run: bunx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
+      - name: Durable pipeline queue PostgreSQL integration
+        run: node tests/pipeline-job-queue-db.integration.mjs
       - name: PostgreSQL organization memory isolation and governance integration
         run: node --test tests/organization-memory-postgres.integration.mjs
       - name: Benchmark PostgreSQL organization memory retrieval

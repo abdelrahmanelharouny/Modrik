@@ -96,11 +96,18 @@ const childEnv = {
   NODE_OPTIONS: [process.env.NODE_OPTIONS, "--import=./tests/support/mock-upstash-rest.mjs"].filter(Boolean).join(" "),
 };
 const child = spawn(process.execPath, [".next/standalone/server.js"], { env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
+const workerPort = Number(process.env.MODRIK_WORKER_E2E_PORT || port + 1);
+const workerUrl = `http://127.0.0.1:${workerPort}`;
+const workerEnv = { ...childEnv, PORT: String(workerPort), HOSTNAME: "127.0.0.1" };
+const worker = spawn("bun", ["scripts/run-pipeline-worker.ts"], { env: workerEnv, stdio: ["ignore", "pipe", "pipe"] });
 const prisma = new PrismaClient();
 let logs = "";
+let workerLogs = "";
 let browserDiagnostics = { pageErrors: [], failedRequests: [], projectApi: [], pageText: "" };
 child.stdout.on("data", chunk => { logs += chunk.toString(); });
 child.stderr.on("data", chunk => { logs += chunk.toString(); });
+worker.stdout.on("data", chunk => { workerLogs += chunk.toString(); });
+worker.stderr.on("data", chunk => { workerLogs += chunk.toString(); });
 const projectIds = [randomUUID(), randomUUID()];
 const identityCleanup = { projects: [], users: [], organizations: [] };
 const secret = process.env.MODRIK_AUTH_SECRET;
@@ -114,6 +121,33 @@ async function waitForServer() {
     await delay(500);
   }
   throw new Error(`Next server did not become ready.\n${logs}`);
+}
+async function waitForWorker() {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (worker.exitCode !== null) throw new Error(`Pipeline worker exited early.\\n${workerLogs}`);
+    try {
+      const response = await fetch(`${workerUrl}/health`);
+      if (response.status === 200) return;
+    } catch {}
+    await delay(250);
+  }
+  throw new Error(`Pipeline worker did not become healthy.\\n${workerLogs}`);
+}
+async function waitForAgentJob(projectId, jobId, expectedStage) {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${baseUrl}/api/projects/${projectId}/pipeline`, { headers });
+    await expectStatus(response, 200, `read ${expectedStage} background job status`);
+    const snapshot = await json(response);
+    if (snapshot.job?.id === jobId && snapshot.job.status === "dead") {
+      throw new Error(`${expectedStage} agent job was dead-lettered: ${snapshot.job.lastError}\\n${workerLogs}`);
+    }
+    if (snapshot.job?.id === jobId && snapshot.job.status === "completed" && snapshot.project.stageStatus === "awaiting_review") {
+      return snapshot;
+    }
+    await delay(200);
+  }
+  throw new Error(`Timed out waiting for ${expectedStage} job ${jobId}. Worker logs:\\n${workerLogs}`);
 }
 async function request(projectId, method, body) {
   return fetch(`${baseUrl}/api/projects/${projectId}/stakeholders`, {
@@ -135,6 +169,7 @@ async function createStakeholder(projectId, suffix, approvalRole = "consulted", 
 
 try {
   await waitForServer();
+  await waitForWorker();
 
   // Public deployment readiness is read-only, checks the actual database
   // connection, and returns no infrastructure details to unauthenticated callers.
@@ -1011,15 +1046,15 @@ try {
   });
   const runAgentStage = async expectedStage => {
     const response = await pipelineAction("run");
-    await expectStatus(response, 200, `run real ${expectedStage} stage agent`);
-    const project = await prisma.project.findUnique({ where: { id: agentProjectId } });
-    assert.equal(project.currentStage, expectedStage);
-    assert.equal(project.stageStatus, "awaiting_review", `${expectedStage} agent output must wait for human review`);
-    const latestRun = await prisma.pipelineRun.findFirst({
-      where: { projectId: agentProjectId, stage: expectedStage },
-      orderBy: { createdAt: "desc" },
-    });
-    assert.equal(latestRun.status, "done", `${expectedStage} agent run must be persisted as done`);
+    await expectStatus(response, 202, `enqueue real ${expectedStage} stage agent`);
+    const queued = await json(response);
+    assert.ok(queued.jobId && queued.runId, "accepted stage run must return durable job and run IDs");
+    const snapshot = await waitForAgentJob(agentProjectId, queued.jobId, expectedStage);
+    assert.equal(snapshot.project.stageStatus, "awaiting_review", `${expectedStage} output must stop at the human review gate`);
+    const latestRun = await prisma.pipelineRun.findUnique({ where: { id: queued.runId } });
+    assert.equal(latestRun.status, "done", `${expectedStage} worker run must be persisted as done`);
+    const job = await prisma.agentJob.findUnique({ where: { id: queued.jobId } });
+    assert.equal(job.status, "completed", `${expectedStage} durable job must be completed`);
   };
   const approveAgentStage = async expectedNextStage => {
     const response = await pipelineAction("approve");
@@ -1692,7 +1727,7 @@ try {
   }
   process.stdout.write("Stakeholder API integration: auth 4/4; project isolation 3/3; negotiation race invariant passed; browser negotiation E2E + 390px RTL/mobile checks passed.\\n");
 } catch (error) {
-  await writeFile("/tmp/modrik-phase4-e2e-diagnostics.json", JSON.stringify({ error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error), browserDiagnostics, serverLogs: logs.slice(-30000) }, null, 2));
+  await writeFile("/tmp/modrik-phase4-e2e-diagnostics.json", JSON.stringify({ error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error), browserDiagnostics, serverLogs: logs.slice(-30000), workerLogs: workerLogs.slice(-30000) }, null, 2));
   throw error;
 } finally {
   for (const id of [...projectIds, ...identityCleanup.projects]) {
@@ -1704,6 +1739,8 @@ try {
   }
   for (const id of identityCleanup.users) { try { await prisma.user.delete({ where: { id } }); } catch {} }
   await prisma.$disconnect();
+  worker.kill("SIGTERM");
+  await Promise.race([new Promise(resolve => worker.once("exit", resolve)), delay(5000)]);
   child.kill("SIGTERM");
   await Promise.race([new Promise(resolve => child.once("exit", resolve)), delay(5000)]);
   await new Promise(resolve => mockProvider.close(resolve));

@@ -6,7 +6,7 @@
 // Human-gate actions (run agent / approve) preserved exactly.
 // ─────────────────────────────────────────────────────────────
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { STAGES, type ProjectDTO, type Stage } from "@/lib/rp";
 import { FLIGHT_PLAN, STATUS_CHIP } from "@/lib/registry";
@@ -46,6 +46,8 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
   const { lang, toggle } = useLang();
   const [viewStage, setViewStage] = useState<Stage | "DEBRIEF" | null>(null);
   const [plannerArm, setPlannerArm] = useState("impact_aware");
+  const [pipelineJob, setPipelineJob] = useState<{id:string;status:string;attempts:number;maxAttempts:number;availableAt:string;lastError:string|null}|null>(null);
+  const handledJobRef = useRef<string | null>(null);
   const ar = lang === "ar";
 
   const complete = project.status === "complete";
@@ -61,12 +63,12 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
   const runAgent = async () => {
     setBusy(true);
     try {
-      await api(`/api/projects/${project.id}/pipeline`, {
+      await api<{jobId:string;status:string}>(`/api/projects/${project.id}/pipeline`, {
         method: "POST",
         body: JSON.stringify({ action: "run", ...(stage === "ELICITATION" ? { arm: plannerArm } : {}) }),
       });
       await refresh();
-      toast({ title: ar ? "أنهى الوكيل عمله" : "Agent finished", description: ar ? `${phase.agent} — النتيجة بانتظار مراجعتك.` : `${phase.agent} output is ready for your review.` });
+      toast({ title: ar ? "تم وضع الوكيل في الطابور" : "Agent queued", description: ar ? `بدأنا تشغيل ${phase.agent} في الخلفية. تقدر تسيب الصفحة وترجع.` : `${phase.agent} is running in the background. You can leave this page and come back.` });
     } catch (e) {
       await refresh();
       toast({ title: "Agent run failed", description: (e as Error).message, variant: "destructive" });
@@ -74,6 +76,40 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (project.stageStatus !== "agent_running") {
+      setPipelineJob(null);
+      return;
+    }
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const snapshot = await api<{
+          project: { stageStatus: string };
+          job: { id:string; status:string; attempts:number; maxAttempts:number; availableAt:string; lastError:string|null } | null;
+        }>(`/api/projects/${project.id}/pipeline`);
+        if (stopped) return;
+        setPipelineJob(snapshot.job);
+        const job = snapshot.job;
+        if (!job) return;
+        if (job.status === "completed" && handledJobRef.current !== job.id) {
+          handledJobRef.current = job.id;
+          toast({ title: ar ? "الوكيل خلص" : "Agent finished", description: ar ? "النتيجة جاهزة لمراجعتك والمرحلة لم تتجاوز موافقتك." : "The result is ready for your review. The human gate is still yours." });
+          await refresh();
+        } else if (job.status === "dead" && handledJobRef.current !== job.id) {
+          handledJobRef.current = job.id;
+          toast({ title: ar ? "تعذر إكمال تشغيل الوكيل" : "Agent run failed", description: job.lastError || (ar ? "وصل التشغيل للحد الأقصى للمحاولات." : "The job exhausted its retry budget."), variant: "destructive" });
+          await refresh();
+        }
+      } catch {
+        // A transient polling failure must not cancel an already-running job.
+      }
+    };
+    void poll();
+    const timer = setInterval(() => { void poll(); }, 2_000);
+    return () => { stopped = true; clearInterval(timer); };
+  }, [project.id, project.stageStatus, refresh, toast, ar]);
 
   const approve = async () => {
     setBusy(true);
@@ -198,8 +234,14 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
                     )}
                     {running && (
                       <Button disabled className="border-plasma/40 bg-plasma/10 text-plasma">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {ar ? "الوكيل يعمل…" : "Agent working…"}
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {pipelineJob?.status === "queued" ? (ar ? "في انتظار العامل…" : "Queued · waiting for worker…") : pipelineJob?.status === "retry_wait" ? (ar ? "إعادة المحاولة مجدولة…" : "Retry scheduled…") : (ar ? "الوكيل يعمل في الخلفية…" : "Agent running in background…")}
                       </Button>
+                    )}
+                    {running && pipelineJob && (
+                      <span role="status" className="w-full text-xs text-muted-foreground sm:text-right">
+                        {ar ? `المحاولة ${pipelineJob.attempts} من ${pipelineJob.maxAttempts}` : `Attempt ${pipelineJob.attempts} of ${pipelineJob.maxAttempts}`}
+                        {pipelineJob.status === "retry_wait" ? ` · ${ar ? "موعد المحاولة التالية" : "Next retry"} ${new Date(pipelineJob.availableAt).toLocaleTimeString()}` : ""}
+                      </span>
                     )}
                     {project.stageStatus === "awaiting_review" && (
                       <Button onClick={approve} disabled={busy} className="bg-verify font-semibold text-[#052b1c] hover:bg-verify/85">

@@ -19,6 +19,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { PipelineJobLeaseLostError } from "@/lib/pipeline/job-queue.mjs";
 import { z } from "zod";
 import { retryableProviderFailure } from "@/lib/security/provider-retry.mjs";
 import { logDecision } from "@/lib/journal";
@@ -341,7 +342,8 @@ Return JSON: {"evidenceCoverage": 62, "redundancyRate": 10, "dialectFit": 80}`;
 export async function runPlanner(
   projectId: string,
   arm: PlannerArm,
-  runId?: string
+  runId?: string,
+  guard?: (tx?: unknown) => Promise<void>
 ): Promise<{ arm: PlannerArm; questions: PlannedQuestion[]; metrics: ArmMetrics; candidates: number }> {
   const existingQuestions = await db.question.findMany({
     where: { projectId },
@@ -416,68 +418,49 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
   }
   const metrics = await judgeArm(context, selected, usage);
 
-  // Persist the ablation record
-  await db.plannerRun.create({
-    data: {
-      projectId,
-      arm,
-      questions: JSON.stringify(selected).slice(0, 18000),
-      metrics: JSON.stringify(metrics),
-      candidates,
-      latencyMs: usage.latencyMs,
-      estTokens: usage.estTokens,
-      promptVersion: PROMPT_VERSION,
-    },
-  });
-
-  // Materialise as the live question set (same contract as stage 1) with
-  // the utility breakdown stored per question (dynamicity: UI reads these).
+  // Persist the ablation record, live questions and artifact atomically.
   await db.$transaction(async (tx) => {
+    await guard?.(tx);
+    await tx.plannerRun.create({ data: {
+      projectId, arm,
+      questions: JSON.stringify(selected).slice(0, 18000),
+      metrics: JSON.stringify(metrics), candidates,
+      latencyMs: usage.latencyMs, estTokens: usage.estTokens, promptVersion: PROMPT_VERSION,
+    } });
     await tx.question.deleteMany({ where: { projectId } });
     for (const [i, question] of selected.entries()) {
-      await tx.question.create({
-        data: {
-          projectId,
-          order: i,
-          text: question.text,
-          rationale: question.rationale,
-          priority: question.priority,
-          askCost: question.askCost,
-          fallbackAssumption: question.fallbackAssumption || null,
-          utility: question.utility ? JSON.stringify(question.utility) : null,
-        },
-      });
+      await tx.question.create({ data: {
+        projectId, order: i, text: question.text, rationale: question.rationale,
+        priority: question.priority, askCost: question.askCost,
+        fallbackAssumption: question.fallbackAssumption || null,
+        utility: question.utility ? JSON.stringify(question.utility) : null,
+      } });
     }
-  });
-  await db.artifact.create({
-    data: {
-      projectId,
-      stage: "PLANNER",
-      kind: "json",
+    await tx.artifact.create({ data: {
+      projectId, stage: "PLANNER", kind: "json",
       content: JSON.stringify({ arm, candidates, selected, metrics }).slice(0, 20000),
-    },
+    } });
+    await tx.decisionEntry.create({ data: {
+      projectId, stage: "ELICITATION", actor: "agent", action: "planner_run",
+      detail: `Question Planner arm=${arm} selected ${selected.length}/${candidates || selected.length} candidates — avgUtility ${metrics.avgUtility}, coverage ${metrics.evidenceCoverage}%, redundancy ${metrics.redundancyRate}%.`,
+    } });
   });
-  await logDecision(
-    projectId,
-    "ELICITATION",
-    "agent",
-    "planner_run",
-    `Question Planner arm=${arm} selected ${selected.length}/${candidates || selected.length} candidates — avgUtility ${metrics.avgUtility}, coverage ${metrics.evidenceCoverage}%, redundancy ${metrics.redundancyRate}%.`
-  );
   if (runId) {
     try {
-      await db.pipelineRun.update({
-        where: { id: runId },
-        data: {
-          latencyMs: usage.latencyMs,
-          estTokens: usage.estTokens,
-          estCostUsd: +(usage.estTokens * 0.0000006).toFixed(6),
-          promptVersion: PROMPT_VERSION,
-          log: `provider-planner:${arm}`,
-        },
+      await db.$transaction(async (tx) => {
+        await guard?.(tx);
+        await tx.pipelineRun.update({
+          where: { id: runId },
+          data: {
+            latencyMs: usage.latencyMs, estTokens: usage.estTokens,
+            estCostUsd: +(usage.estTokens * 0.0000006).toFixed(6),
+            promptVersion: PROMPT_VERSION, log: `provider-planner:${arm}`,
+          },
+        });
       });
-    } catch {
-      /* best-effort */
+    } catch (error) {
+      if (error instanceof PipelineJobLeaseLostError) throw error;
+      /* observability is best-effort */
     }
   }
   return { arm, questions: selected, metrics, candidates };
