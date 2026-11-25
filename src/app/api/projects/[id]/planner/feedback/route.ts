@@ -120,7 +120,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         where: { projectId, stage: "PLANNER", kind: "planner_human_eval_packet" },
         select: { id: true, content: true },
       });
-      const raced = prior.find((row) => parseContent(row.content).packet?.experimentId === experimentId);
+      const raced = prior.find((row) => readPacketDocument(row.content).experimentId === experimentId);
       if (raced) return { packet: readPacketDocument(raced.content).packet, existing: true };
       await tx.artifact.create({ data: { projectId, stage: "PLANNER", kind: "planner_human_eval_packet", content: packetContent } });
       await tx.artifact.create({ data: { projectId, stage: "PLANNER", kind: "planner_human_eval_key", content: keyContent } });
