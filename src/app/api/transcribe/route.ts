@@ -40,10 +40,6 @@ function scriptOf(text: string): "arabic" | "latin" | "other" {
   return "other";
 }
 
-function expectsArabic(expectedLanguage: string): boolean {
-  return expectedLanguage.startsWith("ar") || expectedLanguage === "ar-EG" || expectedLanguage === "codeswitch";
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
