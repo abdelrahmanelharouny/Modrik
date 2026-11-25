@@ -15,6 +15,7 @@ import { createOfflineEvidenceRetryScheduler } from "@/lib/evidence/offline-retr
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
+import { PlannerHumanEvaluation } from "@/components/rp/planner-human-evaluation";
 import { HudPanel, Eyebrow, Chip, Meter, SectionHead, EmptyBay, LiveDot } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -825,6 +826,8 @@ export function ElicitationStage({
             </div>
           </div>
         )}
+
+        <PlannerHumanEvaluation projectId={project.id} />
 
         {project.questions.length === 0 ? (
           <EmptyBay>
