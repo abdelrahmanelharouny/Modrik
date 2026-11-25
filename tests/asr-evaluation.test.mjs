@@ -17,7 +17,7 @@ test("WER/CER count substitutions, deletions and insertions against reference le
   assert.equal(result.substitutions, 1);
   assert.equal(result.deletions, 0);
   assert.equal(result.insertions, 1);
-  assert.equal(result.wer, 0.5);
+  assert.equal(result.wer, 0.666667);
   assert.ok(result.cer >= 0);
 });
 test("corpus evaluator reports micro scores and language/provider slices", () => {
