@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { HudPanel, SectionHead, Chip } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export function AgentHumanEvaluation({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const response = await api<{ artifacts: ArtifactRow[] }>("/api/projects/" + projectId + "/agent-evaluation");
       setArtifacts(response.artifacts);
@@ -41,8 +41,8 @@ export function AgentHumanEvaluation({ projectId }: { projectId: string }) {
       const message = cause instanceof Error ? cause.message : String(cause);
       setError(message);
     }
-  };
-  useEffect(() => { void load(); }, [projectId]);
+  }, [projectId]);
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     setResult(null); setError("");
     setScores({ grounding: 0, correctness: 0, completeness: 0, actionability: 0, languageFit: 0, safety: 0, overall: 0, reviewerConfidence: 0 });
