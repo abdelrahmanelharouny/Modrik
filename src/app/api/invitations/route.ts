@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
       const plan = resolveOrganizationPlan(subscription.planKey);
       const occupiedSeats = await tx.membership.count({ where: { organizationId, status: { in: ["active", "invited"] } } });
       const priorInvite = await tx.membership.findFirst({ where: { organizationId, user: { email } }, select: { id: true, status: true } });
-      if (occupiedSeats >= plan.memberLimit && !priorInvite) throw new Error("PLAN_LIMIT_MEMBERS");
+      if (occupiedSeats >= plan.memberLimit && !(priorInvite && ["active", "invited"].includes(priorInvite.status))) throw new Error("PLAN_LIMIT_MEMBERS");
     }
 
     const user = await tx.user.upsert({

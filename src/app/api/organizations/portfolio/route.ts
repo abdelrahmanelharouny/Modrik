@@ -31,9 +31,9 @@ export async function GET(req: NextRequest) {
         agentJobs: { where: { status: "dead" }, select: { id: true }, take: 10 },
       },
     }),
-    db.project.count({ where: { organizationId: identity.organizationId } }),
-    db.project.count({ where: { organizationId: identity.organizationId, status: "active" } }),
-    db.project.count({ where: { organizationId: identity.organizationId, status: "complete" } }),
+    db.project.count({ where }),
+    db.project.count({ where: { ...where, status: "active" } }),
+    db.project.count({ where: { ...where, status: "complete" } }),
     db.agentJob.count({ where: { project: { organizationId: identity.organizationId }, status: "dead" } }),
     db.changeImpactFinding.count({ where: { project: { organizationId: identity.organizationId }, status: "pending" } }),
     db.organizationSubscription.findUnique({ where: { organizationId: identity.organizationId }, select: { planKey: true, status: true, currentPeriodEnd: true } }),
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       deadJobs: p.agentJobs.length,
       agentJobs: undefined,
     })),
-    pagination: { limit, returned: projects.length, total: totalProjects, hasMore: projects.length < totalProjects },
+    pagination: { limit, returned: projects.length, total: totalProjects, hasMore: projects.length === limit && totalProjects > projects.length },
     semantics: { usageCost: "estimated", entitlementEnforcement: entitlements.enforcement },
   }, { headers: noStore });
 }

@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ElementType } from "react";
 import Link from "next/link";
 import { useLang } from "@/lib/i18n";
-import { ArrowLeft, Building2, ChartNoAxesCombined, ClipboardCheck, Download, RefreshCw, ShieldCheck, Users, Wallet } from "lucide-react";
+import { ArrowLeft, Building2, ChartNoAxesCombined, ClipboardCheck, Download, RefreshCw, ShieldCheck, Users, Wallet, FileClock } from "lucide-react";
 
 type Project={id:string;name:string;status:string;currentStage:string;stageStatus:string;progress:number;_count:{evidences:number;reqs:number;stories:number;conflicts:number;stakeholders:number;baselineSnapshots:number}};
 type Baseline={id:string;version:number;label:string;contentHash:string;requirementCount:number;storyCount:number;conflictCount:number;createdAt:string};
@@ -106,7 +106,7 @@ export function EnterpriseManager(){
     <Metric icon={ChartNoAxesCombined} label={tx("Projects","المشروعات")} value={portfolio.summary.totalProjects}/>
     <Metric icon={ClipboardCheck} label={tx("Completed","مكتمل")} value={portfolio.summary.completedProjects}/>
     <Metric icon={Users} label={tx("Active members","الأعضاء النشطون")} value={portfolio.summary.activeMembers}/>
-    <Metric icon={FileClockIcon} label={tx("Pending drift reviews","مراجعات الانحراف")} value={portfolio.summary.pendingFindings}/>
+    <Metric icon={FileClock} label={tx("Pending drift reviews","مراجعات الانحراف")} value={portfolio.summary.pendingFindings}/>
     <Metric icon={ShieldCheck} label={tx("Dead agent jobs","مهام متوقفة")} value={portfolio.summary.deadJobs}/>
    </section>
    <section className="mb-7 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -163,6 +163,5 @@ export function EnterpriseManager(){
   </>}
  </main>;
 }
-function Metric({icon:Icon,label,value}:{icon:React.ElementType;label:string;value:number}){return <div className="rounded-xl border border-border bg-card p-4"><div className="flex items-center justify-between text-xs text-muted-foreground"><span>{label}</span><Icon className="h-4 w-4"/></div><p className="mt-3 font-mono text-2xl font-semibold tabular-nums">{value}</p></div>}
+function Metric({icon:Icon,label,value}:{icon:ElementType;label:string;value:number}){return <div className="rounded-xl border border-border bg-card p-4"><div className="flex items-center justify-between text-xs text-muted-foreground"><span>{label}</span><Icon className="h-4 w-4"/></div><p className="mt-3 font-mono text-2xl font-semibold tabular-nums">{value}</p></div>}
 function PolicyNumber({label,value,min,onChange}:{label:string;value:number;min:number;onChange:(value:number)=>void}){return <label className="grid gap-1 text-xs text-muted-foreground">{label}<input type="number" min={min} max={3650} value={value} onChange={e=>onChange(Number(e.target.value))} className="h-10 rounded-lg border border-border bg-background px-3 text-foreground"/></label>}
-import { FileClock as FileClockIcon } from "lucide-react";

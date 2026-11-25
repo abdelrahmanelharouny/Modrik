@@ -51,6 +51,7 @@ import {
   Search,
   Download,
   Users,
+  Building2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SignOutButton } from "@/components/rp/sign-out-button";
@@ -252,9 +253,11 @@ export function MissionControl({
             <a href="#flightplan" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "خطة الرحلة" : "Flight Plan"}</a>
             <a href="#library" className="text-sm text-muted-foreground transition-colors hover:text-aura">{ar ? "المكتبة" : "Library"}</a>
             <Link href="/settings/members" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-aura"><Users className="h-4 w-4" /> {ar ? "الأعضاء" : "Members"}</Link>
+            <Link href="/settings/enterprise" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-aura"><Building2 className="h-4 w-4" /> {ar ? "المؤسسة" : "Enterprise"}</Link>
           </nav>
           <div className="flex items-center gap-2">
             <Link href="/settings/members" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-2 text-xs text-muted-foreground hover:text-aura md:hidden"><Users className="h-4 w-4" /><span>Members</span></Link>
+            <Link href="/settings/enterprise" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-2 text-xs text-muted-foreground hover:text-aura md:hidden"><Building2 className="h-4 w-4" /><span>Enterprise</span></Link>
           <OrganizationSwitcher />
             <Chip tone="plasma" className="hidden sm:inline-flex">
               <LiveDot tone="plasma" /> {ar ? "بوابة بشرية في كل مرحلة" : "human-gated · evidence-driven"}
