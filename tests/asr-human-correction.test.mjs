@@ -21,3 +21,10 @@ test("text payload lengths are bounded before persistence", () => {
   assert.throws(() => prepareAsrHumanCorrection({ consent: true, language: "codeswitch", originalTranscript: "x".repeat(5001), correctedTranscript: "some words" }), /4–5,000/);
   assert.equal(redactAsrTranscriptPii("").text, "");
 });
+
+
+test("Arabic-Indic mobile digits are normalized for redaction and counted", () => {
+  const result = redactAsrTranscriptPii("اتصل ٠١٠١٢٣٤٥٦٧٨");
+  assert.match(result.text, /PHONE REDACTED/);
+  assert.equal(result.redactions.egyptianMobileCount, 1);
+});
