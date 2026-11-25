@@ -68,6 +68,16 @@ export function validateProductionEnv(env = process.env) {
       }
     }
   }
+
+  const stripeKeys = ["STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET","STRIPE_PRICE_TEAM","STRIPE_PRICE_BUSINESS","STRIPE_PRICE_ENTERPRISE"];
+  const stripeConfigured = stripeKeys.some(key => hasValue(env, key));
+  if (stripeConfigured) {
+    if (!hasValue(env, "STRIPE_SECRET_KEY") || !/^sk_(test|live)_/.test(env.STRIPE_SECRET_KEY.trim())) errors.push("STRIPE_SECRET_KEY must be a Stripe test or live secret key");
+    if (!hasValue(env, "STRIPE_WEBHOOK_SECRET") || !/^whsec_/.test(env.STRIPE_WEBHOOK_SECRET.trim())) errors.push("STRIPE_WEBHOOK_SECRET must be a Stripe webhook signing secret");
+    for (const key of ["STRIPE_PRICE_TEAM","STRIPE_PRICE_BUSINESS","STRIPE_PRICE_ENTERPRISE"]) {
+      if (!hasValue(env,key) || !/^price_/.test(env[key].trim())) errors.push(key + " must be a configured Stripe recurring Price ID");
+    }
+  }
   const provider = hasValue(env, "RP_LLM_PROVIDER") ? env.RP_LLM_PROVIDER.trim().toLowerCase() : "";
   if (provider && !["glm", "model-b", "local"].includes(provider)) {
     errors.push("RP_LLM_PROVIDER must be one of glm, model-b, or local");
