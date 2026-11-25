@@ -4,7 +4,7 @@ import { normalizeAsrEvaluationText, evaluateAsrTranscriptPair, evaluateAsrTrans
 
 test("Arabic normalization removes diacritics, standardizes common letter variants and punctuation", () => {
   assert.equal(normalizeAsrEvaluationText("إِنَّهُ عايزٌ، يِمشي!"), "انه عايز يمشي");
-  assert.equal(normalizeAsrEvaluationText("الفتى مسؤول عن الشيء"), "الفتا مسوول عن الشي");
+  assert.equal(normalizeAsrEvaluationText("إلى مسؤول عن الشيء"), "الي مسوول عن الشي");
 });
 test("identical normalized reference and hypothesis have zero WER and CER", () => {
   const result = evaluateAsrTranscriptPair({ reference: "إحنا عايزين نراجع الـ API", hypothesis: "احنا عايزين نراجع ال API", language: "ar-EG" });
