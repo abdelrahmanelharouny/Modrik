@@ -54,9 +54,12 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
     return action === "results" ? "requirements:approve" : "requirements:review";
   }
   if (route === "planner/feedback") {
-    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "GET" || method === "HEAD") return "requirements:review";
     const action = body && typeof body === "object" ? String((body as Record<string, unknown>).action ?? "") : "";
     return action === "results" ? "requirements:approve" : "requirements:review";
+  }
+  if (route === "planner") {
+    return method === "GET" || method === "HEAD" ? "requirements:approve" : "requirements:write";
   }
   if (route === "traceability/reverse") {
     return method === "GET" || method === "HEAD" ? "projects:read" : "requirements:review";
