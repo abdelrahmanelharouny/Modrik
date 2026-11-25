@@ -1,7 +1,7 @@
 export const ARABIC_ASR_EVALUATION_VERSION = "modrik-ar-asr-eval-v1";
 
 const ARABIC_TASHKEEL = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/gu;
-const PUNCTUATION = /[.,!?;:"'`~@#$%^&*()_+=<>؟،؛()[\]{}|\\/…–—-]/gu;
+const PUNCTUATION = /\p{P}+/gu;
 
 /** Conservative Arabic normalization for comparable WER/CER evaluation. */
 export function normalizeAsrEvaluationText(value) {
