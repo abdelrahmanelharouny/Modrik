@@ -93,13 +93,11 @@ export async function POST(req: NextRequest) {
     });
     if (!organization || organization.status !== "active") throw new Error("ORGANIZATION_UNAVAILABLE");
     const subscription = await tx.organizationSubscription.findUnique({ where: { organizationId }, select: { planKey: true, status: true } });
-    if (subscription) {
-      if (!["active", "trialing"].includes(subscription.status)) throw new Error("SUBSCRIPTION_INACTIVE");
-      const plan = resolveOrganizationPlan(subscription.planKey);
-      const occupiedSeats = await tx.membership.count({ where: { organizationId, status: { in: ["active", "invited"] } } });
-      const priorInvite = await tx.membership.findFirst({ where: { organizationId, user: { email } }, select: { id: true, status: true } });
-      if (occupiedSeats >= plan.memberLimit && !(priorInvite && ["active", "invited"].includes(priorInvite.status))) throw new Error("PLAN_LIMIT_MEMBERS");
-    }
+    if (subscription && !["active", "trialing"].includes(subscription.status)) throw new Error("SUBSCRIPTION_INACTIVE");
+    const plan = resolveOrganizationPlan(subscription?.planKey ?? "free");
+    const occupiedSeats = await tx.membership.count({ where: { organizationId, status: { in: ["active", "invited"] } } });
+    const priorInvite = await tx.membership.findFirst({ where: { organizationId, user: { email } }, select: { id: true, status: true } });
+    if (occupiedSeats >= plan.memberLimit && !(priorInvite && ["active", "invited"].includes(priorInvite.status))) throw new Error("PLAN_LIMIT_MEMBERS");
 
     const user = await tx.user.upsert({
       where: { email },

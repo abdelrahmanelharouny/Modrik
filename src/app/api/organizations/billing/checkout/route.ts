@@ -23,8 +23,8 @@ export async function POST(req:NextRequest){
  if(!secretKey||!priceId||!appUrl)return fail("Stripe billing is not configured for this plan",503);
  let origin:string;
  try{const parsed=new URL(appUrl);if(process.env.NODE_ENV==="production"&&parsed.protocol!=="https:")return fail("APP_URL must use HTTPS",503);origin=parsed.origin;}catch{return fail("APP_URL is invalid",503);}
- const subscription=await db.organizationSubscription.findUnique({where:{organizationId:identity.organizationId},select:{externalCustomerId:true,status:true}});
- if(subscription?.billingProvider==="stripe"&&subscription.status==="active"&&subscription.planKey===planKey)return fail("This plan is already active",409);
+ const subscription=await db.organizationSubscription.findUnique({where:{organizationId:identity.organizationId},select:{externalCustomerId:true,status:true,billingProvider:true,planKey:true}});
+ if(subscription?.billingProvider==="stripe"&&["active","trialing"].includes(subscription.status))return fail("An active Stripe subscription already exists. Use the Billing Portal to change or cancel the plan.",409);
  const fields:Record<string,string>={
   mode:"subscription",
   "line_items[0][price]":priceId,

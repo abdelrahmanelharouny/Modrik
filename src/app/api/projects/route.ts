@@ -37,12 +37,10 @@ export async function POST(req: NextRequest) {
     try {
       project = await db.$transaction(async (tx) => {
         const subscription = await tx.organizationSubscription.findUnique({ where: { organizationId }, select: { planKey: true, status: true } });
-        if (subscription) {
-          if (!["active", "trialing"].includes(subscription.status)) throw new Error("SUBSCRIPTION_INACTIVE");
-          const plan = resolveOrganizationPlan(subscription.planKey);
-          const current = await tx.project.count({ where: { organizationId, status: { not: "archived" } } });
-          if (current >= plan.projectLimit) throw new Error("PLAN_LIMIT_PROJECTS");
-        }
+        if (subscription && !["active", "trialing"].includes(subscription.status)) throw new Error("SUBSCRIPTION_INACTIVE");
+        const plan = resolveOrganizationPlan(subscription?.planKey ?? "free");
+        const current = await tx.project.count({ where: { organizationId, status: { not: "archived" } } });
+        if (current >= plan.projectLimit) throw new Error("PLAN_LIMIT_PROJECTS");
         const created = await tx.project.create({ data: {
           name: name.slice(0, 120), brief: brief.slice(0, 6000), organizationId, createdByUserId: userId,
         } });
