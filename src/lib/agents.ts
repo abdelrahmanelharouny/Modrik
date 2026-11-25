@@ -930,7 +930,7 @@ Return JSON: {"answers": [{"id": "question id", "answer": "..."}]}`;
 
 // ---------- I8 drift radar ----------
 
-export async function analyzeDrift(projectId: string, signal: string, runId?: string): Promise<{
+export async function analyzeDrift(projectId: string, signal: string, runId?: string, guard?: PipelineWriteGuard): Promise<{
   summary: string;
   requirements: { refId: string; note: string }[];
 }> {
@@ -959,7 +959,7 @@ export async function analyzeDrift(projectId: string, signal: string, runId?: st
     if (!byRef.has(item.refId) || unique.has(item.refId)) continue;
     unique.set(item.refId, { refId: item.refId, note: String(item.note ?? "").slice(0, 500) });
   }
-  await recordUsage(runId, usage);
+  await recordUsage(runId, usage, guard);
   return { summary: String(out.summary ?? "").slice(0, 1200), requirements: [...unique.values()].slice(0, 100) };
 }
 

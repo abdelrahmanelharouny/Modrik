@@ -125,7 +125,7 @@ async function completeJob(job:AgentJob,impactResult?:DriftResult){
       }
       await tx.artifact.create({data:{
         projectId:job.projectId,stage:"DRIFT",kind:"json",
-        content:JSON.stringify({source:payload.source||"manual",signal:String(payload.signal||"").slice(0,2000),summary:impactResult.summary,findings:impactResult.requirements.slice(0,100),completedAt:now.toISOString()}).slice(0,24000),
+        content:JSON.stringify({source:payload.source||"manual",signal:String(payload.signal||"").slice(0,2000),summary:impactResult.summary,findings:impactResult.requirements.slice(0,100).map((item)=>({refId:item.refId,note:item.note.slice(0,120)})),completedAt:now.toISOString()}).slice(0,24000),
       }});
       if(payload.syncMapId)await tx.syncMap.updateMany({where:{id:payload.syncMapId,projectId:job.projectId},data:{direction:"pulled",leaseExpiresAt:null,syncedAt:now}});
       await tx.pipelineRun.update({where:{id:job.pipelineRunId},data:{status:"done",completedAt:now,log:impactResult.summary.slice(0,1800)}});
@@ -172,7 +172,7 @@ async function executeJob(job:AgentJob,workerId:string){
     if(job.jobKind==="change_impact"){
       const payload=JSON.parse(job.payload||"{}") as {signal?:string};
       if(typeof payload.signal!=="string"||!payload.signal.trim())throw new Error("Change-impact job has no valid signal.");
-      const result=await analyzeDrift(job.projectId,payload.signal,job.pipelineRunId);
+      const result=await analyzeDrift(job.projectId,payload.signal,job.pipelineRunId,guard);
       await guard();
       await completeJob(job,result);
     }else{
