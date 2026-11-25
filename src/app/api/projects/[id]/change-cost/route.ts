@@ -87,8 +87,8 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (body.action === "record_outcome") {
     const estimateId = typeof body.estimateId === "string" ? body.estimateId : "";
-    const actualHours = Number(body.actualHours);
-    const note = typeof body.note === "string" ? body.note.trim().replace(/[\\u0000-\\u001f\\u007f]/g, " ").slice(0, 1000) : "";
+    const actualHours = typeof body.actualHours === "number" ? body.actualHours : Number.NaN;
+    const note = typeof body.note === "string" ? body.note.trim().replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 1000) : "";
     const changeType = typeof body.changeType === "string" ? body.changeType : "other";
     if (!estimateId || estimateId.length > 128 || !Number.isFinite(actualHours) || actualHours < 0 || actualHours > 100000 || !CHANGE_COST_TYPES.includes(changeType)) {
       return NextResponse.json({ error: "Provide a valid estimateId, actualHours between 0 and 100000, and a supported changeType." }, { status: 400 });

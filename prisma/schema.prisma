@@ -884,7 +884,7 @@ model SyncMap {
   id              String   @id @default(cuid())
   projectId       String
   project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind            String   // github | jira
+  kind            String   // github | jira | github-webhook | jira-webhook | manual-drift
   direction       String   // pushed | pulled | pending | creating | failed
   requirementId   String?  // local requirement pushed out
   requirement     Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)

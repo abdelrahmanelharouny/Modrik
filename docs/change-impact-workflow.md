@@ -18,7 +18,7 @@ On success, one transaction:
 - persists the analysis artifact and decision journal entry;
 - marks the source SyncMap as pulled, the PipelineRun done and the AgentJob completed.
 
-The change-impact worker does not move the six-stage pipeline forward, approve requirements, or resolve a finding automatically. A failed job leaves an operator-visible sanitized error and a failed tracker SyncMap; a provider can redeliver a failed delivery using its idempotency key.
+The change-impact worker does not move the six-stage pipeline forward, approve requirements, or resolve a finding automatically. A failed job leaves an operator-visible sanitized error and a failed tracker SyncMap. Redelivery of the same provider delivery ID is deduplicated to the existing job; it does not reset a dead-letter job. After correcting the cause, an operator can submit a fresh manual change signal from the inbox to trigger a new analysis.
 
 The worker readiness endpoints /health and /healthz return 200 only while the process is not draining and a SELECT 1 database probe succeeds. A database failure returns 503.
 
