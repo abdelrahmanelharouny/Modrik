@@ -398,7 +398,7 @@ Modrik's core claim — *evidence-driven HITL produces better requirements with 
 git clone https://github.com/<you>/modrik.git && cd modrik
 cp .env.example .env          # defaults are correct for local dev
 npm install                   # runs `prisma generate` for the SQLite schema
-npm run db:push               # creates db/custom.db with all 38 models
+npm run db:push               # creates db/custom.db with all 46 models
 npm run dev                   # http://localhost:3000
 ```
 
@@ -421,6 +421,8 @@ npm run dev                   # http://localhost:3000
 | `npm run build` | Production build (picks the Prisma provider from `DATABASE_URL`) |
 | `npm run build:standalone` | Self-hosted standalone build (see below) |
 | `npm run start` | Run the standalone build (Bun) |
+| `npm run worker:agents` | Run the durable pipeline worker (separate process/service) |
+| `npm run worker:agents:once` | Process at most one available agent job and exit |
 | `npm run lint` / `npx tsc --noEmit` | The project's two quality gates |
 
 ### Self-hosting (optional)
@@ -429,7 +431,7 @@ npm run dev                   # http://localhost:3000
 npm run build:standalone && npm run start   # serves .next/standalone on :3000
 ```
 
-Set `DATABASE_URL` to a Postgres URL (or keep SQLite — it works on a persistent filesystem) and, if you want a non-GLM model, configure the provider (§13). Docker: any Node 20 image running the two commands above suffices; the app is a single Next.js process plus its database.
+Set `DATABASE_URL` to a Postgres URL (or keep SQLite — it works on a persistent filesystem) and, if you want a non-GLM model, configure the provider (§13). The web app and durable agent worker are separate processes. Build the worker with `Dockerfile.worker`; keep it running against the same PostgreSQL database and LLM-provider configuration as the web app. Do not run the long-lived worker inside a Vercel Function.
 
 ## 18. Deploying to Vercel
 
@@ -496,8 +498,15 @@ Verify a fresh backup restore, real provider connectivity, rate-limit behavior a
 | Function timeouts and cold starts | Long agent runs may exceed the runtime budget | Measure real workloads; use an appropriate plan or move long-running work to a durable worker |
 | Ephemeral filesystem | Local SQLite and local file persistence are not production storage | Use PostgreSQL and durable object storage for any future file lifecycle |
 | No persistent cron by default | Scheduled drift sweeps are not automatic | Use an external scheduler or event-driven workflow with authenticated callbacks |
+| Agent work must outlive an HTTP request | Vercel Functions are not the worker runtime | Deploy the separately supervised `Dockerfile.worker` service; the API only enqueues durable jobs |
 
-### 18.3 Schema change policy
+### 18.3 Durable agent worker
+
+Deploy `Dockerfile.worker` as a separate always-on service (for example, a Railway, Fly.io, or container platform service), not as a Vercel Function. It must use the same PostgreSQL database and the same selected LLM provider variables as the web app. Configure a health check against `/health` on port `8787`; run one or more worker replicas with a conservative concurrency setting. The queue uses database-backed leases and fencing tokens, so independent replicas can safely compete for work. The worker must be deployed before users rely on background agent runs; otherwise jobs remain visibly queued rather than executing in the web request.
+
+Set `PIPELINE_WORKER_CONCURRENCY`, `PIPELINE_WORKER_POLL_MS`, `PIPELINE_JOB_LEASE_MS`, `PIPELINE_WORKER_HEARTBEAT_MS`, and `PIPELINE_JOB_MAX_ATTEMPTS` consistently across services. The API writes the retry budget into each job at enqueue time; changing the environment value affects newly queued jobs. Monitor dead-letter jobs and re-run them only after correcting the underlying provider/configuration issue. No queue table is automatically deployed to an existing production database by this repository change: reconcile a backup-tested migration/baseline and apply the additive schema change through the approved database release procedure first.
+
+### 18.4 Schema change policy
 
 For local development, edit `prisma/schema.prisma`, regenerate the PostgreSQL schema with `npm run db:sync:pg`, and run provider-parity tests. For production, do not treat `prisma db push` as a migration strategy. Every schema change must have an approved migration/baseline, backup and restore evidence, staging validation, and an exact release SHA. See [database-migrations.md](docs/database-migrations.md) and [security-deployment.md](docs/security-deployment.md).
 

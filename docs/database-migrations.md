@@ -64,3 +64,21 @@ Modrik has one canonical Prisma data model at `prisma/schema.prisma` (SQLite). T
 - SQLite and PostgreSQL migration SQL must be generated and tested separately; do not assume a single SQL file is portable.
 
 This gate intentionally prefers a visible release blocker over silently adopting an unknown production database state.
+
+
+## Durable agent execution queue (Phase 2)
+
+The repository schema adds `AgentJob`, a durable outbox/queue row uniquely linked to one `PipelineRun`. Enqueue, the project stage claim, and the run record are committed in one database transaction. The queue is database-backed and portable across the canonical SQLite schema and generated PostgreSQL schema.
+
+Worker guarantees implemented in the application code:
+
+- Jobs are claimed with a compare-and-swap transaction and an expiring lease. A new random lease token fences a previous worker after a reclaim.
+- A worker heartbeats its lease while the model runs. Every agent output transaction renews and verifies that same lease token before writing, so a stale worker cannot commit a late result after another worker has reclaimed the job.
+- Transient failures move to bounded exponential retry; authentication/configuration failures are not retried; exhausted jobs enter `dead` and are visible through the pipeline status API.
+- Worker completion, pipeline run status, the project review state, and the decision journal are finalized atomically.
+- The API returns `202 Accepted` after enqueue and exposes read-only job status. The human approval gate remains unchanged.
+- The worker is a separate long-running process with a small `/health` endpoint and graceful SIGTERM/SIGINT draining.
+
+Commands: `bun run worker:agents` (continuous) and `bun run worker:agents:once` (one available job). Container build: `Dockerfile.worker`.
+
+This is an additive schema change. The existing repository still has no approved production migration baseline, so do not run `prisma db push` against a live database or claim that the queue is deployed merely because CI pushes it into disposable SQLite/PostgreSQL databases. Production adoption still requires the database backup/restore rehearsal, baseline reconciliation, and reviewed migration procedure described above.
