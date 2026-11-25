@@ -8,12 +8,12 @@
     "sqlite": {
       "provider": "sqlite",
       "schemaPath": "prisma/schema.prisma",
-      "sha256": "2c97d831014fc2507cf3e4d86e73566c2030cc82fcddb9de76ebcc4ccc74063c"
+      "sha256": "69e9678a850f1487093b1ec2518410fac67587f7cf489b30f96e948776e15f88"
     },
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "4bd7d028c03f1749e9758aaccbf8eeb9694a206aaaf839e343a24d0d8af6fa26"
+      "sha256": "a50ebf7da7de28645495af99bfbc1ecfd5cfc7367393a631609e7ba485fdee3b"
     }
   },
   "models": [
@@ -64,6 +64,11 @@
     "EvidenceOperation",
     "OrganizationAuditEvent",
     "OrganizationMemoryEmbedding",
-    "OrganizationMemoryEmbeddingJob"
+    "OrganizationMemoryEmbeddingJob",
+    "BaselineSnapshot",
+    "UsageEvent",
+    "OrganizationSubscription",
+    "OrganizationPolicy",
+    "RetentionHold"
   ]
 }
