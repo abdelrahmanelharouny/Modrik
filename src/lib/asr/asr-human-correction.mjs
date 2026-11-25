@@ -10,12 +10,14 @@ function normalizeDigits(value) {
 export function redactAsrTranscriptPii(value) {
   if (typeof value !== "string") throw new TypeError("Transcript must be text.");
   let text = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
-  const before = text;
+  const before = normalizeDigits(text);
+  const emails = (before.match(EMAIL_RE) ?? []).length;
+  const phones = (before.match(EGYPTIAN_MOBILE_RE) ?? []).length;
   text = text.replace(EMAIL_RE, "[EMAIL REDACTED]");
   text = normalizeDigits(text).replace(EGYPTIAN_MOBILE_RE, "[PHONE REDACTED]");
   return { text: text.slice(0, 5000), redactions: {
-    emailCount: (before.match(EMAIL_RE) ?? []).length,
-    egyptianMobileCount: (before.match(EGYPTIAN_MOBILE_RE) ?? []).length,
+    emailCount: emails,
+    egyptianMobileCount: phones,
   } };
 }
 
