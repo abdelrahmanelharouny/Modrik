@@ -9,9 +9,10 @@ const feedbackRoute = fs.readFileSync(new URL("src/app/api/projects/[id]/planner
 const agentRoute = fs.readFileSync(new URL("src/app/api/projects/[id]/agent-evaluation/route.ts", root), "utf8");
 const proxy = fs.readFileSync(new URL("proxy.ts", root), "utf8");
 
-test("general project DTO returns artifact metadata only, never hidden evaluation artifacts", () => {
-  assert.match(projectRoute, /artifacts: \{ orderBy: \{ createdAt: "desc" \}, select: \{ id: true, stage: true, kind: true, createdAt: true \} \}/);
-  assert.doesNotMatch(projectRoute, /artifacts: \{ orderBy: \{ createdAt: "desc" \} \}/);
+test("general project DTO preserves normal artifacts while excluding private evaluation and ASR content", () => {
+  assert.match(projectRoute, /kind: \\{ notIn: \\["planner_human_eval_packet", "planner_human_eval_key", "planner_human_eval_review", "agent_human_eval_review", "asr_human_correction"\\] \\}/);
+  assert.match(projectRoute, /artifacts: \\{[\\s\\S]*?orderBy: \\{ createdAt: "desc" \\} \\}/);
+  assert.doesNotMatch(projectRoute, /artifacts: \\{[^}]*select: \\{ id: true, stage: true, kind: true, createdAt: true \\}/);
 });
 test("unblinded planner experiment history is protected while reviewers receive only a completed experiment identifier", () => {
   assert.match(proxy, /if \(route === "planner"\)[\s\S]*?method === "GET" \|\| method === "HEAD" \? "requirements:approve"/);
