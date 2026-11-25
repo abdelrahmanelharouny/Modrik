@@ -19,5 +19,5 @@ test("correction pairs redact contact details and retain no audio", () => {
 });
 test("text payload lengths are bounded before persistence", () => {
   assert.throws(() => prepareAsrHumanCorrection({ consent: true, language: "codeswitch", originalTranscript: "x".repeat(5001), correctedTranscript: "some words" }), /4–5,000/);
-  assert.throws(() => redactAsrTranscriptPii(""), /not/);
+  assert.equal(redactAsrTranscriptPii("").text, "");
 });
