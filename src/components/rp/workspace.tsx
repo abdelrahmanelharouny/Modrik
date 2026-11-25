@@ -63,7 +63,7 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
   const runAgent = async () => {
     setBusy(true);
     try {
-      const queued = await api<{jobId:string;status:string}>(`/api/projects/${project.id}/pipeline`, {
+      await api<{jobId:string;status:string}>(`/api/projects/${project.id}/pipeline`, {
         method: "POST",
         body: JSON.stringify({ action: "run", ...(stage === "ELICITATION" ? { arm: plannerArm } : {}) }),
       });
@@ -95,12 +95,12 @@ export function Workspace({ project, busy, setBusy, refresh, backHome }: Workspa
         if (!job) return;
         if (job.status === "completed" && handledJobRef.current !== job.id) {
           handledJobRef.current = job.id;
+          toast({ title: ar ? "الوكيل خلص" : "Agent finished", description: ar ? "النتيجة جاهزة لمراجعتك والمرحلة لم تتجاوز موافقتك." : "The result is ready for your review. The human gate is still yours." });
           await refresh();
-          if (!stopped) toast({ title: ar ? "الوكيل خلص" : "Agent finished", description: ar ? "النتيجة جاهزة لمراجعتك والمرحلة لم تتجاوز موافقتك." : "The result is ready for your review. The human gate is still yours." });
         } else if (job.status === "dead" && handledJobRef.current !== job.id) {
           handledJobRef.current = job.id;
+          toast({ title: ar ? "تعذر إكمال تشغيل الوكيل" : "Agent run failed", description: job.lastError || (ar ? "وصل التشغيل للحد الأقصى للمحاولات." : "The job exhausted its retry budget."), variant: "destructive" });
           await refresh();
-          if (!stopped) toast({ title: ar ? "تعذر إكمال تشغيل الوكيل" : "Agent run failed", description: job.lastError || (ar ? "وصل التشغيل للحد الأقصى للمحاولات." : "The job exhausted its retry budget."), variant: "destructive" });
         }
       } catch {
         // A transient polling failure must not cancel an already-running job.

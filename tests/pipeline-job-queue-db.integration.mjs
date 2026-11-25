@@ -10,7 +10,7 @@ test("agent jobs persist, claim once, renew, retry, reclaim and complete",async(
   projectId=project.id;
   const run=await prisma.pipelineRun.create({data:{projectId,stage:"ELICITATION",status:"running"}});
   const job=await prisma.agentJob.create({data:{projectId,pipelineRunId:run.id,stage:"ELICITATION",payload:'{"arm":"impact_aware"}',maxAttempts:5}});
-  const now=new Date(),lease=buildPipelineJobLease({workerId:"worker-a",leaseToken:`a-${suffix}`,now,leaseMs:60_000});
+  const now=new Date();
   const [a,b]=await Promise.all(["worker-a","worker-b"].map((worker,i)=>prisma.agentJob.updateMany({
     where:{id:job.id,...buildPipelineJobClaimFilter(now),attempts:0},
     data:{...buildPipelineJobLease({workerId:worker,leaseToken:`${i}-${suffix}`,now}),attempts:{increment:1}},

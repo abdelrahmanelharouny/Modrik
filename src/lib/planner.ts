@@ -440,15 +440,11 @@ Return JSON: {"selected": [3, 7, 1, 11, 5]}`;
       projectId, stage: "PLANNER", kind: "json",
       content: JSON.stringify({ arm, candidates, selected, metrics }).slice(0, 20000),
     } });
+    await tx.decisionEntry.create({ data: {
+      projectId, stage: "ELICITATION", actor: "agent", action: "planner_run",
+      detail: `Question Planner arm=${arm} selected ${selected.length}/${candidates || selected.length} candidates — avgUtility ${metrics.avgUtility}, coverage ${metrics.evidenceCoverage}%, redundancy ${metrics.redundancyRate}%.`,
+    } });
   });
-  await guard?.();
-  await logDecision(
-    projectId,
-    "ELICITATION",
-    "agent",
-    "planner_run",
-    `Question Planner arm=${arm} selected ${selected.length}/${candidates || selected.length} candidates — avgUtility ${metrics.avgUtility}, coverage ${metrics.evidenceCoverage}%, redundancy ${metrics.redundancyRate}%.`
-  );
   if (runId) {
     try {
       await db.$transaction(async (tx) => {
