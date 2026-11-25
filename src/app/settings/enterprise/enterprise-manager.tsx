@@ -9,7 +9,7 @@ type Project={id:string;name:string;status:string;currentStage:string;stageStatu
 type Baseline={id:string;version:number;label:string;contentHash:string;requirementCount:number;storyCount:number;conflictCount:number;createdAt:string};
 type Policy={dataRetentionDays:number;evidenceRetentionDays:number;auditRetentionDays:number;aiProcessingAllowed:boolean;permittedAiProviders:string[];defaultLocale:string};
 type Hold={id:string;resourceType:string;resourceId:string;reason:string;placedAt:string};
-type Usage={projectUsage:Array<{projectId:string;quantity:number;estimatedCostUsd:number;events:number}>;totals:{quantity:number;estimatedCostUsd:number;events:number}};
+type Usage={projectUsage:Array<{projectId:string;quantity:number;estimatedCostUsd:number;events:number}>;totals:{quantity:number;estimatedCostUsd:number;events:number};billing?:{state:string;provider:string;invoices:Array<{id:string;invoiceNumber:string|null;status:string;currency:string;amountDue:number;amountPaid:number;hostedInvoiceUrl:string|null;invoicePdfUrl:string|null;issuedAt:string|null;paidAt:string|null}>}};
 type Portfolio={summary:{totalProjects:number;completedProjects:number;activeMembers:number;pendingFindings:number;deadJobs:number};usage:{monthlyTokens:number;estimatedCostUsd:number};subscription:{planKey:string;status:string};entitlements:{limits:{monthlyTokens:number;members:number;projects:number}};projects:Project[]};
 async function call<T,>(url:string,init?:RequestInit):Promise<T>{
  const response=await fetch(url,{...init,cache:"no-store",credentials:"same-origin",headers:{"Content-Type":"application/json",...(init?.headers??{})}});
@@ -108,6 +108,22 @@ export function EnterpriseManager(){
   catch(err){setError(err instanceof Error?err.message:"Unable to release retention hold");}
   finally{setBusy(false);}
  }
+ async function startCheckout(planKey:"team"|"business"|"enterprise"){
+  setBusy(true);setError("");setNotice("");
+  try{
+   const result=await call<{url:string}>("/api/organizations/billing/checkout",{method:"POST",body:JSON.stringify({planKey})});
+   window.location.assign(result.url);
+  }catch(err){setError(err instanceof Error?err.message:"Unable to start secure checkout");}
+  finally{setBusy(false);}
+ }
+ async function openBillingPortal(){
+  setBusy(true);setError("");setNotice("");
+  try{
+   const result=await call<{url:string}>("/api/organizations/billing/portal",{method:"POST",body:JSON.stringify({})});
+   window.location.assign(result.url);
+  }catch(err){setError(err instanceof Error?err.message:"Unable to open billing portal");}
+  finally{setBusy(false);}
+ }
  async function exportPackage(){
   setBusy(true);setError("");setNotice("");
   try{
@@ -166,7 +182,12 @@ export function EnterpriseManager(){
       <div className="mt-4 flex items-end justify-between"><span className="text-xs text-muted-foreground">{tx("Monthly estimated tokens","الرموز المقدرة شهريًا")}</span><strong className="font-mono text-xl">{portfolio.usage.monthlyTokens.toLocaleString()}</strong></div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary" style={{width:Math.min(100,portfolio.usage.monthlyTokens/Math.max(1,portfolio.entitlements.limits.monthlyTokens)*100)+"%"}}/></div>
       <p className="mt-2 text-xs text-muted-foreground">{tx("of","من")} {portfolio.entitlements.limits.monthlyTokens.toLocaleString()} · {tx("estimated cost","التكلفة التقديرية")} $ {portfolio.usage.estimatedCostUsd.toFixed(4)}</p>
-      <p className="mt-3 text-xs text-muted-foreground">{tx("Metering only; no payment provider or invoice is active.","قياس الاستخدام فقط؛ لا يوجد مزود دفع أو فاتورة نشطة.")}</p>
+      <p className="mt-3 text-xs text-muted-foreground">{usage?.billing?.provider==="stripe"?tx("Stripe billing connected. Provider invoices and subscription state are synchronized by signed webhooks.","فوترة Stripe متصلة؛ يتم مزامنة الفواتير وحالة الاشتراك عبر Webhooks موقعة."):tx("Metering is active; checkout is available only after Stripe keys and recurring price IDs are configured.","قياس الاستخدام فعال؛ الدفع متاح بعد إعداد مفاتيح Stripe ومعرفات الأسعار.")}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+       {usage?.billing?.provider==="stripe"?<button type="button" disabled={busy} onClick={()=>void openBillingPortal()} className="rounded-lg border border-border px-3 py-2 text-xs hover:bg-secondary disabled:opacity-50">{tx("Manage subscription","إدارة الاشتراك")}</button>:null}
+       {(["team","business","enterprise"] as const).map(plan=><button key={plan} type="button" disabled={busy} onClick={()=>void startCheckout(plan)} className="rounded-lg border border-primary/40 px-3 py-2 text-xs hover:bg-primary/5 disabled:opacity-50">{tx("Choose "+plan[0].toUpperCase()+plan.slice(1),"اختيار "+({team:"فريق",business:"أعمال",enterprise:"مؤسسات"}[plan]))}</button>)}
+      </div>
+      {usage?.billing?.invoices?.length?<div className="mt-4 border-t border-border pt-3"><p className="mb-2 text-xs font-medium">{tx("Recent invoices","الفواتير الأخيرة")}</p>{usage.billing.invoices.slice(0,5).map(invoice=><div key={invoice.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 py-2 text-xs"><span>{invoice.invoiceNumber??invoice.id.slice(0,12)} · {invoice.status} · {(invoice.amountPaid/100).toFixed(2)} {invoice.currency.toUpperCase()}</span><span className="flex gap-2">{invoice.hostedInvoiceUrl?<a href={invoice.hostedInvoiceUrl} target="_blank" rel="noreferrer" className="text-primary underline">{tx("View","عرض")}</a>:null}{invoice.invoicePdfUrl?<a href={invoice.invoicePdfUrl} target="_blank" rel="noreferrer" className="text-primary underline">{tx("PDF","PDF")}</a>:null}</span></div>)}</div>:null}
       <div className="mt-4 border-t border-border pt-3">
        <p className="mb-2 text-xs font-medium">{tx("Top project usage this month","أعلى استهلاك للمشروعات هذا الشهر")}</p>
        {(usage?.projectUsage||[]).slice(0,8).map(row=><div key={row.projectId} className="flex justify-between gap-3 py-1 text-xs"><span className="truncate text-muted-foreground">{portfolio.projects.find(p=>p.id===row.projectId)?.name??row.projectId}</span><span className="shrink-0 font-mono">{row.quantity.toLocaleString()} · ${row.estimatedCostUsd.toFixed(3)}</span></div>)}
