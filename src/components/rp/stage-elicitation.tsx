@@ -15,6 +15,7 @@ import { createOfflineEvidenceRetryScheduler } from "@/lib/evidence/offline-retr
 import { LANG_LABEL, type ProjectDTO } from "@/lib/rp";
 import { EvidenceRevisionPanel } from "@/components/rp/evidence-revision-panel";
 import { EvidenceClaimsPanel } from "@/components/rp/evidence-claims-panel";
+import { PlannerHumanEvaluation } from "@/components/rp/planner-human-evaluation";
 import { HudPanel, Eyebrow, Chip, Meter, SectionHead, EmptyBay, LiveDot } from "@/components/rp/hud";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,7 +122,7 @@ async function blobToWavBase64(blob: Blob): Promise<string> {
 }
 
 // ── voice note recorder ──────────────────────────────────────
-function MicRecorder({ onTranscript, expectedLanguage }: { onTranscript: (text: string) => void; expectedLanguage?: string }) {
+function MicRecorder({ onTranscript, onOriginalTranscript, expectedLanguage }: { onTranscript: (text: string) => void; onOriginalTranscript?: (text: string) => void; expectedLanguage?: string }) {
   const { toast } = useToast();
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -153,6 +154,7 @@ function MicRecorder({ onTranscript, expectedLanguage }: { onTranscript: (text: 
             body: JSON.stringify({ audio: b64, expectedLanguage }),
           });
           onTranscript(data.text);
+          onOriginalTranscript?.(data.text);
           if (data.warning) {
             toast({ title: "Voice note transcribed — please verify", description: data.warning, variant: "destructive" });
           } else {
@@ -229,6 +231,8 @@ export function ElicitationStage({
   const [language, setLanguage] = useState("en");
   const [content, setContent] = useState("");
   const [consent, setConsent] = useState(false);
+  const [asrOriginalTranscript, setAsrOriginalTranscript] = useState("");
+  const [asrResearchConsent, setAsrResearchConsent] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [experimenting, setExperimenting] = useState(false);
   const [experimentResult, setExperimentResult] = useState<PlannerExperimentView | null>(null);
@@ -343,17 +347,39 @@ export function ElicitationStage({
         const operation = createOfflineEvidenceOperation(project.id, payload, operationId);
         await putOfflineEvidenceOperation(operation);
         await loadOfflineQueue();
-        setTitle(""); setContent(""); setConsent(false); setOpen(false);
-        toast({ title: "Evidence saved on this device", description: "It is queued privately in this browser and will sync when you reconnect. This browser profile must remain available until sync completes. Local browser storage is not separately encrypted; avoid queuing highly sensitive material on shared devices." });
+        setTitle(""); setContent(""); setConsent(false); setAsrOriginalTranscript(""); setAsrResearchConsent(false); setOpen(false);
+        toast({ title: "Evidence saved on this device", description: "It is queued privately in this browser and will sync when you reconnect. ASR research feedback is not submitted while offline. This browser profile must remain available until sync completes. Local browser storage is not separately encrypted; avoid queuing highly sensitive material on shared devices." });
         return;
       }
       await api(`/api/projects/${project.id}/evidence`, {
         method: "POST",
         body: JSON.stringify({ ...payload, clientOperationId: operationId }),
       });
+      let asrFeedbackSaved = false;
+      if (asrOriginalTranscript && asrResearchConsent && ["ar-EG", "codeswitch"].includes(language)) {
+        try {
+          await api(`/api/projects/${project.id}/asr-feedback`, {
+            method: "POST",
+            body: JSON.stringify({
+              consent: true, language,
+              originalTranscript: asrOriginalTranscript,
+              correctedTranscript: content.trim(),
+            }),
+          });
+          asrFeedbackSaved = true;
+        } catch (feedbackError) {
+          toast({
+            title: "Evidence saved; ASR feedback not recorded",
+            description: (feedbackError as Error).message,
+            variant: "destructive",
+          });
+        }
+      }
       setTitle("");
       setContent("");
       setConsent(false);
+      setAsrOriginalTranscript("");
+      setAsrResearchConsent(false);
       setOpen(false);
       await refresh();
       toast({
@@ -362,14 +388,17 @@ export function ElicitationStage({
           ? "This source is eligible for AI analysis."
           : "Stored in the project library, but its content is excluded from AI analysis until permission is recorded.",
       });
+      if (asrFeedbackSaved) {
+        toast({ title: "ASR correction shared", description: "A text-only, contact-redacted Egyptian Arabic correction pair was saved under your separate consent." });
+      }
     } catch (e) {
       const error = e as Error;
       if (error instanceof TypeError) {
         try {
           await putOfflineEvidenceOperation(createOfflineEvidenceOperation(project.id, payload, operationId));
           await loadOfflineQueue();
-          setTitle(""); setContent(""); setConsent(false); setOpen(false);
-          toast({ title: "Connection interrupted — evidence queued", description: "The same operation ID will be reused on retry to prevent duplicate sources." });
+          setTitle(""); setContent(""); setConsent(false); setAsrOriginalTranscript(""); setAsrResearchConsent(false); setOpen(false);
+          toast({ title: "Connection interrupted — evidence queued", description: "The same operation ID will be reused on retry to prevent duplicate sources. ASR research feedback is not submitted while offline." });
           return;
         } catch (queueError) {
           toast({ title: "Could not preserve evidence offline", description: (queueError as Error).message, variant: "destructive" });
@@ -486,7 +515,7 @@ export function ElicitationStage({
   });
   const answered = project.questions.filter((q) => q.answered).length;
   const carried = project.questions.filter((q) => q.resolution === "proceed_with_uncertainty").length;
-  const transcript = (text: string) => setContent((c) => (c ? `${c}\n${text}` : text));
+  const transcript = (text: string) => { setAsrResearchConsent(false); setContent((c) => (c ? `${c}\n${text}` : text)); };
 
   return (
     <div className="space-y-6">
@@ -528,7 +557,7 @@ export function ElicitationStage({
                         <SelectItem value="whiteboard_ocr">Whiteboard OCR</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={language} onValueChange={setLanguage}>
+                    <Select value={language} onValueChange={(value) => { setLanguage(value); setAsrResearchConsent(false); }}>
                       <SelectTrigger aria-label="Language">
                         <SelectValue />
                       </SelectTrigger>
@@ -539,13 +568,13 @@ export function ElicitationStage({
                       </SelectContent>
                     </Select>
                   </div>
-                  <MicRecorder onTranscript={transcript} expectedLanguage={language} />
+                  <MicRecorder onTranscript={transcript} onOriginalTranscript={setAsrOriginalTranscript} expectedLanguage={language} />
                   <Textarea
                     rows={6}
                     dir="auto"
                     placeholder="Paste transcript, notes or document excerpt… (Arabic and code-switched text are welcome)"
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={(e) => { setContent(e.target.value); if (asrOriginalTranscript) setAsrResearchConsent(false); }}
                   />
                   <div className="flex items-center gap-2">
                     <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} />
@@ -556,6 +585,19 @@ export function ElicitationStage({
                   <p className="text-xs leading-5 text-muted-foreground">
                     Leave this unchecked when permission is missing or uncertain. The source remains in the private project library, but its content is never sent to an AI model or used to generate requirements.
                   </p>
+                  {asrOriginalTranscript && ["ar-EG", "codeswitch"].includes(language) && (
+                    <div className="rounded-md border border-aura/25 bg-aura/5 p-3">
+                      <div className="flex items-start gap-2">
+                        <Checkbox id="asr-research-consent" checked={asrResearchConsent} onCheckedChange={(value) => setAsrResearchConsent(value === true)} />
+                        <Label htmlFor="asr-research-consent" className="text-xs leading-5 text-muted-foreground">
+                          I separately consent to saving a contact-redacted pair of the original ASR transcript and my corrected text for Egyptian Arabic evaluation. No audio is stored.
+                        </Label>
+                      </div>
+                      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+                        Optional and separate from AI-processing permission. Email addresses and Egyptian mobile numbers are redacted before storage; remove names and other identifiers yourself. This is not full anonymization. Unchecking this means no correction sample is retained.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpen(false)}>
@@ -825,6 +867,8 @@ export function ElicitationStage({
             </div>
           </div>
         )}
+
+        <PlannerHumanEvaluation projectId={project.id} />
 
         {project.questions.length === 0 ? (
           <EmptyBay>

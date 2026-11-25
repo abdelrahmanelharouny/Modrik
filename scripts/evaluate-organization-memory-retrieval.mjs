@@ -30,21 +30,22 @@ async function main() {
   const source = JSON.parse(await readFile(inputPath, "utf8"));
   if (!source || !Array.isArray(source.queries) || !source.queries.length) throw new TypeError("Input must contain a non-empty queries array.");
   const queries = source.queries.map(validateQuery);
-  const bm25Judgments = [], hybridJudgments = [];
+  const bm25Judgments = [], semanticJudgments = [], hybridJudgments = [];
   for (const query of queries) {
     const lexical = query.bm25RankedIds.slice(0, k).map((id) => ({ id, projectId: query.projectId, status: "accepted" }));
     const semantic = query.semanticRankedIds.slice(0, k).map((id) => ({ id, projectId: query.projectId, status: "accepted" }));
     const hybrid = fuseOrganizationMemoryRankings({ rankings: [lexical, semantic], projectIds: [query.projectId], limit: k });
     bm25Judgments.push({ language: query.language, relevantIds: query.relevantIds, rankedIds: lexical.map((row) => row.id), k });
+    semanticJudgments.push({ language: query.language, relevantIds: query.relevantIds, rankedIds: semantic.map((row) => row.id), k });
     hybridJudgments.push({ language: query.language, relevantIds: query.relevantIds, rankedIds: hybrid.map((row) => row.id), k });
   }
   const report = {
     benchmark: "organization-memory-judged-retrieval",
     dataset: { name: source.name ?? "unnamed", version: source.version ?? null, provenance: source.provenance ?? "unspecified", queryCount: queries.length, topK: k },
-    metrics: { bm25: evaluateOrganizationMemoryBenchmark(bm25Judgments), hybridRrf: evaluateOrganizationMemoryBenchmark(hybridJudgments) },
+    metrics: { bm25: evaluateOrganizationMemoryBenchmark(bm25Judgments), semanticCosine: evaluateOrganizationMemoryBenchmark(semanticJudgments), hybridRrf: evaluateOrganizationMemoryBenchmark(hybridJudgments) },
     perQuery: queries.map((query, index) => ({
       id: query.id, language: query.language, relevantCount: query.relevantIds.length,
-      bm25: bm25Judgments[index].rankedIds, hybridRrf: hybridJudgments[index].rankedIds,
+      bm25: bm25Judgments[index].rankedIds, semanticCosine: semanticJudgments[index].rankedIds, hybridRrf: hybridJudgments[index].rankedIds,
     })),
     caveats: [
       "Metrics are only as valid as the supplied human-judged relevance labels and retrieval snapshots.",
@@ -54,6 +55,6 @@ async function main() {
   };
   const outputPath = option("output", "");
   if (outputPath) await writeFile(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
-  console.log(JSON.stringify({ dataset: report.dataset, bm25: report.metrics.bm25.macro, hybridRrf: report.metrics.hybridRrf.macro, outputPath: outputPath || null }, null, 2));
+  console.log(JSON.stringify({ dataset: report.dataset, bm25: report.metrics.bm25.macro, semanticCosine: report.metrics.semanticCosine.macro, hybridRrf: report.metrics.hybridRrf.macro, outputPath: outputPath || null }, null, 2));
 }
 main().catch((error) => { console.error("[organization-memory-judged-eval] failed", error instanceof Error ? error.message : "unknown error"); process.exitCode = 1; });

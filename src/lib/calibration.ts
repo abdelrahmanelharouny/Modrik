@@ -22,6 +22,9 @@ export interface CalibrationProfile {
   bins: CalibrationBin[];
   spread: { supportedAvg: number | null; weakAvg: number | null };
   labelSource: "human-reviewed";
+  byLanguage: { segment: string; n: number; brier: number | null; ece: number | null; verdict: string }[];
+  byType: { segment: string; n: number; brier: number | null; ece: number | null; verdict: string }[];
+  weekly: { segment: string; n: number; brier: number | null; ece: number | null; verdict: string }[];
 }
 
 export async function computeCalibration(projectId: string): Promise<CalibrationProfile> {
@@ -40,6 +43,8 @@ export async function computeCalibration(projectId: string): Promise<Calibration
       verificationSource: true,
       verifiedAt: true,
       verifiedBy: true,
+      language: true,
+      type: true,
     },
   });
   return {

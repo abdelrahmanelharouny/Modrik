@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
+import { assessArabicTranscriptQuality } from "@/lib/asr/arabic-transcript-quality.mjs";
+import { createOpenAICompatibleAsrProvider } from "@/lib/asr/openai-compatible-provider.mjs";
 
 // I5 multimodal intake — voice notes: in-browser audio capture
 // arrives as base64 (MediaRecorder webm/wav); the GLM ASR service
@@ -29,22 +31,22 @@ function audioLimitMessage(): string {
 }
 
 function scriptOf(text: string): "arabic" | "latin" | "other" {
-  if (ARABIC_RE.test(text)) return "arabic";
-  const letters = text.replace(/[^A-Za-z]/g, "").length;
-  if (letters >= Math.max(3, text.replace(/\s/g, "").length * 0.5)) return "latin";
+  const letters = [...text].filter((character) => /\p{L}/u.test(character));
+  if (!letters.length) return "other";
+  const arabic = letters.filter((character) => ARABIC_RE.test(character)).length;
+  const latin = letters.filter((character) => /[A-Za-z]/u.test(character)).length;
+  if (arabic / letters.length >= 0.35) return "arabic";
+  if (latin / letters.length >= 0.5) return "latin";
   if (CJK_RE.test(text)) return "other";
   return "other";
-}
-
-function expectsArabic(expectedLanguage: string): boolean {
-  return expectedLanguage.startsWith("ar") || expectedLanguage === "ar-EG" || expectedLanguage === "codeswitch";
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const audio = String(body.audio ?? "");
-    const expectedLanguage = String(body.expectedLanguage ?? "").trim();
+    const rawLanguage = String(body.expectedLanguage ?? "").trim();
+    const expectedLanguage = ["ar-EG", "codeswitch", "en"].includes(rawLanguage) ? rawLanguage : "";
     if (!audio) {
       return NextResponse.json({ error: "Audio payload (base64) is required" }, { status: 400 });
     }
@@ -53,11 +55,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: audioLimitMessage() }, { status: 413 });
     }
 
-    const zai = await ZAI.create();
-    const transcribe = async () => {
-      const result = await zai.audio.asr.create({ file_base64: audio });
-      return ((result as { text?: string }).text ?? "").trim();
-    };
+    const providerName = String(process.env.RP_ASR_PROVIDER ?? "zai").trim().toLowerCase();
+    let transcribe: () => Promise<string>;
+    if (providerName === "openai-compatible") {
+      const provider = await createOpenAICompatibleAsrProvider();
+      transcribe = () => provider.transcribe(audio, expectedLanguage || "unspecified");
+    } else if (providerName === "zai") {
+      const zai = await ZAI.create();
+      transcribe = async () => {
+        const result = await zai.audio.asr.create({ file_base64: audio });
+        return ((result as { text?: string }).text ?? "").trim();
+      };
+    } else {
+      return NextResponse.json({ error: "Unsupported ASR provider configuration." }, { status: 503 });
+    }
 
     let text = await transcribe();
     if (!text.trim()) {
@@ -68,16 +79,18 @@ export async function POST(req: NextRequest) {
     if (expectedLanguage) {
       const script = scriptOf(text);
       const mismatch =
-        (expectsArabic(expectedLanguage) && script !== "arabic") ||
-        (!expectsArabic(expectedLanguage) && script === "other");
+        (expectedLanguage === "ar-EG" && script !== "arabic") ||
+        (expectedLanguage === "codeswitch" && !ARABIC_RE.test(text)) ||
+        (expectedLanguage === "en" && script !== "latin");
       if (mismatch) {
         // one retry — transient misdetection
         text = await transcribe();
         const script2 = scriptOf(text);
         const stillMismatched =
           text.trim().length > 0 &&
-          ((expectsArabic(expectedLanguage) && script2 !== "arabic") ||
-            (!expectsArabic(expectedLanguage) && script2 === "other"));
+          ((expectedLanguage === "ar-EG" && script2 !== "arabic") ||
+            (expectedLanguage === "codeswitch" && !ARABIC_RE.test(text)) ||
+            (expectedLanguage === "en" && script2 !== "latin"));
         if (stillMismatched) {
           warning =
             "The transcript script does not match the expected language of this evidence. Please review or re-record before saving.";
@@ -85,7 +98,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ text, warning });
+    const quality = assessArabicTranscriptQuality({ text, expectedLanguage: expectedLanguage || "unspecified" });
+    if (quality.reviewRequired && !warning) {
+      warning = "The transcript needs a quick quality review before saving. Check the flagged language, repetition or short-clip signals.";
+    }
+    return NextResponse.json({ text, warning, quality });
   } catch (err) {
     return NextResponse.json(
       { error: String(err instanceof Error ? err.message : err).slice(0, 400) },

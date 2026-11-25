@@ -21,6 +21,7 @@ import { PlannerLab, CalibrationPanel, ExecutabilitySim, SelfAuditPanel, Integra
 import { KnowledgeGraphExplorer } from "@/components/rp/knowledge-graph-explorer";
 import { ChangeCostCalibration } from "@/components/rp/change-cost-calibration";
 import { ChangeImpactInbox } from "@/components/rp/change-impact-inbox";
+import { AgentHumanEvaluation } from "@/components/rp/agent-human-evaluation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1086,6 +1087,10 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
           />
           <ChangeImpactInbox projectId={project.id} />
         </HudPanel>
+      </Reveal>
+
+      <Reveal>
+        <AgentHumanEvaluation projectId={project.id} />
       </Reveal>
 
       {/* payload previews + exports */}

@@ -73,6 +73,10 @@ export async function GET(req: NextRequest) {
   if (search && search.length > 120) {
     return errorResponse("q must be at most 120 characters", 400);
   }
+  const retrievalMode = params.get("retrieval") ?? "hybrid";
+  if (!["lexical", "semantic", "hybrid"].includes(retrievalMode)) {
+    return errorResponse("retrieval must be lexical, semantic or hybrid", 400);
+  }
   const cursor = params.get("cursor");
   if (cursor !== null && (!cursor.trim() || cursor.length > 512)) {
     return errorResponse("cursor must be a non-empty record cursor of at most 512 characters", 400);
@@ -136,7 +140,7 @@ export async function GET(req: NextRequest) {
     // The transaction below is reserved for tenant-scoped database retrieval only.
     let semanticContext: { model: string; dimensions: number; queryEmbedding: Awaited<ReturnType<Awaited<ReturnType<typeof createOrganizationMemoryEmbeddingProvider>>["embed"]>> } | null = null;
     let semanticPreflightFailed = false;
-    if (rankedSearch && process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED === "true" && projectIds.length) {
+    if (rankedSearch && retrievalMode !== "lexical" && process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED === "true" && projectIds.length) {
       try {
         const provider = await createOrganizationMemoryEmbeddingProvider();
         const queryEmbedding = await provider.embed(search!);
@@ -157,11 +161,22 @@ export async function GET(req: NextRequest) {
         findMany: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
       });
       const runHybrid = async <T extends { rows: Array<{ id: string; projectId: string; status: string }> }>(lexical: T) => {
-        if (process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true" || !projectIds.length) return lexical;
+        if (retrievalMode === "lexical") return { ...lexical, retrievalMode: "bm25_lexical", retrievalModeRequested: retrievalMode };
+        if (process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true" || !projectIds.length) {
+          return {
+            ...lexical,
+            retrievalMode: "bm25_fallback",
+            retrievalModeRequested: retrievalMode,
+            semanticFallbackReason: "semantic_read_disabled",
+          };
+        }
         if (!semanticContext) {
-          return semanticPreflightFailed
-            ? { ...lexical, semanticFallbackReason: "semantic_unavailable_bm25_served" }
-            : lexical;
+          return {
+            ...lexical,
+            retrievalMode: "bm25_fallback",
+            retrievalModeRequested: retrievalMode,
+            semanticFallbackReason: semanticPreflightFailed ? "semantic_unavailable_bm25_served" : "semantic_context_unavailable_bm25_served",
+          };
         }
         try {
           const semantic = await searchTenantScopedOrganizationMemoryEmbeddings({
@@ -170,16 +185,25 @@ export async function GET(req: NextRequest) {
             findEmbeddings: (args) => tx.organizationMemoryEmbedding.findMany(args as Parameters<typeof tx.organizationMemoryEmbedding.findMany>[0]),
             findNodes: (args) => tx.knowledgeNode.findMany(args as Parameters<typeof tx.knowledgeNode.findMany>[0]),
           });
+          const rows = retrievalMode === "semantic"
+            ? semantic.rows
+            : fuseOrganizationMemoryRankings({ rankings: [lexical.rows, semantic.rows], projectIds, limit: responseLimit });
           return {
             ...lexical,
-            rows: fuseOrganizationMemoryRankings({ rankings: [lexical.rows, semantic.rows], projectIds, limit: responseLimit }),
-            retrievalMode: "hybrid_bm25_semantic_rrf",
+            rows,
+            retrievalMode: retrievalMode === "semantic" ? "semantic_cosine" : "hybrid_bm25_semantic_rrf",
+            retrievalModeRequested: retrievalMode,
             semanticCandidatesScanned: semantic.candidatesScanned,
             semanticCandidatePages: semantic.pages,
             semanticDurationMs: semantic.durationMs,
           };
         } catch {
-          return { ...lexical, semanticFallbackReason: "semantic_unavailable_bm25_served" };
+          return {
+            ...lexical,
+            retrievalMode: "bm25_fallback",
+            retrievalModeRequested: retrievalMode,
+            semanticFallbackReason: "semantic_unavailable_bm25_served",
+          };
         }
       };
       if (!indexedEnabled && !shadowEnabled) {
