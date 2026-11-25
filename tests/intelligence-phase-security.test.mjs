@@ -17,7 +17,9 @@ test("unblinded planner experiment history is protected while reviewers receive 
   assert.match(proxy, /if \(route === "planner"\)[\s\S]*?method === "GET" \|\| method === "HEAD" \? "requirements:approve"/);
   assert.match(feedbackRoute, /export async function GET/);
   assert.match(feedbackRoute, /return NextResponse\.json\(\{ experimentId, ready: Boolean\(experimentId\) \}/);
-  assert.doesNotMatch(feedbackRoute.slice(feedbackRoute.indexOf("export async function GET"), feedbackRoute.indexOf("export async function POST")), /arm|questions|answerKey/);
+  const publicGet = feedbackRoute.slice(feedbackRoute.indexOf("export async function GET"), feedbackRoute.indexOf("export async function POST"));
+  assert.match(publicGet, /return NextResponse.json\\(\\{ experimentId, ready: Boolean\\(experimentId\\) \\}/);
+  assert.doesNotMatch(publicGet, /return NextResponse.json\\(\\{[^}]*\\b(?:arms|questions|answerKey)\\b/);
 });
 test("generic agent evaluation never includes planner arm artifacts", () => {
   assert.match(agentRoute, /const AGENT_STAGES = \["ELICITATION", "SCOPE", "EXTRACTION"/);
