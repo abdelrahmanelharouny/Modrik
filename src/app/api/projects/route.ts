@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         if (subscription) {
           if (["canceled", "suspended"].includes(subscription.status)) throw new Error("SUBSCRIPTION_INACTIVE");
           const plan = resolveOrganizationPlan(subscription.planKey);
-          const current = await tx.project.count({ where: { organizationId } });
+          const current = await tx.project.count({ where: { organizationId, status: { not: "archived" } } });
           if (current >= plan.projectLimit) throw new Error("PLAN_LIMIT_PROJECTS");
         }
         const created = await tx.project.create({ data: {

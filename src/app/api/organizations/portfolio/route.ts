@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const limit = rawLimit === null ? 50 : Number(rawLimit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) return NextResponse.json({ error: "limit must be between 1 and 100" }, { status: 400, headers: noStore });
   const q = req.nextUrl.searchParams.get("q")?.trim().slice(0, 100);
-  const where = { organizationId: identity.organizationId, ...(q ? { name: { contains: q } } : {}) };
+  const where = { organizationId: identity.organizationId, status: { not: "archived" }, ...(q ? { name: { contains: q } } : {}) };
   const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0,0,0,0);
   const [projects, totalProjects, activeProjects, completedProjects, deadJobs, pendingFindings, subscription, monthlyUsage, activeMembers] = await Promise.all([
     db.project.findMany({
