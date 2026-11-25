@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
 import { assessArabicTranscriptQuality } from "@/lib/asr/arabic-transcript-quality.mjs";
+import { createOpenAICompatibleAsrProvider } from "@/lib/asr/openai-compatible-provider.mjs";
 
 // I5 multimodal intake — voice notes: in-browser audio capture
 // arrives as base64 (MediaRecorder webm/wav); the GLM ASR service
@@ -54,11 +55,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: audioLimitMessage() }, { status: 413 });
     }
 
-    const zai = await ZAI.create();
-    const transcribe = async () => {
-      const result = await zai.audio.asr.create({ file_base64: audio });
-      return ((result as { text?: string }).text ?? "").trim();
-    };
+    const providerName = String(process.env.RP_ASR_PROVIDER ?? "zai").trim().toLowerCase();
+    let transcribe: () => Promise<string>;
+    if (providerName === "openai-compatible") {
+      const provider = await createOpenAICompatibleAsrProvider();
+      transcribe = () => provider.transcribe(audio, expectedLanguage || "unspecified");
+    } else if (providerName === "zai") {
+      const zai = await ZAI.create();
+      transcribe = async () => {
+        const result = await zai.audio.asr.create({ file_base64: audio });
+        return ((result as { text?: string }).text ?? "").trim();
+      };
+    } else {
+      return NextResponse.json({ error: "Unsupported ASR provider configuration." }, { status: 503 });
+    }
 
     let text = await transcribe();
     if (!text.trim()) {
