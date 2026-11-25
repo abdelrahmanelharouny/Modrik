@@ -36,3 +36,11 @@ The hourly scheduled sweep finds recent, explicitly AI-consented EvidenceRevisio
 - Gather at least 10 independent planner scenarios before inferential statistics.
 - Treat ASR QA scores as triage signals until a consented gold transcript corpus is evaluated.
 - Verify the scheduled drift workflow has DB access and that the durable worker drains jobs; review findings manually.
+
+## 6. Configurable Egyptian Arabic ASR and correction capture
+
+The default provider remains the existing ZAI ASR service. A deployment may explicitly switch to `RP_ASR_PROVIDER=openai-compatible` and configure a private OpenAI-compatible `/audio/transcriptions` endpoint, such as a self-hosted Whisper service. The adapter sends WAV, the appropriate `ar`/ `en` language hint, and a verbatim Egyptian Arabic / code-switch prompt; credentials stay server-side and remote endpoints must use HTTPS. Loopback HTTP is development-only and requires explicit opt-in.
+
+The candidate model `openai/whisper-large-v3-turbo` is Arabic-capable according to its Hub language metadata, but that is not evidence of Egyptian dialect accuracy on Modrik's stakeholder audio. Keep the existing human transcript review gate. The optional feedback path captures only original and corrected transcript text after separate user consent; it never accepts or stores audio. Email addresses and Egyptian mobile patterns are redacted, but this is not full anonymization: users must remove names and any other identifiers themselves. Use only content the contributor is authorized to share.
+
+Evaluate any provider/model on a consented, speaker-disjoint Egyptian Arabic corpus with human references. Report WER, CER, code-switch and dialect slices, plus hallucination/omission review. Do not report model accuracy improvements from script-ratio or lexical-cue checks alone.
