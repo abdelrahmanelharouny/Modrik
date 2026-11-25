@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const idempotencyKey = "jira-webhook:" + projectId + ":" + createHash("sha256").update(deliveryId).digest("hex");
   try {
     const queued = await enqueueChangeImpactJob({
-      projectId, source: "jira", idempotencyKey, signal: event.signal,
+      projectId, source: "jira", idempotencyKey, signal: event.signal.slice(0, 2000),
       externalKey: event.key, externalUrl: event.url, title: event.title,
     });
     return NextResponse.json({

@@ -26,6 +26,7 @@ export function ChangeImpactInbox({ projectId }: { projectId: string }) {
   const [jobs, setJobs] = useState<ImpactJob[]>([]); const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false); const [busyId, setBusyId] = useState("");
   const [error, setError] = useState(""); const [notice, setNotice] = useState("");
+  const [signal, setSignal] = useState(""); const [submitting, setSubmitting] = useState(false);
   const load = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true); else setLoading(true);
     setError("");

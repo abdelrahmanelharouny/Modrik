@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { normalizeChangeImpactInput, resolveChangeImpactTriage, changeImpactFindingIsActive } from "../src/lib/pipeline/change-impact.mjs";
 
 test("change-impact queue input is bounded and source-attributed",()=>{
@@ -16,4 +17,14 @@ test("impact findings require explicit human triage and reject stale transitions
   assert.equal(changeImpactFindingIsActive("pending"),true);
   assert.equal(changeImpactFindingIsActive("confirmed"),true);
   assert.equal(changeImpactFindingIsActive("resolved"),false);
+});
+
+test("provider webhooks acknowledge durable enqueue instead of awaiting the LLM",()=>{
+  for(const path of ["../src/app/api/webhooks/github/[projectId]/route.ts","../src/app/api/webhooks/jira/[projectId]/route.ts"]){
+    const source=fs.readFileSync(new URL(path,import.meta.url),"utf8");
+    assert.match(source,/enqueueChangeImpactJob/);
+    assert.match(source,/status:\s*202/);
+    assert.match(source,/idempotencyKey/);
+    assert.doesNotMatch(source,/runDrift\(/);
+  }
 });

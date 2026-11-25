@@ -130,9 +130,18 @@ try {
   await staleOwner.exposeFunction("recordEvent", (event) => events.push(event));
   await successorOwner.exposeFunction("recordEvent", (event) => events.push(event));
   await Promise.all([staleOwner.goto(origin), successorOwner.goto(origin)]);
+  // Pause only this tab's lease heartbeat while it is intentionally made stale.
+  await staleOwner.evaluate(() => {
+    const nativeSetInterval = window.setInterval.bind(window);
+    window.pauseOfflineLeaseHeartbeat = false;
+    window.setInterval = (callback, delay, ...args) => nativeSetInterval(() => {
+      if (!window.pauseOfflineLeaseHeartbeat) callback(...args);
+    }, delay);
+  });
   await startTask(staleOwner, "browser-project-stale-owner", "stale-owner");
   await waitFor(() => events.some((event) => event.startsWith("stale-owner:start:")), "stale owner to acquire the lease");
   const staleToken = Number(events.find((event) => event.startsWith("stale-owner:start:")).split(":").at(-1));
+  await staleOwner.evaluate(() => { window.pauseOfflineLeaseHeartbeat = true; });
   await successorOwner.evaluate(async () => {
     const db = await new Promise((resolve, reject) => {
       const request = indexedDB.open("modrik-offline", 2);
@@ -157,6 +166,7 @@ try {
   await waitFor(() => events.some((event) => event.startsWith("successor-owner:start:")), "successor to reclaim the expired lease");
   const successorToken = Number(events.find((event) => event.startsWith("successor-owner:start:")).split(":").at(-1));
   assert.ok(successorToken > staleToken, "a successor must fence a still-running stale owner with a newer generation");
+  await staleOwner.evaluate(() => { window.pauseOfflineLeaseHeartbeat = false; });
   await staleOwner.evaluate(() => window.releaseSync());
   const staleOutcome = await staleOwner.evaluate(async () => {
     try { await window.syncTask; return "fulfilled"; }

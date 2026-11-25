@@ -15,3 +15,12 @@ test("every long-running agent write receives the transactional fencing guard",(
  assert.match(agents,/await guard\?\.\(tx\)/);assert.match(agents,/PipelineJobLeaseLostError/);
  assert.match(planner,/await guard\?\.\(tx\)/);assert.match(planner,/PipelineJobLeaseLostError/);
 });
+
+test("change-impact jobs use the durable worker path and database-aware readiness",()=>{
+ const source=fs.readFileSync(new URL("../scripts/run-pipeline-worker.ts",import.meta.url),"utf8");
+ assert.match(source,/job\.jobKind==="change_impact"/);
+ assert.match(source,/analyzeDrift\(job\.projectId/);
+ assert.match(source,/tx\.changeImpactFinding\.upsert/);
+ assert.match(source,/databaseHealthy/);
+ assert.match(source,/\$queryRaw/);
+});
