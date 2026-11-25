@@ -133,10 +133,10 @@ async function waitForWorker() {
   }
   throw new Error(`Pipeline worker did not become healthy.\\n${workerLogs}`);
 }
-async function waitForAgentJob(jobId, expectedStage) {
+async function waitForAgentJob(projectId, jobId, expectedStage) {
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
-    const response = await fetch(`${baseUrl}/api/projects/${agentProjectId}/pipeline`, { headers });
+    const response = await fetch(`${baseUrl}/api/projects/${projectId}/pipeline`, { headers });
     await expectStatus(response, 200, `read ${expectedStage} background job status`);
     const snapshot = await json(response);
     if (snapshot.job?.id === jobId && snapshot.job.status === "dead") {
@@ -1049,7 +1049,7 @@ try {
     await expectStatus(response, 202, `enqueue real ${expectedStage} stage agent`);
     const queued = await json(response);
     assert.ok(queued.jobId && queued.runId, "accepted stage run must return durable job and run IDs");
-    const snapshot = await waitForAgentJob(queued.jobId, expectedStage);
+    const snapshot = await waitForAgentJob(agentProjectId, queued.jobId, expectedStage);
     assert.equal(snapshot.project.stageStatus, "awaiting_review", `${expectedStage} output must stop at the human review gate`);
     const latestRun = await prisma.pipelineRun.findUnique({ where: { id: queued.runId } });
     assert.equal(latestRun.status, "done", `${expectedStage} worker run must be persisted as done`);
