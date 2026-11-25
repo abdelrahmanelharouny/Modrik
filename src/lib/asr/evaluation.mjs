@@ -12,6 +12,7 @@ export function normalizeAsrEvaluationText(value) {
     .replace(/ى/gu, "ي")
     .replace(/ؤ/gu, "و")
     .replace(/ئ/gu, "ي")
+    .replace(/ء/gu, "")
     .replace(/[ة]/gu, "ه")
     .replace(PUNCTUATION, " ")
     .toLowerCase()
