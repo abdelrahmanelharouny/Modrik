@@ -5,5 +5,5 @@ export function createOrganizationMemoryEmbeddingProvider(options?: {
 }): Promise<{
   model: string;
   dimensions: number;
-  embed(text: string): Promise<{ model: string; dimensions: number; vector: number[]; norm: number }>;
+  embed(text: string, options?: { role?: "query" | "document" }): Promise<{ model: string; dimensions: number; vector: number[]; norm: number }>;
 }>;

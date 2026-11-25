@@ -16,34 +16,34 @@ export const MEMBERSHIP_STATUSES = Object.freeze([
 
 const ROLE_PERMISSIONS = Object.freeze({
   owner: new Set([
-    "organization:read", "organization:manage",
+    "organization:read", "organization:manage", "organizations:create",
     "members:read", "members:manage",
     "projects:create", "projects:read", "projects:update", "projects:delete", "integrations:manage",
     "requirements:read", "requirements:write", "requirements:review", "requirements:approve",
     "audit:read",
   ]),
   admin: new Set([
-    "organization:read",
+    "organization:read", "organizations:create",
     "members:read", "members:manage",
     "projects:create", "projects:read", "projects:update", "projects:delete", "integrations:manage",
     "requirements:read", "requirements:write", "requirements:review", "requirements:approve",
     "audit:read",
   ]),
   engineer: new Set([
-    "organization:read", "members:read",
+    "organization:read", "organizations:create", "members:read",
     "projects:create", "projects:read", "projects:update",
     "requirements:read", "requirements:write",
   ]),
   reviewer: new Set([
-    "organization:read", "members:read", "projects:read",
+    "organization:read", "organizations:create", "members:read", "projects:read",
     "requirements:read", "requirements:review", "audit:read",
   ]),
   approver: new Set([
-    "organization:read", "members:read", "projects:read",
+    "organization:read", "organizations:create", "members:read", "projects:read",
     "requirements:read", "requirements:approve", "audit:read",
   ]),
   viewer: new Set([
-    "organization:read", "members:read", "projects:read", "requirements:read",
+    "organization:read", "organizations:create", "members:read", "projects:read", "requirements:read",
   ]),
 });
 

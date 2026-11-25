@@ -40,6 +40,44 @@ export function validateProductionEnv(env = process.env) {
       !/^[^<>]+<[^<>@\s]+@[^<>@\s]+>$/.test(env.PASSWORD_RESET_EMAIL_FROM.trim()) &&
       !validEmail(env.PASSWORD_RESET_EMAIL_FROM.trim())) errors.push("PASSWORD_RESET_EMAIL_FROM must be an email address or Name <email> sender");
   if (hasValue(env, "APP_URL") && !validHttpsUrl(env.APP_URL.trim())) errors.push("APP_URL must be an HTTPS URL without embedded credentials");
+  const oauthProviders = [
+    ["MODRIK_GITHUB_CLIENT_ID", "MODRIK_GITHUB_CLIENT_SECRET"],
+    ["MODRIK_ATLASSIAN_CLIENT_ID", "MODRIK_ATLASSIAN_CLIENT_SECRET"],
+  ];
+  let oauthConfigured = false;
+  for (const [clientIdKey, clientSecretKey] of oauthProviders) {
+    const hasClientId = hasValue(env, clientIdKey);
+    const hasClientSecret = hasValue(env, clientSecretKey);
+    if (hasClientId !== hasClientSecret) {
+      errors.push(clientIdKey + " and " + clientSecretKey + " must be configured together");
+    }
+    if (hasClientId && hasClientSecret) oauthConfigured = true;
+  }
+  if (oauthConfigured) {
+    if (!hasValue(env, "MODRIK_APP_URL")) {
+      errors.push("MODRIK_APP_URL is required when a GitHub or Atlassian OAuth provider is configured");
+    } else if (!validHttpsUrl(env.MODRIK_APP_URL.trim())) {
+      errors.push("MODRIK_APP_URL must be an HTTPS URL without embedded credentials");
+    } else if (hasValue(env, "APP_URL")) {
+      try {
+        if (new URL(env.MODRIK_APP_URL.trim()).origin !== new URL(env.APP_URL.trim()).origin) {
+          errors.push("MODRIK_APP_URL must use the same origin as APP_URL");
+        }
+      } catch {
+        // The individual URL validators above report malformed origins.
+      }
+    }
+  }
+
+  const stripeKeys = ["STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET","STRIPE_PRICE_TEAM","STRIPE_PRICE_BUSINESS","STRIPE_PRICE_ENTERPRISE"];
+  const stripeConfigured = stripeKeys.some(key => hasValue(env, key));
+  if (stripeConfigured) {
+    if (!hasValue(env, "STRIPE_SECRET_KEY") || !/^sk_(test|live)_/.test(env.STRIPE_SECRET_KEY.trim())) errors.push("STRIPE_SECRET_KEY must be a Stripe test or live secret key");
+    if (!hasValue(env, "STRIPE_WEBHOOK_SECRET") || !/^whsec_/.test(env.STRIPE_WEBHOOK_SECRET.trim())) errors.push("STRIPE_WEBHOOK_SECRET must be a Stripe webhook signing secret");
+    for (const key of ["STRIPE_PRICE_TEAM","STRIPE_PRICE_BUSINESS","STRIPE_PRICE_ENTERPRISE"]) {
+      if (!hasValue(env,key) || !/^price_/.test(env[key].trim())) errors.push(key + " must be a configured Stripe recurring Price ID");
+    }
+  }
   const provider = hasValue(env, "RP_LLM_PROVIDER") ? env.RP_LLM_PROVIDER.trim().toLowerCase() : "";
   if (provider && !["glm", "model-b", "local"].includes(provider)) {
     errors.push("RP_LLM_PROVIDER must be one of glm, model-b, or local");

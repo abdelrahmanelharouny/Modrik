@@ -1,0 +1,2 @@
+export declare function findActiveProjectRetentionHold(client: any, organizationId: string, projectId: string): Promise<{id:string;resourceType:string;resourceId:string;reason:string;placedAt:Date}|null>;
+export declare function findActiveResourceRetentionHold(client: any, organizationId: string, projectId: string, resourceType?:string|null, resourceId?:string|null): Promise<{id:string;resourceType:string;resourceId:string;reason:string;placedAt:Date}|null>;

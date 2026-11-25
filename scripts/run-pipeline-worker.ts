@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { analyzeDrift, runStageAgent } from "@/lib/agents";
+import { assertOrganizationAiProviderAllowed } from "@/lib/phase4/retention.mjs";
 import { ARMS, runPlanner, type PlannerArm } from "@/lib/planner";
 import { STAGES, type Stage } from "@/lib/rp";
 import {
@@ -104,10 +105,45 @@ async function heartbeat(job:AgentJob,lost:{value:boolean}){
   }
 }
 type DriftResult={summary:string;requirements:Array<{refId:string;note:string}>};
+
+/**
+ * Final tenant-policy gate inside the durable worker. This covers queued jobs
+ * from scheduled sweeps and signed provider webhooks as well as normal requests.
+ */
+async function assertProjectAiPolicy(projectId:string) {
+  const project = await db.project.findUnique({ where:{id:projectId}, select:{organizationId:true} });
+  if (!project?.organizationId) return; // legacy unassigned projects retain the bootstrap policy.
+  const policy = await db.organizationPolicy.findUnique({
+    where:{organizationId:project.organizationId},
+    select:{aiProcessingAllowed:true,permittedAiProviders:true},
+  });
+  const provider = process.env.RP_LLM_PROVIDER?.trim() || "glm";
+  assertOrganizationAiProviderAllowed(policy, provider);
+}
 async function completeJob(job:AgentJob,impactResult?:DriftResult){
   await db.$transaction(async tx=>{
     await guardLease(job,tx);
     const now=new Date();
+    // Meter once per completed PipelineRun. The unique idempotency key makes
+    // completion retries and transaction replays safe without trusting clients.
+    const [meteredRun, meteredProject] = await Promise.all([
+      tx.pipelineRun.findUnique({ where:{id:job.pipelineRunId}, select:{id:true,stage:true,estTokens:true,estCostUsd:true,promptVersion:true} }),
+      tx.project.findUnique({ where:{id:job.projectId}, select:{organizationId:true} }),
+    ]);
+    if(meteredRun && meteredProject?.organizationId && Number.isSafeInteger(meteredRun.estTokens) && meteredRun.estTokens! >= 0){
+      const idempotencyKey = "pipeline-run:"+meteredRun.id;
+      await tx.usageEvent.upsert({
+        where:{idempotencyKey},
+        create:{
+          organizationId:meteredProject.organizationId,projectId:job.projectId,
+          source:"pipeline_run",sourceId:meteredRun.id,eventType:job.jobKind==="change_impact"?"change_impact_run":"agent_run",
+          quantity:meteredRun.estTokens!,unit:"tokens",estimatedCostUsd:meteredRun.estCostUsd,
+          idempotencyKey,metadata:JSON.stringify({stage:meteredRun.stage,promptVersion:meteredRun.promptVersion}),
+          occurredAt:now,
+        },
+        update:{},
+      });
+    }
     if(job.jobKind==="change_impact"){
       if(!impactResult)throw new Error("Change-impact result is required to complete this job.");
       const payload=JSON.parse(job.payload||"{}") as {syncMapId?:string;source?:string;signal?:string};
@@ -169,6 +205,7 @@ async function executeJob(job:AgentJob,workerId:string){
   const guard=(tx?:unknown)=>{if(lost.value)return Promise.reject(new PipelineJobLeaseLostError());return guardLease(job,tx);};
   try{
     await guard();
+    await assertProjectAiPolicy(job.projectId);
     if(job.jobKind==="change_impact"){
       const payload=JSON.parse(job.payload||"{}") as {signal?:string};
       if(typeof payload.signal!=="string"||!payload.signal.trim())throw new Error("Change-impact job has no valid signal.");

@@ -95,3 +95,36 @@ test("provider normalizes request and response-body aborts as timeouts", async (
   });
   await assert.rejects(() => bodyProvider.embed("text"), /Embedding provider request timed out\./);
 });
+
+test("Granite receives unprefixed query and document text; E5 instruction applies only to queries", async () => {
+  const requests = [];
+  const e5 = await createOrganizationMemoryEmbeddingProvider({
+    env: { ...env, ORGANIZATION_MEMORY_EMBEDDING_MODEL: "intfloat/multilingual-e5-large-instruct", ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: "Find relevant accepted memories." },
+    fetch: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return { ok: true, json: async () => ({ model: "intfloat/multilingual-e5-large-instruct", data: [{ embedding: [1, 0, 0] }] }) };
+    },
+  });
+  await e5.embed("قرار بخصوص المشروع", { role: "query" });
+  await e5.embed("قرار موثق في الذاكرة", { role: "document" });
+  assert.match(requests[0].input, /^Instruct: Find relevant accepted memories\./);
+  assert.match(requests[0].input, /Query: قرار بخصوص المشروع$/);
+  assert.equal(requests[1].input, "قرار موثق في الذاكرة");
+
+  const graniteRequests = [];
+  const graniteModel = "ibm-granite/granite-embedding-97m-multilingual-r2";
+  const granite = await createOrganizationMemoryEmbeddingProvider({
+    env: { ...env, ORGANIZATION_MEMORY_EMBEDDING_MODEL: graniteModel },
+    fetch: async (_url, init) => {
+      graniteRequests.push(JSON.parse(init.body));
+      return { ok: true, json: async () => ({ model: graniteModel, data: [{ embedding: [1, 0, 0] }] }) };
+    },
+  });
+  await granite.embed("استعلام عربي", { role: "query" });
+  assert.equal(graniteRequests[0].input, "استعلام عربي");
+});
+test("E5 provider rejects an empty or oversized query instruction", async () => {
+  const base = { ...env, ORGANIZATION_MEMORY_EMBEDDING_MODEL: "intfloat/multilingual-e5-large-instruct" };
+  await assert.rejects(() => createOrganizationMemoryEmbeddingProvider({ env: { ...base, ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: "" } }), /query instruction/);
+  await assert.rejects(() => createOrganizationMemoryEmbeddingProvider({ env: { ...base, ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION: "x".repeat(501) } }), /query instruction/);
+});

@@ -110,3 +110,27 @@ This section supersedes any older PR-number or workflow-status statements in the
 - [ ] Security, privacy and legal review is complete; release owner explicitly authorizes deployment.
 
 OAuth/provider activation and semantic/vector retrieval remain intentionally deferred. No production migration or deployment is authorized by this checklist.
+
+
+## Current verified Phase 3 / Phase 4 status — 2026-11-25
+
+### Completed in the repository
+- [x] Phase 3 merged in PR #84 at 87d1f36f6f7f9cf5e816216f6549885bf2b8725c.
+- [x] Phase 4 implementation assembled in PR #85 at head 6c17282ee7cdf15bea9c2028329b1b59aa453df1.
+- [x] Exact-head CI run [45551343239](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/45551343239) passed both quality and postgres-schema.
+- [x] Seat-limit integration explicitly proves that active and pending invited memberships consume Free seats and an over-limit invitation creates no user or invitation record.
+- [x] Stripe Checkout, Billing Portal, signed webhook verification, idempotent event ledger and invoice projection exist in code; checkout blocks a second unresolved Stripe subscription and invoice delivery cannot change subscription access state.
+- [x] Phase 4 docs distinguish implemented repository behavior from external provider activation and non-implemented automated retention execution.
+
+### Still not production-cleared
+- [ ] Review and merge PR #85 after final exact-head checks.
+- [ ] Generate and review a PostgreSQL migration baseline and provider-specific migration runner; never use production prisma db push.
+- [ ] Provision a deployment topology only after the budget/hosting choice is approved. See deployment-architecture.md; none of the listed resources is provisioned.
+- [ ] Restore-test encrypted PostgreSQL backups and rehearse rollback on staging.
+- [ ] Verify real email delivery, LLM/ASR providers, GitHub/Jira integrations and webhook behavior on dedicated accounts.
+- [ ] Keep Stripe inactive until test-mode and live-mode acceptance covers subscription lifecycle, invoices, retries, out-of-order events, refunds/disputes, tax and reconciliation.
+- [ ] Keep OAuth and semantic retrieval off until provider credentials, callback tests and human-judged Arabic/Egyptian Arabic/English/code-switched evaluation are complete.
+- [ ] Complete manual accessibility, keyboard/screen-reader, contrast, reduced-motion and representative-user acceptance.
+- [ ] Complete deployment-specific security, privacy, legal, monitoring and incident-response sign-off.
+
+A green repository CI run is evidence for the exact tested commit only. It is not evidence of a deployed environment, provider account, data migration, live payments or production availability.

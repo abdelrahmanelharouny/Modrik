@@ -1,12 +1,19 @@
 import { validateOrganizationMemoryVector } from "./organization-memory-embeddings.mjs";
 
+const E5_INSTRUCT_MODEL = "intfloat/multilingual-e5-large-instruct";
+const DEFAULT_QUERY_INSTRUCTION = "Given a project or organization query, retrieve relevant accepted knowledge memories that answer it, including decisions, requirements, evidence, risks, owners, and prior outcomes.";
+
 function readConfig(env = process.env) {
   const rawEndpoint = String(env.ORGANIZATION_MEMORY_EMBEDDING_ENDPOINT ?? "").trim();
   const apiKey = String(env.ORGANIZATION_MEMORY_EMBEDDING_API_KEY ?? "").trim();
   const model = String(env.ORGANIZATION_MEMORY_EMBEDDING_MODEL ?? "").trim();
   const dimensions = Number(env.ORGANIZATION_MEMORY_EMBEDDING_DIMENSIONS);
+  const queryInstruction = String(env.ORGANIZATION_MEMORY_EMBEDDING_QUERY_INSTRUCTION ?? DEFAULT_QUERY_INSTRUCTION).trim();
   if (!rawEndpoint || !model || !Number.isSafeInteger(dimensions) || dimensions < 2 || dimensions > 8192) {
     throw new Error("Organization memory embedding provider is not fully configured.");
+  }
+  if (model === E5_INSTRUCT_MODEL && (!queryInstruction || queryInstruction.length > 500)) {
+    throw new Error("Embedding query instruction must contain 1 to 500 characters.");
   }
   let endpoint;
   try { endpoint = new URL(rawEndpoint); } catch { throw new Error("Embedding endpoint must be a valid URL."); }
@@ -18,7 +25,7 @@ function readConfig(env = process.env) {
     throw new Error("Embedding endpoint cannot contain credentials, query parameters or fragments.");
   }
   if (endpoint.protocol === "https:" && local) throw new Error("Use explicit local HTTP configuration for loopback embedding endpoints.");
-  return { endpoint: endpoint.toString().replace(/\/$/u, ""), apiKey, model, dimensions };
+  return { endpoint: endpoint.toString().replace(/\/$/u, ""), apiKey, model, dimensions, queryInstruction };
 }
 
 /** OpenAI-compatible embeddings adapter. Credentials and endpoint are server-only environment configuration. */
@@ -30,8 +37,12 @@ export async function createOrganizationMemoryEmbeddingProvider(options = {}) {
   return {
     model: config.model,
     dimensions: config.dimensions,
-    async embed(text) {
+    async embed(text, inputOptions = {}) {
       if (typeof text !== "string" || !text.trim() || text.length > 24_000) throw new TypeError("Embedding input text is invalid.");
+      const role = inputOptions.role === "query" ? "query" : "document";
+      const input = config.model === E5_INSTRUCT_MODEL && role === "query"
+        ? "Instruct: " + config.queryInstruction + "\nQuery: " + text.trim()
+        : text.trim();
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -43,7 +54,7 @@ export async function createOrganizationMemoryEmbeddingProvider(options = {}) {
               "content-type": "application/json",
               ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
             },
-            body: JSON.stringify({ model: config.model, input: text, dimensions: config.dimensions }),
+            body: JSON.stringify({ model: config.model, input, dimensions: config.dimensions }),
             signal: controller.signal,
           });
         } catch (error) {

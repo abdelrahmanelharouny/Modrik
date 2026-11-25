@@ -260,6 +260,11 @@ try {
   identityCleanup.organizations.push(tenantA.id);
   const tenantB = await prisma.organization.create({ data: { name: "Identity Tenant B", slug: `identity-b-${randomUUID()}` } });
   identityCleanup.organizations.push(tenantB.id);
+  // This identity/authorization fixture intentionally hosts many members.
+  // Keep it on Team so seat enforcement is exercised separately below.
+  await prisma.organizationSubscription.create({
+    data: { organizationId: tenantA.id, planKey: "team", status: "active", billingProvider: "manual" },
+  });
   const identityUser = await prisma.user.create({ data: { email: `identity-owner-${randomUUID()}@example.invalid`, passwordHash: process.env.MODRIK_ADMIN_PASSWORD_HASH, status: "active" } });
   identityCleanup.users.push(identityUser.id);
   const identityMembership = await prisma.membership.create({
@@ -362,6 +367,60 @@ try {
   const tenantDemoB = await prisma.project.create({ data: { name: "Tenant B demo", brief: "private demo", organizationId: tenantB.id, isDemo: true } });
   identityCleanup.projects.push(tenantDemoB.id);
   const tenantHeaders = { cookie: identityCookie, "content-type": "application/json" };
+
+  // A dedicated Free tenant proves that active and invited memberships both
+  // consume seats and that a full plan rejects the invitation before creating
+  // a user, membership, or invitation record.
+  const freeLimitTenant = await prisma.organization.create({
+    data: { name: "Free Seat Limit Tenant", slug: `free-seat-limit-${randomUUID()}` },
+  });
+  identityCleanup.organizations.push(freeLimitTenant.id);
+  await prisma.organizationSubscription.create({
+    data: { organizationId: freeLimitTenant.id, planKey: "free", status: "active", billingProvider: "manual" },
+  });
+  const freeOwner = await prisma.user.create({
+    data: { email: `free-owner-${randomUUID()}@example.invalid`, status: "active" },
+  });
+  identityCleanup.users.push(freeOwner.id);
+  const activeOccupant = await prisma.user.create({
+    data: { email: `free-active-${randomUUID()}@example.invalid`, status: "active" },
+  });
+  identityCleanup.users.push(activeOccupant.id);
+  const invitedOccupant = await prisma.user.create({
+    data: { email: `free-invited-${randomUUID()}@example.invalid`, status: "active" },
+  });
+  identityCleanup.users.push(invitedOccupant.id);
+  const freeOwnerMembership = await prisma.membership.create({
+    data: { userId: freeOwner.id, organizationId: freeLimitTenant.id, role: "owner", status: "active", activatedAt: new Date() },
+  });
+  await prisma.membership.create({
+    data: { userId: activeOccupant.id, organizationId: freeLimitTenant.id, role: "viewer", status: "active", activatedAt: new Date() },
+  });
+  await prisma.membership.create({
+    data: { userId: invitedOccupant.id, organizationId: freeLimitTenant.id, role: "viewer", status: "invited" },
+  });
+  const freeOwnerSessionId = randomUUID().replaceAll("-", "");
+  await prisma.authSession.create({
+    data: { id: freeOwnerSessionId, userId: freeOwner.id, membershipId: freeOwnerMembership.id, expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000) },
+  });
+  const freeOwnerCookie = `${SESSION_COOKIE}=${createIdentitySessionToken({
+    email: freeOwner.email, userId: freeOwner.id, organizationId: freeLimitTenant.id,
+    membershipId: freeOwnerMembership.id, role: "owner", sessionId: freeOwnerSessionId,
+  }, secret)}`;
+  const fullFreePlanInviteEmail = `blocked-free-invite-${randomUUID()}@example.invalid`;
+  const fullFreePlanInvite = await fetch(`${baseUrl}/api/invitations`, {
+    method: "POST",
+    headers: { cookie: freeOwnerCookie, "content-type": "application/json" },
+    body: JSON.stringify({ email: fullFreePlanInviteEmail, role: "viewer" }),
+  });
+  await expectStatus(fullFreePlanInvite, 402, "Free plan rejects an invitation when active and invited seats are full");
+  assert.equal(await prisma.user.findUnique({ where: { email: fullFreePlanInviteEmail } }), null,
+    "a rejected seat-limit invitation must not create a new user");
+  assert.equal(await prisma.organizationInvitation.count({ where: { organizationId: freeLimitTenant.id } }), 0,
+    "a rejected seat-limit invitation must not create an invitation record");
+  assert.equal(await prisma.membership.count({
+    where: { organizationId: freeLimitTenant.id, status: { in: ["active", "invited"] } },
+  }), 3, "active and pending invited members must occupy all Free seats");
   const identitySessionStatus = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: identityCookie } });
   await expectStatus(identitySessionStatus, 200, "identity session status");
   const identityStatusBody = await json(identitySessionStatus);

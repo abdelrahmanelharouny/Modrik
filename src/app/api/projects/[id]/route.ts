@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { findActiveProjectRetentionHold } from "@/lib/phase4/retention-db.mjs";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -38,14 +39,22 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
-  const project = await db.project.findUnique({
-    where: { id },
-    select: { id: true, stageStatus: true },
-  });
-  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  if (["agent_running", "approving"].includes(project.stageStatus)) {
-    return NextResponse.json({ error: "Project cannot be deleted while a pipeline operation is running." }, { status: 409 });
-  }
-  await db.project.delete({ where: { id } });
+  const result = await db.$transaction(async (tx) => {
+    const project = await tx.project.findUnique({
+      where: { id },
+      select: { id: true, organizationId: true, stageStatus: true },
+    });
+    if (!project) return { kind: "missing" as const };
+    if (["agent_running", "approving"].includes(project.stageStatus)) return { kind: "busy" as const };
+    if (project.organizationId) {
+      const hold = await findActiveProjectRetentionHold(tx, project.organizationId, id);
+      if (hold) return { kind: "held" as const, holdId: hold.id, resourceType: hold.resourceType, resourceId: hold.resourceId };
+    }
+    await tx.project.delete({ where: { id } });
+    return { kind: "deleted" as const };
+  }, { isolationLevel: "Serializable" });
+  if (result.kind === "missing") return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (result.kind === "busy") return NextResponse.json({ error: "Project cannot be deleted while a pipeline operation is running." }, { status: 409 });
+  if (result.kind === "held") return NextResponse.json({ error: "Project contains a resource protected by an active retention hold.", code: "RETENTION_HOLD_ACTIVE", holdId: result.holdId, resourceType: result.resourceType, resourceId: result.resourceId }, { status: 409 });
   return NextResponse.json({ ok: true });
 }

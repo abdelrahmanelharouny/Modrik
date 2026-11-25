@@ -69,3 +69,46 @@ test("production release configuration requires an explicitly usable LLM provide
   assert.ok(incompleteLocal.errors.some((error) => error.startsWith("RP_LOCAL_BASE_URL")));
   assert.ok(incompleteLocal.errors.some((error) => error.startsWith("RP_LOCAL_MODEL")));
 });
+
+test("OAuth production credentials are paired and callbacks share the canonical HTTPS origin", () => {
+  const partial = validateProductionEnv({ ...validEnv, MODRIK_GITHUB_CLIENT_ID: "client-id" });
+  assert.ok(partial.errors.some((error) => error.includes("MODRIK_GITHUB_CLIENT_ID and MODRIK_GITHUB_CLIENT_SECRET")));
+
+  const noOrigin = validateProductionEnv({ ...validEnv, MODRIK_ATLASSIAN_CLIENT_ID: "client-id", MODRIK_ATLASSIAN_CLIENT_SECRET: "client-secret" });
+  assert.ok(noOrigin.errors.some((error) => error.startsWith("MODRIK_APP_URL is required")));
+
+  const invalidOrigin = validateProductionEnv({ ...validEnv, MODRIK_APP_URL: "http://app.example.test", MODRIK_GITHUB_CLIENT_ID: "id", MODRIK_GITHUB_CLIENT_SECRET: "secret" });
+  assert.ok(invalidOrigin.errors.some((error) => error.startsWith("MODRIK_APP_URL must be an HTTPS URL")));
+
+  const mismatchedOrigin = validateProductionEnv({ ...validEnv, MODRIK_APP_URL: "https://callback.example.test", MODRIK_GITHUB_CLIENT_ID: "id", MODRIK_GITHUB_CLIENT_SECRET: "secret" });
+  assert.ok(mismatchedOrigin.errors.some((error) => error.includes("same origin as APP_URL")));
+
+  const validOAuth = validateProductionEnv({ ...validEnv, MODRIK_APP_URL: validEnv.APP_URL, MODRIK_GITHUB_CLIENT_ID: "id", MODRIK_GITHUB_CLIENT_SECRET: "secret", MODRIK_ATLASSIAN_CLIENT_ID: "jira-id", MODRIK_ATLASSIAN_CLIENT_SECRET: "jira-secret" });
+  assert.equal(validOAuth.ok, true, validOAuth.errors.join("; "));
+});
+
+test("Stripe production billing credentials must be configured as a complete provider bundle", () => {
+  const partial = validateProductionEnv({ ...validEnv, STRIPE_SECRET_KEY: "sk_test_example" });
+  assert.ok(partial.errors.some((error) => error.startsWith("STRIPE_WEBHOOK_SECRET")));
+  assert.ok(partial.errors.some((error) => error.startsWith("STRIPE_PRICE_TEAM")));
+
+  const invalidKey = validateProductionEnv({
+    ...validEnv,
+    STRIPE_SECRET_KEY: "pk_test_not_secret",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    STRIPE_PRICE_TEAM: "price_team",
+    STRIPE_PRICE_BUSINESS: "price_business",
+    STRIPE_PRICE_ENTERPRISE: "price_enterprise",
+  });
+  assert.ok(invalidKey.errors.some((error) => error.startsWith("STRIPE_SECRET_KEY")));
+
+  const complete = validateProductionEnv({
+    ...validEnv,
+    STRIPE_SECRET_KEY: "sk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    STRIPE_PRICE_TEAM: "price_team",
+    STRIPE_PRICE_BUSINESS: "price_business",
+    STRIPE_PRICE_ENTERPRISE: "price_enterprise",
+  });
+  assert.equal(complete.ok, true, complete.errors.join("; "));
+});

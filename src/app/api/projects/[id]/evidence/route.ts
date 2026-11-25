@@ -6,6 +6,7 @@ import { buildEvidenceSnapshotWhere } from "@/lib/evidence/snapshot-where.mjs";
 import { isEvidenceCreateReplay } from "@/lib/evidence/create-replay.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { findActiveResourceRetentionHold } from "@/lib/phase4/retention-db.mjs";
 import { logDecision } from "@/lib/journal";
 
 type Params = { params: Promise<{ id: string }> };
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const project = await db.project.findUnique({
     where: { id },
-    select: { id: true, stageStatus: true },
+    select: { id: true, organizationId: true, stageStatus: true },
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
   if (["agent_running", "approving"].includes(project.stageStatus)) {
@@ -325,7 +326,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const project = await db.project.findUnique({
     where: { id },
-    select: { id: true, stageStatus: true },
+    select: { id: true, organizationId: true, stageStatus: true },
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
   if (["agent_running", "approving"].includes(project.stageStatus)) {
@@ -363,6 +364,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       where: { id: evidenceId, projectId: id },
     });
     if (!evidence) return { kind: "missing" as const };
+    if (project.organizationId) {
+      const hold = await findActiveResourceRetentionHold(tx, project.organizationId, id, "evidence", evidence.id);
+      if (hold) return { kind: "held" as const, holdId: hold.id };
+    }
     const latestRevision = await tx.evidenceRevision.findFirst({
       where: { evidenceId: evidence.id },
       orderBy: { version: "desc" },
@@ -429,6 +434,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return outcome;
   });
 
+  if (removed.kind === "held") {
+    return NextResponse.json({ error: "Evidence is protected by an active retention hold.", code: "RETENTION_HOLD_ACTIVE", holdId: removed.holdId }, { status: 409 });
+  }
   if (removed.kind === "missing") {
     return NextResponse.json({ error: "Evidence not found" }, { status: 404 });
   }

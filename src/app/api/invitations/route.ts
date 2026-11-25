@@ -4,6 +4,7 @@ import { normalizeEmail } from "@/lib/security/organization-access.mjs";
 import { createInvitationToken, hashInvitationToken, isInvitableRole, INVITATION_TTL_MS } from "@/lib/security/invitations.mjs";
 import { isSameOriginMutation } from "@/lib/security/request-origin.mjs";
 import { consumeRateLimit } from "@/lib/security/rate-limit.mjs";
+import { resolveOrganizationPlan } from "@/lib/phase4/plans.mjs";
 
 export const runtime = "nodejs";
 const noStore = { "Cache-Control": "no-store, max-age=0" };
@@ -91,6 +92,12 @@ export async function POST(req: NextRequest) {
       select: { id: true, status: true },
     });
     if (!organization || organization.status !== "active") throw new Error("ORGANIZATION_UNAVAILABLE");
+    const subscription = await tx.organizationSubscription.findUnique({ where: { organizationId }, select: { planKey: true, status: true } });
+    if (subscription && !["active", "trialing"].includes(subscription.status)) throw new Error("SUBSCRIPTION_INACTIVE");
+    const plan = resolveOrganizationPlan(subscription?.planKey ?? "free");
+    const occupiedSeats = await tx.membership.count({ where: { organizationId, status: { in: ["active", "invited"] } } });
+    const priorInvite = await tx.membership.findFirst({ where: { organizationId, user: { email } }, select: { id: true, status: true } });
+    if (occupiedSeats >= plan.memberLimit && !(priorInvite && ["active", "invited"].includes(priorInvite.status))) throw new Error("PLAN_LIMIT_MEMBERS");
 
     const user = await tx.user.upsert({
       where: { email },
@@ -132,7 +139,7 @@ export async function POST(req: NextRequest) {
       select: { id: true, email: true, role: true, expiresAt: true, createdAt: true },
     });
     return { invitation, membershipId: membership.id };
-  }).catch((error) => {
+  }, { isolationLevel: "Serializable" }).catch((error) => {
     if (!(error instanceof Error)) throw error;
     const statuses: Record<string, number> = {
       ORGANIZATION_UNAVAILABLE: 404,
@@ -140,6 +147,8 @@ export async function POST(req: NextRequest) {
       ALREADY_MEMBER: 409,
       MEMBERSHIP_SUSPENDED: 409,
       MEMBERSHIP_UNAVAILABLE: 409,
+      PLAN_LIMIT_MEMBERS: 402,
+      SUBSCRIPTION_INACTIVE: 402,
     };
     const status = statuses[error.message];
     if (!status) throw error;
@@ -153,6 +162,8 @@ export async function POST(req: NextRequest) {
       ALREADY_MEMBER: "This user is already an active organization member",
       MEMBERSHIP_SUSPENDED: "A suspended membership cannot be reactivated by invitation",
       MEMBERSHIP_UNAVAILABLE: "This membership cannot be reactivated by invitation",
+      PLAN_LIMIT_MEMBERS: "This organization has reached its active and invited seat limit. Upgrade the plan to invite more members.",
+      SUBSCRIPTION_INACTIVE: "The organization subscription is not active.",
     };
     return jsonError(messages[result.error] ?? "Invitation could not be created", result.status);
   }

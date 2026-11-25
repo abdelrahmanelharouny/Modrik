@@ -58,6 +58,13 @@ model Organization {
   projects    Project[]
   invitations OrganizationInvitation[]
   auditEvents OrganizationAuditEvent[]
+  baselineSnapshots BaselineSnapshot[]
+  usageEvents UsageEvent[]
+  subscription OrganizationSubscription?
+  policy OrganizationPolicy?
+  retentionHolds RetentionHold[]
+  billingEvents BillingEvent[]
+  billingInvoices BillingInvoice[]
 
   @@index([status, createdAt])
 }
@@ -154,6 +161,9 @@ model Project {
   organizationMemoryEmbeddingJobs OrganizationMemoryEmbeddingJob[]
   changeImpactFindings ChangeImpactFinding[]
   changeCostObservations ChangeCostObservation[]
+  baselineSnapshots BaselineSnapshot[]
+  usageEvents UsageEvent[]
+  retentionHolds RetentionHold[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -1045,4 +1055,153 @@ model OrganizationMemoryEmbeddingJob {
   @@index([status, availableAt, createdAt])
   @@index([organizationId, projectId, nodeId, status])
   @@index([lockedAt, status])
+}
+
+
+// Phase 4 — immutable, organization-scoped baseline registry.
+model BaselineSnapshot {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version        Int
+  label          String
+  note           String   @default("")
+  snapshotJson   String
+  contentHash    String
+  requirementCount Int    @default(0)
+  storyCount     Int      @default(0)
+  conflictCount  Int      @default(0)
+  createdByUserId String?
+  createdAt      DateTime @default(now())
+
+  @@unique([projectId, version])
+  @@index([organizationId, createdAt, id])
+  @@index([projectId, createdAt, id])
+}
+
+// Append-only usage ledger. Events are idempotent and never rewritten by clients.
+model UsageEvent {
+  id               String   @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  projectId        String?
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  source           String
+  sourceId         String
+  eventType        String
+  quantity         Int      @default(0)
+  unit             String   @default("tokens")
+  estimatedCostUsd Float?
+  idempotencyKey   String   @unique
+  metadata         String   @default("{}")
+  occurredAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@unique([source, sourceId])
+  @@index([organizationId, occurredAt, id])
+  @@index([organizationId, eventType, occurredAt])
+  @@index([projectId, occurredAt])
+}
+
+// Provider-neutral commercial entitlement record; payment-provider IDs are optional.
+model OrganizationSubscription {
+  id                     String   @id @default(cuid())
+  organizationId         String   @unique
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planKey                String   @default("free")
+  status                 String   @default("active") // trialing | active | past_due | canceled | suspended
+  billingProvider        String   @default("manual") // manual | stripe | paddle | other
+  externalCustomerId     String?
+  externalSubscriptionId String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([status, currentPeriodEnd])
+  @@index([billingProvider, externalCustomerId])
+}
+
+// Governance configuration is deliberately separate from automated deletion.
+// Policies become effective only after operator-approved lifecycle jobs exist.
+model OrganizationPolicy {
+  id                    String   @id @default(cuid())
+  organizationId        String   @unique
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dataRetentionDays     Int      @default(365)
+  auditRetentionDays    Int      @default(2555)
+  evidenceRetentionDays Int      @default(365)
+  aiProcessingAllowed   Boolean  @default(true)
+  permittedAiProviders  String   @default("[]")
+  defaultLocale         String   @default("en")
+  updatedByUserId       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// A legal/operational hold protects a resource from future retention automation.
+model RetentionHold {
+  id               String   @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  projectId        String?
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  resourceType     String
+  resourceId       String
+  reason           String
+  placedByUserId   String
+  placedAt         DateTime @default(now())
+  releasedByUserId String?
+  releasedAt       DateTime?
+
+  @@index([organizationId, resourceType, resourceId, releasedAt])
+  @@index([organizationId, projectId, releasedAt])
+  @@index([organizationId, placedAt])
+}
+
+
+// Stripe webhook event ledger. Provider event IDs are globally unique and
+// make retries safe; only a payload hash and normalized metadata are retained.
+model BillingEvent {
+  id              String   @id @default(cuid())
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  provider        String   @default("stripe")
+  providerEventId String   @unique
+  eventType       String
+  payloadHash     String
+  processingState String   @default("processed") // processed | ignored
+  processedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([provider, eventType, createdAt])
+}
+
+// Normalized invoice projection; Stripe remains the payment/tax authority.
+model BillingInvoice {
+  id                String   @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  provider          String   @default("stripe")
+  externalInvoiceId String   @unique
+  invoiceNumber     String?
+  status            String
+  currency          String   @default("usd")
+  amountDue         Int      @default(0)
+  amountPaid        Int      @default(0)
+  hostedInvoiceUrl  String?
+  invoicePdfUrl     String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  issuedAt          DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([organizationId, issuedAt, id])
+  @@index([organizationId, status, issuedAt])
 }

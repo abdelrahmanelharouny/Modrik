@@ -35,7 +35,7 @@ OAuth provider activation is intentionally deferred until deployment credentials
 - MODRIK_AUTH_SECRET (at least 32 bytes)
 - MODRIK_ENCRYPTION_KEY (32-byte base64 or 64-character hex)
 
-Register exact callback URLs under /api/integrations/oauth/{github|jira}/callback.
+Register exact callback URLs under `/api/integrations/oauth/{github|jira}/callback`. In production, configure each client ID and secret as a pair. `MODRIK_APP_URL` must be HTTPS and share the exact origin with `APP_URL`; `bun run security:release-check` rejects partial credential pairs or mismatched origins.
 
 ## Deferred before production activation
 - Live end-to-end tests using dedicated provider test applications.
