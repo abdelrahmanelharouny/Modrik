@@ -27,7 +27,7 @@ type Packet = {
   blinding: string;
 };
 type RatingRow = { blindId: string; scores: Record<Dimension, number>; notes: string };
-type PlannerRuns = { runs: { experimentId: string | null; arm: string }[] };
+type PlannerReviewAvailability = { experimentId: string | null; ready: boolean };
 
 export function PlannerHumanEvaluation({ projectId }: { projectId: string }) {
   const { toast } = useToast();
@@ -42,9 +42,8 @@ export function PlannerHumanEvaluation({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     let active = true;
-    api<PlannerRuns>("/api/projects/" + projectId + "/planner").then((result) => {
-      const latest = result.runs.find((row) => row.experimentId);
-      if (active && latest?.experimentId) setExperimentId(latest.experimentId);
+    api<PlannerReviewAvailability>("/api/projects/" + projectId + "/planner/feedback").then((result) => {
+      if (active) setExperimentId(result.ready && result.experimentId ? result.experimentId : "");
     }).catch(() => undefined);
     return () => { active = false; };
   }, [projectId]);
