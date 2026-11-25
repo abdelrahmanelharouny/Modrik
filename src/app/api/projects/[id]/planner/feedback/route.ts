@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveIdentitySession } from "@/lib/security/identity";
@@ -13,6 +13,7 @@ import {
 type Params = { params: Promise<{ id: string }> };
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 
+function packetDigest(packet: unknown) { return createHash("sha256").update(JSON.stringify(packet)).digest("hex"); }
 function parseContent(value: string) {
   try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; }
   catch { return {}; }
@@ -102,7 +103,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   });
   const packetRow = findByPacketId(packetRows, packetId);
   if (!packetRow) return NextResponse.json({ error: "Planner review packet not found" }, { status: 404, headers: noStore });
-  const packet = parseContent(packetRow.content).packet as Parameters<typeof validatePlannerHumanRatings>[0];
+  const packetDocument = parseContent(packetRow.content);
+  const packet = packetDocument.packet as Parameters<typeof validatePlannerHumanRatings>[0];
+  if (!packet || typeof packetDocument.packetSha256 !== "string" || packetDigest(packet) !== packetDocument.packetSha256) {
+    return NextResponse.json({ error: "Planner review packet integrity verification failed." }, { status: 409, headers: noStore });
+  }
 
   if (action === "submit_rating") {
     let ratings;
@@ -131,7 +136,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     db.artifact.findMany({ where: { projectId, stage: "PLANNER", kind: "planner_human_eval_key" }, select: { content: true } }),
     db.artifact.findMany({ where: { projectId, stage: "PLANNER", kind: "planner_human_eval_review" }, orderBy: { createdAt: "asc" }, select: { content: true } }),
   ]);
-  const key = keyRows.map((row) => parseContent(row.content)).find((row) => row.packetId === packetId);
+  const key = keyRows.map((row) => parseContent(row.content)).find((row) => row.packetId === packetId && row.packetSha256 === packetDocument.packetSha256);
   const reviews = reviewRows.map((row) => parseContent(row.content)).filter((row) => row.packetId === packetId);
   if (!key || reviews.length < 2) return NextResponse.json({ error: "Two independent reviews are required before results can be unblinded." }, { status: 409, headers: noStore });
   try {
