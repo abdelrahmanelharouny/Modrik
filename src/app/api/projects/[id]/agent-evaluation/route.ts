@@ -11,7 +11,7 @@ import {
 
 type Params = { params: Promise<{ id: string }> };
 const noStore = { "Cache-Control": "no-store, max-age=0" };
-const AGENT_STAGES = ["PLANNER", "ELICITATION", "SCOPE", "EXTRACTION", "AMBIGUITY", "STORIES", "CONFLICTS", "DRIFT"];
+const AGENT_STAGES = ["ELICITATION", "SCOPE", "EXTRACTION", "AMBIGUITY", "STORIES", "CONFLICTS", "DRIFT"];
 
 function parseContent(content: string) {
   try { const value = JSON.parse(content); return value && typeof value === "object" ? value as Record<string, unknown> : {}; }
