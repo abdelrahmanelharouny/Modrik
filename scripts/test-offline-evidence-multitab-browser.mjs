@@ -124,6 +124,50 @@ try {
   await recoveryTab.evaluate(() => window.syncTask);
   await recoveryTab.close();
 
+  // A live but stale tab must be fenced after a successor acquires the expired lease.
+  const staleOwner = await context.newPage();
+  const successorOwner = await context.newPage();
+  await staleOwner.exposeFunction("recordEvent", (event) => events.push(event));
+  await successorOwner.exposeFunction("recordEvent", (event) => events.push(event));
+  await Promise.all([staleOwner.goto(origin), successorOwner.goto(origin)]);
+  await startTask(staleOwner, "browser-project-stale-owner", "stale-owner");
+  await waitFor(() => events.some((event) => event.startsWith("stale-owner:start:")), "stale owner to acquire the lease");
+  const staleToken = Number(events.find((event) => event.startsWith("stale-owner:start:")).split(":").at(-1));
+  await successorOwner.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("modrik-offline", 2);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("sync-leases", "readwrite");
+      const store = tx.objectStore("sync-leases");
+      const request = store.get("modrik:offline-evidence-sync:browser-project-stale-owner");
+      request.onsuccess = () => {
+        if (!request.result) { tx.abort(); return; }
+        store.put({ ...request.result, leaseUntil: Date.now() - 1 });
+      };
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("Could not expire the stale-owner lease"));
+    });
+    db.close();
+  });
+  await startTask(successorOwner, "browser-project-stale-owner", "successor-owner");
+  await waitFor(() => events.some((event) => event.startsWith("successor-owner:start:")), "successor to reclaim the expired lease");
+  const successorToken = Number(events.find((event) => event.startsWith("successor-owner:start:")).split(":").at(-1));
+  assert.ok(successorToken > staleToken, "a successor must fence a still-running stale owner with a newer generation");
+  await staleOwner.evaluate(() => window.releaseSync());
+  const staleOutcome = await staleOwner.evaluate(async () => {
+    try { await window.syncTask; return "fulfilled"; }
+    catch (error) { return error?.code ?? "rejected"; }
+  });
+  assert.equal(staleOutcome, "OFFLINE_SYNC_LEASE_LOST", "stale owners must fail their final lease assertion");
+  assert.equal(events.some((event) => event.startsWith("stale-owner:end:")), false, "a stale owner must not enter the post-lease success path");
+  await successorOwner.evaluate(() => window.releaseSync());
+  await successorOwner.evaluate(() => window.syncTask);
+  await Promise.all([staleOwner.close(), successorOwner.close()]);
+
   // A long-closed browser must not silently expire user-authored work.
   const retained = await second.evaluate(async () => {
     const { createOfflineEvidenceOperation, putOfflineEvidenceOperation, listOfflineEvidenceOperations } = await import("/offline-queue.mjs");
