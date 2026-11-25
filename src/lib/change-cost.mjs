@@ -8,7 +8,7 @@ const EDGE_WEIGHT = Object.freeze({
   derived_from: 0.85,
 });
 const KNOWN_PRIORITIES = new Set(["Must", "Should", "Could"]);
-const KNOWN_DRIFT = new Set(["none", "changed", "added", "removed", "uncertain"]);
+const KNOWN_DRIFT = new Set(["none", "suspected", "confirmed", "changed", "added", "removed", "uncertain"]);
 const KNOWN_VERIFICATION = new Set(["supported", "verified", "weak", "unverified", "conflicted", "pending"]);
 function finite(value, fallback = 0) { return Number.isFinite(value) ? value : fallback; }
 

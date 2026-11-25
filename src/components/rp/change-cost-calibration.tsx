@@ -14,7 +14,7 @@ interface CalibrationRecord {
   rootRef: string | null;
   createdAt: string;
   estimate: { effortPoints: number; affectedRequirements: number; uncertainty?: { percent: number } } | null;
-  outcome: { actualHours: number; note: string; recordedAt: string } | null;
+  outcome: { actualHours: number; note: string; changeType?: string; recordedAt: string } | null;
 }
 interface CalibrationSummary {
   sampleCount: number;
@@ -30,7 +30,7 @@ interface CalibrationResponse { records: CalibrationRecord[]; calibration: Calib
 
 function OutcomeEditor({ projectId, record, onSaved }: { projectId: string; record: CalibrationRecord; onSaved: () => Promise<void> }) {
   const [hours, setHours] = useState("");
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState("");\n  const [changeType, setChangeType] = useState("feature");
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
   const { lang } = useLang();
@@ -39,7 +39,7 @@ function OutcomeEditor({ projectId, record, onSaved }: { projectId: string; reco
     if (!hours.trim() || !Number.isFinite(Number(hours)) || Number(hours) < 0) return;
     setBusy(true);
     try {
-      await api(`/api/projects/${projectId}/change-cost`, { method: "POST", body: JSON.stringify({ action: "record_outcome", estimateId: record.id, actualHours: Number(hours), note }) });
+      await api(`/api/projects/${projectId}/change-cost`, { method: "POST", body: JSON.stringify({ action: "record_outcome", estimateId: record.id, actualHours: Number(hours), note, changeType }) });
       toast({ title: ar ? "تم تسجيل ساعات التنفيذ" : "Observed effort recorded" });
       await onSaved();
     } catch (error) {
@@ -51,11 +51,11 @@ function OutcomeEditor({ projectId, record, onSaved }: { projectId: string; reco
       <span className="font-mono text-muted-foreground">{record.rootRef ?? "Requirement"}</span>
       <span>{record.estimate?.effortPoints.toFixed(2)} {ar ? "نقطة جهد" : "effort points"}</span>
       <span className="text-muted-foreground">{new Date(record.createdAt).toLocaleDateString()}</span>
-      {record.outcome ? <Badge variant="outline" className="border-signal/40 text-signal">{record.outcome.actualHours}h {ar ? "فعلي" : "actual"}</Badge> : <Badge variant="outline">{ar ? "بانتظار النتيجة" : "outcome pending"}</Badge>}
+      {record.outcome ? <Badge variant="outline" className="border-signal/40 text-signal">{record.outcome.actualHours}h · {record.outcome.changeType ?? "other"}</Badge> : <Badge variant="outline">{ar ? "بانتظار النتيجة" : "outcome pending"}</Badge>}
     </div>
     {!record.outcome && <div className="mt-2 grid gap-2 sm:grid-cols-[120px_1fr_auto]">
       <Input type="number" min="0" step="0.25" value={hours} onChange={(event) => setHours(event.target.value)} placeholder={ar ? "الساعات الفعلية" : "Actual hours"} aria-label={ar ? "ساعات التنفيذ الفعلية" : "Actual engineering hours"} />
-      <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder={ar ? "ملاحظة اختيارية عن نطاق العمل" : "Optional scope/context note"} aria-label={ar ? "ملاحظة" : "Outcome note"} />
+      <select value={changeType} onChange={(event) => setChangeType(event.target.value)} aria-label={ar ? "نوع التغيير" : "Change type"} className="h-10 rounded-md border border-border bg-background px-2 text-xs"><option value="feature">{ar ? "ميزة" : "Feature"}</option><option value="bugfix">{ar ? "إصلاح" : "Bug fix"}</option><option value="refactor">{ar ? "إعادة هيكلة" : "Refactor"}</option><option value="migration">{ar ? "ترحيل" : "Migration"}</option><option value="infrastructure">{ar ? "بنية تحتية" : "Infrastructure"}</option><option value="security">{ar ? "أمان" : "Security"}</option><option value="other">{ar ? "أخرى" : "Other"}</option></select><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder={ar ? "ملاحظة اختيارية عن نطاق العمل" : "Optional scope/context note"} aria-label={ar ? "ملاحظة" : "Outcome note"} />
       <Button size="sm" variant="outline" disabled={busy || !hours.trim() || !Number.isFinite(Number(hours)) || Number(hours) < 0} onClick={save}>{busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="mr-1 h-3 w-3" />}{ar ? "حفظ الفعلي" : "Save actual"}</Button>
     </div>}
     {record.outcome?.note && <p className="mt-1 text-[10px] text-muted-foreground">{record.outcome.note}</p>}
@@ -97,12 +97,12 @@ export function ChangeCostCalibration({ projectId, requirementId }: { projectId:
       </div>
     </div>
     {summary && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">{ar ? "عينات مكتملة" : "PAIRED SAMPLES"}</p><strong className="text-lg tabular-nums">{summary.sampleCount}</strong><Badge variant="outline" className="ml-2 text-[9px]">{readiness}</Badge></div>
-      <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">MAE · {ar ? "ساعات" : "hours"}</p><strong className="text-lg tabular-nums">{summary.maeHours === null ? "—" : summary.maeHours.toFixed(2)}</strong></div>
-      <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">RMSE · {ar ? "ساعات" : "hours"}</p><strong className="text-lg tabular-nums">{summary.rmseHours === null ? "—" : summary.rmseHours.toFixed(2)}</strong></div>
+      <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">{ar ? "عينات مكتملة" : "PAIRED SAMPLES"}</p><strong className="text-lg tabular-nums">{summary.sampleCount}</strong><Badge variant="outline" className="ml-2 text-[9px]">{readiness}</Badge><p className="mt-1 text-[9px] text-muted-foreground">{ar ? "تدريب" : "train"} {summary.trainingSampleCount} · {ar ? "اختبار زمني" : "holdout"} {summary.holdoutSampleCount}</p></div>
+      <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">HOLDOUT MAE · {ar ? "ساعات" : "hours"}</p><strong className="text-lg tabular-nums">{summary.maeHours === null ? "—" : summary.maeHours.toFixed(2)}</strong></div>
+      <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">HOLDOUT RMSE · {ar ? "ساعات" : "hours"}</p><strong className="text-lg tabular-nums">{summary.rmseHours === null ? "—" : summary.rmseHours.toFixed(2)}</strong></div>
       <div className="rounded border border-border/60 p-2"><p className="text-[9px] text-muted-foreground">{ar ? "ارتباط الرتب" : "RANK CORRELATION"}</p><strong className="text-lg tabular-nums">{summary.rankCorrelation === null ? "—" : summary.rankCorrelation.toFixed(2)}</strong></div>
     </div>}
-    {summary?.fit && <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "الملاءمة الوصفية" : "Descriptive fit"}: actual hours ≈ {summary.fit.intercept.toFixed(2)} + ({summary.fit.hoursPerEffortPoint.toFixed(2)} × effort points). {ar ? "ليست توقعًا معتمدًا." : "Not a validated forecast."}</p>}
+    {summary?.segments?.length ? <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "تقسيم العينات حسب نوع التغيير:" : "Samples by change type:"} {summary.segments.map((item) => item.changeType + " (" + item.sampleCount + ")").join(" · ")}</p> : null}\n    {summary?.fit && <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "الملاءمة الوصفية" : "Descriptive fit"}: actual hours ≈ {summary.fit.intercept.toFixed(2)} + ({summary.fit.hoursPerEffortPoint.toFixed(2)} × effort points). {ar ? "ليست توقعًا معتمدًا." : "Not a validated forecast."}</p>}
     {data?.records.length ? <div className="mt-3 space-y-2">{data.records.slice().reverse().slice(0, 12).map((record) => <OutcomeEditor key={record.id} projectId={projectId} record={record} onSaved={load} />)}</div> : <p className="mt-3 text-[10px] text-muted-foreground">{ar ? "لا توجد تقديرات محفوظة بعد. احفظ تقديرًا قبل بدء العمل، ثم سجّل الساعات الفعلية بعد انتهائه." : "No registered estimates yet. Save an estimate before work starts and record actual hours when it is complete."}</p>}
     {data?.truncated && <p className="mt-2 text-[10px] text-muted-foreground">{ar ? "السجل معروض جزئيًا؛ توجد سجلات أقدم." : "History is capped at the latest 2,000 journal entries."}</p>}
     <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{ar ? "المقاييس وصفية ومحسوبة على العينات المسجلة نفسها؛ لا تستخدمها كتوقعات تشغيلية قبل جمع عينة ممثلة واختبار منفصل." : summary?.caveat ?? "Metrics are descriptive and in-sample; do not use them as operational forecasts before representative data and held-out validation."}</p>

@@ -1,39 +1,71 @@
-export const CHANGE_COST_MODEL_VERSION = "change-cost-v2";
+export const CHANGE_COST_MODEL_VERSION = "change-cost-v3-temporal";
+export const CHANGE_COST_TYPES = Object.freeze(["feature", "bugfix", "refactor", "migration", "infrastructure", "security", "other"]);
 
+function fitLinear(rows) {
+  if (rows.length < 2) return null;
+  const n = rows.length;
+  const meanX = rows.reduce((sum, row) => sum + row.points, 0) / n;
+  const meanY = rows.reduce((sum, row) => sum + row.hours, 0) / n;
+  const varianceX = rows.reduce((sum, row) => sum + (row.points - meanX) ** 2, 0);
+  if (varianceX <= 0) return null;
+  const covariance = rows.reduce((sum, row) => sum + (row.points - meanX) * (row.hours - meanY), 0);
+  const slope = covariance / varianceX;
+  if (!Number.isFinite(slope) || slope < 0) return null;
+  return { intercept: meanY - slope * meanX, hoursPerEffortPoint: slope };
+}
+function errorMetrics(rows, fit) {
+  if (!rows.length || !fit) return { maeHours: null, rmseHours: null, meanBiasHours: null };
+  const errors = rows.map((row) => row.hours - (fit.intercept + fit.hoursPerEffortPoint * row.points));
+  return {
+    maeHours: round(errors.reduce((sum, value) => sum + Math.abs(value), 0) / errors.length),
+    rmseHours: round(Math.sqrt(errors.reduce((sum, value) => sum + value ** 2, 0) / errors.length)),
+    meanBiasHours: round(errors.reduce((sum, value) => sum + value, 0) / errors.length),
+  };
+}
 export function summarizeChangeCostCalibration(records) {
   const paired = records
     .filter((record) => record?.estimate && record?.outcome)
-    .map((record) => ({
+    .map((record, index) => ({
       points: Number(record.estimate.effortPoints),
       hours: Number(record.outcome.actualHours),
+      changeType: CHANGE_COST_TYPES.includes(record.outcome.changeType) ? record.outcome.changeType : "other",
+      recordedAt: Date.parse(record.outcome.recordedAt ?? record.createdAt ?? index),
+      order: index,
     }))
-    .filter((row) => Number.isFinite(row.points) && row.points > 0 && Number.isFinite(row.hours) && row.hours >= 0);
+    .filter((row) => Number.isFinite(row.points) && row.points > 0 && Number.isFinite(row.hours) && row.hours >= 0)
+    .sort((a, b) => (Number.isFinite(a.recordedAt) ? a.recordedAt : a.order) - (Number.isFinite(b.recordedAt) ? b.recordedAt : b.order) || a.order - b.order);
   const n = paired.length;
-  if (!n) return { sampleCount: 0, modelVersion: CHANGE_COST_MODEL_VERSION, fit: null, maeHours: null, rmseHours: null, meanBiasHours: null, rankCorrelation: null, readiness: "no_observations" };
-  const meanX = paired.reduce((sum, row) => sum + row.points, 0) / n;
-  const meanY = paired.reduce((sum, row) => sum + row.hours, 0) / n;
-  const varianceX = paired.reduce((sum, row) => sum + (row.points - meanX) ** 2, 0);
-  const covariance = paired.reduce((sum, row) => sum + (row.points - meanX) * (row.hours - meanY), 0);
-  const slope = varianceX > 0 ? covariance / varianceX : null;
-  const intercept = slope === null ? null : meanY - slope * meanX;
-  const errors = slope === null ? [] : paired.map((row) => row.hours - (intercept + slope * row.points));
-  const maeHours = errors.length ? errors.reduce((sum, error) => sum + Math.abs(error), 0) / n : null;
-  const rmseHours = errors.length ? Math.sqrt(errors.reduce((sum, error) => sum + error ** 2, 0) / n) : null;
-  const meanBiasHours = errors.length ? errors.reduce((sum, error) => sum + error, 0) / n : null;
-  const rankCorrelation = spearman(paired.map((row) => row.points), paired.map((row) => row.hours));
+  if (!n) return {
+    sampleCount: 0, trainingSampleCount: 0, holdoutSampleCount: 0,
+    modelVersion: CHANGE_COST_MODEL_VERSION, protocol: "temporal_holdout_v1",
+    fit: null, maeHours: null, rmseHours: null, meanBiasHours: null,
+    rankCorrelation: null, segments: [], readiness: "no_observations",
+    caveat: "No paired observations exist. No fit or predictive claim is available.",
+  };
+  const holdoutCount = n >= 10 ? Math.max(2, Math.ceil(n * 0.2)) : 0;
+  const training = holdoutCount ? paired.slice(0, n - holdoutCount) : paired;
+  const holdout = holdoutCount ? paired.slice(n - holdoutCount) : [];
+  const fit = fitLinear(training);
+  const metrics = errorMetrics(holdout, fit);
+  const segments = [...new Set(paired.map((row) => row.changeType))].sort().map((changeType) => {
+    const rows = paired.filter((row) => row.changeType === changeType);
+    return { changeType, sampleCount: rows.length, rankCorrelation: roundNullable(spearman(rows.map((row) => row.points), rows.map((row) => row.hours))) };
+  });
   return {
-    sampleCount: n, modelVersion: CHANGE_COST_MODEL_VERSION,
-    fit: slope === null ? null : { intercept: round(intercept), hoursPerEffortPoint: round(slope) },
-    maeHours: maeHours === null ? null : round(maeHours),
-    rmseHours: rmseHours === null ? null : round(rmseHours),
-    meanBiasHours: meanBiasHours === null ? null : round(meanBiasHours),
-    rankCorrelation: rankCorrelation === null ? null : round(rankCorrelation),
+    sampleCount: n, trainingSampleCount: training.length, holdoutSampleCount: holdout.length,
+    modelVersion: CHANGE_COST_MODEL_VERSION, protocol: "temporal_holdout_v1",
+    fit: fit ? { intercept: round(fit.intercept), hoursPerEffortPoint: round(fit.hoursPerEffortPoint) } : null,
+    ...metrics,
+    rankCorrelation: roundNullable(spearman(paired.map((row) => row.points), paired.map((row) => row.hours))),
+    segments,
     readiness: n < 10 ? "collecting" : n < 30 ? "early_signal" : "review_candidate",
-    caveat: "Descriptive in-sample fit only. It is not a validated forecast; use a held-out, representative project sample before operational decisions.",
+    caveat: holdoutCount
+      ? "Absolute error and bias are measured only on the chronologically latest holdout records; the fit uses earlier records only. This temporal split is not a substitute for representative multi-project validation."
+      : "Insufficient observations for a temporal holdout. Any fit is descriptive only and must not be used as an operational forecast.",
   };
 }
-
 function round(value) { return Math.round(value * 1000) / 1000; }
+function roundNullable(value) { return value === null ? null : round(value); }
 function ranks(values) {
   const sorted = values.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
   const output = Array(values.length);
