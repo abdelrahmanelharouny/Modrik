@@ -31,7 +31,7 @@ let shuttingDown=false,activeJobs=0,jobsCompleted=0,jobsRetried=0,lastError:stri
 const healthServer=createServer(async (request,response)=>{
   if(request.url!=="/health"&&request.url!=="/healthz"){response.writeHead(404).end();return;}
   let databaseHealthy=true;
-  try{await db.$queryRaw\`SELECT 1\`;}catch(error){databaseHealthy=false;lastError=sanitizePipelineJobError(error);}
+  try{await db.$queryRaw`SELECT 1`;}catch(error){databaseHealthy=false;lastError=sanitizePipelineJobError(error);}
   const ready=!shuttingDown&&databaseHealthy;
   response.writeHead(ready?200:503,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"});
   response.end(JSON.stringify({status:shuttingDown?"draining":databaseHealthy?"ready":"degraded",database:databaseHealthy?"connected":"unavailable",activeJobs,jobsCompleted,jobsRetried,lastError,uptimeSeconds:Math.floor(process.uptime())}));
