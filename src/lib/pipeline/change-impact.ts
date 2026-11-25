@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { normalizeChangeImpactInput } from "./change-impact.mjs";
 
 export async function enqueueChangeImpactJob(input: {
-  projectId: string; source: "github" | "jira" | "manual"; idempotencyKey: string;
+  projectId: string; source: "github" | "jira" | "manual" | "scheduled"; idempotencyKey: string;
   signal: string; externalKey?: string; externalUrl?: string; title?: string;
 }) {
   const value = normalizeChangeImpactInput(input);
@@ -14,7 +14,7 @@ export async function enqueueChangeImpactJob(input: {
       if (existing) return { jobId: existing.id, runId: existing.pipelineRunId, status: existing.status, duplicate: true };
       const syncMap = await tx.syncMap.create({ data: {
         projectId: value.projectId,
-        kind: value.source === "manual" ? "manual-drift" : value.source + "-webhook",
+        kind: value.source === "manual" ? "manual-drift" : value.source === "scheduled" ? "scheduled-drift" : value.source + "-webhook",
         direction: "pending", localLabel: "CHANGE_IMPACT",
         externalKey: value.externalKey, externalUrl: value.externalUrl,
         title: value.title, idempotencyKey: value.idempotencyKey, leaseExpiresAt: null,
