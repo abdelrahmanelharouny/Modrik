@@ -41,7 +41,7 @@ export async function createOrganizationMemoryEmbeddingProvider(options = {}) {
       if (typeof text !== "string" || !text.trim() || text.length > 24_000) throw new TypeError("Embedding input text is invalid.");
       const role = inputOptions.role === "query" ? "query" : "document";
       const input = config.model === E5_INSTRUCT_MODEL && role === "query"
-        ? "Instruct: " + config.queryInstruction + "\\nQuery: " + text.trim()
+        ? "Instruct: " + config.queryInstruction + "\nQuery: " + text.trim()
         : text.trim();
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
