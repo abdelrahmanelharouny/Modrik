@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
     if (rankedSearch && retrievalMode !== "lexical" && process.env.ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED === "true" && projectIds.length) {
       try {
         const provider = await createOrganizationMemoryEmbeddingProvider();
-        const queryEmbedding = await provider.embed(search!);
+        const queryEmbedding = await provider.embed(search!, { role: "query" });
         semanticContext = { model: provider.model, dimensions: provider.dimensions, queryEmbedding };
       } catch {
         semanticPreflightFailed = true;

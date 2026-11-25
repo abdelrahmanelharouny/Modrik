@@ -100,7 +100,7 @@ async function processJob(job) {
 
   const canonical = buildOrganizationMemoryEmbeddingContent(node);
   provider ??= await createOrganizationMemoryEmbeddingProvider();
-  const embedding = await provider.embed(canonical.content);
+  const embedding = await provider.embed(canonical.content, { role: "document" });
 
   return prisma.$transaction(async (tx) => {
     const latestJob = await tx.organizationMemoryEmbeddingJob.findFirst({
