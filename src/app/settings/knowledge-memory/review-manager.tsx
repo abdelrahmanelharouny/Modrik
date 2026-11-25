@@ -46,6 +46,8 @@ export function OrganizationKnowledgeReviewManager() {
   const [candidatePasses, setCandidatePasses] = useState(0);
   const [retrievalDurationMs, setRetrievalDurationMs] = useState(0);
   const [retrievalMode, setRetrievalMode] = useState("");
+  const [retrievalPreference, setRetrievalPreference] = useState<"hybrid" | "lexical" | "semantic">("hybrid");
+  const [semanticFallbackReason, setSemanticFallbackReason] = useState("");
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -74,6 +76,7 @@ export function OrganizationKnowledgeReviewManager() {
     setError("");
     try {
       const params = new URLSearchParams({ view, limit: "100" });
+      if (view === "accepted") params.set("retrieval", retrievalPreference);
       if (cursor) params.set("cursor", cursor);
       if (applied.query) params.set("q", applied.query);
       if (applied.kind) params.set("kind", applied.kind);
@@ -94,6 +97,7 @@ export function OrganizationKnowledgeReviewManager() {
       setCandidatePasses(Number.isSafeInteger(payload.candidatePasses) ? payload.candidatePasses : 0);
       setRetrievalDurationMs(Number.isFinite(payload.retrievalDurationMs) ? payload.retrievalDurationMs : 0);
       setRetrievalMode(typeof payload.retrievalMode === "string" ? payload.retrievalMode : "");
+      setSemanticFallbackReason(typeof payload.semanticFallbackReason === "string" ? payload.semanticFallbackReason : "");
       setCapabilities(payload.capabilities ?? { canReview: false, canApprove: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load the review queue.");
@@ -101,7 +105,7 @@ export function OrganizationKnowledgeReviewManager() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [applied, view]);
+  }, [applied, retrievalPreference, view]);
 
   useEffect(() => { setNextCursor(null); setHasMore(false); void load(); }, [load]);
 
@@ -184,9 +188,10 @@ export function OrganizationKnowledgeReviewManager() {
         <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">{ar ? "صلاحية الاعتماد:" : "Approval permission:"} {capabilities.canApprove ? (ar ? "مفعلة" : "enabled") : (ar ? "غير ممنوحة" : "not assigned")}</span>
       </div> : null}
 
-      <form onSubmit={applyFilters} className="mb-6 grid gap-3 rounded-2xl border border-border bg-card p-5 sm:grid-cols-[1fr_190px_auto]">
+      <form onSubmit={applyFilters} className="mb-6 grid gap-3 rounded-2xl border border-border bg-card p-5 sm:grid-cols-[1fr_170px_170px_auto]">
         <label className="grid gap-1.5 text-sm"><span className="text-muted-foreground">{ar ? "البحث في المعرفة" : "Search knowledge"}</span><input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={120} placeholder={ar ? "ابحث بالعنوان أو الوصف" : "Search title or description"} className="h-10 rounded-lg border border-border bg-background px-3 outline-none focus-visible:ring-2 focus-visible:ring-primary" /></label>
         <label className="grid gap-1.5 text-sm"><span className="text-muted-foreground">{ar ? "نوع المعرفة" : "Knowledge type"}</span><select value={kind} onChange={(event) => setKind(event.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 outline-none focus-visible:ring-2 focus-visible:ring-primary"><option value="">{ar ? "كل الأنواع" : "All types"}</option>{["stakeholder","goal","assumption","constraint","decision","risk","metric","system","domain_concept","process","policy"].map((value) => <option key={value} value={value}>{ar ? KNOWLEDGE_KIND_AR[value] ?? value.replaceAll("_", " ") : value.replaceAll("_", " ")}</option>)}</select></label>
+        {view === "accepted" ? <label className="grid gap-1.5 text-sm"><span className="text-muted-foreground">{ar ? "طريقة الاسترجاع" : "Retrieval mode"}</span><select value={retrievalPreference} onChange={(event) => setRetrievalPreference(event.target.value as "hybrid" | "lexical" | "semantic")} className="h-10 rounded-lg border border-border bg-background px-3 outline-none focus-visible:ring-2 focus-visible:ring-primary"><option value="hybrid">{ar ? "هجين (BM25 + دلالي)" : "Hybrid (BM25 + semantic)"}</option><option value="lexical">{ar ? "لفظي (BM25)" : "Lexical (BM25)"}</option><option value="semantic">{ar ? "دلالي" : "Semantic"}</option></select></label> : null}
         <button type="submit" disabled={loading} className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"><Filter className="h-4 w-4" />{ar ? "تطبيق" : "Apply"}</button>
       </form>
 
@@ -197,6 +202,8 @@ export function OrganizationKnowledgeReviewManager() {
 
       {error ? <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{translateMessage(error)}</p> : null}
       {notice ? <p role="status" className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">{translateMessage(notice)}</p> : null}
+      {view === "accepted" && applied.query && retrievalMode ? <p role="status" className="mb-3 text-xs text-muted-foreground">{ar ? "المسار الفعلي: " : "Actual retrieval path: "}{retrievalMode}{semanticFallbackReason ? (ar ? " · سبب الرجوع: " : " · fallback: ") + semanticFallbackReason : ""}</p> : null}
+      {view === "accepted" && applied.query && retrievalPreference !== "lexical" && semanticFallbackReason ? <p role="status" className="mb-4 rounded-lg border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">{ar ? "الاسترجاع الدلالي غير جاهز حاليًا؛ عُرضت نتائج BM25 اللفظية بدلًا منه دون إيقاف البحث." : "Semantic retrieval is not ready; BM25 results were served as a safe fallback without interrupting search."}</p> : null}
       {view === "accepted" && retrievalMode === "streaming_bm25_keyset" ? <p role="status" className="mb-4 text-xs text-muted-foreground">{ar ? `تم فحص ${candidatesScanned.toLocaleString()} سجل معرفة مصرح به عبر ${candidatePages.toLocaleString()} صفحة قاعدة بيانات و${candidatePasses} تمريرة BM25 خلال ${retrievalDurationMs.toLocaleString()} مللي ثانية. تشمل النتائج المطابقات الأقدم وترتب عالميًا داخل نطاق مؤسستك.` : `Search evaluated ${candidatesScanned.toLocaleString()} authorized knowledge records across ${candidatePages.toLocaleString()} database pages and ${candidatePasses} BM25 passes in ${retrievalDurationMs.toLocaleString()} ms. Older matching records are included; results are ranked globally within your organization scope.`}</p> : null}
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
