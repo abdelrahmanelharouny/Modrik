@@ -17,16 +17,24 @@ export function ProblemsStage({
   project,
   isCurrent,
   refresh,
+  busy,
+  setBusy,
 }: {
   project: ProjectDTO;
   isCurrent: boolean;
   refresh: () => Promise<void>;
+  busy: boolean;
+  setBusy: (busy: boolean) => void;
 }) {
   const { toast } = useToast();
   const { lang } = useLang();
   const ar = lang === "ar";
 
   const update = async (itemId: string, data: Record<string, unknown>) => {
+    // Candidate selection also advances Project.updatedAt as a compare-and-swap
+    // guard. Keep the workspace approval action disabled until the save and
+    // refreshed project snapshot finish, so approve cannot race a stale version.
+    setBusy(true);
     try {
       await api(`/api/projects/${project.id}/items`, {
         method: "PATCH",
@@ -35,6 +43,8 @@ export function ProblemsStage({
       await refresh();
     } catch (e) {
       toast({ title: "Update failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -71,7 +81,7 @@ export function ProblemsStage({
         value={selected?.id ?? ""}
         onValueChange={(id) => update(id, { selected: true })}
         className="gap-4"
-        disabled={!isCurrent}
+        disabled={!isCurrent || busy}
       >
         {project.candidates.map((c) => {
           const ratio = c.effort === 0 ? 0 : c.impact / c.effort;

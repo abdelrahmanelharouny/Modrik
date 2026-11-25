@@ -1441,11 +1441,21 @@ try {
     assert.equal(browserCandidates.filter((candidate) => candidate.selected).length, 0,
       "candidate generation must not silently choose a route for the human");
     await page.getByRole("radio").first().click();
+    // Wait for the candidate PATCH to be durably reflected before approving.
+    // The UI also disables the shared approval action during this save.
+    let browserSelectedCandidates = [];
+    const candidateSelectionDeadline = Date.now() + 10_000;
+    while (Date.now() < candidateSelectionDeadline) {
+      browserSelectedCandidates = await prisma.problemCandidate.findMany({
+        where: { projectId: browserCreatedProject.id, selected: true },
+      });
+      if (browserSelectedCandidates.length === 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.equal(browserSelectedCandidates.length, 1,
+      "the candidate selection must persist before the approval action is available");
     await page.getByRole("button", { name: "Approve & continue" }).click();
     await page.getByRole("button", { name: "Run Extraction Agent" }).waitFor({ state: "visible", timeout: 15000 });
-    const browserSelectedCandidates = await prisma.problemCandidate.findMany({
-      where: { projectId: browserCreatedProject.id, selected: true },
-    });
     assert.equal(browserSelectedCandidates.length, 1,
       "the human must commit exactly one candidate route before the next stage");
     const browserScopeApproval = await prisma.decisionEntry.findFirst({
