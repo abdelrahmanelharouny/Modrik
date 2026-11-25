@@ -104,6 +104,12 @@ test("Stripe public webhook and billing mutation routes have explicit authorizat
   assert.match(checkout,/identity\.organizationId/);
   assert.match(checkout,/subscription_data\[metadata\]\[organizationId\]/);
   assert.match(checkout,/idempotencyKey/);
+  assert.match(checkout,/externalSubscriptionId/);
+  assert.match(checkout,/subscription\.status!==\"canceled\"/,
+    "checkout must not create a second subscription while a Stripe subscription is unresolved");
+  assert.match(webhook,/eventType\.startsWith\(\"customer\.subscription\.\"\)/);
+  assert.doesNotMatch(webhook,/data:\{status:eventType===\"invoice\.paid\"\?/
+    , "invoice events must not mutate subscription access state");
 });
 
 test("invoice and billing event models use unique provider IDs", () => {

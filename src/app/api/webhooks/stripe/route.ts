@@ -96,8 +96,9 @@ export async function POST(req:NextRequest){
       },
      });
     }
-    const linked=await tx.organizationSubscription.findUnique({where:{organizationId},select:{id:true}});
-    if(linked)await tx.organizationSubscription.update({where:{organizationId},data:{status:eventType==="invoice.paid"?"active":"past_due",billingProvider:"stripe"}});
+    // Invoice delivery is not ordered with subscription lifecycle events.
+    // Never let a late invoice.paid event resurrect a canceled subscription;
+    // subscription access state is owned only by customer.subscription.* events.
    }
    await tx.organizationAuditEvent.create({data:{
     organizationId,eventType:"billing.stripe_event_processed",resourceType:"billing_event",resourceId:eventId,
