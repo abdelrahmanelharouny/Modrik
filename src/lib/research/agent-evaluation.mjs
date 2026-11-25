@@ -31,7 +31,7 @@ function weightedKappa(left, right) {
   return expected === 0 ? null : 1 - actual / expected;
 }
 
-/** Descriptive two-rater report for one immutable agent artifact. */
+/** Descriptive two-rater report for one immutable agent artifact; kappa is not estimable at n=1. */
 export function analyzeAgentArtifactReviews(reviews) {
   if (!Array.isArray(reviews) || reviews.length !== 2) throw new RangeError("Exactly two independent reviewers are required.");
   const normalized = reviews.map((review) => validateAgentEvaluationScores(review?.scores));
@@ -40,7 +40,7 @@ export function analyzeAgentArtifactReviews(reviews) {
     const a = normalized[0][dimension], b = normalized[1][dimension];
     dimensions[dimension] = {
       mean: Number(((a + b) / 2).toFixed(3)),
-      weightedKappa: weightedKappa([a, a], [b, b]),
+      weightedKappa: null,
       exactAgreement: a === b ? 1 : 0,
       absoluteDifference: Math.abs(a - b),
     };
@@ -49,11 +49,47 @@ export function analyzeAgentArtifactReviews(reviews) {
     .filter(([key, value]) => key !== "reviewerConfidence" && value.absoluteDifference > 1)
     .map(([dimension]) => dimension);
   return {
-    reviewerCount: 2,
-    dimensions,
-    adjudicationRequired: disagreement.length > 0,
-    disagreementDimensions: disagreement,
+    reviewerCount: 2, artifactCount: 1, dimensions,
+    adjudicationRequired: disagreement.length > 0, disagreementDimensions: disagreement,
     inference: "artifact-level-descriptive-only",
-    limitation: "Two human ratings of one artifact are not an agent-level population estimate. Aggregate across independent projects and scenarios before comparing agents.",
+    limitation: "A single artifact cannot estimate inter-rater reliability or agent-level performance. Aggregate across independent artifacts before calculating kappa or comparing agents.",
+  };
+}
+
+/** Reliability and descriptive quality by stage, across independent agent artifacts. */
+export function analyzeAgentEvaluationCohort(records) {
+  if (!Array.isArray(records)) throw new TypeError("Agent evaluation records must be an array.");
+  const valid = records.map((record) => ({
+    stage: typeof record?.stage === "string" && record.stage ? record.stage : "unspecified",
+    reviews: Array.isArray(record?.reviews) && record.reviews.length === 2
+      ? record.reviews.map((row) => validateAgentEvaluationScores(row?.scores))
+      : null,
+  })).filter((record) => record.reviews);
+  const groups = new Map();
+  for (const record of valid) {
+    if (!groups.has(record.stage)) groups.set(record.stage, []);
+    groups.get(record.stage).push(record);
+  }
+  const byStage = {};
+  for (const [stage, group] of groups) {
+    const dimensions = {};
+    for (const dimension of AGENT_EVALUATION_DIMENSIONS) {
+      const left = group.map((record) => record.reviews[0][dimension]);
+      const right = group.map((record) => record.reviews[1][dimension]);
+      const all = [...left, ...right];
+      dimensions[dimension] = {
+        mean: Number((all.reduce((sum, value) => sum + value, 0) / all.length).toFixed(3)),
+        weightedKappa: weightedKappa(left, right),
+        exactAgreement: left.filter((value, index) => value === right[index]).length / left.length,
+        meanAbsoluteDifference: Number((left.reduce((sum, value, index) => sum + Math.abs(value - right[index]), 0) / left.length).toFixed(3)),
+      };
+    }
+    byStage[stage] = { nArtifacts: group.length, dimensions };
+  }
+  return {
+    evaluatedArtifacts: valid.length,
+    byStage,
+    inference: "descriptive-only",
+    limitation: "Ratings apply only to artifacts actually reviewed. Compare agents only on matched stage/task distributions and independent projects; these human scores do not replace confidence calibration against human requirement verdicts.",
   };
 }
