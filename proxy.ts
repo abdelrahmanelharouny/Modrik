@@ -256,7 +256,7 @@ export async function proxy(request: NextRequest) {
         const provider = transcriptionRoute
           ? (process.env.RP_ASR_PROVIDER?.trim() || "zai")
           : (process.env.RP_LLM_PROVIDER?.trim() || "glm");
-        if (permitted.length && !permitted.includes(provider)) {
+        if (!permitted.includes(provider)) {
           return applySecurityHeaders(NextResponse.json(
             { error: "The configured AI provider is not permitted by this organization's policy", code: "AI_PROVIDER_NOT_PERMITTED" },
             { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
