@@ -1,7 +1,7 @@
 # Phase 4 — Product & Business Expansion
 
-**Implementation branch:** `feat/phase-4-enterprise-product-expansion`  
-**Status:** implementation in progress; no live payment provider, enterprise identity provider, or production data-retention executor is configured.
+**Merged implementation:** PR #85, main commit `f2d07f784c88195cb2f88ce2733cfe83799e7fad`  
+**Status:** Phase 4 repository implementation is merged; no live payment provider, enterprise identity provider, or production data-retention executor is configured.
 
 Phase 4 moves Modrik from a capable project workspace toward a multi-organization SaaS and enterprise requirements-governance product. The implementation is tenant-scoped and deliberately separates verified product behavior from provider-dependent activation.
 

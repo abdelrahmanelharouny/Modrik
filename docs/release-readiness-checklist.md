@@ -116,14 +116,14 @@ OAuth/provider activation and semantic/vector retrieval remain intentionally def
 
 ### Completed in the repository
 - [x] Phase 3 merged in PR #84 at 87d1f36f6f7f9cf5e816216f6549885bf2b8725c.
-- [x] Phase 4 implementation assembled in PR #85 at head 6c17282ee7cdf15bea9c2028329b1b59aa453df1.
-- [x] Exact-head CI run [45551343239](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/45551343239) passed both quality and postgres-schema.
+- [x] Phase 4 implementation merged through PR #85 at main commit f2d07f784c88195cb2f88ce2733cfe83799e7fad.
+- [x] Exact-head CI run [45552141618](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/45552141618) passed both quality and postgres-schema.
 - [x] Seat-limit integration explicitly proves that active and pending invited memberships consume Free seats and an over-limit invitation creates no user or invitation record.
 - [x] Stripe Checkout, Billing Portal, signed webhook verification, idempotent event ledger and invoice projection exist in code; checkout blocks a second unresolved Stripe subscription and invoice delivery cannot change subscription access state.
 - [x] Phase 4 docs distinguish implemented repository behavior from external provider activation and non-implemented automated retention execution.
 
 ### Still not production-cleared
-- [ ] Review and merge PR #85 after final exact-head checks.
+- [x] PR #85 merged to main at f2d07f784c88195cb2f88ce2733cfe83799e7fad after exact-head quality and postgres-schema CI passed.
 - [ ] Generate and review a PostgreSQL migration baseline and provider-specific migration runner; never use production prisma db push.
 - [ ] Provision a deployment topology only after the budget/hosting choice is approved. See deployment-architecture.md; none of the listed resources is provisioned.
 - [ ] Restore-test encrypted PostgreSQL backups and rehearse rollback on staging.

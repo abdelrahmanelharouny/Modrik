@@ -1,8 +1,8 @@
 # Modrik feature and release status
 
 **Canonical branch:** `main`  
-**Verified main commit:** `87d1f36f6f7f9cf5e816216f6549885bf2b8725c` (Phase 3 PR #84 merged).  
-**Integration status:** PRs #63–#73, #75, #76 and Phase 3 PR #84 are merged. PRs #61 and #62 were closed as superseded by the current-main reapplications #67 and #68. Original stacked PR #74 was closed as superseded after its follow-on changes were rebased into PR #75. Phase 4 is under review in PR #85; its exact head and CI evidence are recorded below. PR #47 remains intentionally excluded because it is a divergent replay.  
+**Verified main commit:** `f2d07f784c88195cb2f88ce2733cfe83799e7fad` (Phase 3 PR #84 and Phase 4 PR #85 merged).  
+**Integration status:** PRs #63–#73, #75, #76 and Phase 3 PR #84 are merged. PRs #61 and #62 were closed as superseded by the current-main reapplications #67 and #68. Original stacked PR #74 was closed as superseded after its follow-on changes were rebased into PR #75. Phase 4 enterprise expansion is merged in PR #85; its exact-head CI evidence is recorded below. Historical PRs #77–#80 were closed as superseded after their relevant content was reconciled. PR #47 remains intentionally excluded because it is a divergent replay.  
 **Release status:** the repository has broad automated coverage and a successful CI merge path, but it is **not production-cleared**. Production infrastructure, migration-baseline reconciliation, staging rehearsal, live-provider verification and operational/security sign-off remain external gates.
 
 This document distinguishes implemented repository behavior, automated evidence, manual acceptance and external release prerequisites. A passing CI run proves only the tested commit and configured CI environment; it does not prove live-provider behavior, user acceptance or production readiness.
@@ -107,10 +107,10 @@ See [docs/production-preflight-runbook.md](docs/production-preflight-runbook.md)
 ## Phase 4 implementation update — 2026-11-25
 
 - Phase 3 intelligence foundations were merged through PR #84 at main commit 87d1f36f6f7f9cf5e816216f6549885bf2b8725c.
-- Phase 4 enterprise product work is assembled in PR #85 (feat/phase-4-enterprise-product-expansion). Latest verified head at this update: 6c17282ee7cdf15bea9c2028329b1b59aa453df1.
-- Exact-head CI run [45551343239](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/45551343239) completed successfully: both quality and postgres-schema are green, including regression tests, TypeScript, lint, production build, offline browser integrations, stakeholder API/browser E2E, SQLite integration, PostgreSQL schema parity and PostgreSQL governance/retrieval integration.
+- Phase 4 enterprise product work was merged through PR #85 into main at commit f2d07f784c88195cb2f88ce2733cfe83799e7fad. The reviewed PR head was cc71f315b7b2b18b76edefd51771054368267fdf.
+- Exact-head CI run [45552141618](https://github.com/abdelrahmanelharouny/Modrik/actions/runs/45552141618) completed successfully on the reviewed PR head: both quality and postgres-schema are green, including regression tests, TypeScript, lint, production build, offline browser integrations, stakeholder API/browser E2E, SQLite integration, PostgreSQL schema parity and PostgreSQL governance/retrieval integration.
 - Phase 4 implementation includes organization onboarding, portfolio workspace, plan/seat/project entitlements, idempotent usage ledger, immutable baselines and comparisons, organization AI governance, scoped legal holds, compliance export, and Stripe checkout/portal/webhook/invoice projections. Stripe remains inactive pending provider credentials and live acceptance; usage cost is estimated and token hard quotas are not yet reserved atomically.
 - Legal retention policies and holds are persisted and enforced at destructive API boundaries; no automatic deletion executor runs. SSO, SCIM, MFA and enterprise identity-provider activation are not claimed complete.
 - OAuth activation and semantic retrieval remain disabled by design. Granite 97M is the selected embedding candidate; BM25 remains the serving default pending human-judged multilingual evaluation.
 - The deployment choices in docs/deployment-architecture.md are alternatives only: strict-$0 self-managed OCI pilot versus budget-approved managed Frankfurt hosting. No infrastructure has been provisioned.
-- Release status: PR #85 still requires review/merge; production remains blocked by PostgreSQL migration-baseline/runner work, backup/restore rehearsal, real provider acceptance, accessibility review and security/privacy/legal sign-off.
+- Release status: Phase 4 is merged; the product is still not production-cleared. Production remains blocked by PostgreSQL migration-baseline/runner work, backup/restore rehearsal, real provider acceptance, accessibility review and security/privacy/legal sign-off.

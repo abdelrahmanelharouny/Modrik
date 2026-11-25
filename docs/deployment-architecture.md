@@ -109,4 +109,4 @@ BM25 remains the serving default. The repository's gated embedding workflow is d
 - Hugging Face Granite 97M: https://huggingface.co/ibm-granite/granite-embedding-97m-multilingual-r2
 - Hugging Face TEI: https://huggingface.co/docs/text-embeddings-inference/quick_tour
 
-**Current release decision:** repository implementation can be merged after exact-head CI. Neither deployment topology is provisioned or production-authorized. The migration baseline, restore rehearsal and real-provider acceptance remain hard blockers.
+**Current release decision:** Phase 4 was merged to main in PR #85 at f2d07f784c88195cb2f88ce2733cfe83799e7fad after exact-head quality and postgres-schema CI passed in run 45552141618. Neither deployment topology is provisioned or production-authorized. The migration baseline, restore rehearsal and real-provider acceptance remain hard blockers.
