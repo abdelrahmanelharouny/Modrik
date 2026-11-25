@@ -95,15 +95,15 @@ export function evaluateAsrTranscriptPair(input = {}) {
 export function evaluateAsrTranscriptCorpus(records) {
   if (!Array.isArray(records)) throw new TypeError("ASR evaluation corpus must be an array.");
   const valid = records.map((row) => evaluateAsrTranscriptPair(row));
-  const eligible = valid.filter((row) => !row.emptyReference);
   const aggregate = (rows) => {
-    const referenceWords = rows.reduce((sum, row) => sum + row.referenceWordCount, 0);
-    const referenceCharacters = rows.reduce((sum, row) => sum + row.referenceCharacterCount, 0);
-    const wordErrors = rows.reduce((sum, row) => sum + row.wordErrors, 0);
-    const characterErrors = rows.reduce((sum, row) => sum + row.characterErrors, 0);
+    const eligible = rows.filter((row) => !row.emptyReference);
+    const referenceWords = eligible.reduce((sum, row) => sum + row.referenceWordCount, 0);
+    const referenceCharacters = eligible.reduce((sum, row) => sum + row.referenceCharacterCount, 0);
+    const wordErrors = eligible.reduce((sum, row) => sum + row.wordErrors, 0);
+    const characterErrors = eligible.reduce((sum, row) => sum + row.characterErrors, 0);
     return {
-      sampleCount: rows.length,
-      excludedEmptyReferences: valid.length - eligible.length,
+      sampleCount: eligible.length,
+      excludedEmptyReferences: rows.length - eligible.length,
       referenceWordCount: referenceWords,
       referenceCharacterCount: referenceCharacters,
       wordErrors,
@@ -114,7 +114,7 @@ export function evaluateAsrTranscriptCorpus(records) {
   };
   const slice = (key) => {
     const groups = new Map();
-    for (const row of eligible) {
+    for (const row of valid) {
       if (!groups.has(row[key])) groups.set(row[key], []);
       groups.get(row[key]).push(row);
     }
@@ -125,8 +125,8 @@ export function evaluateAsrTranscriptCorpus(records) {
     version: ARABIC_ASR_EVALUATION_VERSION,
     metricDefinition: "Micro WER and CER after the documented Arabic NFKC/diacritic/alef/ya/hamza/punctuation normalization. WER/CER may exceed 1.0 when insertions dominate.",
     totalSamples: valid.length,
-    excludedEmptyReferences: valid.length - eligible.length,
-    overall: aggregate(eligible),
+    excludedEmptyReferences: valid.filter((row) => row.emptyReference).length,
+    overall: aggregate(valid),
     byLanguage: slice("language"),
     byProvider: slice("provider"),
   };
