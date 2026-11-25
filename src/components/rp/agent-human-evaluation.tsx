@@ -51,7 +51,7 @@ export function AgentHumanEvaluation({ projectId }: { projectId: string }) {
 
   const selected = artifacts.find((item) => item.id === selectedId);
   const parsedContent = (() => {
-    if (!selected) return selected ? selected.content : "";
+    if (!selected) return "";
     try { return JSON.stringify(JSON.parse(selected.content), null, 2); } catch { return selected.content; }
   })();
 
