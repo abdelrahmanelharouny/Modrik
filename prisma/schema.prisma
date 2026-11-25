@@ -153,6 +153,7 @@ model Project {
   changeCostObservations ChangeCostObservation[]
   baselineSnapshots BaselineSnapshot[]
   usageEvents UsageEvent[]
+  retentionHolds RetentionHold[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -1136,6 +1137,8 @@ model RetentionHold {
   id               String   @id @default(cuid())
   organizationId   String
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  projectId        String?
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   resourceType     String
   resourceId       String
   reason           String
@@ -1145,5 +1148,6 @@ model RetentionHold {
   releasedAt       DateTime?
 
   @@index([organizationId, resourceType, resourceId, releasedAt])
+  @@index([organizationId, projectId, releasedAt])
   @@index([organizationId, placedAt])
 }
