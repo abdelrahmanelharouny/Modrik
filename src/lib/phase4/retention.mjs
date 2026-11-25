@@ -1,4 +1,4 @@
-const PROVIDERS = new Set(["zai","model-b","local","openai-compatible"]);
+const PROVIDERS = new Set(["zai","glm","model-b","local","openai-compatible"]);
 export function validateOrganizationPolicyPatch(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Policy payload must be an object.");
   const result = {};

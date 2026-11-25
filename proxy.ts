@@ -232,6 +232,40 @@ export async function proxy(request: NextRequest) {
       }
     }
   }
+  // Organization AI policy is enforced at the request boundary, not merely reflected in UI.
+  if (identity && request.method === "POST") {
+    const projectAiRoute = pathname.startsWith("/api/projects/") &&
+      ["pipeline", "planner", "compliance", "executability", "quality", "wind-tunnel"].some((route) =>
+        pathname.endsWith("/" + route) || pathname.endsWith("/" + route + "/experiment")
+      );
+    const transcriptionRoute = pathname === "/api/transcribe";
+    if (projectAiRoute || transcriptionRoute) {
+      const policy = await db.organizationPolicy.findUnique({
+        where: { organizationId: identity.organizationId },
+        select: { aiProcessingAllowed: true, permittedAiProviders: true },
+      });
+      if (policy) {
+        if (!policy.aiProcessingAllowed) {
+          return applySecurityHeaders(NextResponse.json(
+            { error: "AI processing is disabled by this organization's governance policy", code: "AI_PROCESSING_DISABLED" },
+            { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
+          ));
+        }
+        let permitted: string[] = [];
+        try { const parsed = JSON.parse(policy.permittedAiProviders); if (Array.isArray(parsed)) permitted = parsed.filter((item): item is string => typeof item === "string"); } catch {}
+        const provider = transcriptionRoute
+          ? (process.env.RP_ASR_PROVIDER?.trim() || "zai")
+          : (process.env.RP_LLM_PROVIDER?.trim() || "glm");
+        if (permitted.length && !permitted.includes(provider)) {
+          return applySecurityHeaders(NextResponse.json(
+            { error: "The configured AI provider is not permitted by this organization's policy", code: "AI_PROVIDER_NOT_PERMITTED" },
+            { status: 403, headers: { "Cache-Control": "no-store, max-age=0" } }
+          ));
+        }
+      }
+    }
+  }
+
   // Cookie sessions must not be usable cross-origin for state-changing calls.
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     if (!isSameOriginMutation(request.headers, request.nextUrl.protocol)) {

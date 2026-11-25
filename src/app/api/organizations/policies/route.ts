@@ -8,7 +8,7 @@ import { validateOrganizationPolicyPatch } from "@/lib/phase4/retention.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store, max-age=0" };
-const defaults = { dataRetentionDays:365, evidenceRetentionDays:365, auditRetentionDays:2555, aiProcessingAllowed:true, permittedAiProviders:["zai"], defaultLocale:"en" };
+const defaults = { dataRetentionDays:365, evidenceRetentionDays:365, auditRetentionDays:2555, aiProcessingAllowed:true, permittedAiProviders:["zai","glm","model-b","local","openai-compatible"], defaultLocale:"en" };
 function error(message:string,status:number){return NextResponse.json({error:message},{status,headers:noStore});}
 export async function GET(req:NextRequest){
  const identity=await resolveIdentitySession(req.cookies.get(SESSION_COOKIE)?.value).catch(()=>null);
