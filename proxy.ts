@@ -48,6 +48,11 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
   if (route === "audit/export") {
     return method === "GET" || method === "HEAD" ? "audit:read" : "organization:manage";
   }
+  if (route === "agent-evaluation") {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    const action = body && typeof body === "object" ? String((body as Record<string, unknown>).action ?? "") : "";
+    return action === "results" ? "requirements:approve" : "requirements:review";
+  }
   if (route === "planner/feedback") {
     if (method === "GET" || method === "HEAD") return "projects:read";
     const action = body && typeof body === "object" ? String((body as Record<string, unknown>).action ?? "") : "";
@@ -151,7 +156,7 @@ export async function proxy(request: NextRequest) {
       }
       const permissionBody = (
         (pathname.endsWith("/stakeholders") && request.method === "PATCH") ||
-        (pathname.endsWith("/planner/feedback") && request.method === "POST")
+        ((pathname.endsWith("/planner/feedback") || pathname.endsWith("/agent-evaluation")) && request.method === "POST")
       )
         ? await request.clone().json().catch(() => null)
         : undefined;
