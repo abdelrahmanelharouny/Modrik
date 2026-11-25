@@ -34,8 +34,21 @@ async function resolveCaller(request: NextRequest, projectId: string, permission
   }
   return { identity, project };
 }
+function readPacketDocument(content: string): { packet: Record<string, unknown> | null; packetId: string; experimentId: string } {
+  const parsed = parseContent(content);
+  const rawPacket = parsed.packet;
+  if (!rawPacket || typeof rawPacket !== "object" || Array.isArray(rawPacket)) {
+    return { packet: null, packetId: "", experimentId: "" };
+  }
+  const packet = rawPacket as Record<string, unknown>;
+  return {
+    packet,
+    packetId: typeof packet.packetId === "string" ? packet.packetId : "",
+    experimentId: typeof packet.experimentId === "string" ? packet.experimentId : "",
+  };
+}
 function findByPacketId(rows: Array<{ id: string; content: string }>, packetId: string) {
-  return rows.find((row) => parseContent(row.content).packet?.packetId === packetId);
+  return rows.find((row) => readPacketDocument(row.content).packetId === packetId);
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
@@ -78,8 +91,8 @@ export async function POST(request: NextRequest, { params }: Params) {
       orderBy: { createdAt: "desc" }, take: 100,
       select: { id: true, content: true },
     });
-    const existing = artifacts.find((row) => parseContent(row.content).packet?.experimentId === experimentId);
-    if (existing) return NextResponse.json({ packet: parseContent(existing.content).packet, existing: true }, { headers: noStore });
+    const existing = artifacts.find((row) => readPacketDocument(row.content).experimentId === experimentId);
+    if (existing) return NextResponse.json({ packet: readPacketDocument(existing.content).packet, existing: true }, { headers: noStore });
 
     const runs = await db.plannerRun.findMany({
       where: { projectId, experimentId }, orderBy: { createdAt: "asc" },
@@ -108,7 +121,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         select: { id: true, content: true },
       });
       const raced = prior.find((row) => parseContent(row.content).packet?.experimentId === experimentId);
-      if (raced) return { packet: parseContent(raced.content).packet, existing: true };
+      if (raced) return { packet: readPacketDocument(raced.content).packet, existing: true };
       await tx.artifact.create({ data: { projectId, stage: "PLANNER", kind: "planner_human_eval_packet", content: packetContent } });
       await tx.artifact.create({ data: { projectId, stage: "PLANNER", kind: "planner_human_eval_key", content: keyContent } });
       return { packet: created.packet, existing: false };
