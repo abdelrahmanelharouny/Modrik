@@ -13,7 +13,7 @@ The elicitation stage reloads and attempts the persisted queue on mount, reconne
 Transient failures use capped exponential backoff (5 seconds to 5 minutes). Revision conflicts, missing resources, authorization/permission failures, and validation failures pause automatic retries so the user can inspect the conflict, explicitly rebase an update, or discard the operation. The queue remains FIFO: a failed head item blocks later operations to preserve user intent.
 
 ## Concurrency and crash recovery
-Web Locks are preferred where available. IndexedDB leases provide a fallback with a monotonically increasing fencing token and heartbeat. If a tab crashes, its lease expires and another tab can acquire a newer generation. A stale worker cannot acknowledge or rewrite an item after losing its lease. The server receives the same operation UUID on retry to make uncertain network outcomes idempotent.
+Web Locks are preferred where available. IndexedDB leases provide a fallback with a monotonically increasing fencing token and heartbeat. If a tab crashes, its lease expires and another tab can acquire a newer generation. A stale worker cannot acknowledge or rewrite an item after losing its lease. The server receives the same operation UUID on retry to make uncertain network outcomes idempotent. The Chromium integration also keeps an old tab alive, expires its lease while its heartbeat is paused, lets a second tab claim a strictly newer fencing token, then resumes the old tab and verifies its final lease assertion fails before the stale path can report success.
 
 ## Remaining limits
 - No background sync guarantee while every tab is closed.

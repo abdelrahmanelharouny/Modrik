@@ -561,7 +561,7 @@ The roadmap is ordered by release risk. A feature is not considered complete unt
 
 1. **H1 — engineering and production foundation (repository implementation complete; production release gates remain):** organization/project membership RBAC, tenant-isolation checks, invitation/recovery lifecycle, shared rate limiting, integration tests, stakeholder browser E2E, benchmark validation, and production configuration validation are implemented. Remaining operational gates: reconcile a provider-specific Prisma baseline against each deployed database; verify live Redis/email/database credentials and restore procedures; complete deployment-specific security review. GitHub/Jira OAuth is a separate integration capability still open. Do not treat repository schema inventory as a deployed-database baseline.
 2. **H2 — evaluation and human-evaluation infrastructure (implementation complete; empirical execution remains):** four-arm planner, deterministic benchmark corpus/runner/analysis, blinded human-rating packets, consent and artifact-integrity controls, statistical analysis pipeline, stakeholder response/review workflows, and tracker webhooks are implemented. Remaining empirical work: run full-bench sweeps, calibrate independent raters, recruit study participants/2–3 pilot teams, collect real observations, and analyze/report results.
-3. **H3 — scale and resilience:** organization-scale knowledge memory and advanced governance lifecycle; validate/calibrate the requirement-level change-effort model; expand reverse traceability into continuous change-impact workflows; and stress-test offline cross-tab lease recovery. Offline capture/conflict-safe synchronization, initial reverse traceability, and the first change-effort proxy are already implemented foundations.
+3. **H3 — Scale & Resilience:** implementation adds a durable, idempotent GitHub/Jira/manual change-impact queue; a human-reviewed impact inbox; atomic bulk organization-memory archiving; temporal holdout and change-type-segmented observed-effort calibration; and stale-live-tab offline lease fencing. Repository implementation and CI coverage are delivered in the H3 workstream. Production database migration/worker deployment, representative field observations, cross-project validation, and live-provider/load acceptance remain separate gates.
 
 **Release gates:** H1 repository scope is complete, but production deployment is blocked on external operational/security gates. H2 implementation scope is complete, but field-effectiveness and publication-grade claims require real human data and analysis. H3 is a scale roadmap, not an MVP launch blocker.
 
@@ -570,7 +570,7 @@ The roadmap is ordered by release risk. A feature is not considered complete unt
 ```
 modrik/
 ├── prisma/
-│   ├── schema.prisma              # canonical data model (38 models, SQLite for dev)
+│   ├── schema.prisma              # canonical data model (48 models, SQLite for dev)
 │   └── schema.postgres.prisma     # AUTO-GENERATED postgres variant (db:sync:pg)
 ├── src/
 │   ├── app/
