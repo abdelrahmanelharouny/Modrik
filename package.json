@@ -41,6 +41,7 @@
     "worker:organization-memory-embeddings": "node scripts/run-organization-memory-embedding-worker.mjs",
     "db:backfill:organization-memory-embeddings": "node scripts/backfill-organization-memory-embeddings.mjs",
     "eval:organization-memory": "node scripts/evaluate-organization-memory-retrieval.mjs",
+    "drift:sweep": "bun scripts/run-continuous-drift-sweep.ts",
     "worker:agents": "bun scripts/run-pipeline-worker.ts",
     "worker:agents:once": "bun scripts/run-pipeline-worker.ts --once"
   },
