@@ -574,7 +574,7 @@ export function ElicitationStage({
                     dir="auto"
                     placeholder="Paste transcript, notes or document excerpt… (Arabic and code-switched text are welcome)"
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={(e) => { setContent(e.target.value); if (asrOriginalTranscript) setAsrResearchConsent(false); }}
                   />
                   <div className="flex items-center gap-2">
                     <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} />
@@ -590,11 +590,11 @@ export function ElicitationStage({
                       <div className="flex items-start gap-2">
                         <Checkbox id="asr-research-consent" checked={asrResearchConsent} onCheckedChange={(value) => setAsrResearchConsent(value === true)} />
                         <Label htmlFor="asr-research-consent" className="text-xs leading-5 text-muted-foreground">
-                          I separately consent to saving a de-identified pair of the original ASR transcript and my corrected text for Egyptian Arabic evaluation. No audio is stored.
+                          I separately consent to saving a contact-redacted pair of the original ASR transcript and my corrected text for Egyptian Arabic evaluation. No audio is stored.
                         </Label>
                       </div>
                       <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                        Optional and separate from AI-processing permission. Email addresses and Egyptian mobile numbers are redacted before storage; remove names or other identifiers yourself. This is not full anonymization. Unchecking this means no correction sample is retained.
+                        Optional and separate from AI-processing permission. Email addresses and Egyptian mobile numbers are redacted before storage; remove names and other identifiers yourself. This is not full anonymization. Unchecking this means no correction sample is retained.
                       </p>
                     </div>
                   )}
