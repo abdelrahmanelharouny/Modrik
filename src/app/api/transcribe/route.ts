@@ -30,9 +30,12 @@ function audioLimitMessage(): string {
 }
 
 function scriptOf(text: string): "arabic" | "latin" | "other" {
-  if (ARABIC_RE.test(text)) return "arabic";
-  const letters = text.replace(/[^A-Za-z]/g, "").length;
-  if (letters >= Math.max(3, text.replace(/\s/g, "").length * 0.5)) return "latin";
+  const letters = [...text].filter((character) => /\p{L}/u.test(character));
+  if (!letters.length) return "other";
+  const arabic = letters.filter((character) => ARABIC_RE.test(character)).length;
+  const latin = letters.filter((character) => /[A-Za-z]/u.test(character)).length;
+  if (arabic / letters.length >= 0.35) return "arabic";
+  if (latin / letters.length >= 0.5) return "latin";
   if (CJK_RE.test(text)) return "other";
   return "other";
 }
@@ -70,16 +73,18 @@ export async function POST(req: NextRequest) {
     if (expectedLanguage) {
       const script = scriptOf(text);
       const mismatch =
-        (expectsArabic(expectedLanguage) && script !== "arabic") ||
-        (!expectsArabic(expectedLanguage) && script === "other");
+        (expectedLanguage === "ar-EG" && script !== "arabic") ||
+        (expectedLanguage === "codeswitch" && !ARABIC_RE.test(text)) ||
+        (expectedLanguage === "en" && script !== "latin");
       if (mismatch) {
         // one retry — transient misdetection
         text = await transcribe();
         const script2 = scriptOf(text);
         const stillMismatched =
           text.trim().length > 0 &&
-          ((expectsArabic(expectedLanguage) && script2 !== "arabic") ||
-            (!expectsArabic(expectedLanguage) && script2 === "other"));
+          ((expectedLanguage === "ar-EG" && script2 !== "arabic") ||
+            (expectedLanguage === "codeswitch" && !ARABIC_RE.test(text)) ||
+            (expectedLanguage === "en" && script2 !== "latin"));
         if (stillMismatched) {
           warning =
             "The transcript script does not match the expected language of this evidence. Please review or re-record before saving.";
