@@ -342,6 +342,62 @@ export async function PATCH(req: NextRequest) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return errorResponse("Invalid governance payload", 400);
   }
+  if (body.action === "bulk_archive") {
+    if (!hasOrganizationPermission(permissionContext(identity), "requirements:approve")) {
+      return errorResponse("Insufficient permission for this governance action", 403);
+    }
+    if (!Array.isArray(body.nodeIds) || body.nodeIds.length < 1 || body.nodeIds.length > 50 ||
+      body.nodeIds.some((id: unknown) => typeof id !== "string" || !id.trim() || id.length > 128)) {
+      return errorResponse("nodeIds must contain 1–50 valid knowledge node identifiers", 400);
+    }
+    const ids = body.nodeIds.map((id: string) => id.trim());
+    if (new Set(ids).size !== ids.length) return errorResponse("nodeIds must be unique", 400);
+    if (body.reason !== undefined && typeof body.reason !== "string") return errorResponse("reason must be a string", 400);
+    const reason = normalizeOrganizationMemoryReason(body.reason);
+    try {
+      const result = await db.$transaction(async (tx) => {
+        const nodes = await tx.knowledgeNode.findMany({
+          where: { id: { in: ids }, status: { in: ["accepted", "rejected"] }, project: { organizationId: identity.organizationId, status: { not: "archived" } } },
+          select: { id: true, projectId: true, nodeRef: true, status: true, kind: true, label: true, description: true, confidence: true, updatedAt: true, origin: true, owner: true },
+        });
+        if (nodes.length !== ids.length) return { kind: "conflict" as const };
+        const updatedNodes: (typeof nodes)[number][] = [];
+        for (const node of nodes) {
+          const transition = resolveOrganizationMemoryTransition("archive", node.status);
+          if (!transition) return { kind: "conflict" as const };
+          const changed = await tx.knowledgeNode.updateMany({
+            where: { id: node.id, projectId: node.projectId, status: transition.from },
+            data: { status: transition.to },
+          });
+          if (changed.count !== 1) return { kind: "conflict" as const };
+          await tx.decisionEntry.create({ data: {
+            projectId: node.projectId, stage: "ORG_MEMORY", actor: "human",
+            action: "organization_memory_bulk_archive",
+            detail: JSON.stringify({ actorUserId: identity.userId, nodeId: node.id, nodeRef: node.nodeRef, from: node.status, to: "archived", reason }),
+          } });
+          await tx.organizationAuditEvent.create({ data: {
+            organizationId: identity.organizationId, actorUserId: identity.userId,
+            eventType: "knowledge_memory.bulk_archive", resourceType: "knowledge_node",
+            resourceId: node.id, projectId: node.projectId,
+            summary: "Organization knowledge bulk archived",
+            metadata: JSON.stringify({ nodeRef: node.nodeRef, from: node.status, to: "archived", reason, batchSize: nodes.length }),
+          } });
+          const updated = await tx.knowledgeNode.findUnique({ where: { id: node.id }, select: {
+            id: true, projectId: true, nodeRef: true, kind: true, label: true,
+            description: true, status: true, confidence: true, updatedAt: true, origin: true, owner: true,
+          } });
+          if (!updated) throw new Error("Archived knowledge node could not be reloaded.");
+          await replaceOrganizationMemorySearchDocument(tx, updated);
+          updatedNodes.push(updated);
+        }
+        return { kind: "updated" as const, nodes: updatedNodes };
+      }, { isolationLevel: "Serializable" });
+      if (result.kind === "conflict") return errorResponse("One or more selected items changed or are no longer archivable; nothing was changed. Refresh and retry.", 409);
+      return NextResponse.json({ archivedCount: result.nodes.length, nodes: result.nodes }, { headers: noStore });
+    } catch {
+      return errorResponse("Bulk knowledge archival is temporarily unavailable", 503);
+    }
+  }
   if (typeof body.nodeId !== "string" || !body.nodeId.trim() || body.nodeId.length > 128) {
     return errorResponse("nodeId is required", 400);
   }

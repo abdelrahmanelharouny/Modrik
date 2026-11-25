@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { hasOrganizationPermission } from "../src/lib/security/organization-access.mjs";
@@ -57,4 +58,13 @@ test("governance permissions keep review and approval roles separate", () => {
 test("unknown governance actions fail closed", () => {
   assert.equal(resolveOrganizationMemoryTransition("promote_everything", "proposed"), null);
   assert.equal(resolveOrganizationMemoryTransition("toString", "proposed"), null);
+});
+
+test("bulk organization-memory archive is bounded, atomic, audited and refreshes the search document", () => {
+  const route = fs.readFileSync(new URL("../src/app/api/organizations/knowledge-memory/route.ts", import.meta.url), "utf8");
+  assert.match(route, /body\.nodeIds\.length > 50/);
+  assert.match(route, /isolationLevel: "Serializable"/);
+  assert.match(route, /organizationAuditEvent\.create/);
+  assert.match(route, /replaceOrganizationMemorySearchDocument\(tx, updated\)/);
+  assert.match(route, /hasOrganizationPermission\(permissionContext\(identity\), "requirements:approve"\)/);
 });

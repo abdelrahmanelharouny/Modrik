@@ -28,5 +28,30 @@ test("agent jobs persist, claim once, renew, retry, reclaim and complete",async(
   assert.equal((await prisma.agentJob.updateMany({where:owner,data:{status:"completed"}})).count,0,"old lease cannot complete after reclaim");
   assert.equal((await prisma.agentJob.updateMany({where:buildPipelineJobOwnershipFilter({jobId:job.id,workerId:"worker-c",leaseToken:lease2.leaseToken}),data:{status:"completed",completedAt:new Date(),lockedAt:null,leaseExpiresAt:null,lockedBy:null,leaseToken:null}})).count,1);
   assert.equal((await prisma.agentJob.findUniqueOrThrow({where:{id:job.id}})).status,"completed");
+
+  const requirement=await prisma.requirement.create({data:{projectId,refId:"REQ-IMPACT",text:"An impacted requirement",priority:"Must"}});
+  const impactRun=await prisma.pipelineRun.create({data:{projectId,stage:"DRIFT",status:"running"}});
+  const idempotencyKey="github-webhook:"+suffix;
+  const impactJob=await prisma.agentJob.create({data:{projectId,pipelineRunId:impactRun.id,stage:"DRIFT",jobKind:"change_impact",idempotencyKey,payload:'{"source":"github","signal":"API changed"}',maxAttempts:5}});
+  const finding=await prisma.changeImpactFinding.create({data:{projectId,jobId:impactJob.id,requirementId:requirement.id,requirementRef:requirement.refId,note:"The external contract changed."}});
+  assert.equal(finding.status,"pending");
+  await assert.rejects(
+    () => prisma.changeImpactFinding.create({data:{projectId,jobId:impactJob.id,requirementId:requirement.id,requirementRef:requirement.refId,note:"duplicate"}}),
+    (error) => error && error.code === "P2002",
+    "a retried completion cannot duplicate the same job/requirement finding",
+  );
+  const duplicateRun=await prisma.pipelineRun.create({data:{projectId,stage:"DRIFT",status:"running"}});
+  await assert.rejects(
+    () => prisma.agentJob.create({data:{projectId,pipelineRunId:duplicateRun.id,stage:"DRIFT",jobKind:"change_impact",idempotencyKey,payload:"{}",maxAttempts:5}}),
+    (error) => error && error.code === "P2002",
+    "the same external delivery cannot enqueue a second durable job",
+  );
+  const estimateEntry=await prisma.decisionEntry.create({data:{projectId,stage:"DEBRIEF",actor:"human",action:"change_cost_estimate_registered",detail:'{"schema":"modrik.change-cost.v1","estimate":{"effortPoints":4}}'}});
+  await prisma.changeCostObservation.create({data:{projectId,estimateEntryId:estimateEntry.id,actualHours:6.5,changeType:"feature",note:"Integration observation"}});
+  await assert.rejects(
+    () => prisma.changeCostObservation.create({data:{projectId,estimateEntryId:estimateEntry.id,actualHours:8,changeType:"bugfix"}}),
+    (error) => error && error.code === "P2002",
+    "the same estimate can receive only one actual-effort observation",
+  );
  }finally{if(projectId)await prisma.project.delete({where:{id:projectId}}).catch(()=>undefined);await prisma.$disconnect();}
 });

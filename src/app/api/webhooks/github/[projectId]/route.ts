@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { runDrift } from "@/lib/agents";
+import { enqueueChangeImpactJob } from "@/lib/pipeline/change-impact";
 import { getGitHubWebhookConfig } from "@/lib/integrations";
 import { normalizeGitHubWebhook, verifyGitHubWebhookSignature } from "@/lib/integrations/github-webhook.mjs";
 
@@ -73,53 +73,16 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   const idempotencyKey = "github-webhook:" + projectId + ":" + createHash("sha256").update(deliveryId).digest("hex");
-  let reservation = await db.syncMap.findUnique({ where: { idempotencyKey }, select: { id: true, direction: true } });
-  if (!reservation) {
-    try {
-      reservation = await db.syncMap.create({
-        data: {
-          projectId,
-          kind: "github-webhook",
-          direction: "pending",
-          localLabel: eventName + (payloadAction ? ":" + payloadAction : ""),
-          externalKey: deliveryId,
-          externalUrl: event.url,
-          title: event.title.slice(0, 200),
-          idempotencyKey,
-          leaseExpiresAt: null,
-        },
-        select: { id: true, direction: true },
-      });
-    } catch {
-      reservation = await db.syncMap.findUnique({ where: { idempotencyKey }, select: { id: true, direction: true } });
-      if (!reservation) return NextResponse.json({ error: "Could not reserve webhook delivery" }, { status: 503 });
-    }
-  }
-
-  if (reservation.direction === "pulled") {
-    return NextResponse.json({ ok: true, duplicate: true, deliveryId }, { status: 202 });
-  }
-  const now = new Date();
-  const claimed = await db.syncMap.updateMany({
-    where: { id: reservation.id, direction: { not: "pulled" }, OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }] },
-    data: { direction: "creating", leaseExpiresAt: new Date(now.getTime() + 2 * 60 * 1000), syncedAt: now },
-  });
-  if (claimed.count !== 1) {
-    return NextResponse.json({ ok: true, duplicate: true, processing: true, deliveryId }, { status: 202 });
-  }
-
   try {
-    const result = await runDrift(projectId, event.signal);
-    await db.syncMap.update({
-      where: { id: reservation.id },
-      data: { direction: "pulled", externalKey: event.key, externalUrl: event.url, title: event.title.slice(0, 200), leaseExpiresAt: null, syncedAt: new Date() },
+    const queued = await enqueueChangeImpactJob({
+      projectId, source: "github", idempotencyKey, signal: event.signal.slice(0, 2000),
+      externalKey: event.key, externalUrl: event.url, title: event.title,
     });
-    return NextResponse.json({ ok: true, deliveryId, drift: result }, { status: 202 });
+    return NextResponse.json({
+      ok: true, queued: true, duplicate: queued.duplicate,
+      jobId: queued.jobId, jobStatus: queued.status, deliveryId,
+    }, { status: 202, headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch {
-    await db.syncMap.updateMany({
-      where: { id: reservation.id, direction: "creating" },
-      data: { direction: "failed", leaseExpiresAt: null },
-    });
-    return NextResponse.json({ error: "Drift processing failed; GitHub may safely retry this delivery", deliveryId }, { status: 502 });
+    return NextResponse.json({ error: "Could not enqueue change-impact processing; the provider may retry this delivery", deliveryId }, { status: 503 });
   }
 }

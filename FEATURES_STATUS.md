@@ -35,6 +35,13 @@ This document distinguishes implemented repository behavior, automated evidence,
 - Static-token GitHub/Jira integrations, signed webhook ingestion, idempotent delivery handling and human-reviewed drift.
 - OAuth lifecycle groundwork exists, but provider activation and live OAuth verification remain deferred; static-token integration remains the supported MVP path.
 
+### H3 — scale and resilience
+- GitHub/Jira signed webhook deliveries and manual change signals enqueue durable, idempotent Change Impact jobs; independent workers analyze them with the existing lease/fencing/retry model.
+- Change Impact findings are persisted per job and requirement, remain provisional, and require explicit human confirm/dismiss/resolve decisions recorded in the decision journal and organization audit.
+- Organization knowledge governance supports atomic bulk archival of up to 50 accepted/rejected nodes with per-node audit entries and search-index refresh.
+- Change-effort observations are stored with a database uniqueness guarantee per estimate; calibration fits earlier observations and reports absolute error on the latest temporal holdout, with change-type sample segmentation.
+- Offline browser integration exercises a still-open stale tab losing its lease after a successor claims a newer fencing generation.
+
 ### Arabic, resilience and offline work
 - Arabic-first/bilingual UI, RTL switching, Egyptian Arabic evidence metadata and guarded voice intake/transcription.
 - Offline evidence create/update/delete queue, IndexedDB persistence, stable idempotency keys, FIFO ordering, revision-conflict review, explicit rebase/discard, multi-tab locking and fencing-token protection.
@@ -55,8 +62,8 @@ This document distinguishes implemented repository behavior, automated evidence,
 - Semantic/vector retrieval provider activation, embedding-worker scheduling, measured shadow parity and multilingual human-judged quality evaluation. BM25 remains the safe default.
 - Production-scale indexed organization-memory backfill and measured benefit before enabling indexed serving.
 - Cross-device offline replication, offline file/audio blobs and service-worker background synchronization.
-- Expanded change-cost calibration with representative held-out outcomes and project/change-type segmentation.
-- Advanced retention and bulk-governance workflows beyond the implemented approve/reject/archive lifecycle.
+- Collect representative completed-change observations and validate temporal holdout error across multiple projects and change types before making any predictive claim.
+- Advanced retention policies, reversible bulk operations and bulk deletion beyond atomic bulk archival remain deferred.
 - GitHub/Jira OAuth activation, provider registrations, live provider E2E and provider-side token lifecycle.
 - Real-world ASR quality evaluation for Egyptian Arabic.
 

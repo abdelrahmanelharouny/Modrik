@@ -8,12 +8,12 @@
     "sqlite": {
       "provider": "sqlite",
       "schemaPath": "prisma/schema.prisma",
-      "sha256": "d5b0f2faab23d0bd1d536c3b6754b13119f74ded5bb6a4faf95ef3604bb9d536"
+      "sha256": "2c97d831014fc2507cf3e4d86e73566c2030cc82fcddb9de76ebcc4ccc74063c"
     },
     "postgresql": {
       "provider": "postgresql",
       "schemaPath": "prisma/schema.postgres.prisma",
-      "sha256": "bc3d2fce66859629c7bf4d5b1abb9fc94d6d560df01d3667d21f7da49ce5ae40"
+      "sha256": "4bd7d028c03f1749e9758aaccbf8eeb9694a206aaaf839e343a24d0d8af6fa26"
     }
   },
   "models": [
@@ -56,6 +56,8 @@
     "ReqEdge",
     "ExecScenario",
     "Integration",
+    "ChangeImpactFinding",
+    "ChangeCostObservation",
     "SyncMap",
     "OrganizationInvitation",
     "PasswordResetToken",

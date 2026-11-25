@@ -49,6 +49,9 @@ export function OrganizationKnowledgeReviewManager() {
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkReason, setBulkReason] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const translateMessage = (message: string) => {
     if (!ar) return message;
     const messages: Record<string, string> = {
@@ -134,6 +137,28 @@ export function OrganizationKnowledgeReviewManager() {
     }
   }
 
+  async function bulkArchive() {
+    if (!selectedIds.length || selectedIds.length > 50 || bulkBusy) return;
+    const approved = window.confirm(ar ? `تأكيد أرشفة ${selectedIds.length} عنصر معرفة؟ ستظل سجلات التدقيق محفوظة.` : `Archive ${selectedIds.length} selected knowledge items? Audit history will be retained.`);
+    if (!approved) return;
+    setBulkBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/organizations/knowledge-memory", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        credentials: "same-origin", cache: "no-store",
+        body: JSON.stringify({ action: "bulk_archive", nodeIds: selectedIds, reason: bulkReason }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Bulk archive failed.");
+      setSelectedIds([]); setBulkReason("");
+      setNotice(ar ? "تمت أرشفة " + payload.archivedCount + " عنصرًا في معاملة واحدة." : payload.archivedCount + " items were archived atomically.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Bulk archive failed.");
+      await load();
+    } finally { setBulkBusy(false); }
+  }
+
   return (
     <main dir={ar ? "rtl" : "ltr"} lang={ar ? "ar" : "en"} className="mx-auto min-h-screen w-full max-w-5xl px-4 py-10 text-foreground sm:px-6">
       <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -149,9 +174,9 @@ export function OrganizationKnowledgeReviewManager() {
       </div>
 
       <div role="tablist" aria-label={ar ? "طرق عرض المعرفة" : "Knowledge views"} className="mb-5 flex flex-wrap gap-2 border-b border-border">
-        <button type="button" role="tab" aria-selected={view === "accepted"} onClick={() => setView("accepted")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "accepted" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{ar ? "الذاكرة الموثوقة" : "Trusted memory"}</button>
-        <button type="button" role="tab" aria-selected={view === "review_queue"} onClick={() => setView("review_queue")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "review_queue" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{ar ? "قائمة المراجعة" : "Review queue"}</button>
-        {capabilities.canApprove ? <button type="button" role="tab" aria-selected={view === "archived"} onClick={() => setView("archived")} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "archived" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{ar ? "الأرشيف" : "Archive"}</button> : null}
+        <button type="button" role="tab" aria-selected={view === "accepted"} onClick={() => { setSelectedIds([]); setView("accepted"); }} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "accepted" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{ar ? "الذاكرة الموثوقة" : "Trusted memory"}</button>
+        <button type="button" role="tab" aria-selected={view === "review_queue"} onClick={() => { setSelectedIds([]); setView("review_queue"); }} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "review_queue" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{ar ? "قائمة المراجعة" : "Review queue"}</button>
+        {capabilities.canApprove ? <button type="button" role="tab" aria-selected={view === "archived"} onClick={() => { setSelectedIds([]); setView("archived"); }} className={`border-b-2 px-4 py-3 text-sm font-medium transition ${view === "archived" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{ar ? "الأرشيف" : "Archive"}</button> : null}
       </div>
 
       {view !== "archived" ? <div className="mb-5 flex flex-wrap gap-2 text-xs">
@@ -165,6 +190,11 @@ export function OrganizationKnowledgeReviewManager() {
         <button type="submit" disabled={loading} className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"><Filter className="h-4 w-4" />{ar ? "تطبيق" : "Apply"}</button>
       </form>
 
+      {view === "accepted" && capabilities.canApprove ? <div className="mb-4 grid gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-[1fr_auto] sm:items-end">
+        <label className="grid gap-1 text-xs text-muted-foreground">{ar ? "سبب الأرشفة الجماعية" : "Bulk archive rationale"}<input value={bulkReason} onChange={(event) => setBulkReason(event.target.value.slice(0, 500))} maxLength={500} placeholder={ar ? "سبب اختياري يُسجل في التدقيق لكل عنصر" : "Optional reason recorded for each item"} className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary" /></label>
+        <button type="button" disabled={!selectedIds.length || selectedIds.length > 50 || bulkBusy || !!busyId} onClick={() => void bulkArchive()} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-medium hover:bg-secondary disabled:opacity-50"><Archive className="h-3.5 w-3.5" />{ar ? "أرشفة المحدد (" + selectedIds.length + ")" : "Archive selected (" + selectedIds.length + ")"}</button>
+      </div> : null}
+
       {error ? <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{translateMessage(error)}</p> : null}
       {notice ? <p role="status" className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-primary">{translateMessage(notice)}</p> : null}
       {view === "accepted" && retrievalMode === "streaming_bm25_keyset" ? <p role="status" className="mb-4 text-xs text-muted-foreground">{ar ? `تم فحص ${candidatesScanned.toLocaleString()} سجل معرفة مصرح به عبر ${candidatePages.toLocaleString()} صفحة قاعدة بيانات و${candidatePasses} تمريرة BM25 خلال ${retrievalDurationMs.toLocaleString()} مللي ثانية. تشمل النتائج المطابقات الأقدم وترتب عالميًا داخل نطاق مؤسستك.` : `Search evaluated ${candidatesScanned.toLocaleString()} authorized knowledge records across ${candidatePages.toLocaleString()} database pages and ${candidatePasses} BM25 passes in ${retrievalDurationMs.toLocaleString()} ms. Older matching records are included; results are ranked globally within your organization scope.`}</p> : null}
@@ -174,6 +204,7 @@ export function OrganizationKnowledgeReviewManager() {
         {loading ? <p className="p-6 text-sm text-muted-foreground">{ar ? `جارٍ تحميل ${view === "accepted" ? "الذاكرة الموثوقة" : "قائمة المراجعة"}…` : `Loading ${view === "accepted" ? "trusted memory" : "review queue"}…`}</p> : items.length === 0 ? <div className="p-10 text-center"><BookOpenCheck className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="font-medium">{view === "accepted" ? (ar ? "لا توجد معرفة موثوقة بعد" : "No trusted knowledge yet") : view === "archived" ? (ar ? "الأرشيف فارغ" : "Archive is empty") : (ar ? "قائمة المراجعة فارغة" : "Review queue is clear")}</p><p className="mt-1 text-sm text-muted-foreground">{view === "accepted" ? (ar ? "ستظهر هنا المعرفة التي يعتمدها مسؤول المؤسسة." : "Knowledge approved by an organization approver will appear here.") : view === "archived" ? (ar ? "تظهر هنا العناصر المؤرشفة مع الاحتفاظ بسجلها." : "Archived items remain visible here with their audit history.") : (ar ? "ستظهر هنا إضافات المعرفة الجديدة عندما تصبح جاهزة للمراجعة." : "New knowledge submissions will appear here when they are ready for review.")}</p></div> : (
           <div className="divide-y divide-border">{items.map((item) => (
             <article key={item.id} className="p-5">
+              {view === "accepted" && capabilities.canApprove ? <label className="mb-2 inline-flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={bulkBusy || !!busyId || (!selectedIds.includes(item.id) && selectedIds.length >= 50)} onChange={(event) => setSelectedIds((current) => event.target.checked ? (current.length >= 50 ? current : [...current, item.id]) : current.filter((id) => id !== item.id))} />{ar ? "تحديد للأرشفة الجماعية" : "Select for bulk archive"}</label> : null}
               <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><span className="rounded-md bg-secondary px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">{ar ? KNOWLEDGE_KIND_AR[item.kind] ?? item.kind.replaceAll("_", " ") : item.kind.replaceAll("_", " ")}</span><span className="font-mono text-[11px] text-muted-foreground">{item.nodeRef}</span>{view === "accepted" && item.retrieval ? <span className="rounded border border-primary/30 px-1.5 py-0.5 font-mono text-[9px] text-primary">{item.retrieval.mode.toUpperCase()} {item.retrieval.score.toFixed(3)}</span> : null}</div><h3 className="text-base font-semibold">{item.label}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description || (ar ? "لم يتم تقديم وصف." : "No description supplied.")}</p></div><div className="shrink-0 text-start text-xs text-muted-foreground"><p>{item.projectName || (ar ? "مشروع" : "Project")}</p><p className="mt-1 font-mono">{item.projectId}</p><p className="mt-1">{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : (ar ? "التاريخ غير متاح" : "Date unavailable")}</p></div></div>
               {view === "review_queue" ? <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                 <label className="grid gap-1.5 text-xs text-muted-foreground">{ar ? "مبررات القرار" : "Decision rationale"} <span className="text-[11px]">{ar ? "اختياري · حتى 500 حرف" : "Optional · up to 500 characters"}</span><textarea value={reasons[item.id] ?? ""} onChange={(event) => setReasons((current) => ({ ...current, [item.id]: event.target.value.slice(0, 500) }))} rows={2} maxLength={500} placeholder={ar ? "اشرح سبب قبول هذا العنصر أو رفضه…" : "Explain why this should be accepted or rejected…"} className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary" /></label>

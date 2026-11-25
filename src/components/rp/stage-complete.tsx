@@ -20,6 +20,7 @@ import { ICONS } from "@/components/rp/icons";
 import { PlannerLab, CalibrationPanel, ExecutabilitySim, SelfAuditPanel, IntegrationsConsole } from "@/components/rp/debrief-instruments";
 import { KnowledgeGraphExplorer } from "@/components/rp/knowledge-graph-explorer";
 import { ChangeCostCalibration } from "@/components/rp/change-cost-calibration";
+import { ChangeImpactInbox } from "@/components/rp/change-impact-inbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1073,6 +1074,17 @@ export function DebriefBay({ project, refresh }: { project: ProjectDTO; refresh:
             }
           />
           <IntegrationsConsole projectId={project.id} />
+        </HudPanel>
+      </Reveal>
+
+      <Reveal>
+        <HudPanel className="p-5">
+          <SectionHead
+            icon={RadarIcon}
+            title={ar ? "مراجعة أثر التغييرات" : "Change-impact review inbox"}
+            blurb={ar ? "أحداث GitHub وJira وإشارات التغيير اليدوية تُحلل في الخلفية، ولا تتحول إلى مخاطر مؤكدة قبل مراجعتك." : "GitHub/Jira events and manual change signals are analyzed durably in the background. Findings stay provisional until a human reviews them."}
+          />
+          <ChangeImpactInbox projectId={project.id} />
         </HudPanel>
       </Reveal>
 
