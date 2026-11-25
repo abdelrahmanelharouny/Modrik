@@ -34,7 +34,8 @@ interface CalibrationResponse { records: CalibrationRecord[]; calibration: Calib
 
 function OutcomeEditor({ projectId, record, onSaved }: { projectId: string; record: CalibrationRecord; onSaved: () => Promise<void> }) {
   const [hours, setHours] = useState("");
-  const [note, setNote] = useState("");\n  const [changeType, setChangeType] = useState("feature");
+  const [note, setNote] = useState("");
+  const [changeType, setChangeType] = useState("feature");
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
   const { lang } = useLang();
