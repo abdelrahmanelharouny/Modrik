@@ -515,7 +515,7 @@ export function ElicitationStage({
   });
   const answered = project.questions.filter((q) => q.answered).length;
   const carried = project.questions.filter((q) => q.resolution === "proceed_with_uncertainty").length;
-  const transcript = (text: string) => setContent((c) => (c ? `${c}\n${text}` : text));
+  const transcript = (text: string) => { setAsrResearchConsent(false); setContent((c) => (c ? `${c}\n${text}` : text)); };
 
   return (
     <div className="space-y-6">
