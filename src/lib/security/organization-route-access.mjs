@@ -15,6 +15,11 @@ const ROUTE_PERMISSIONS = Object.freeze({
   "/api/invitations": Object.freeze({ GET: "members:manage", HEAD: "members:manage", POST: "members:manage" }),
   "/api/invitations/revoke": Object.freeze({ POST: "members:manage" }),
   "/api/organizations/knowledge-memory": Object.freeze({ GET: "organization:read", HEAD: "organization:read", PATCH: "organization:read" }),
+  "/api/organizations": Object.freeze({ GET: "organization:read", HEAD: "organization:read", POST: "organizations:create" }),
+  "/api/organizations/portfolio": Object.freeze({ GET: "organization:read", HEAD: "organization:read" }),
+  "/api/organizations/usage": Object.freeze({ GET: "organization:read", HEAD: "organization:read" }),
+  "/api/organizations/policies": Object.freeze({ GET: "organization:read", HEAD: "organization:read", PATCH: "organization:manage" }),
+  "/api/organizations/compliance/export": Object.freeze({ GET: "audit:read", HEAD: "audit:read" }),
   "/api/organizations/audit": Object.freeze({ GET: "audit:read", HEAD: "audit:read" }),
 });
 

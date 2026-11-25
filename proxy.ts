@@ -42,6 +42,11 @@ function projectPermission(pathname: string, method: string, body?: unknown): st
   if (route.startsWith("integrations/oauth/")) {
     return "integrations:manage";
   }
+  if (route === "baselines") {
+    if (method === "GET" || method === "HEAD") return "projects:read";
+    if (method === "POST") return "requirements:approve";
+    return "organization:manage";
+  }
   if (route === "integrations") {
     return method === "GET" || method === "HEAD" ? "projects:read" : "integrations:manage";
   }

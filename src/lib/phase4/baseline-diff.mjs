@@ -31,7 +31,7 @@ export function compareBaselineSnapshots(beforeInput, afterInput) {
   const before = object(beforeInput), after = object(afterInput);
   const requirements = compareCollection(before.requirements, after.requirements, "refId", ["text","type","priority","status","ambiguity","confidence","verifyStatus","driftStatus","links"]);
   const stories = compareCollection(before.stories, after.stories, "refId", ["title","narrative","acceptance","status","investScore"]);
-  const conflicts = compareCollection(before.conflicts, after.conflicts, "refId", ["kind","severity","description","status","resolution"]);
+  const conflicts = compareCollection(before.conflicts, after.conflicts, "id", ["kind","severity","description","status","resolution"]);
   return {
     from: before.version ?? null,
     to: after.version ?? null,
