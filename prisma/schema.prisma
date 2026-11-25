@@ -144,6 +144,8 @@ model Project {
   @@index([createdByUserId])
   organizationMemoryEmbeddings OrganizationMemoryEmbedding[]
   organizationMemoryEmbeddingJobs OrganizationMemoryEmbeddingJob[]
+  changeImpactFindings ChangeImpactFinding[]
+  changeCostObservations ChangeCostObservation[]
 }
 
 // Three-group between-subjects user study (dev item 14)
@@ -188,6 +190,7 @@ model DecisionEntry {
   action    String // answered_question | proceed_with_uncertainty | selected_problem | ...
   detail    String   @default("")
   createdAt DateTime @default(now())
+  changeCostObservation ChangeCostObservation?
 }
 
 // Project-scoped learning memory (I4): glossary terms + lessons never shared implicitly
@@ -647,6 +650,8 @@ model AgentJob {
   project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   pipelineRunId  String      @unique
   pipelineRun    PipelineRun @relation(fields: [pipelineRunId], references: [id], onDelete: Cascade)
+  jobKind        String      @default("pipeline") // pipeline | change_impact
+  idempotencyKey String?     @unique // deduplicates external and manual change-impact submissions
   stage          String
   status         String      @default("queued") // queued | running | retry_wait | completed | dead
   payload        String      @default("{}") // bounded non-secret execution options
@@ -662,6 +667,7 @@ model AgentJob {
   completedAt    DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  changeImpactFindings ChangeImpactFinding[]
 
   @@index([status, availableAt, createdAt])
   @@index([status, leaseExpiresAt])
@@ -705,6 +711,7 @@ model Requirement {
   qualityAssessments RequirementQualityAssessment[]
   stakeholderPositions StakeholderPosition[]
   negotiationDecisions NegotiationDecision[]
+  changeImpactFindings ChangeImpactFinding[]
 }
 
  
@@ -835,6 +842,44 @@ model Integration {
 }
 
 // One row per externally synced work item (bidirectional trace)
+
+model ChangeImpactFinding {
+  id             String      @id @default(cuid())
+  projectId      String
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            AgentJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  requirementId  String?
+  requirement    Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  requirementRef String
+  note           String      @default("")
+  status         String      @default("pending") // pending | confirmed | dismissed | resolved
+  reviewNote     String?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([jobId, requirementRef])
+  @@index([projectId, status, createdAt])
+  @@index([requirementId, status])
+}
+
+model ChangeCostObservation {
+  id              String        @id @default(cuid())
+  projectId       String
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  estimateEntryId String        @unique
+  estimateEntry   DecisionEntry @relation(fields: [estimateEntryId], references: [id], onDelete: Cascade)
+  actualHours     Float
+  changeType      String        @default("other") // feature | bugfix | refactor | migration | infrastructure | security | other
+  note            String        @default("")
+  recordedBy      String?
+  createdAt       DateTime      @default(now())
+
+  @@index([projectId, changeType, createdAt])
+}
+
 model SyncMap {
   id              String   @id @default(cuid())
   projectId       String
