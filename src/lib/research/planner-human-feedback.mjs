@@ -121,7 +121,7 @@ export function analyzePlannerHumanRatings(packet, answerKey, reviews) {
     const exact = left.filter((value, index) => value === right[index]).length;
     const withinOne = left.filter((value, index) => Math.abs(value - right[index]) <= 1).length;
     interRater[dimension] = {
-      n: left.length, weightedKappa: weightedKappa(left, right), exactAgreement: exact / left.length,
+      n: left.length, weightedKappa: left.length >= 10 ? weightedKappa(left, right) : null, reliabilityStatus: left.length >= 10 ? "descriptive-agreement-estimate" : "insufficient-independent-items", exactAgreement: exact / left.length,
       withinOneAgreement: withinOne / left.length,
       meanAbsoluteDifference: left.reduce((sum, value, index) => sum + Math.abs(value - right[index]), 0) / left.length,
     };
