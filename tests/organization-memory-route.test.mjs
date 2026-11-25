@@ -105,3 +105,14 @@ test("semantic provider network request is completed before opening the database
   assert.ok(preflight < transaction, "provider network I/O must not hold the serializable database transaction open");
   assert.match(source, /queryEmbedding: semanticContext\.queryEmbedding/);
 });
+
+
+test("semantic and hybrid retrieval are selectable but remain environment-gated", () => {
+  const source = fs.readFileSync(routePath, "utf8");
+  assert.match(source, /retrievalMode = params\.get\("retrieval"\) \?\? "hybrid"/);
+  assert.match(source, /\["lexical", "semantic", "hybrid"\]\.includes\(retrievalMode\)/);
+  assert.match(source, /retrievalMode === "semantic"/);
+  assert.match(source, /retrievalMode === "lexical"/);
+  assert.match(source, /semanticFallbackReason: "semantic_read_disabled"/);
+  assert.match(source, /ORGANIZATION_MEMORY_SEMANTIC_READ_ENABLED !== "true"/);
+});
