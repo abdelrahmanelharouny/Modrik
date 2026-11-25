@@ -38,6 +38,27 @@ function findByPacketId(rows: Array<{ id: string; content: string }>, packetId: 
   return rows.find((row) => parseContent(row.content).packet?.packetId === packetId);
 }
 
+export async function GET(request: NextRequest, { params }: Params) {
+  const { id: projectId } = await params;
+  const access = await resolveCaller(request, projectId, "requirements:review");
+  if ("response" in access) return access.response;
+  const runs = await db.plannerRun.findMany({
+    where: { projectId, experimentId: { not: null } },
+    orderBy: { createdAt: "desc" }, take: 48,
+    select: { experimentId: true, arm: true },
+  });
+  const experiments = new Map<string, Set<string>>();
+  for (const run of runs) {
+    if (!run.experimentId) continue;
+    if (!experiments.has(run.experimentId)) experiments.set(run.experimentId, new Set());
+    experiments.get(run.experimentId)!.add(run.arm);
+  }
+  const experimentId = [...experiments.entries()].find(([, arms]) =>
+    ["single_shot", "random", "llm", "impact_aware"].every((arm) => arms.has(arm))
+  )?.[0] ?? null;
+  return NextResponse.json({ experimentId, ready: Boolean(experimentId) }, { headers: noStore });
+}
+
 export async function POST(request: NextRequest, { params }: Params) {
   const { id: projectId } = await params;
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
