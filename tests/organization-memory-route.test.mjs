@@ -98,7 +98,7 @@ test("indexed shadow mode does not make a duplicate semantic provider request", 
 
 test("semantic provider network request is completed before opening the database transaction", () => {
   const source = fs.readFileSync(routePath, "utf8");
-  const preflight = source.indexOf("const queryEmbedding = await provider.embed(search!, { role: "query" })");
+  const preflight = source.indexOf('const queryEmbedding = await provider.embed(search!, { role: "query" })');
   const transaction = source.indexOf("const scan = rankedSearch ? await db.$transaction");
   assert.ok(preflight >= 0, "semantic query embedding preflight must exist");
   assert.ok(transaction >= 0, "ranked database transaction must exist");
